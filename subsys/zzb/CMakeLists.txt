@@ -9,6 +9,7 @@ zephyr_library_sources(
   common/queue.c
   common/timer.c
   sec/aux_hdr.c
+  sec/ccm.c
   sec/hmac.c
   sec/install_code.c
   sec/mmo.c
