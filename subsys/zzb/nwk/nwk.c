@@ -45,6 +45,10 @@ int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_a
 		return -EINVAL;
 	}
 
+	if (node->nwk.op != ZZB_NWK_OP_NONE) {
+		return -EBUSY;
+	}
+
 	if (!broadcast) {
 		next_hop = zzb_nwk_neighbor_find_short(node, dst_addr);
 	}
@@ -156,17 +160,7 @@ void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf)
 	zzb_nlde_data_ind(node, buf, hdr.dst, hdr.src, hdr.flags & ZZB_NWK_SECURITY);
 }
 
-/* Network discovery and join arrive with milestone 8 */
-
-void zzb_mlme_beacon_notify_ind(struct zzb_node *node, struct net_buf *buf, uint8_t channel,
-				uint16_t superframe)
-{
-	net_buf_unref(buf);
-}
-
-void zzb_mlme_scan_conf(struct zzb_node *node, enum zzb_mac_status status)
-{
-}
+/* The join and the keepalive use these confirms */
 
 void zzb_mlme_poll_conf(struct zzb_node *node, enum zzb_mac_status status)
 {

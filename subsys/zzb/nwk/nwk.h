@@ -10,6 +10,7 @@
 #include <zephyr/settings/settings.h>
 
 #include "mac/mac.h"
+#include "nwk/frame.h"
 #include "sec/mmo.h"
 
 struct zzb_node;
@@ -50,14 +51,45 @@ enum zzb_nwk_relationship {
 	ZZB_NWK_REL_UNAUTH_CHILD = 0x05,
 };
 
+enum zzb_nwk_device_type {
+	ZZB_NWK_DEVICE_COORDINATOR = 0x00,
+	ZZB_NWK_DEVICE_ROUTER = 0x01,
+	ZZB_NWK_DEVICE_END_DEVICE = 0x02,
+};
+
 struct zzb_nwk_neighbor {
 	bool in_use;
 	uint64_t ext_addr;
 	uint16_t short_addr;
+	enum zzb_nwk_device_type device_type;
 	enum zzb_nwk_relationship relationship;
 	uint8_t lqi;
 	/* Lowest accepted incoming frame counter per key slot (R22 4.3.1.2 step 6) */
 	uint32_t in_fc[2];
+	/* Network discovery fields (R22 Table 3-64), from the beacon of a router */
+	struct zzb_nwk_beacon beacon;
+	uint16_t pan_id;
+	uint8_t channel;
+	bool permit_join;
+	bool potential_parent;
+};
+
+/* Network descriptor of NLME-NETWORK-DISCOVERY.confirm (R22 Table 3-12) */
+struct zzb_nwk_network {
+	uint64_t ext_pan_id;
+	uint16_t pan_id;
+	uint8_t channel;
+	uint8_t update_id;
+	/* ORed over the routers of the network */
+	bool permit_join;
+	bool router_capacity;
+	bool ed_capacity;
+};
+
+/* The NLME procedure in progress */
+enum zzb_nwk_op {
+	ZZB_NWK_OP_NONE,
+	ZZB_NWK_OP_DISCOVERY,
 };
 
 /* Outgoing NWK frame counter, global to the node, and its saved watermark */
@@ -72,6 +104,9 @@ struct zzb_nwk {
 	struct zzb_nib nib;
 	struct zzb_nwk_fc fc;
 	struct zzb_nwk_neighbor neighbors[CONFIG_ZZB_NEIGHBOR_COUNT];
+	struct zzb_nwk_network networks[CONFIG_ZZB_NWK_NETWORK_COUNT];
+	size_t network_count;
+	enum zzb_nwk_op op;
 };
 
 /* Clears the NWK state. The NIB has no PAN ID, no network address and a random sequence number. */
@@ -108,8 +143,9 @@ int zzb_nwk_fc_next(struct zzb_node *node, uint32_t *fc);
  * NLDE-DATA.request. buf holds the NSDU after ZZB_NLDE_HEADROOM bytes of headroom, and its
  * metadata the NSDU handle. Radius 0 selects ZZB_NWK_DEFAULT_RADIUS. The frame goes to the
  * neighbor with the network address dst_addr, otherwise to the parent. Returns -EINVAL for a
- * reserved destination, -ENOTCONN without a network address or a parent, -EMSGSIZE without the
- * headroom, or an error of zzb_nwk_secure() or MCPS-DATA.request.
+ * reserved destination, -EBUSY while an NLME procedure runs, -ENOTCONN without a network address
+ * or a parent, -EMSGSIZE without the headroom, or an error of zzb_nwk_secure() or
+ * MCPS-DATA.request.
  */
 int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr, uint8_t radius,
 		      bool secure);
@@ -137,6 +173,20 @@ int zzb_nwk_secure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len);
  */
 int zzb_nwk_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len);
 
+/*
+ * NLME-NETWORK-DISCOVERY.request: an active scan of channels, bit n selecting channel n, for
+ * aBaseSuperframeDuration * (2^duration + 1) symbols per channel. Returns -EBUSY while an NLME
+ * procedure runs, or an error of MLME-SCAN.request.
+ */
+int zzb_nlme_network_discovery_req(struct zzb_node *node, uint32_t channels, uint8_t duration);
+
+/*
+ * Defined by ZDO. status is the status of MLME-SCAN.confirm. networks stay valid until the next
+ * discovery.
+ */
+void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,
+				     const struct zzb_nwk_network *networks, size_t count);
+
 /* Adds a neighbor, or returns NULL if the table is full. The caller checks for a duplicate. */
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_add(struct zzb_node *node, uint64_t ext_addr,
 					      uint16_t short_addr,
@@ -145,6 +195,8 @@ struct zzb_nwk_neighbor *zzb_nwk_neighbor_add(struct zzb_node *node, uint64_t ex
 void zzb_nwk_neighbor_remove(struct zzb_nwk_neighbor *neighbor);
 
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_find_ext(struct zzb_node *node, uint64_t ext_addr);
+
+/* Skips the entries without relationship, which come from beacons */
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_find_short(struct zzb_node *node, uint16_t short_addr);
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_parent(struct zzb_node *node);
 

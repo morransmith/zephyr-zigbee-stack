@@ -15,6 +15,9 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_mcps_data_req, struct zzb_node *, struct net_buf
 DEFINE_FAKE_VOID_FUNC(zzb_nlde_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
 DEFINE_FAKE_VOID_FUNC(zzb_nlde_data_ind, struct zzb_node *, struct net_buf *, uint16_t, uint16_t,
 		      bool);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_mlme_scan_req, struct zzb_node *, uint32_t, uint8_t);
+DEFINE_FAKE_VOID_FUNC(zzb_nlme_network_discovery_conf, struct zzb_node *, uint8_t,
+		      const struct zzb_nwk_network *, size_t);
 
 struct frame_copy sent[4];
 struct frame_copy data_ind;
@@ -67,6 +70,8 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_mcps_data_req);
 	RESET_FAKE(zzb_nlde_data_conf);
 	RESET_FAKE(zzb_nlde_data_ind);
+	RESET_FAKE(zzb_mlme_scan_req);
+	RESET_FAKE(zzb_nlme_network_discovery_conf);
 	FFF_RESET_HISTORY();
 
 	zzb_mcps_data_req_fake.custom_fake = mcps_data_req_take;
@@ -85,4 +90,22 @@ void check_no_buffer_leak(void)
 	ARRAY_FOR_EACH(bufs, i) {
 		net_buf_unref(bufs[i]);
 	}
+}
+
+void notify_beacon(struct zzb_node *node, const struct zzb_nwk_beacon *beacon, uint16_t pan_id,
+		   uint16_t short_addr, uint8_t channel, uint16_t superframe, uint8_t lqi)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	struct zzb_frame_meta *meta;
+
+	zassert_not_null(buf);
+	zzb_nwk_beacon_write(beacon, net_buf_add(buf, ZZB_NWK_BEACON_LEN));
+	meta = zzb_frame_meta(buf);
+	meta->src = (struct zzb_mac_addr){
+		.mode = ZZB_MAC_ADDR_SHORT,
+		.pan_id = pan_id,
+		.short_addr = short_addr,
+	};
+	meta->lqi = lqi;
+	zzb_mlme_beacon_notify_ind(node, buf, channel, superframe);
 }

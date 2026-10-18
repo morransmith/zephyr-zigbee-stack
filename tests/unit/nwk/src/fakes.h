@@ -11,6 +11,7 @@
 
 #include "common/buf.h"
 #include "mac/mac.h"
+#include "nwk/frame.h"
 #include "nwk/nwk.h"
 
 DECLARE_FAKE_VOID_FUNC(zzb_mlme_set_pan_id, struct zzb_node *, uint16_t);
@@ -19,6 +20,9 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_mcps_data_req, struct zzb_node *, struct net_bu
 DECLARE_FAKE_VOID_FUNC(zzb_nlde_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
 DECLARE_FAKE_VOID_FUNC(zzb_nlde_data_ind, struct zzb_node *, struct net_buf *, uint16_t, uint16_t,
 		       bool);
+DECLARE_FAKE_VALUE_FUNC(int, zzb_mlme_scan_req, struct zzb_node *, uint32_t, uint8_t);
+DECLARE_FAKE_VOID_FUNC(zzb_nlme_network_discovery_conf, struct zzb_node *, uint8_t,
+		       const struct zzb_nwk_network *, size_t);
 
 /* Copy of a frame passed to MCPS-DATA.request or NLDE-DATA.indication */
 struct frame_copy {
@@ -43,5 +47,9 @@ struct zzb_node *test_node(int index);
 
 /* Resets every fake */
 void reset_fakes(void);
+
+/* Passes a beacon from short_addr in PAN pan_id as MLME-BEACON-NOTIFY.indication */
+void notify_beacon(struct zzb_node *node, const struct zzb_nwk_beacon *beacon, uint16_t pan_id,
+		   uint16_t short_addr, uint8_t channel, uint16_t superframe, uint8_t lqi);
 
 #endif /* ZZB_TESTS_UNIT_NWK_FAKES_H_ */

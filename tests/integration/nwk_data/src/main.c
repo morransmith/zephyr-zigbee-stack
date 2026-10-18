@@ -64,6 +64,12 @@ void zzb_nlde_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_stat
 	conf.count++;
 }
 
+/* NLME callbacks, which ZDO defines from milestone 10 */
+void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,
+				     const struct zzb_nwk_network *networks, size_t count)
+{
+}
+
 /* The test thread is cooperative and has a lower priority than the stack thread */
 static void run_stack(void)
 {

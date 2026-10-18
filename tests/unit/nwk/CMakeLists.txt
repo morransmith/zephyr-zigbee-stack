@@ -11,6 +11,7 @@ target_sources(app PRIVATE
   src/fakes.c
   src/fc.c
   src/frame.c
+  src/join.c
   src/neighbor.c
   src/nib.c
   src/security.c

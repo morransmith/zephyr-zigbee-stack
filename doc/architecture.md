@@ -245,7 +245,7 @@ R22 3.6.2.2:
 ### Network discovery
 
 - `zzb_nlme_network_discovery_req(node, channels, duration)` issues an active MLME-SCAN. At the start of every scan the entries with relationship none are removed and the remaining entries get potential parent set (R22 3.6.1.4.1).
-- Beacons with stack profile 2, protocol version 2 and a short source address are used. Each one updates the descriptor of its network (`CONFIG_ZZB_NWK_NETWORK_COUNT` entries, default 8): extended PAN ID, PAN ID, channel, stack profile, update ID, and permit joining, router capacity and end device capacity ORed over the routers of the network.
+- Beacons with stack profile 2, protocol version 2 and a short source address are used. Each one updates the descriptor of its network (`CONFIG_ZZB_NWK_NETWORK_COUNT` entries, default 8): extended PAN ID, PAN ID, channel, update ID, and permit joining, router capacity and end device capacity ORed over the routers of the network.
 - A beacon with association permit set updates the neighbor entry with the same extended PAN ID and short address, or adds one; a full table keeps the descriptor and drops the entry. Beacons without association permit do not enter the table, so the networks on lower channels cannot fill it before the network to join is scanned.
 - `zzb_nlme_network_discovery_conf(node, status, networks, count)` carries the MLME-SCAN status. The descriptors stay valid until the next discovery.
 

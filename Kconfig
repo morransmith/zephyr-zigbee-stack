@@ -63,4 +63,8 @@ config ZZB_NEIGHBOR_COUNT
 	int "Neighbor table entries"
 	default 16
 
+config ZZB_NWK_NETWORK_COUNT
+	int "Networks reported by a network discovery"
+	default 8
+
 endif # ZZB

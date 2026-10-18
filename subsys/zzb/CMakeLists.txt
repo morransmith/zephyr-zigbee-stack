@@ -21,6 +21,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_MAC mac/assoc.c mac/mac.c mac/poll.c mac
 zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
   nwk/fc.c
   nwk/frame.c
+  nwk/join.c
   nwk/neighbor.c
   nwk/nib.c
   nwk/nwk.c
