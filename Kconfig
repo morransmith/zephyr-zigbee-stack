@@ -37,4 +37,12 @@ config ZZB_MAC
 	help
 	  IEEE 802.15.4 MAC sublayer. Tests that fake the MAC turn it off.
 
+config ZZB_NWK
+	bool "NWK layer"
+	default ZZB_MAC
+	select SETTINGS
+	help
+	  Zigbee network layer. The application enables a settings backend for the
+	  frame counter. Tests that fake NWK turn it off.
+
 endif # ZZB
