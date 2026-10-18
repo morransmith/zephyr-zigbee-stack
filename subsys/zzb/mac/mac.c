@@ -35,6 +35,18 @@ void zzb_mac_set_radio_short_addr(struct zzb_node *node, uint16_t short_addr)
 		   (struct ieee802154_filter){.short_addr = short_addr});
 }
 
+void zzb_mlme_set_pan_id(struct zzb_node *node, uint16_t pan_id)
+{
+	node->mac.pan_id = pan_id;
+	zzb_mac_set_radio_pan_id(node, pan_id);
+}
+
+void zzb_mlme_set_short_addr(struct zzb_node *node, uint16_t short_addr)
+{
+	node->mac.short_addr = short_addr;
+	zzb_mac_set_radio_short_addr(node, short_addr);
+}
+
 int zzb_mac_set_radio_channel(struct zzb_node *node, uint8_t channel)
 {
 	const struct ieee802154_radio_api *api = node->port.dev->api;

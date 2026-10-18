@@ -86,6 +86,10 @@ int zzb_mlme_poll_req(struct zzb_node *node, const struct zzb_mac_addr *coord);
 int zzb_mlme_assoc_req(struct zzb_node *node, uint8_t channel, const struct zzb_mac_addr *coord,
 		       uint8_t capability);
 
+/* MLME-SET of macPANId and macShortAddress, which also programs the radio filter */
+void zzb_mlme_set_pan_id(struct zzb_node *node, uint16_t pan_id);
+void zzb_mlme_set_short_addr(struct zzb_node *node, uint16_t short_addr);
+
 /* Defined by NWK */
 void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status);
 
