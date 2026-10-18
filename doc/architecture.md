@@ -135,10 +135,12 @@ The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not 
 
 `sec/` contains pure functions on top of PSA Crypto:
 
-- AES-128-ECB (`PSA_WANT_ALG_ECB_NO_PADDING`) for the Matyas-Meyer-Oseas hash (R22 Annex B.6);
-- AES-CCM with a 4-byte tag, `PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, 4)`, for security level 5 (ENC-MIC-32), the only level used on air;
-- HMAC-MMO for the key-transport key, key-load key and verify-key hash (R22 4.5.3, Annex B.1.4);
-- install code CRC (CRC-16/X-25, BDB 10.1.1) and install code key derivation (BDB 10.1.2).
+- AES-128-ECB (`PSA_WANT_ALG_ECB_NO_PADDING`) for the Matyas-Meyer-Oseas hash (R22 Annex B.6). Only the padding for messages shorter than 2^16 bits is implemented; Zigbee hashes at most 32 bytes;
+- AES-CCM with a 4-byte tag, `PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, 4)`, for security level 5 (ENC-MIC-32), the only level used on air. The CCM primitive takes the MIC length, so the R22 Annex C vectors (M=8) apply to it. The frame functions on top of it parse the auxiliary header, build the nonce and apply the level-field rule (section 7);
+- HMAC-MMO with a 16-byte key and a 1-octet input, the only form R22 uses: key-transport key (0x00), key-load key (0x02), verify-key hash (0x03) (R22 4.5.3, 4.4.10.7.4, Annex B.1.4);
+- install code CRC (CRC-16/X-25 with Zephyr `crc16_ccitt()`, BDB 10.1.1) and install code key derivation (BDB 10.1.2).
+
+CCM functions take a `psa_key_id_t`. The PSA key cache arrives with NWK security (milestone 7) and imports keys with the policy `PSA_ALG_AEAD_WITH_AT_LEAST_THIS_LENGTH_TAG(PSA_ALG_CCM, 4)`. Zephyr builds PSA with `MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS`, under which input and output buffers must not overlap, so in-place CCM copies its input to a local buffer first. The auxiliary header codec writes the security level sub-field as 0; the frame functions set it to 5 for the CCM operation.
 
 Keys are stored as arrays: two network keys and N link-key pairs. The trust center is identified by `apsTrustCenterAddress` (IEEE address). Code must not assume that the trust center is the parent or has short address 0x0000.
 
@@ -211,7 +213,7 @@ No C implementation of AES-MMO or install code key derivation under a permissive
 ## 15. Testing
 
 - Unit tests: ztest on `native_sim/native/64`; CI also runs `native_sim` (32-bit) to catch pointer-size errors.
-- Crypto and codec tests use R22 Annex C vectors, BDB 10.1 install code examples and frames captured from real networks.
+- Crypto and codec tests use R22 Annex C vectors, BDB 10.1 install code examples and frames captured from real networks. The first frames come from the Ziggurat and zigbee-rs test suites (listed in `NOTICE`) and from a test network whose network key may be published.
 - Multi-node integration tests: N fake radio devices implementing `ieee802154_radio_api`, connected by an in-process medium with configurable loss and links. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
 - The raw-mode and custom-L2 shims have single-node tests in `tests/glue/`, modeled on Zephyr `tests/net/ieee802154/custom_l2`.
 - `tests/build/radio` is a build-only consumer application. It enables the module on native_sim and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. Until the raw backend exists (milestone 5), it defines `net_recv_data()` and `ieee802154_handle_ack()` itself.
