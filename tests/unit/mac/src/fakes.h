@@ -43,14 +43,23 @@ struct parent {
 	bool busy;
 };
 
+/* Frame passed up by an indication */
+struct rx_copy {
+	uint8_t data[ZZB_BUF_SIZE];
+	size_t len;
+	struct zzb_frame_meta meta;
+};
+
 extern const struct device *const radio_dev;
 extern struct radio_state radio;
 extern struct sent_frame sent[8];
 extern int sent_count;
 extern struct parent parent;
 extern struct zzb_node *node;
+extern struct rx_copy data_ind;
 
 DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
+DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_ind, struct zzb_node *, struct net_buf *);
 
 /* Suite hooks shared by the MAC suites: one node, its MAC initialized again before each test */
 void *mac_setup(void);
@@ -60,6 +69,9 @@ void mac_after(void *fixture);
 
 /* Runs the stack thread until it waits, without advancing the time */
 void run_stack(void);
+
+/* Passes frame to the radio port as a received frame */
+void inject(const uint8_t *frame, size_t len);
 
 /* Returns a buffer with the MSDU for MCPS-DATA.request to the parent, with ACK request */
 struct net_buf *msdu_buf(uint8_t handle, const uint8_t *msdu, size_t len);

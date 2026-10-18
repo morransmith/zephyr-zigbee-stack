@@ -5,7 +5,9 @@
 #include <zephyr/random/random.h>
 #include <zephyr/sys/byteorder.h>
 
+#include "common/buf.h"
 #include "common/node.h"
+#include "mac/frame.h"
 #include "mac/mac.h"
 #include "radio/port.h"
 
@@ -52,8 +54,22 @@ int zzb_mac_init(struct zzb_node *node, const struct device *radio)
 	return err == -EALREADY ? 0 : err;
 }
 
-/* Frames are dropped until the MAC receives */
 void zzb_radio_rx(struct zzb_radio_port *port, struct net_buf *buf)
 {
-	net_buf_unref(buf);
+	struct zzb_node *node = CONTAINER_OF(port, struct zzb_node, port);
+	struct zzb_frame_meta *meta = zzb_frame_meta(buf);
+	struct zzb_mac_hdr hdr;
+	int len = zzb_mac_hdr_parse(buf->data, buf->len, &hdr);
+
+	/* A zero-length data frame only ends a poll (802.15.4 5.1.6.3) */
+	if (len < 0 || hdr.type != ZZB_MAC_FRAME_DATA || len == buf->len) {
+		net_buf_unref(buf);
+		return;
+	}
+
+	net_buf_pull(buf, len);
+	meta->src = hdr.src;
+	meta->dst = hdr.dst;
+	meta->flags = hdr.flags;
+	zzb_mcps_data_ind(node, buf);
 }

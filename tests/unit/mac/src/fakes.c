@@ -24,6 +24,7 @@ FAKE_VALUE_FUNC(int, radio_filter, const struct device *, bool, enum ieee802154_
 FAKE_VALUE_FUNC(int, radio_tx, const struct device *, enum ieee802154_tx_mode, struct net_pkt *,
 		struct net_buf *);
 DEFINE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
+DEFINE_FAKE_VOID_FUNC(zzb_mcps_data_ind, struct zzb_node *, struct net_buf *);
 
 static const struct ieee802154_radio_api radio_api = {
 	.get_capabilities = radio_get_caps,
@@ -42,6 +43,20 @@ struct sent_frame sent[8];
 int sent_count;
 struct parent parent;
 struct zzb_node *node;
+struct rx_copy data_ind;
+
+static void copy_rx(struct rx_copy *copy, struct net_buf *buf)
+{
+	memcpy(copy->data, buf->data, buf->len);
+	copy->len = buf->len;
+	copy->meta = *zzb_frame_meta(buf);
+	net_buf_unref(buf);
+}
+
+static void data_ind_fake(struct zzb_node *n, struct net_buf *buf)
+{
+	copy_rx(&data_ind, buf);
+}
 
 static int start_fake(const struct device *dev)
 {
@@ -123,12 +138,14 @@ static void reset_fakes(void)
 	RESET_FAKE(radio_filter);
 	RESET_FAKE(radio_tx);
 	RESET_FAKE(zzb_mcps_data_conf);
+	RESET_FAKE(zzb_mcps_data_ind);
 	FFF_RESET_HISTORY();
 	radio_get_caps_fake.return_val = IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_CSMA;
 	radio_start_fake.custom_fake = start_fake;
 	radio_set_channel_fake.custom_fake = set_channel_fake;
 	radio_filter_fake.custom_fake = filter_fake;
 	radio_tx_fake.custom_fake = tx_fake;
+	zzb_mcps_data_ind_fake.custom_fake = data_ind_fake;
 	radio = (struct radio_state){0};
 	sent_count = 0;
 	parent = (struct parent){0};
@@ -176,6 +193,15 @@ void run_stack(void)
 {
 	/* The test thread is cooperative and has a lower priority than the stack thread */
 	k_yield();
+}
+
+void inject(const uint8_t *frame, size_t len)
+{
+	struct net_pkt *pkt = net_pkt_rx_alloc_with_buffer(NULL, len, NET_AF_UNSPEC, 0, K_NO_WAIT);
+
+	zassert_not_null(pkt);
+	zassert_ok(net_pkt_write(pkt, frame, len));
+	zassert_ok(net_recv_data(NULL, pkt));
 }
 
 struct net_buf *msdu_buf(uint8_t handle, const uint8_t *msdu, size_t len)

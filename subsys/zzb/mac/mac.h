@@ -41,4 +41,7 @@ int zzb_mcps_data_req(struct zzb_node *node, struct net_buf *buf);
 /* Defined by NWK */
 void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status);
 
+/* Defined by NWK. buf holds the MSDU, and its metadata the addresses, flags, LQI and RSSI. */
+void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf);
+
 #endif /* ZZB_SUBSYS_MAC_MAC_H_ */
