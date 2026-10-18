@@ -43,7 +43,6 @@ static void save_handler(struct k_work *work)
 
 void zzb_nwk_fc_init(struct zzb_node *node)
 {
-	node->nwk.fc = (struct zzb_nwk_fc){0};
 	k_work_init(&node->nwk.fc.save, save_handler);
 }
 

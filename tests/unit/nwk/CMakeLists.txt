@@ -12,4 +12,5 @@ target_sources(app PRIVATE
   src/frame.c
   src/neighbor.c
   src/nib.c
+  src/security.c
 )

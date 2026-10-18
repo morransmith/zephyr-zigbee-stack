@@ -7,6 +7,7 @@
 
 void zzb_nwk_init(struct zzb_node *node)
 {
+	node->nwk = (struct zzb_nwk){0};
 	node->nwk.nib = (struct zzb_nib){
 		.pan_id = 0xffff,
 		.short_addr = 0xffff,

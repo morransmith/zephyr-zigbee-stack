@@ -24,6 +24,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
   nwk/neighbor.c
   nwk/nib.c
   nwk/nwk.c
+  nwk/security.c
   storage/settings.c
 )
 zephyr_library_sources_ifdef(CONFIG_IEEE802154_RAW_MODE radio/port.c radio/raw.c)

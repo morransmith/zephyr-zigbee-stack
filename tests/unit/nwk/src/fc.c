@@ -4,15 +4,15 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
-#include <zzb/zzb.h>
 
 #include "common/node.h"
 #include "common/queue.h"
+#include "fakes.h"
 #include "nwk/nwk.h"
 #include "storage/settings.h"
 
 #define JUMP CONFIG_ZZB_FRAME_COUNTER_JUMP
-/* The only node, index 0 in the pool */
+/* Node 0 */
 #define KEY  "zzb/0/fc/nwk"
 
 static struct zzb_node *node;
@@ -89,11 +89,7 @@ static void store(uint8_t version, uint32_t watermark)
 
 static void *setup(void)
 {
-	const struct zzb_node_config cfg = {
-		.eui64 = 0x0011223344556677ULL,
-	};
-
-	zassert_ok(zzb_node_init(&cfg, &node));
+	node = test_node(0);
 	return NULL;
 }
 

@@ -6,11 +6,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <zephyr/kernel.h>
+#include <zephyr/net_buf.h>
 #include <zephyr/settings/settings.h>
 
 #include "sec/mmo.h"
 
 struct zzb_node;
+
+/* Auxiliary header of a NWK frame: security control, frame counter, source address, key sequence */
+#define ZZB_NWK_AUX_LEN 14
 
 /* Default radius: 2 * nwkMaxDepth (15 for the Zigbee PRO stack profile) */
 #define ZZB_NWK_DEFAULT_RADIUS 30
@@ -66,7 +70,7 @@ struct zzb_nwk {
 	struct zzb_nwk_neighbor neighbors[CONFIG_ZZB_NEIGHBOR_COUNT];
 };
 
-/* Sets the NIB defaults: no PAN ID, no network address, random sequence number */
+/* Clears the NWK state. The NIB has no PAN ID, no network address and a random sequence number. */
 void zzb_nwk_init(struct zzb_node *node);
 
 /* NLME-SET of nwkPANId and nwkNetworkAddress, which also set macPANId and macShortAddress */
@@ -95,6 +99,22 @@ int zzb_nwk_fc_start(struct zzb_node *node);
  * that is not saved yet, or -EOVERFLOW once the counter is 2^32-1.
  */
 int zzb_nwk_fc_next(struct zzb_node *node, uint32_t *fc);
+
+/*
+ * Secures a frame in place (R22 4.3.1.1). buf holds the NWK header of hdr_len bytes with
+ * ZZB_NWK_SECURITY set, then the payload, and has ZZB_NWK_AUX_LEN bytes of headroom and
+ * ZZB_SEC_MIC_LEN bytes of tailroom. Returns -ENOENT without an active key, -EMSGSIZE without
+ * the headroom or tailroom, or an error of zzb_nwk_fc_next().
+ */
+int zzb_nwk_secure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len);
+
+/*
+ * Verifies and decrypts a frame in place (R22 4.3.1.2), then removes the auxiliary header and the
+ * MIC. Returns -EINVAL for a malformed auxiliary header or one without the network key identifier
+ * and extended nonce, -EALREADY for a stale frame counter, -ENOENT if the key or the sender is not
+ * known, or -EBADMSG if the MIC does not match.
+ */
+int zzb_nwk_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len);
 
 /* Adds a neighbor, or returns NULL if the table is full. The caller checks for a duplicate. */
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_add(struct zzb_node *node, uint64_t ext_addr,
