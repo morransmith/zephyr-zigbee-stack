@@ -9,12 +9,16 @@
 #include <zephyr/net_buf.h>
 #include <zephyr/settings/settings.h>
 
+#include "mac/mac.h"
 #include "sec/mmo.h"
 
 struct zzb_node;
 
 /* Auxiliary header of a NWK frame: security control, frame counter, source address, key sequence */
 #define ZZB_NWK_AUX_LEN 14
+
+/* Headroom of NLDE-DATA.request: MAC header, NWK header of a data frame, auxiliary header */
+#define ZZB_NLDE_HEADROOM (ZZB_MAC_HDR_MAX_LEN + 8 + ZZB_NWK_AUX_LEN)
 
 /* Default radius: 2 * nwkMaxDepth (15 for the Zigbee PRO stack profile) */
 #define ZZB_NWK_DEFAULT_RADIUS 30
@@ -99,6 +103,23 @@ int zzb_nwk_fc_start(struct zzb_node *node);
  * that is not saved yet, or -EOVERFLOW once the counter is 2^32-1.
  */
 int zzb_nwk_fc_next(struct zzb_node *node, uint32_t *fc);
+
+/*
+ * NLDE-DATA.request. buf holds the NSDU after ZZB_NLDE_HEADROOM bytes of headroom, and its
+ * metadata the NSDU handle. Radius 0 selects ZZB_NWK_DEFAULT_RADIUS. The frame goes to the
+ * neighbor with the network address dst_addr, otherwise to the parent. Returns -EINVAL for a
+ * reserved destination, -ENOTCONN without a network address or a parent, -EMSGSIZE without the
+ * headroom, or an error of zzb_nwk_secure() or MCPS-DATA.request.
+ */
+int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr, uint8_t radius,
+		      bool secure);
+
+/* Defined by APS. status is the status of MCPS-DATA.confirm. */
+void zzb_nlde_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status);
+
+/* Defined by APS. buf holds the NSDU, and its metadata the LQI. */
+void zzb_nlde_data_ind(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr,
+		       uint16_t src_addr, bool security_use);
 
 /*
  * Secures a frame in place (R22 4.3.1.1). buf holds the NWK header of hdr_len bytes with
