@@ -148,6 +148,8 @@ int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_a
 
 void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status)
 {
+	zzb_nwk_parent_tx_status(node, status);
+
 	switch (handle) {
 	case ZZB_NWK_CMD_HANDLE | ZZB_NWK_CMD_REJOIN_REQ:
 		zzb_nwk_rejoin_req_conf(node, status);
@@ -285,8 +287,7 @@ void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf)
 	zzb_nlde_data_ind(node, buf, hdr.dst, hdr.src, hdr.flags & ZZB_NWK_SECURITY);
 }
 
-/* The keepalive uses this confirm */
-
 void zzb_mlme_poll_conf(struct zzb_node *node, enum zzb_mac_status status)
 {
+	zzb_nwk_parent_tx_status(node, status);
 }

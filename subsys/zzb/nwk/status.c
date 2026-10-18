@@ -10,8 +10,30 @@ void zzb_nwk_parent_link_failure(struct zzb_node *node)
 {
 	const struct zzb_nwk_neighbor *parent = zzb_nwk_neighbor_parent(node);
 
+	node->nwk.parent_failures = 0;
 	zzb_nlme_nwk_status_ind(node, ZZB_NWK_CODE_PARENT_LINK_FAILURE,
 				parent ? parent->short_addr : 0xffff);
+}
+
+/* On an end device every frame and poll goes to the parent */
+void zzb_nwk_parent_tx_status(struct zzb_node *node, enum zzb_mac_status status)
+{
+	struct zzb_nwk *nwk = &node->nwk;
+
+	if (nwk->op != ZZB_NWK_OP_NONE || zzb_nwk_neighbor_parent(node) == NULL) {
+		return;
+	}
+
+	if (status == ZZB_MAC_STATUS_SUCCESS || status == ZZB_MAC_STATUS_NO_DATA) {
+		nwk->parent_failures = 0;
+		return;
+	}
+
+	/* A channel access failure means a busy channel */
+	if (status == ZZB_MAC_STATUS_NO_ACK &&
+	    ++nwk->parent_failures >= CONFIG_ZZB_NWK_PARENT_FAILURES) {
+		zzb_nwk_parent_link_failure(node);
+	}
 }
 
 /* R22 3.6.1.9.3, without jitter: the parent applies it when it relays the broadcast */

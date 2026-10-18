@@ -27,6 +27,7 @@ void zzb_nwk_reset(struct zzb_node *node)
 	nwk->network_count = 0;
 	nwk->candidate = NULL;
 	nwk->key_pending = false;
+	nwk->parent_failures = 0;
 }
 
 int zzb_nlme_reset_req(struct zzb_node *node)

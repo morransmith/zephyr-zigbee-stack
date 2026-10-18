@@ -195,6 +195,7 @@ void zzb_nwk_start_join(struct zzb_node *node, uint64_t ext_pan_id, uint8_t capa
 	nwk->nib.capability = capability;
 	nwk->nib.parent_info = 0;
 	nwk->join_ext_pan_id = ext_pan_id;
+	nwk->parent_failures = 0;
 	zzb_nwk_keepalive_stop(node);
 }
 

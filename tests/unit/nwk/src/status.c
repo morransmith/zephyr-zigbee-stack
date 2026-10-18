@@ -184,4 +184,57 @@ ZTEST(zzb_nwk_status, test_rejoin_response_from_another_router_is_ignored)
 	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
 }
 
+#define HANDLE 5
+
+static void fail_transmissions(int count)
+{
+	for (int i = 0; i < count; i++) {
+		zzb_mcps_data_conf(child, HANDLE, ZZB_MAC_STATUS_NO_ACK);
+	}
+}
+
+ZTEST(zzb_nwk_status, test_parent_link_failure_after_failed_transmissions)
+{
+	fail_transmissions(CONFIG_ZZB_NWK_PARENT_FAILURES - 1);
+	zzb_mcps_data_conf(child, HANDLE, ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+
+	fail_transmissions(1);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 1);
+	zassert_equal_ptr(zzb_nlme_nwk_status_ind_fake.arg0_val, child);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.arg1_val, 0x09);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.arg2_val, PARENT_SHORT);
+
+	/* The count starts again */
+	fail_transmissions(CONFIG_ZZB_NWK_PARENT_FAILURES - 1);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 1);
+}
+
+/* A delivered frame or poll resets the count */
+ZTEST(zzb_nwk_status, test_successful_transmission_resets_the_count)
+{
+	fail_transmissions(CONFIG_ZZB_NWK_PARENT_FAILURES - 1);
+	zzb_mcps_data_conf(child, 0xf0 | ZZB_NWK_CMD_ED_TIMEOUT_REQ, ZZB_MAC_STATUS_SUCCESS);
+	fail_transmissions(CONFIG_ZZB_NWK_PARENT_FAILURES - 1);
+	zzb_mlme_poll_conf(child, ZZB_MAC_STATUS_NO_DATA);
+	fail_transmissions(CONFIG_ZZB_NWK_PARENT_FAILURES - 2);
+	zzb_mlme_poll_conf(child, ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+
+	zzb_mlme_poll_conf(child, ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 1);
+}
+
+/* A rejoin tries other routers, and a node without a parent has nothing to lose */
+ZTEST(zzb_nwk_status, test_failures_are_not_counted_without_a_parent_or_during_a_procedure)
+{
+	zassert_ok(zzb_nlme_network_discovery_req(child, BIT(15), 0));
+	fail_transmissions(CONFIG_ZZB_NWK_PARENT_FAILURES);
+	zzb_mlme_scan_conf(child, ZZB_MAC_STATUS_NO_BEACON);
+
+	zzb_nwk_neighbor_remove(zzb_nwk_neighbor_parent(child));
+	fail_transmissions(CONFIG_ZZB_NWK_PARENT_FAILURES);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+}
+
 ZTEST_SUITE(zzb_nwk_status, NULL, setup, before, after, NULL);

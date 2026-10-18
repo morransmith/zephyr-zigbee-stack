@@ -168,6 +168,8 @@ struct zzb_nwk {
 	bool ed_timeout_due;
 	/* A keepalive End Device Timeout Request waits for its response */
 	bool ed_timeout_wait;
+	/* Consecutive transmissions to the parent without an ACK */
+	uint8_t parent_failures;
 };
 
 /* Clears the NWK state. The NIB has no PAN ID, no network address and a random sequence number. */
@@ -363,8 +365,11 @@ void zzb_nwk_keepalive_stop(struct zzb_node *node);
 void zzb_nwk_ed_timeout_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 			       const struct zzb_nwk_cmd *cmd, uint16_t mac_src);
 
-/* NLME-NWK-STATUS.indication with parent link failure */
+/* NLME-NWK-STATUS.indication with parent link failure; the failure count starts again */
 void zzb_nwk_parent_link_failure(struct zzb_node *node);
+
+/* Counts a transmission to the parent with the status of its confirm */
+void zzb_nwk_parent_tx_status(struct zzb_node *node, enum zzb_mac_status status);
 
 /*
  * Returns true and reports the conflict if a frame for the address of the node carries another
