@@ -30,4 +30,11 @@ config ZZB_WORKQ_PRIORITY
 	int "Stack thread cooperative priority"
 	default 8
 
+config ZZB_MAC
+	bool "MAC layer"
+	default y
+	depends on IEEE802154_RAW_MODE || NET_L2_CUSTOM_IEEE802154
+	help
+	  IEEE 802.15.4 MAC sublayer. Tests that fake the MAC turn it off.
+
 endif # ZZB
