@@ -38,6 +38,7 @@ tests/common/                fake_radio.c medium.c scripted_tc.c fixtures/
 tests/unit/<layer>/
 tests/integration/<scenario>/
 tests/glue/{raw,custom_l2}/
+tests/build/radio/
 samples/  on_off_light  contact_sensor
 ```
 
@@ -105,7 +106,7 @@ Every table is accessed through find/add/remove functions. The coordinator can r
 
 ## 8. Radio port
 
-The default backend is `CONFIG_IEEE802154_RAW_MODE`. The nrf5 and esp32 drivers support it without patches, and it builds no IP stack; `samples/net/wpan_serial` uses the same mechanism. The backend for `CONFIG_NET_L2_CUSTOM_IEEE802154` exists for a coordinator that also runs IP over Ethernet or Wi-Fi; raw mode excludes the IP stack. Both backends implement `ieee802154_init()` and `ieee802154_handle_ack()` and pass received frames to `zzb_radio_rx(port, buf, meta)`.
+The default backend is `CONFIG_IEEE802154_RAW_MODE`. The nrf5 and esp32 drivers support it without patches, and it builds no IP stack; `samples/net/wpan_serial` uses the same mechanism. The backend for `CONFIG_NET_L2_CUSTOM_IEEE802154` exists for a coordinator that also runs IP over Ethernet or Wi-Fi; raw mode excludes the IP stack. Both backends implement `ieee802154_handle_ack()` and pass received frames to `zzb_radio_rx(port, buf, meta)`. The raw backend also implements `net_recv_data()`, which the driver calls for each received frame; in raw mode `ieee802154_init()` is an empty macro. The custom-L2 backend implements `ieee802154_init()` and receives frames through the `recv` function of its `NET_L2_INIT()` entry.
 
 | Item | Behavior |
 |---|---|
@@ -205,6 +206,8 @@ No C implementation of AES-MMO or install code key derivation under a permissive
 - Crypto and codec tests use R22 Annex C vectors, BDB 10.1 install code examples and frames captured from real networks.
 - Multi-node integration tests: N fake radio devices implementing `ieee802154_radio_api`, connected by an in-process medium with configurable loss and links. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
 - The raw-mode and custom-L2 shims have single-node tests in `tests/glue/`, modeled on Zephyr `tests/net/ieee802154/custom_l2`.
+- `tests/build/radio` is a build-only consumer application. It enables the module on native_sim and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. Until the raw backend exists (milestone 5), it defines `net_recv_data()` and `ieee802154_handle_ack()` itself.
+- CI runs on Woodpecker (`.woodpecker/build.yaml`): twister runs the tests on `native_sim` and `native_sim/native/64` and only builds the hardware targets.
 - `tests/common/scripted_tc.c` plays the trust center side of join sequences captured with a sniffer from EZSP and Z-Stack coordinators on a test network with a known network key.
 - Reboot and power-loss tests run on NVS over the flash simulator; the node is destroyed and re-initialized.
 - A test asserts that no timer is armed while a sleepy node is idle.
@@ -215,7 +218,7 @@ No C implementation of AES-MMO or install code key derivation under a permissive
 
 Each milestone is one feature branch with its tests.
 
-1. Skeleton: `west.yml`, module files, Kconfig, CMake, CI with twister on native_sim and build-only nrf52840dk and ESP32-C6/H2 targets (`west blob fetch hal_espressif`).
+1. Skeleton: `west.yml`, module files, Kconfig, CMake, CI with twister on native_sim and build-only nrf52840dk and ESP32-C6/H2 targets (`west blobs fetch hal_espressif`).
 2. Common: buffer pool and metadata, stack work queue, request marshaling, timers, `zzb_node_init()`, EUI-64 provider.
 3. Security primitives: MMO, HMAC-MMO, CCM level 5 with the level-field rule, auxiliary header, install code.
 4. MAC frame codec: data, beacon and command frames.
