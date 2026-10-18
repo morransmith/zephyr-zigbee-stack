@@ -27,7 +27,7 @@ DEFINE_FAKE_VOID_FUNC(zzb_nlme_nwk_status_ind, struct zzb_node *, uint8_t, uint1
 
 const uint8_t test_key[ZZB_SEC_KEY_LEN] = {0x01, 0x02, 0x03};
 
-struct frame_copy sent[4];
+struct frame_copy sent[8];
 struct frame_copy data_ind;
 struct zzb_mac_addr assoc_coord;
 
@@ -123,6 +123,30 @@ static void join(struct zzb_node *node, uint16_t short_addr, struct zzb_node *pe
 	zzb_nlme_set_ext_pan_id(node, EXT_PAN_ID);
 	zzb_nlme_set_nwk_key(node, test_key, 0);
 	zassert_not_null(zzb_nwk_neighbor_add(node, peer->eui64, peer_short, relationship));
+}
+
+/* The test thread is cooperative and has a lower priority than the stack thread */
+void run_stack(void)
+{
+	k_yield();
+}
+
+void parse_sent_cmd(int i, struct zzb_node *receiver, struct zzb_nwk_hdr *hdr,
+		    struct zzb_nwk_cmd *cmd)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	int hdr_len;
+
+	zassert_not_null(buf);
+	net_buf_add_mem(buf, sent[i].data, sent[i].len);
+	hdr_len = zzb_nwk_hdr_parse(buf->data, buf->len, hdr);
+	zassert_true(hdr_len > 0);
+	if (hdr->flags & ZZB_NWK_SECURITY) {
+		zassert_ok(zzb_nwk_unsecure(receiver, buf, hdr_len));
+	}
+
+	zassert_true(zzb_nwk_cmd_parse(buf->data + hdr_len, buf->len - hdr_len, cmd) > 0);
+	net_buf_unref(buf);
 }
 
 void pair_nodes(struct zzb_node *child, struct zzb_node *parent)

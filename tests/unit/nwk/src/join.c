@@ -304,8 +304,10 @@ ZTEST(zzb_nwk_join, test_association_join)
 	struct zzb_nib *nib = &node->nwk.nib;
 
 	discover_routers();
+	nib->parent_info = 0x03;
 	zassert_ok(join(EPID_A, CAPABILITY));
 	check_assoc_req(1, 15, 0x1111);
+	zassert_equal(nib->parent_info, 0, "R22 3.2.2.13.3");
 
 	zzb_mlme_get_coord_ext_addr_fake.return_val = PARENT_EUI64;
 	zzb_mlme_assoc_conf(node, CHILD_SHORT, ZZB_MAC_STATUS_SUCCESS);

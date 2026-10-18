@@ -21,6 +21,9 @@ struct zzb_node;
 /* Headroom of NLDE-DATA.request: MAC header, NWK header of a data frame, auxiliary header */
 #define ZZB_NLDE_HEADROOM (ZZB_MAC_HDR_MAX_LEN + 8 + ZZB_NWK_AUX_LEN)
 
+/* MSDU handles from 0xf0 belong to NWK command frames: 0xf0 | command identifier */
+#define ZZB_NWK_CMD_HANDLE 0xf0
+
 /* Default radius: 2 * nwkMaxDepth (15 for the Zigbee PRO stack profile) */
 #define ZZB_NWK_DEFAULT_RADIUS 30
 
@@ -44,6 +47,7 @@ struct zzb_nib {
 	uint8_t seq;
 	uint8_t update_id;
 	uint8_t capability;
+	uint8_t parent_info;
 	/* The channel of the network, as in nwkMacInterfaceTable */
 	uint8_t channel;
 	struct zzb_nwk_key keys[2];
@@ -128,6 +132,9 @@ struct zzb_nwk {
 	struct zzb_nwk_neighbor *candidate;
 	/* Set by an association join until NLME-SET of a network key (R22 3.6.2.2) */
 	bool key_pending;
+	/* Sends the End Device Timeout Request */
+	struct k_work_delayable keepalive;
+	bool ed_timeout_due;
 };
 
 /* Clears the NWK state. The NIB has no PAN ID, no network address and a random sequence number. */
@@ -142,7 +149,8 @@ void zzb_nlme_set_ext_pan_id(struct zzb_node *node, uint64_t ext_pan_id);
 /*
  * NLME-SET of a network key in nwkSecurityMaterialSet. The key replaces the key with the same
  * sequence number, otherwise the key that is not active, and the incoming frame counters of its
- * slot are reset. The first key becomes the active key. The key is no longer pending.
+ * slot are reset. The first key becomes the active key. A pending key ends, and the End Device
+ * Timeout Request follows.
  */
 void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_LEN], uint8_t seq);
 
@@ -164,9 +172,9 @@ int zzb_nwk_fc_next(struct zzb_node *node, uint32_t *fc);
  * NLDE-DATA.request. buf holds the NSDU after ZZB_NLDE_HEADROOM bytes of headroom, and its
  * metadata the NSDU handle. Radius 0 selects ZZB_NWK_DEFAULT_RADIUS. The frame goes to the
  * neighbor with the network address dst_addr, otherwise to the parent. Returns -EINVAL for a
- * reserved destination, -EBUSY while an NLME procedure runs, -ENOTCONN without a network address
- * or a parent, -EMSGSIZE without the headroom, or an error of zzb_nwk_secure() or
- * MCPS-DATA.request.
+ * reserved destination or a handle from ZZB_NWK_CMD_HANDLE, -EBUSY while an NLME procedure runs,
+ * -ENOTCONN without a network address or a parent, -EMSGSIZE without the headroom, or an error of
+ * zzb_nwk_secure() or MCPS-DATA.request.
  */
 int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr, uint8_t radius,
 		      bool secure);
@@ -240,6 +248,28 @@ struct zzb_nwk_neighbor *zzb_nwk_neighbor_find_short(struct zzb_node *node, uint
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_parent(struct zzb_node *node);
 
 /* Within NWK */
+
+/*
+ * Completes hdr with the source addresses, the sequence number and the end device initiator bit
+ * and sends it with the payload in buf to the neighbor mac_dst. buf has ZZB_MAC_HDR_MAX_LEN bytes
+ * of headroom for the MAC header, then room for the NWK and auxiliary headers. On error buf stays
+ * with the caller.
+ */
+int zzb_nwk_send(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_hdr *hdr,
+		 uint16_t mac_dst, bool ack);
+
+/* Sends cmd as a command frame with hdr; see zzb_nwk_send(). Returns -ENOBUFS without a buffer. */
+int zzb_nwk_send_cmd(struct zzb_node *node, struct zzb_nwk_hdr *hdr, const struct zzb_nwk_cmd *cmd,
+		     uint16_t mac_dst, bool ack);
+
+void zzb_nwk_ed_timeout_init(struct zzb_node *node);
+
+/* Sends the End Device Timeout Request from the stack queue, again after 1 s if that fails */
+void zzb_nwk_ed_timeout_start(struct zzb_node *node);
+
+/* Handles a received End Device Timeout Response from the MAC source mac_src */
+void zzb_nwk_ed_timeout_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
+			       const struct zzb_nwk_cmd *cmd, uint16_t mac_src);
 
 /* Handles a received network status command */
 void zzb_nwk_status_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,

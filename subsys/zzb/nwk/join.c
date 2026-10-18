@@ -209,6 +209,7 @@ int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_j
 	}
 
 	nwk->nib.capability = capability;
+	nwk->nib.parent_info = 0;
 	nwk->join_ext_pan_id = ext_pan_id;
 	err = associate(node, nb);
 	if (err) {

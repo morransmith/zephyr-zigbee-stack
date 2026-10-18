@@ -121,6 +121,12 @@ ZTEST(zzb_nwk_data, test_request_rejected)
 	zassert_equal(zzb_nlde_data_req(child, buf, 0xfffe, 0, true), -EINVAL);
 	net_buf_unref(buf);
 
+	/* Handles from 0xf0 belong to NWK command frames */
+	buf = nsdu_buf();
+	zzb_frame_meta(buf)->handle = 0xf0;
+	zassert_equal(zzb_nlde_data_req(child, buf, PARENT_SHORT, 0, true), -EINVAL);
+	net_buf_unref(buf);
+
 	/* The parent has no parent of its own */
 	buf = nsdu_buf();
 	zassert_equal(zzb_nlde_data_req(parent, buf, 0x5678, 0, true), -ENOTCONN);
@@ -164,6 +170,10 @@ ZTEST(zzb_nwk_data, test_confirm)
 	zassert_equal_ptr(zzb_nlde_data_conf_fake.arg0_val, child);
 	zassert_equal(zzb_nlde_data_conf_fake.arg1_val, HANDLE);
 	zassert_equal(zzb_nlde_data_conf_fake.arg2_val, ZZB_MAC_STATUS_NO_ACK);
+
+	/* The confirm of a NWK command frame stays in NWK */
+	zzb_mcps_data_conf(child, 0xf0 | ZZB_NWK_CMD_ED_TIMEOUT_REQ, ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(zzb_nlde_data_conf_fake.call_count, 1);
 }
 
 /* R22 3.6.2.2: APS takes the Transport Key from them */

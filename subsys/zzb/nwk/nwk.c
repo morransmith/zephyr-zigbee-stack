@@ -13,8 +13,13 @@
 /* Network addresses from 0xfff8 are broadcast or reserved */
 #define FIRST_SPECIAL_ADDR 0xfff8
 
+/* NWK header of a command frame with both IEEE addresses */
+#define CMD_HDR_MAX_LEN 24
+
 void zzb_nwk_init(struct zzb_node *node)
 {
+	/* Safe on the zeroed struct of a new node */
+	k_work_cancel_delayable(&node->nwk.keepalive);
 	node->nwk = (struct zzb_nwk){0};
 	node->nwk.nib = (struct zzb_nib){
 		.pan_id = 0xffff,
@@ -22,6 +27,7 @@ void zzb_nwk_init(struct zzb_node *node)
 		.seq = sys_rand8_get(),
 	};
 	zzb_nwk_fc_init(node);
+	zzb_nwk_ed_timeout_init(node);
 }
 
 /* R22 Table 3-69 */
@@ -30,18 +36,84 @@ static bool is_broadcast(uint16_t addr)
 	return addr == 0xffff || addr == 0xfffd || addr == 0xfffc || addr == 0xfffb;
 }
 
-int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr, uint8_t radius,
-		      bool secure)
+int zzb_nwk_send(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_hdr *hdr,
+		 uint16_t mac_dst, bool ack)
 {
 	struct zzb_frame_meta *meta = zzb_frame_meta(buf);
 	struct zzb_nib *nib = &node->nwk.nib;
-	bool broadcast = is_broadcast(dst_addr);
-	struct zzb_nwk_neighbor *next_hop = NULL;
-	struct zzb_nwk_hdr hdr;
+	bool secure = hdr->flags & ZZB_NWK_SECURITY;
 	size_t hdr_len;
 	int err;
 
-	if (dst_addr >= FIRST_SPECIAL_ADDR && !broadcast) {
+	hdr->src = nib->short_addr;
+	hdr->src_ext = node->eui64;
+	hdr->seq = nib->seq;
+	if (nib->parent_info != 0) {
+		hdr->flags |= ZZB_NWK_ED_INITIATOR;
+	}
+
+	hdr_len = zzb_nwk_hdr_len(hdr);
+	if (net_buf_headroom(buf) <
+	    ZZB_MAC_HDR_MAX_LEN + hdr_len + (secure ? ZZB_NWK_AUX_LEN : 0)) {
+		return -EMSGSIZE;
+	}
+
+	zzb_nwk_hdr_write(hdr, net_buf_push(buf, hdr_len));
+	if (secure) {
+		err = zzb_nwk_secure(node, buf, hdr_len);
+		if (err) {
+			return err;
+		}
+	}
+
+	meta->dst = (struct zzb_mac_addr){
+		.mode = ZZB_MAC_ADDR_SHORT,
+		.pan_id = nib->pan_id,
+		.short_addr = mac_dst,
+	};
+	meta->flags = ack ? ZZB_FRAME_ACK_REQ : 0;
+
+	err = zzb_mcps_data_req(node, buf);
+	if (err) {
+		return err;
+	}
+
+	nib->seq++;
+	return 0;
+}
+
+int zzb_nwk_send_cmd(struct zzb_node *node, struct zzb_nwk_hdr *hdr, const struct zzb_nwk_cmd *cmd,
+		     uint16_t mac_dst, bool ack)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	int err;
+
+	if (buf == NULL) {
+		return -ENOBUFS;
+	}
+
+	net_buf_reserve(buf, ZZB_MAC_HDR_MAX_LEN + CMD_HDR_MAX_LEN + ZZB_NWK_AUX_LEN);
+	net_buf_add(buf, zzb_nwk_cmd_write(cmd, net_buf_tail(buf)));
+	zzb_frame_meta(buf)->handle = ZZB_NWK_CMD_HANDLE | cmd->id;
+	hdr->type = ZZB_NWK_FRAME_CMD;
+
+	err = zzb_nwk_send(node, buf, hdr, mac_dst, ack);
+	if (err) {
+		net_buf_unref(buf);
+	}
+
+	return err;
+}
+
+int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr, uint8_t radius,
+		      bool secure)
+{
+	bool broadcast = is_broadcast(dst_addr);
+	struct zzb_nwk_neighbor *next_hop = NULL;
+	struct zzb_nwk_hdr hdr;
+
+	if ((dst_addr >= FIRST_SPECIAL_ADDR && !broadcast) ||
+	    zzb_frame_meta(buf)->handle >= ZZB_NWK_CMD_HANDLE) {
 		return -EINVAL;
 	}
 
@@ -57,7 +129,7 @@ int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_a
 		next_hop = zzb_nwk_neighbor_parent(node);
 	}
 
-	if (nib->short_addr >= FIRST_SPECIAL_ADDR || next_hop == NULL) {
+	if (node->nwk.nib.short_addr >= FIRST_SPECIAL_ADDR || next_hop == NULL) {
 		return -ENOTCONN;
 	}
 
@@ -65,42 +137,19 @@ int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_a
 		.type = ZZB_NWK_FRAME_DATA,
 		.flags = (broadcast ? 0 : ZZB_NWK_DISCOVER_ROUTE) | (secure ? ZZB_NWK_SECURITY : 0),
 		.dst = dst_addr,
-		.src = nib->short_addr,
 		.radius = radius ? radius : ZZB_NWK_DEFAULT_RADIUS,
-		.seq = nib->seq,
 	};
-	hdr_len = zzb_nwk_hdr_len(&hdr);
-	if (net_buf_headroom(buf) <
-	    ZZB_MAC_HDR_MAX_LEN + hdr_len + (secure ? ZZB_NWK_AUX_LEN : 0)) {
-		return -EMSGSIZE;
-	}
 
-	zzb_nwk_hdr_write(&hdr, net_buf_push(buf, hdr_len));
-	if (secure) {
-		err = zzb_nwk_secure(node, buf, hdr_len);
-		if (err) {
-			return err;
-		}
-	}
-
-	meta->dst = (struct zzb_mac_addr){
-		.mode = ZZB_MAC_ADDR_SHORT,
-		.pan_id = nib->pan_id,
-		.short_addr = next_hop->short_addr,
-	};
-	meta->flags = broadcast ? 0 : ZZB_FRAME_ACK_REQ;
-
-	err = zzb_mcps_data_req(node, buf);
-	if (err) {
-		return err;
-	}
-
-	nib->seq++;
-	return 0;
+	/* A broadcast from an end device is a MAC unicast to the parent without ACK (R22 3.6.5) */
+	return zzb_nwk_send(node, buf, &hdr, next_hop->short_addr, !broadcast);
 }
 
 void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status)
 {
+	if (handle >= ZZB_NWK_CMD_HANDLE) {
+		return;
+	}
+
 	zzb_nlde_data_conf(node, handle, status);
 }
 
@@ -151,6 +200,8 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_h
 
 static void rx_cmd(struct zzb_node *node, struct net_buf *buf, const struct zzb_nwk_hdr *hdr)
 {
+	const struct zzb_mac_addr *src = &zzb_frame_meta(buf)->src;
+	uint16_t mac_src = src->mode == ZZB_MAC_ADDR_SHORT ? src->short_addr : 0xffff;
 	struct zzb_nwk_cmd cmd;
 	int len = zzb_nwk_cmd_parse(buf->data, buf->len, &cmd);
 
@@ -163,6 +214,9 @@ static void rx_cmd(struct zzb_node *node, struct net_buf *buf, const struct zzb_
 	switch (cmd.id) {
 	case ZZB_NWK_CMD_NWK_STATUS:
 		zzb_nwk_status_rx(node, hdr, &cmd);
+		break;
+	case ZZB_NWK_CMD_ED_TIMEOUT_RSP:
+		zzb_nwk_ed_timeout_rsp_rx(node, hdr, &cmd, mac_src);
 		break;
 	default:
 		break;

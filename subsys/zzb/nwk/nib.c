@@ -50,9 +50,14 @@ void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_L
 	nib->keys[slot].seq = seq;
 	memcpy(nib->keys[slot].key, key, ZZB_SEC_KEY_LEN);
 	nib->newest_key = slot;
-	node->nwk.key_pending = false;
 
 	ARRAY_FOR_EACH_PTR(node->nwk.neighbors, nb) {
 		nb->in_fc[slot] = 0;
+	}
+
+	/* R22 3.6.10.5 */
+	if (node->nwk.key_pending) {
+		node->nwk.key_pending = false;
+		zzb_nwk_ed_timeout_start(node);
 	}
 }

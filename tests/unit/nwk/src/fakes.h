@@ -37,7 +37,7 @@ struct frame_copy {
 };
 
 /* By default the zzb_mcps_data_req() fake takes the buffer and copies the frame here */
-extern struct frame_copy sent[4];
+extern struct frame_copy sent[8];
 extern struct frame_copy data_ind;
 
 /* Coordinator of the last MLME-ASSOCIATE.request */
@@ -63,6 +63,13 @@ struct zzb_node *test_node(int index);
 
 /* Resets every fake */
 void reset_fakes(void);
+
+/* Runs the stack thread until it waits, without advancing the time */
+void run_stack(void);
+
+/* Unsecures a copy of sent frame i as receiver and parses its header and command */
+void parse_sent_cmd(int i, struct zzb_node *receiver, struct zzb_nwk_hdr *hdr,
+		    struct zzb_nwk_cmd *cmd);
 
 /* Initializes both nodes and makes child the child of parent on the test network */
 void pair_nodes(struct zzb_node *child, struct zzb_node *parent);

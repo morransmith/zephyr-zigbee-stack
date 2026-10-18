@@ -1,0 +1,141 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#include <errno.h>
+#include <zephyr/net_buf.h>
+#include <zephyr/ztest.h>
+
+#include "common/buf.h"
+#include "common/node.h"
+#include "fakes.h"
+#include "nwk/frame.h"
+#include "nwk/nwk.h"
+
+/* Node 0 is the child of node 1 */
+static struct zzb_node *child;
+static struct zzb_node *parent;
+
+static void *setup(void)
+{
+	child = test_node(0);
+	parent = test_node(1);
+	return NULL;
+}
+
+static void before(void *fixture)
+{
+	reset_fakes();
+	pair_nodes(child, parent);
+}
+
+static void after(void *fixture)
+{
+	check_no_buffer_leak();
+}
+
+/* The network key arrives after an association join */
+static void receive_key(void)
+{
+	child->nwk.key_pending = true;
+	zzb_nlme_set_nwk_key(child, test_key, 0);
+	run_stack();
+}
+
+static void receive_rsp(uint8_t status, uint8_t parent_info, uint64_t src_ext)
+{
+	const struct zzb_nwk_hdr hdr = {
+		.type = ZZB_NWK_FRAME_CMD,
+		.flags = ZZB_NWK_SECURITY | ZZB_NWK_SRC_IEEE | ZZB_NWK_DST_IEEE,
+		.dst = CHILD_SHORT,
+		.src = PARENT_SHORT,
+		.radius = 1,
+		.dst_ext = child->eui64,
+		.src_ext = src_ext,
+	};
+	const struct zzb_nwk_cmd cmd = {
+		.id = ZZB_NWK_CMD_ED_TIMEOUT_RSP,
+		.ed_timeout_rsp = {.status = status, .parent_info = parent_info},
+	};
+
+	receive_cmd(child, parent, &hdr, &cmd);
+}
+
+/* R22 3.6.10.2 and 3.4.11 */
+ZTEST(zzb_nwk_ed_timeout, test_request_follows_the_network_key)
+{
+	struct zzb_nwk_hdr hdr;
+	struct zzb_nwk_cmd cmd;
+
+	receive_key();
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].meta.dst.short_addr, PARENT_SHORT);
+	zassert_equal(sent[0].meta.flags, ZZB_FRAME_ACK_REQ);
+	zassert_equal(sent[0].meta.handle, 0xf0 | ZZB_NWK_CMD_ED_TIMEOUT_REQ);
+
+	parse_sent_cmd(0, parent, &hdr, &cmd);
+	zassert_equal(hdr.type, ZZB_NWK_FRAME_CMD);
+	zassert_equal(hdr.flags, ZZB_NWK_SECURITY | ZZB_NWK_SRC_IEEE | ZZB_NWK_DST_IEEE);
+	zassert_equal(hdr.dst, PARENT_SHORT);
+	zassert_equal(hdr.src, CHILD_SHORT);
+	zassert_equal(hdr.radius, 1);
+	zassert_equal(hdr.src_ext, child->eui64);
+	zassert_equal(hdr.dst_ext, parent->eui64);
+	zassert_equal(cmd.id, ZZB_NWK_CMD_ED_TIMEOUT_REQ);
+	zassert_equal(cmd.ed_timeout_req.timeout, CONFIG_ZZB_NWK_ED_TIMEOUT);
+	zassert_equal(cmd.ed_timeout_req.config, 0);
+}
+
+/* A key update on the network sends no request */
+ZTEST(zzb_nwk_ed_timeout, test_no_request_without_a_pending_key)
+{
+	zzb_nlme_set_nwk_key(child, test_key, 1);
+	run_stack();
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 0);
+}
+
+ZTEST(zzb_nwk_ed_timeout, test_request_is_retried_without_a_buffer)
+{
+	struct net_buf *bufs[CONFIG_ZZB_BUF_COUNT];
+
+	ARRAY_FOR_EACH(bufs, i) {
+		bufs[i] = zzb_buf_alloc(K_NO_WAIT);
+	}
+
+	receive_key();
+	ARRAY_FOR_EACH(bufs, i) {
+		net_buf_unref(bufs[i]);
+	}
+
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(900));
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
+}
+
+/* R22 3.6.10.2: the parent information sets the end device initiator bit (3.3.1.1.9) */
+ZTEST(zzb_nwk_ed_timeout, test_response_sets_the_parent_information)
+{
+	static const uint8_t nsdu[] = {0x42};
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	struct zzb_nwk_hdr hdr;
+
+	receive_rsp(0x00, 0x03, parent->eui64);
+	zassert_equal(child->nwk.nib.parent_info, 0x03);
+
+	zassert_not_null(buf);
+	net_buf_reserve(buf, ZZB_NLDE_HEADROOM);
+	net_buf_add_mem(buf, nsdu, sizeof(nsdu));
+	zassert_ok(zzb_nlde_data_req(child, buf, PARENT_SHORT, 0, true));
+	zassert_true(zzb_nwk_hdr_parse(sent[0].data, sent[0].len, &hdr) > 0);
+	zassert_true(hdr.flags & ZZB_NWK_ED_INITIATOR);
+}
+
+ZTEST(zzb_nwk_ed_timeout, test_other_responses_are_ignored)
+{
+	/* INCORRECT_VALUE, and a source IEEE address other than the parent's */
+	receive_rsp(0x01, 0x03, parent->eui64);
+	receive_rsp(0x00, 0x03, 0x0102030405060708ULL);
+	zassert_equal(child->nwk.nib.parent_info, 0);
+}
+
+ZTEST_SUITE(zzb_nwk_ed_timeout, NULL, setup, before, after, NULL);
