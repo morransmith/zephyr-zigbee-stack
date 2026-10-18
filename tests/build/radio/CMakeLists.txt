@@ -6,3 +6,7 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(zzb_build_radio)
 
 target_sources(app PRIVATE src/main.c)
+if(CONFIG_ZZB_MAC)
+  target_include_directories(app PRIVATE ${ZEPHYR_ZZB_MODULE_DIR}/subsys/zzb)
+  target_sources(app PRIVATE src/nwk_stubs.c)
+endif()

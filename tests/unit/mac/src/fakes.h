@@ -4,10 +4,20 @@
 #define ZZB_TESTS_UNIT_MAC_FAKES_H_
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <zephyr/device.h>
+#include <zephyr/fff.h>
+#include <zephyr/net_buf.h>
+
+#include "common/buf.h"
+#include "mac/mac.h"
 
 #define NODE_EUI64 0x0011223344556677ULL
+
+/* The parent played by the tx() fake */
+#define PAN_ID       0x1a62
+#define PARENT_SHORT 0x0000
 
 /* What the MAC has programmed into the test radio */
 struct radio_state {
@@ -18,12 +28,43 @@ struct radio_state {
 	bool started;
 };
 
+struct sent_frame {
+	uint8_t data[ZZB_BUF_SIZE];
+	size_t len;
+	/* The radio when the frame was sent */
+	struct radio_state radio;
+};
+
+/* Behavior of the parent, reset before each test */
+struct parent {
+	/* Number of frames with the ACK request bit that get no ACK */
+	int lost;
+	/* tx() returns -EBUSY, as after a CSMA-CA failure */
+	bool busy;
+};
+
 extern const struct device *const radio_dev;
 extern struct radio_state radio;
+extern struct sent_frame sent[8];
+extern int sent_count;
+extern struct parent parent;
 extern struct zzb_node *node;
+
+DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
 
 /* Suite hooks shared by the MAC suites: one node, its MAC initialized again before each test */
 void *mac_setup(void);
 void mac_before(void *fixture);
+/* Checks that the MAC is idle and has released every buffer */
+void mac_after(void *fixture);
+
+/* Runs the stack thread until it waits, without advancing the time */
+void run_stack(void);
+
+/* Returns a buffer with the MSDU for MCPS-DATA.request to the parent, with ACK request */
+struct net_buf *msdu_buf(uint8_t handle, const uint8_t *msdu, size_t len);
+
+/* Compares sent frame i with frame, except its sequence number */
+void check_sent(int i, const uint8_t *frame, size_t len);
 
 #endif /* ZZB_TESTS_UNIT_MAC_FAKES_H_ */

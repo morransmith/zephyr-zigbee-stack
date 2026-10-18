@@ -10,4 +10,5 @@ target_sources(app PRIVATE
   src/fakes.c
   src/frame.c
   src/mac.c
+  src/tx.c
 )
