@@ -13,6 +13,7 @@
 
 struct zzb_radio_port {
 	const struct device *dev;
+	bool hw_csma;
 	/* Passed to every tx() with the frame as the fragment */
 	struct net_pkt tx_pkt;
 	struct net_buf *tx_buf;

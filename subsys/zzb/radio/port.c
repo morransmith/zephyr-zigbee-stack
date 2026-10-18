@@ -4,11 +4,20 @@
 #include <zephyr/kernel.h>
 #include <zephyr/net/ieee802154_radio.h>
 #include <zephyr/net/net_pkt.h>
+#include <zephyr/random/random.h>
 
 #include "common/buf.h"
 #include "common/queue.h"
 #include "mac/frame.h"
 #include "radio/port.h"
+
+/* Defaults of macMinBE, macMaxBE and macMaxCSMABackoffs (802.15.4 Table 52) */
+#define MIN_BE            3
+#define MAX_BE            5
+#define MAX_CSMA_BACKOFFS 4
+
+/* aUnitBackoffPeriod: 20 symbols of 16 us at 2.4 GHz */
+#define UNIT_BACKOFF_US 320
 
 /* tx() blocks the stack queue, so one frame is in flight for all ports */
 static bool acked;
@@ -28,14 +37,44 @@ enum net_verdict ieee802154_handle_ack(struct net_if *iface, struct net_pkt *pkt
 	return NET_OK;
 }
 
+/* Unslotted CSMA-CA (802.15.4 5.1.1.4) */
+static int csma_ca(const struct device *dev)
+{
+	const struct ieee802154_radio_api *api = dev->api;
+	uint8_t be = MIN_BE;
+
+	for (int nb = 0; nb <= MAX_CSMA_BACKOFFS; nb++) {
+		int err;
+
+		k_busy_wait((sys_rand32_get() & BIT_MASK(be)) * UNIT_BACKOFF_US);
+		err = api->cca(dev);
+		if (err != -EBUSY) {
+			return err;
+		}
+
+		be = MIN(be + 1, MAX_BE);
+	}
+
+	return -EBUSY;
+}
+
 static enum zzb_mac_status transmit(struct zzb_radio_port *port, struct net_buf *buf)
 {
 	const struct ieee802154_radio_api *api = port->dev->api;
+	enum ieee802154_tx_mode mode = IEEE802154_TX_MODE_CSMA_CA;
 	int err;
+
+	if (!port->hw_csma) {
+		if (csma_ca(port->dev)) {
+			return ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE;
+		}
+
+		mode = IEEE802154_TX_MODE_DIRECT;
+	}
 
 	acked = false;
 	ack_pending = false;
-	err = api->tx(port->dev, IEEE802154_TX_MODE_CSMA_CA, &port->tx_pkt, buf);
+	err = api->tx(port->dev, mode, &port->tx_pkt, buf);
 
 	/* esp32 returns 0 also when the ACK is missing */
 	if (err == -ENOMSG || (err == 0 && ieee802154_is_ar_flag_set(buf) && !acked)) {
@@ -70,12 +109,13 @@ int zzb_radio_init(struct zzb_radio_port *port, const struct device *dev)
 	const struct ieee802154_radio_api *api = dev->api;
 	enum ieee802154_hw_caps caps = api->get_capabilities(dev);
 
-	if (!(caps & IEEE802154_HW_TX_RX_ACK) || !(caps & IEEE802154_HW_CSMA)) {
+	if (!(caps & IEEE802154_HW_TX_RX_ACK)) {
 		return -ENOTSUP;
 	}
 
 	*port = (struct zzb_radio_port){
 		.dev = dev,
+		.hw_csma = caps & IEEE802154_HW_CSMA,
 	};
 	k_work_init(&port->tx_work, tx_handler);
 	k_fifo_init(&port->rx_fifo);

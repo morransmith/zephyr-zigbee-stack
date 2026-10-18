@@ -16,6 +16,7 @@
 DEFINE_FFF_GLOBALS;
 
 FAKE_VALUE_FUNC(enum ieee802154_hw_caps, radio_get_caps, const struct device *);
+FAKE_VALUE_FUNC(int, radio_cca, const struct device *);
 FAKE_VALUE_FUNC(int, radio_tx, const struct device *, enum ieee802154_tx_mode, struct net_pkt *,
 		struct net_buf *);
 FAKE_VOID_FUNC(zzb_radio_rx, struct zzb_radio_port *, struct net_buf *);
@@ -24,6 +25,7 @@ FAKE_VOID_FUNC(zzb_radio_tx_done, struct zzb_radio_port *, struct net_buf *, enu
 
 static const struct ieee802154_radio_api radio_api = {
 	.get_capabilities = radio_get_caps,
+	.cca = radio_cca,
 	.tx = radio_tx,
 };
 
@@ -126,6 +128,7 @@ static void transmit(struct net_buf *buf)
 static void before(void *fixture)
 {
 	RESET_FAKE(radio_get_caps);
+	RESET_FAKE(radio_cca);
 	RESET_FAKE(radio_tx);
 	RESET_FAKE(zzb_radio_rx);
 	RESET_FAKE(zzb_radio_tx_done);
@@ -263,6 +266,40 @@ ZTEST(zzb_radio_raw, test_ack_request_without_ack_is_no_ack)
 
 	zassert_equal(zzb_radio_tx_done_fake.arg2_val, ZZB_MAC_STATUS_NO_ACK);
 	zassert_false(zzb_radio_tx_done_fake.arg3_val);
+}
+
+static void init_without_hw_csma(void)
+{
+	radio_get_caps_fake.return_val = IEEE802154_HW_TX_RX_ACK;
+	zassert_ok(zzb_radio_init(&port, DEVICE_GET(test_radio)));
+}
+
+ZTEST(zzb_radio_raw, test_sw_csma_ca_retries_cca_then_sends_direct)
+{
+	int cca_results[] = {-EBUSY, -EBUSY, 0};
+
+	init_without_hw_csma();
+	SET_RETURN_SEQ(radio_cca, cca_results, ARRAY_SIZE(cca_results));
+
+	transmit(tx_buf(bcast_frame, sizeof(bcast_frame)));
+
+	zassert_equal(radio_cca_fake.call_count, 3);
+	zassert_equal(radio_tx_fake.call_count, 1);
+	zassert_equal(radio_tx_fake.arg1_val, IEEE802154_TX_MODE_DIRECT);
+	zassert_equal(zzb_radio_tx_done_fake.arg2_val, ZZB_MAC_STATUS_SUCCESS);
+}
+
+ZTEST(zzb_radio_raw, test_sw_csma_ca_gives_up_after_max_backoffs)
+{
+	init_without_hw_csma();
+	radio_cca_fake.return_val = -EBUSY;
+
+	transmit(tx_buf(bcast_frame, sizeof(bcast_frame)));
+
+	/* macMaxCSMABackoffs + 1 */
+	zassert_equal(radio_cca_fake.call_count, 5);
+	zassert_equal(radio_tx_fake.call_count, 0);
+	zassert_equal(zzb_radio_tx_done_fake.arg2_val, ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE);
 }
 
 ZTEST_SUITE(zzb_radio_raw, NULL, NULL, before, NULL, NULL);
