@@ -130,6 +130,11 @@ int zzb_mac_start_op(struct zzb_node *node, enum zzb_mac_op op)
 		return -EBUSY;
 	}
 
+	/* Queued frames would go out on the channel of the scan or of the coordinator */
+	if ((op == ZZB_MAC_OP_SCAN || op == ZZB_MAC_OP_ASSOC) && !k_fifo_is_empty(&mac->tx_fifo)) {
+		return -EBUSY;
+	}
+
 	mac->cmd_buf = zzb_buf_alloc(K_NO_WAIT);
 	if (mac->cmd_buf == NULL) {
 		return -ENOBUFS;

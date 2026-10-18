@@ -106,4 +106,24 @@ ZTEST(zzb_mac, test_set_channel_during_a_scan_is_busy)
 	zassert_equal(radio.channel, 11);
 }
 
+/* A queued frame would go out on the scanned channel or the channel of the coordinator */
+ZTEST(zzb_mac, test_scan_and_association_wait_for_queued_frames)
+{
+	static const uint8_t msdu[] = {0x42};
+	const struct zzb_mac_addr coord = {
+		.mode = ZZB_MAC_ADDR_SHORT,
+		.pan_id = PAN_ID,
+		.short_addr = PARENT_SHORT,
+	};
+
+	zassert_ok(zzb_mcps_data_req(node, msdu_buf(1, msdu, sizeof(msdu))));
+	zassert_equal(zzb_mlme_scan_req(node, BIT(15), 0), -EBUSY);
+	zassert_equal(zzb_mlme_assoc_req(node, 15, &coord, 0x80), -EBUSY);
+
+	run_stack();
+	zassert_equal(zzb_mcps_data_conf_fake.call_count, 1);
+	zassert_ok(zzb_mlme_scan_req(node, BIT(15), 0));
+	k_sleep(K_MSEC(40));
+}
+
 ZTEST_SUITE(zzb_mac, NULL, mac_setup, mac_before, mac_after, NULL);

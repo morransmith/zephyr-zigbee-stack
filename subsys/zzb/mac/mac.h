@@ -132,7 +132,10 @@ void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_ma
  */
 #define ZZB_MAC_MAX_FRAME_TOTAL_WAIT_US 157536
 
-/* Allocates the command buffer for op, or returns -EBUSY while another procedure runs */
+/*
+ * Allocates the command buffer for op, or returns -EBUSY while another procedure runs, or for a
+ * scan or an association while the TX FIFO holds frames
+ */
 int zzb_mac_start_op(struct zzb_node *node, enum zzb_mac_op op);
 
 /* Releases the command buffer and ends the procedure */
