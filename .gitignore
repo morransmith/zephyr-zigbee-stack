@@ -1,3 +1,4 @@
 doc/standard/
 build/
+!/tests/build/
 twister-out*/

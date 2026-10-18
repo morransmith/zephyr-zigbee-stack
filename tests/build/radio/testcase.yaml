@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+
+tests:
+  zzb.build.radio:
+    build_only: true
+    platform_allow:
+      - native_sim
+      - native_sim/native/64
+      - nrf52840dk/nrf52840
+      - esp32c6_devkitc/esp32c6/hpcore
+      - esp32h2_devkitm/esp32h2

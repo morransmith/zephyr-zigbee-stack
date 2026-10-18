@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig ZZB
+	bool "Zigbee stack"
+	help
+	  Zigbee PRO R22 stack with Base Device Behavior 3.0.1 and ZCL rev 8.
