@@ -8,5 +8,6 @@ project(zzb_unit_sec)
 target_include_directories(app PRIVATE ${ZEPHYR_ZZB_MODULE_DIR}/subsys/zzb)
 target_sources(app PRIVATE
   src/hmac.c
+  src/install_code.c
   src/mmo.c
 )
