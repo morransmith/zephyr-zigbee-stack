@@ -4,6 +4,7 @@
 #include <zephyr/net/ieee802154_radio.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_l2.h>
+#include <zephyr/sys/byteorder.h>
 
 #include "radio/port.h"
 
@@ -40,5 +41,23 @@ int zzb_radio_attach(struct zzb_radio_port *port)
 	}
 
 	*(struct zzb_radio_port **)net_if_l2_data(iface) = port;
+	return 0;
+}
+
+int zzb_radio_eui64(const struct device *dev, uint64_t *eui64)
+{
+	struct net_if *iface = net_if_lookup_by_dev(dev);
+	struct net_linkaddr *addr;
+
+	if (iface == NULL) {
+		return -ENODEV;
+	}
+
+	addr = net_if_get_link_addr(iface);
+	if (addr->len != 8) {
+		return -ENODEV;
+	}
+
+	*eui64 = sys_get_be64(addr->addr);
 	return 0;
 }

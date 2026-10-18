@@ -20,7 +20,7 @@ include/zzb/      zzb.h aps.h zdo.h bdb.h zcl.h zcl/<cluster>.h types.h
 subsys/zzb/
   common/   buf.c queue.c timer.c eui64.c eui64_esp32.c node.c
   radio/    port.c raw.c custom_l2.c
-  mac/      frame.c scan.c assoc.c poll.c tx.c
+  mac/      frame.c mac.c scan.c assoc.c poll.c tx.c
             coord/   beacon.c assoc_resp.c indirect.c fpb.c
   nwk/      frame.c nib.c neighbor.c addr_map.c security.c join.c rejoin.c leave.c ed_timeout.c fc.c
             router/  addr_alloc.c route.c link_status.c btt.c mtorr.c src_route.c
@@ -55,6 +55,8 @@ samples/  on_off_light  contact_sensor
 
 All stack state is in `struct zzb_node`, passed explicitly to every function, as OpenThread does with `otInstance`. One binary can run several nodes, which the integration tests use. Nodes come from a static pool of `CONFIG_ZZB_NODE_COUNT` entries; `zzb_node_init()` returns a pointer into it. The public header declares `struct zzb_node` without its definition, so layer state stays in internal headers.
 
+`struct zzb_node_config` names the radio device of the node, e.g. `DEVICE_DT_GET(DT_CHOSEN(zephyr_ieee802154))`; with `CONFIG_ZZB_MAC`, `zzb_node_init()` returns `-EINVAL` without one. The node embeds its radio port and its MAC state, and the MAC finds the node of a port with `CONTAINER_OF()`.
+
 Kconfig selects capabilities: `CONFIG_ZZB_ROUTER_CAPABLE`, `CONFIG_ZZB_COORDINATOR_CAPABLE`, `CONFIG_ZZB_TRUST_CENTER`. The role and the sleepy flag are runtime properties of each node, so one test binary holds an end device, a router and a trust center.
 
 The device definition (endpoints, clusters, attribute storage) is passed to `zzb_node_init()`. The stack does not use global iterable sections. One settings handler `zzb` dispatches `zzb/<instance>/...` to the registered nodes.
@@ -81,13 +83,13 @@ The `net_buf` pool and the PSA key cache are shared by all nodes.
 - Data polling is in NWK (NLME-SYNC and a poll scheduler). Fast poll is a reference-counted hold, taken by the APS ACK wait, ZDO and ZCL transactions, BDB procedures and OTA.
 - Calls between stack layers are direct function calls. A `.request` primitive is defined in the layer that serves it; `.confirm` and `.indication` primitives are defined in the layer above and called directly by the layer below.
 - Function pointers are used where several implementations exist at runtime: radio drivers (`struct ieee802154_radio_api`), the local trust center (`node->tc`, NULL when not built), application callbacks.
-- Unit tests replace adjacent layers by link-time substitution with the FFF bundled with Zephyr (`zephyr/fff.h`): a test links the sources of the layer under test and defines fakes with the names of the neighbor layer's functions.
+- Unit tests replace adjacent layers by link-time substitution with the FFF bundled with Zephyr (`zephyr/fff.h`): a test links the sources of the layer under test and defines fakes with the names of the neighbor layer's functions. Zephyr links libzzb with `--whole-archive`, so each layer has a Kconfig option that removes it from the build. `CONFIG_ZZB_MAC` defaults to y when a radio backend is enabled; the glue tests turn it off because they fake `zzb_radio_rx()` and `zzb_radio_tx_done()`. NWK and the layers above get their options when they are added, and the MAC tests then turn off NWK.
 
 ## 6. Tables
 
 | Layer | Tables |
 |---|---|
-| MAC | PIB, in-flight TX, indirect queue, mirror of the driver frame-pending table |
+| MAC | PIB, TX queue, indirect queue, mirror of the driver frame-pending table |
 | NWK | neighbor table (parent and children as entries with relationship, timeout, keepalive, incoming frame counter), `nwkAddressMap`, route table, route discovery table, broadcast transaction table, route record table, network keys (two), group ID table |
 | APS | binding table, group table, device key-pair table (incoming frame counter, verified state), trust center IEEE address, duplicate rejection table |
 | ZDO | descriptors generated from the device definition, transaction table |
@@ -101,6 +103,7 @@ Every table is accessed through find/add/remove functions. The coordinator can r
 - RX: the radio port copies the PSDU out of the driver `net_pkt` and releases the `net_pkt` immediately, returning it to the driver RX pool.
 - TX: each radio port embeds a zeroed `struct net_pkt` that is not taken from the `net_pkt` slab, and passes it to every `tx()` with the stack buffer as the fragment. The drivers read the frame from the fragment and only control block flags from the packet.
 - Ownership: a request returning a negative error leaves the buffer with the caller. A request returning 0 takes the buffer and produces exactly one confirm. An indication passes the buffer to the upper layer.
+- MCPS-DATA.request needs `ZZB_MAC_HDR_MAX_LEN` bytes of headroom. It returns `-EMSGSIZE` when the headroom is shorter than the MAC header or the frame is longer than 125 bytes (aMaxPHYPacketSize without the FCS). MCPS-DATA.confirm carries the MSDU handle, and the MAC releases the buffer.
 - APS retransmissions of a secured frame use a higher frame counter than the original (R22 2.2.8.4.4). APS keeps the plaintext and secures a new copy per attempt. MAC retries resend the same MAC frame.
 - The MIC is computed with security level 5 in the auxiliary header, then the level field is set to 0 on air. The receiver sets it back to 5 before verification (R22 4.3.1.1 step 8, 4.4.1.1 step 10). A unit test with a captured frame covers this.
 
@@ -113,7 +116,8 @@ The default backend is `CONFIG_IEEE802154_RAW_MODE`. The nrf5 and esp32 drivers 
 - `zzb_radio_init(port, dev)` binds a port to a radio device. It returns `-ENOTSUP` if the driver does not report `IEEE802154_HW_TX_RX_ACK`.
 - `zzb_radio_tx(port, buf)` queues one frame and returns `-EBUSY` while the previous frame of the port waits for its confirm. A work item on the stack queue runs CSMA-CA and `tx()`, then calls `zzb_radio_tx_done(port, buf, status, frame_pending)`, which may queue the next frame.
 - The RX entry copies the frame into a stack buffer, and a work item passes it to `zzb_radio_rx(port, buf)`. LQI and RSSI are in the buffer metadata.
-- `zzb_radio_tx_done()` and `zzb_radio_rx()` are defined by the MAC. The MAC binds the port to its node (milestone 6).
+- `zzb_radio_tx_done()` and `zzb_radio_rx()` are defined by the MAC.
+- `zzb_radio_eui64(dev, eui64)` reads the `net_if` link address in the custom-L2 backend and returns `-ENODEV` in raw mode.
 - `ieee802154_handle_ack()` is defined once for both backends. Since `tx()` blocks the single stack queue, one frame is in flight for all nodes, and the ACK is recorded in file-scope state.
 
 In raw mode no `net_if` exists, and the drivers pass a NULL interface to `net_recv_data()` and `ieee802154_handle_ack()`. The raw backend therefore serves one port. It implements `net_recv_data()`, which the driver calls for each received frame; `ieee802154_init()` is an empty macro. The custom-L2 backend implements an empty `ieee802154_init()`, finds the interface of the device with `net_if_lookup_by_dev()` and keeps the port in the L2 data of the interface. It receives frames through the `recv` function of its `NET_L2_INIT()` entry. Its `send` returns `-ENOTSUP`, and it does not start the radio; the MAC does.
@@ -124,7 +128,8 @@ In raw mode no `net_if` exists, and the drivers pass a NULL interface to `net_re
 | Status | `enum zzb_mac_status` with the 802.15.4-2006 values. NO_ACK (0xe9) for `-ENOMSG`, and for a frame with the ACK request bit when `ieee802154_handle_ack()` was not called during `tx()`, also if `tx()` returned 0. CHANNEL_ACCESS_FAILURE (0xe1) for every other error. SUCCESS (0x00) otherwise |
 | Retries | in software; neither nrf5 nor esp32 reports `IEEE802154_HW_RETRANSMISSION` |
 | Frame pending after a poll | parsed from the ACK frame passed to `ieee802154_handle_ack()`; drivers do not set `ack_fpb` on ACK packets |
-| Filters | PAN ID, short address and IEEE address are programmed by the stack |
+| Filters | the MAC programs the IEEE address, PAN ID and short address at init and on every change; neither nrf5 nor esp32 programs the IEEE address in raw mode |
+| Channel | `set_channel()` followed by `start()`, since the esp32 driver applies a new channel only when it next enters TX or RX |
 | Trailing bytes | `CONFIG_IEEE802154_L2_PKT_INCL_FCS` defaults to y in raw mode. The port then drops the last two bytes of a received frame: nrf5 puts the FCS or the LQI there, esp32 the RSSI and the LQI |
 
 The esp32 driver returns 0 from `tx()` after a CCA failure and after a missing ACK, because it discards the error passed by the HAL. A unicast frame then reports NO_ACK by the rule above, and a broadcast frame lost to a CCA failure reports SUCCESS.
@@ -138,13 +143,15 @@ The stack holds the EUI-64 as a `uint64_t` and converts it at the frame codec, t
 
 1. `eui64` in the node configuration, used by tests that run several nodes in one binary;
 2. settings override;
-3. `net_if` link address (custom L2);
+3. `net_if` link address (custom L2), read with `zzb_radio_eui64()`;
 4. ESP32 eFuse, `esp_efuse_mac_get_default()`: the MAC-48 with the eFuse MAC_EXT field inserted, the same value the esp32 driver uses;
 5. `hwinfo_get_device_id()`: an ID of 8 bytes or more gives its first 8 bytes, a 6-byte ID is a MAC-48 and gets FF:FE inserted after the OUI, a shorter ID is padded with leading zeros.
 
 The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not run.
 
-## 9. MAC frames
+## 9. MAC
+
+### Frame codec
 
 `mac/frame.c` is a byte codec in the style of `sec/aux_hdr.c`: its functions take a pointer and a length and do not use `net_buf` or `struct zzb_frame_meta`. The MAC layer copies addresses and flags between the header struct and the frame metadata.
 
@@ -154,6 +161,26 @@ The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not 
 - Commands: association request and response, data request, orphan notification, beacon request, coordinator realignment. Disassociation notification and PAN ID conflict notification are excluded by the PICS, GTS is not used; the parser returns `-ENOTSUP` for them. Coordinator realignment is sent without the Channel Page field (R22 D.5); a received Channel Page field is ignored.
 - Beacons: the codec reads the Superframe Specification field, skips the GTS and pending address fields and returns the offset of the beacon payload. The Zigbee beacon payload (R22 3.6.7) is part of the NWK frame codec (milestone 7).
 - The FCS is not written or checked. The nrf5 and esp32 drivers add it on transmit. On receive, the radio port drops the two trailing bytes when `CONFIG_IEEE802154_L2_PKT_INCL_FCS` is set (section 8).
+
+### Device side
+
+- `CONFIG_ZZB_MAC` builds `mac.c`, `tx.c`, `scan.c`, `assoc.c` and `poll.c`; `frame.c` is always built.
+- One TX FIFO per node holds data and command frames, and its head is the frame in flight. A frame with the ACK request bit is sent again after NO_ACK, up to macMaxFrameRetries (3) times, with the same sequence number (802.15.4 5.1.6.4.3). CHANNEL_ACCESS_FAILURE is reported without a retry. macDSN starts at a random value.
+- MLME-SCAN, MLME-ASSOCIATE and MLME-POLL exclude each other: a second request returns `-EBUSY`. Each procedure allocates one command buffer and reuses it for its frames. MCPS-DATA.request always enqueues. A data frame enqueued during a scan is sent on the channel being scanned, so NWK must not send data while it scans.
+- The source address of a transmitted frame is the short address when macShortAddress is below 0xfffe, otherwise the extended address (802.15.4 5.1.6.1).
+- Active scan (802.15.4 5.1.2.1.2): the PAN ID filter is 0xffff during the scan. On each channel the MAC sends a beacon request and listens for aBaseSuperframeDuration * (2^n + 1) symbols; after a failed beacon request it moves to the next channel. Frames other than beacons are dropped. Every beacon produces MLME-BEACON-NOTIFY.indication with the channel and the Superframe Specification field, without duplicate filtering. MLME-SCAN.confirm carries only the status: SUCCESS, or NO_BEACON when no beacon arrived. The PAN ID filter and the channel are restored after the scan.
+- Association (802.15.4 5.1.3.1): the association request and its data request use the first header form of R22 Tables D-1 and D-2, with source PAN ID 0xffff and the extended source address. The data request follows macResponseWaitTime after the ACK of the request. After any failure macPANId is 0xffff again.
+- Data poll (802.15.4 5.1.6.3): after an ACK with frame pending, the MAC waits for a data frame from the polled coordinator. A zero-length frame or the end of the wait gives NO_DATA. MLME-POLL.confirm precedes MCPS-DATA.indication. The frame pending bit of the received frame reaches NWK in the frame metadata, and NWK decides whether to poll again.
+- Outside these procedures, data frames with a payload produce MCPS-DATA.indication. Zero-length data frames, beacons and commands are dropped.
+- The receiver stays on between polls until milestone 14. PIB getters and setters and MLME-RESET are added with the NWK join (milestone 8).
+
+| Time | Definition | Value at 2.4 GHz |
+|---|---|---|
+| Scan dwell | aBaseSuperframeDuration (960 symbols) * (2^n + 1) | 138.24 ms for n = 3, the value R22 D.7 recommends |
+| macResponseWaitTime | 32 * aBaseSuperframeDuration | 491.52 ms |
+| macMaxFrameTotalWaitTime | 802.15.4 Table 52 formula with macMinBE 5, macMaxBE 8 and macMaxCSMABackoffs 4 (R22 D.6), since the frame comes from the CSMA-CA of the parent | 9846 symbols, 157.54 ms |
+
+The 2011 text of the macMaxFrameTotalWaitTime formula has 2^macMinBE in its second term. The value above uses 2^macMaxBE, because the backoffs after the first m use BE = macMaxBE.
 
 ## 10. Security and frame counters
 
@@ -238,10 +265,10 @@ No C implementation of AES-MMO or install code key derivation under a permissive
 
 - Unit tests: ztest on `native_sim/native/64`; CI also runs `native_sim` (32-bit) to catch pointer-size errors.
 - Crypto and codec tests use R22 Annex C vectors, BDB 10.1 install code examples and frames captured from real networks. The first frames come from the Ziggurat and zigbee-rs test suites (listed in `NOTICE`) and from a test network whose network key may be published. MAC frames missing from these sources are built from the IEEE 802.15.4-2011 figures and R22 Tables D-1 to D-3.
-- Multi-node integration tests: fake radio devices implementing `ieee802154_radio_api` (`tests/common/fake_radio.c`), connected by an in-process medium. Each fake radio is a net device for the custom-L2 backend with its own `net_if`, since the raw backend serves one port. The medium has a link matrix and filters by PAN ID and destination address; frame loss is added with the MAC retries (milestone 6). It logs every frame with `LOG_HEXDUMP_DBG`. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
+- Multi-node integration tests: fake radio devices implementing `ieee802154_radio_api` (`tests/common/fake_radio.c`), connected by an in-process medium. Each fake radio is a net device for the custom-L2 backend with its own `net_if`, since the raw backend serves one port. The medium has a link matrix and filters by PAN ID and destination address; frame loss is added with the router MAC (milestone 15). It logs every frame with `LOG_HEXDUMP_DBG`. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
 - `tests/glue/raw` tests the radio port in raw mode against FFF fakes of the radio API: TX modes, software CSMA-CA, status mapping, frame pending from the ACK and the RX copy. `tests/glue/custom_l2` tests the custom-L2 backend with two fake radios.
-- `tests/build/radio` is a build-only consumer application. It enables the module on native_sim and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. A second scenario builds nrf52840dk with the custom-L2 backend. Until the MAC exists (milestone 6), the application defines `zzb_radio_rx()` and `zzb_radio_tx_done()` itself.
-- Open for milestone 6: Zephyr links libzzb with `--whole-archive`, so an FFF fake of a function that libzzb defines is a duplicate definition. The link-time substitution of section 5 needs a way to leave the faked layer out of the build, for example a Kconfig option per layer.
+- `tests/unit/mac` tests the device MAC in raw mode against FFF fakes of the radio API. The `tx()` fake plays the parent: it returns the ACK through `ieee802154_handle_ack()`, with frame pending when the test sets it, and injects replies with `net_recv_data()`. It simulates frame loss by withholding the ACK.
+- `tests/build/radio` is a build-only consumer application. It enables the module on native_sim and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. A second scenario builds nrf52840dk with the custom-L2 backend. The application passes the `zephyr,ieee802154` chosen device to `zzb_node_init()` and defines the NWK callbacks of the MAC until NWK defines them.
 - CI runs on Woodpecker (`.woodpecker/build.yaml`): twister runs the tests on `native_sim` and `native_sim/native/64` and only builds the hardware targets.
 - `tests/common/scripted_tc.c` plays the trust center side of join sequences captured with a sniffer from EZSP and Z-Stack coordinators on a test network with a known network key.
 - Reboot and power-loss tests run on NVS over the flash simulator; the node is destroyed and re-initialized.
@@ -267,7 +294,7 @@ Each milestone is one feature branch with its tests.
 12. ZCL foundation (read, write, discover attributes, default response), attribute macros, Basic, Identify, On/Off servers. Interop: ZHA creates the entity.
 13. Attribute reporting with persistence; finding & binding (BDB 8.4, 8.5).
 14. Sleepy end device: poll scheduler with holds, radio off between polls, timeout negotiation, Power Configuration and Poll Control clusters.
-15. Router, part 1: MAC coordinator functions (beacons, association response, indirect queue, frame-pending table), stochastic address allocation, child aging and End Device Timeout server, permit join, Parent_annce; esp32 driver patch.
+15. Router, part 1: MAC coordinator functions (beacons, association response, indirect queue, frame-pending table), stochastic address allocation, child aging and End Device Timeout server, permit join, Parent_annce; esp32 driver patch; frame loss in the fake medium.
 16. Router, part 2: route discovery, link status, broadcast transaction table with passive ACK, many-to-one routes, route record, source-route relay, APS Update Device and Tunnel.
 17. OTA Upgrade client with MCUboot (`flash_img`, `boot_request_upgrade()`).
 18. Coordinator: network formation (energy scan, PAN ID selection), concentrator and source route table, network manager.

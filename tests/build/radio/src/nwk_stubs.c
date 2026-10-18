@@ -1,0 +1,32 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Stubs of the NWK functions the MAC calls, until NWK defines them */
+
+#include "mac/mac.h"
+
+void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status)
+{
+}
+
+void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf)
+{
+	net_buf_unref(buf);
+}
+
+void zzb_mlme_beacon_notify_ind(struct zzb_node *node, struct net_buf *buf, uint8_t channel,
+				uint16_t superframe)
+{
+	net_buf_unref(buf);
+}
+
+void zzb_mlme_scan_conf(struct zzb_node *node, enum zzb_mac_status status)
+{
+}
+
+void zzb_mlme_poll_conf(struct zzb_node *node, enum zzb_mac_status status)
+{
+}
+
+void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_mac_status status)
+{
+}

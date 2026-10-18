@@ -23,7 +23,7 @@ struct fake_radio {
 };
 
 static struct fake_radio radios[FAKE_RADIO_COUNT] = {
-	{.eui64 = {0, 0, 0, 0, 0, 0, 0, 1}},
+	{.eui64 = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77}},
 	{.eui64 = {0, 0, 0, 0, 0, 0, 0, 2}},
 };
 
