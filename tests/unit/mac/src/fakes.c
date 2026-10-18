@@ -26,6 +26,7 @@ FAKE_VALUE_FUNC(int, radio_tx, const struct device *, enum ieee802154_tx_mode, s
 DEFINE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
 DEFINE_FAKE_VOID_FUNC(zzb_mcps_data_ind, struct zzb_node *, struct net_buf *);
 DEFINE_FAKE_VOID_FUNC(zzb_mlme_scan_conf, struct zzb_node *, enum zzb_mac_status);
+DEFINE_FAKE_VOID_FUNC(zzb_mlme_poll_conf, struct zzb_node *, enum zzb_mac_status);
 DEFINE_FAKE_VOID_FUNC(zzb_mlme_beacon_notify_ind, struct zzb_node *, struct net_buf *, uint8_t,
 		      uint16_t);
 
@@ -102,7 +103,7 @@ static int filter_fake(const struct device *dev, bool set, enum ieee802154_filte
 
 static void send_ack(uint8_t seq)
 {
-	const uint8_t ack[] = {0x02, 0x00, seq};
+	const uint8_t ack[] = {parent.pending ? 0x12 : 0x02, 0x00, seq};
 	struct net_pkt *pkt =
 		net_pkt_rx_alloc_with_buffer(NULL, sizeof(ack), NET_AF_UNSPEC, 0, K_NO_WAIT);
 
@@ -163,6 +164,7 @@ static void reset_fakes(void)
 	RESET_FAKE(zzb_mcps_data_conf);
 	RESET_FAKE(zzb_mcps_data_ind);
 	RESET_FAKE(zzb_mlme_scan_conf);
+	RESET_FAKE(zzb_mlme_poll_conf);
 	RESET_FAKE(zzb_mlme_beacon_notify_ind);
 	FFF_RESET_HISTORY();
 	radio_get_caps_fake.return_val = IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_CSMA;

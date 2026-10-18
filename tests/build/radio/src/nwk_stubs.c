@@ -22,3 +22,7 @@ void zzb_mlme_beacon_notify_ind(struct zzb_node *node, struct net_buf *buf, uint
 void zzb_mlme_scan_conf(struct zzb_node *node, enum zzb_mac_status status)
 {
 }
+
+void zzb_mlme_poll_conf(struct zzb_node *node, enum zzb_mac_status status)
+{
+}

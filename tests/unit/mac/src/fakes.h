@@ -39,6 +39,8 @@ struct sent_frame {
 struct parent {
 	/* Number of frames with the ACK request bit that get no ACK */
 	int lost;
+	/* ACKs have the frame pending bit set */
+	bool pending;
 	/* tx() on this channel returns -EBUSY, as after a CSMA-CA failure */
 	uint16_t busy_channel;
 	/* Frame received after the command reply_to, on reply_channel or on any channel if 0 */
@@ -67,6 +69,7 @@ extern struct rx_copy beacon;
 DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
 DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_ind, struct zzb_node *, struct net_buf *);
 DECLARE_FAKE_VOID_FUNC(zzb_mlme_scan_conf, struct zzb_node *, enum zzb_mac_status);
+DECLARE_FAKE_VOID_FUNC(zzb_mlme_poll_conf, struct zzb_node *, enum zzb_mac_status);
 DECLARE_FAKE_VOID_FUNC(zzb_mlme_beacon_notify_ind, struct zzb_node *, struct net_buf *, uint8_t,
 		       uint16_t);
 

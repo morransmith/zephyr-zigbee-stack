@@ -10,6 +10,7 @@ target_sources(app PRIVATE
   src/fakes.c
   src/frame.c
   src/mac.c
+  src/poll.c
   src/scan.c
   src/tx.c
 )

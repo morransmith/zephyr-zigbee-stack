@@ -48,6 +48,9 @@ static void timer_handler(struct k_work *work)
 	case ZZB_MAC_OP_SCAN:
 		zzb_mac_scan_next(node);
 		break;
+	case ZZB_MAC_OP_POLL_RX:
+		zzb_mac_poll_timeout(node);
+		break;
 	default:
 		break;
 	}
@@ -112,9 +115,22 @@ void zzb_mac_cmd_done(struct zzb_node *node, enum zzb_mac_status status, bool fr
 	case ZZB_MAC_OP_SCAN:
 		zzb_mac_scan_cmd_done(node, status);
 		break;
+	case ZZB_MAC_OP_POLL:
+		zzb_mac_poll_cmd_done(node, status, frame_pending);
+		break;
 	default:
 		break;
 	}
+}
+
+static bool same_addr(const struct zzb_mac_addr *a, const struct zzb_mac_addr *b)
+{
+	if (a->mode != b->mode) {
+		return false;
+	}
+
+	return a->mode == ZZB_MAC_ADDR_EXT ? a->ext_addr == b->ext_addr
+					   : a->short_addr == b->short_addr;
 }
 
 void zzb_radio_rx(struct zzb_radio_port *port, struct net_buf *buf)
@@ -136,6 +152,12 @@ void zzb_radio_rx(struct zzb_radio_port *port, struct net_buf *buf)
 
 	if (node->mac.op == ZZB_MAC_OP_SCAN && hdr.type == ZZB_MAC_FRAME_BEACON) {
 		zzb_mac_scan_rx(node, buf);
+		return;
+	}
+
+	if (node->mac.op == ZZB_MAC_OP_POLL_RX && hdr.type == ZZB_MAC_FRAME_DATA &&
+	    same_addr(&hdr.src, &node->mac.poll_coord)) {
+		zzb_mac_poll_rx(node, buf);
 		return;
 	}
 

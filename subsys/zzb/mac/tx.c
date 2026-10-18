@@ -16,7 +16,7 @@
 /* aMaxPHYPacketSize without the FCS */
 #define MAX_FRAME_LEN 125
 
-static struct zzb_mac_addr src_addr(const struct zzb_node *node)
+struct zzb_mac_addr zzb_mac_src_addr(const struct zzb_node *node)
 {
 	if (node->mac.short_addr < 0xfffe) {
 		return (struct zzb_mac_addr){
@@ -50,7 +50,7 @@ int zzb_mcps_data_req(struct zzb_node *node, struct net_buf *buf)
 		.type = ZZB_MAC_FRAME_DATA,
 		.flags = meta->flags & ZZB_FRAME_ACK_REQ,
 		.dst = meta->dst,
-		.src = src_addr(node),
+		.src = zzb_mac_src_addr(node),
 	};
 	size_t hdr_len = zzb_mac_hdr_len(&hdr);
 
