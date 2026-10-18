@@ -61,6 +61,17 @@ static enum ieee802154_hw_caps get_capabilities(const struct device *dev)
 	       IEEE802154_HW_CSMA;
 }
 
+static int start(const struct device *dev)
+{
+	return 0;
+}
+
+/* The medium has one channel */
+static int set_channel(const struct device *dev, uint16_t channel)
+{
+	return 0;
+}
+
 static int filter(const struct device *dev, bool set, enum ieee802154_filter_type type,
 		  const struct ieee802154_filter *filter)
 {
@@ -170,6 +181,8 @@ static int fake_tx(const struct device *dev, enum ieee802154_tx_mode mode, struc
 static const struct ieee802154_radio_api api = {
 	.iface_api.init = iface_init,
 	.get_capabilities = get_capabilities,
+	.start = start,
+	.set_channel = set_channel,
 	.filter = filter,
 	.tx = fake_tx,
 };
