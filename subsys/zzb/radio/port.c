@@ -7,14 +7,38 @@
 
 #include "common/buf.h"
 #include "common/queue.h"
+#include "mac/frame.h"
 #include "radio/port.h"
+
+/* tx() blocks the stack queue, so one frame is in flight for all ports */
+static bool acked;
+static bool ack_pending;
+
+enum net_verdict ieee802154_handle_ack(struct net_if *iface, struct net_pkt *pkt)
+{
+	struct zzb_mac_hdr hdr;
+
+	if (zzb_mac_hdr_parse(pkt->buffer->data, pkt->buffer->len, &hdr) < 0 ||
+	    hdr.type != ZZB_MAC_FRAME_ACK) {
+		return NET_CONTINUE;
+	}
+
+	acked = true;
+	ack_pending = hdr.flags & ZZB_FRAME_PENDING;
+	return NET_OK;
+}
 
 static enum zzb_mac_status transmit(struct zzb_radio_port *port, struct net_buf *buf)
 {
 	const struct ieee802154_radio_api *api = port->dev->api;
-	int err = api->tx(port->dev, IEEE802154_TX_MODE_CSMA_CA, &port->tx_pkt, buf);
+	int err;
 
-	if (err == -ENOMSG) {
+	acked = false;
+	ack_pending = false;
+	err = api->tx(port->dev, IEEE802154_TX_MODE_CSMA_CA, &port->tx_pkt, buf);
+
+	/* esp32 returns 0 also when the ACK is missing */
+	if (err == -ENOMSG || (err == 0 && ieee802154_is_ar_flag_set(buf) && !acked)) {
 		return ZZB_MAC_STATUS_NO_ACK;
 	}
 
@@ -28,7 +52,7 @@ static void tx_handler(struct k_work *work)
 	enum zzb_mac_status status = transmit(port, buf);
 
 	port->tx_buf = NULL;
-	zzb_radio_tx_done(port, buf, status, false);
+	zzb_radio_tx_done(port, buf, status, ack_pending);
 }
 
 static void rx_handler(struct k_work *work)

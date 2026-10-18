@@ -32,12 +32,14 @@ DEVICE_DEFINE(test_radio, "test_radio", NULL, NULL, NULL, NULL, POST_KERNEL,
 
 static struct zzb_radio_port port;
 
-/* Data frame: MAC header, one payload byte, then the two bytes the driver appends */
-static const uint8_t rx_frame[] = {0x61, 0x88, 0xa3, 0xf5, 0x3e, 0x34,
-				   0x52, 0x63, 0xf6, 0x42, 0xaa, 0xbb};
+/* Data frame with ACK request from 0x1234 to 0x0000 in PAN 0x1a62, one payload byte */
+static const uint8_t unicast_frame[] = {0x61, 0x88, 0x01, 0x62, 0x1a, 0x00, 0x00, 0x34, 0x12, 0x42};
 
-/* Broadcast data frame without ACK request */
-static const uint8_t bcast_frame[] = {0x41, 0x88, 0x01, 0xf5, 0x3e, 0xff, 0xff, 0x63, 0xf6, 0x42};
+/* The same frame to 0xffff without ACK request */
+static const uint8_t bcast_frame[] = {0x41, 0x88, 0x01, 0x62, 0x1a, 0xff, 0xff, 0x34, 0x12, 0x42};
+
+/* ACK for unicast_frame; ack[0] is 0x12 when frame pending is set */
+static uint8_t ack[] = {0x02, 0x00, 0x01};
 
 static uint8_t rx_data[ZZB_BUF_SIZE];
 static size_t rx_len;
@@ -51,13 +53,16 @@ static void rx_fake(struct zzb_radio_port *p, struct net_buf *buf)
 	net_buf_unref(buf);
 }
 
+/* unicast_frame and the two bytes the driver appends with CONFIG_IEEE802154_L2_PKT_INCL_FCS */
 static struct net_pkt *rx_pkt(void)
 {
-	struct net_pkt *pkt =
-		net_pkt_rx_alloc_with_buffer(NULL, sizeof(rx_frame), NET_AF_UNSPEC, 0, K_NO_WAIT);
+	static const uint8_t trailer[] = {0xaa, 0xbb};
+	struct net_pkt *pkt = net_pkt_rx_alloc_with_buffer(
+		NULL, sizeof(unicast_frame) + sizeof(trailer), NET_AF_UNSPEC, 0, K_NO_WAIT);
 
 	zassert_not_null(pkt);
-	zassert_ok(net_pkt_write(pkt, rx_frame, sizeof(rx_frame)));
+	zassert_ok(net_pkt_write(pkt, unicast_frame, sizeof(unicast_frame)));
+	zassert_ok(net_pkt_write(pkt, trailer, sizeof(trailer)));
 	return pkt;
 }
 
@@ -72,6 +77,20 @@ static void tx_done_fake(struct zzb_radio_port *p, struct net_buf *buf, enum zzb
 			 bool frame_pending)
 {
 	net_buf_unref(buf);
+}
+
+/* tx() of a driver that receives the ACK in ack[] */
+static int tx_acked(const struct device *dev, enum ieee802154_tx_mode mode, struct net_pkt *pkt,
+		    struct net_buf *frag)
+{
+	struct net_pkt *ack_pkt =
+		net_pkt_rx_alloc_with_buffer(NULL, sizeof(ack), NET_AF_UNSPEC, 0, K_NO_WAIT);
+
+	zassert_not_null(ack_pkt);
+	zassert_ok(net_pkt_write(ack_pkt, ack, sizeof(ack)));
+	zassert_equal(ieee802154_handle_ack(NULL, ack_pkt), NET_OK);
+	net_pkt_unref(ack_pkt);
+	return 0;
 }
 
 static struct net_buf *tx_buf(const uint8_t *frame, size_t len)
@@ -137,8 +156,8 @@ ZTEST(zzb_radio_raw, test_rx_copies_frame_and_releases_pkt)
 
 	zassert_equal(zzb_radio_rx_fake.call_count, 1);
 	zassert_equal_ptr(zzb_radio_rx_fake.arg0_val, &port);
-	zassert_equal(rx_len, sizeof(rx_frame) - 2);
-	zassert_mem_equal(rx_data, rx_frame, rx_len);
+	zassert_equal(rx_len, sizeof(unicast_frame));
+	zassert_mem_equal(rx_data, unicast_frame, rx_len);
 	zassert_equal(rx_meta.lqi, 200);
 	zassert_equal(rx_meta.rssi, -60);
 }
@@ -215,6 +234,35 @@ ZTEST(zzb_radio_raw, test_tx_is_busy_until_confirm)
 	flush_tx();
 
 	transmit(second);
+}
+
+ZTEST(zzb_radio_raw, test_ack_gives_frame_pending)
+{
+	radio_tx_fake.custom_fake = tx_acked;
+
+	ack[0] = 0x02;
+	transmit(tx_buf(unicast_frame, sizeof(unicast_frame)));
+	zassert_equal(zzb_radio_tx_done_fake.arg2_val, ZZB_MAC_STATUS_SUCCESS);
+	zassert_false(zzb_radio_tx_done_fake.arg3_val);
+
+	ack[0] = 0x12;
+	transmit(tx_buf(unicast_frame, sizeof(unicast_frame)));
+	zassert_equal(zzb_radio_tx_done_fake.arg2_val, ZZB_MAC_STATUS_SUCCESS);
+	zassert_true(zzb_radio_tx_done_fake.arg3_val);
+}
+
+/* esp32 returns 0 from tx() when the ACK is missing */
+ZTEST(zzb_radio_raw, test_ack_request_without_ack_is_no_ack)
+{
+	ack[0] = 0x12;
+	radio_tx_fake.custom_fake = tx_acked;
+	transmit(tx_buf(unicast_frame, sizeof(unicast_frame)));
+
+	radio_tx_fake.custom_fake = NULL;
+	transmit(tx_buf(unicast_frame, sizeof(unicast_frame)));
+
+	zassert_equal(zzb_radio_tx_done_fake.arg2_val, ZZB_MAC_STATUS_NO_ACK);
+	zassert_false(zzb_radio_tx_done_fake.arg3_val);
 }
 
 ZTEST_SUITE(zzb_radio_raw, NULL, NULL, before, NULL, NULL);
