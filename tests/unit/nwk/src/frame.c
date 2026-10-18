@@ -148,4 +148,245 @@ ZTEST(zzb_nwk_frame, test_header_truncated)
 	zassert_equal(zzb_nwk_hdr_parse(src_route_hdr, sizeof(src_route_hdr) - 1, &hdr), -EINVAL);
 }
 
+/* Parses bytes, writes the result back and returns it for field checks */
+static struct zzb_nwk_cmd check_cmd_round_trip(const uint8_t *bytes, size_t len)
+{
+	struct zzb_nwk_cmd cmd;
+	uint8_t buf[ZZB_BUF_SIZE];
+
+	zassert_equal(zzb_nwk_cmd_parse(bytes, len, &cmd), len);
+	zassert_equal(zzb_nwk_cmd_write(&cmd, buf), len);
+	zassert_mem_equal(buf, bytes, len);
+
+	return cmd;
+}
+
+#define EPID 0x0102030405060708ULL
+
+static const uint8_t route_req[] = {0x01, 0x08, 0x2a, 0xfc, 0xff, 0x00};
+static const uint8_t route_req_ieee[] = {
+	0x01, 0x20, 0x2b, 0x34, 0x12, 0x03, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01,
+};
+
+ZTEST(zzb_nwk_frame, test_route_request)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(route_req, sizeof(route_req));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_ROUTE_REQ);
+	zassert_equal(FIELD_GET(ZZB_NWK_ROUTE_REQ_MANY_TO_ONE, cmd.route_req.options), 1);
+	zassert_equal(cmd.route_req.id, 42);
+	zassert_equal(cmd.route_req.dst, 0xfffc);
+	zassert_equal(cmd.route_req.path_cost, 0);
+
+	cmd = check_cmd_round_trip(route_req_ieee, sizeof(route_req_ieee));
+	zassert_equal(cmd.route_req.options, ZZB_NWK_ROUTE_REQ_DST_IEEE);
+	zassert_equal(cmd.route_req.dst, 0x1234);
+	zassert_equal(cmd.route_req.path_cost, 3);
+	zassert_equal(cmd.route_req.dst_ext, EPID);
+}
+
+static const uint8_t route_reply[] = {
+	0x02, 0x30, 0x2b, 0x00, 0x00, 0x34, 0x12, 0x05, 0x77, 0x66, 0x55, 0x44,
+	0x33, 0x22, 0x11, 0x00, 0xa8, 0xef, 0x17, 0x1e, 0x00, 0x4b, 0x12, 0x00,
+};
+
+ZTEST(zzb_nwk_frame, test_route_reply)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(route_reply, sizeof(route_reply));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_ROUTE_REPLY);
+	zassert_equal(cmd.route_reply.options,
+		      ZZB_NWK_ROUTE_REPLY_ORIG_IEEE | ZZB_NWK_ROUTE_REPLY_RESP_IEEE);
+	zassert_equal(cmd.route_reply.id, 43);
+	zassert_equal(cmd.route_reply.orig, 0x0000);
+	zassert_equal(cmd.route_reply.resp, 0x1234);
+	zassert_equal(cmd.route_reply.path_cost, 5);
+	zassert_equal(cmd.route_reply.orig_ext, 0x0011223344556677ULL);
+	zassert_equal(cmd.route_reply.resp_ext, 0x00124b001e17efa8ULL);
+}
+
+static const uint8_t nwk_status[] = {0x03, 0x0d, 0x34, 0x12};
+
+/* Address conflict with the conflicting address, then PAN identifier update without address */
+ZTEST(zzb_nwk_frame, test_network_status)
+{
+	static const uint8_t no_addr[] = {0x03, 0x0f};
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(nwk_status, sizeof(nwk_status));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_NWK_STATUS);
+	zassert_equal(cmd.nwk_status.code, 0x0d);
+	zassert_true(cmd.nwk_status.has_addr);
+	zassert_equal(cmd.nwk_status.addr, 0x1234);
+
+	cmd = check_cmd_round_trip(no_addr, sizeof(no_addr));
+	zassert_equal(cmd.nwk_status.code, 0x0f);
+	zassert_false(cmd.nwk_status.has_addr);
+}
+
+static const uint8_t leave[] = {0x04, 0x60};
+
+ZTEST(zzb_nwk_frame, test_leave)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(leave, sizeof(leave));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_LEAVE);
+	zassert_equal(cmd.leave_options, ZZB_NWK_LEAVE_REJOIN | ZZB_NWK_LEAVE_REQUEST);
+}
+
+static const uint8_t route_record[] = {0x05, 0x02, 0x11, 0x11, 0x22, 0x22};
+
+ZTEST(zzb_nwk_frame, test_route_record)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(route_record, sizeof(route_record));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_ROUTE_RECORD);
+	zassert_equal(cmd.route_record.count, 2);
+	zassert_equal(cmd.route_record.relays, route_record + 2);
+}
+
+/* test_rejoin_request_round_trip and test_rejoin_response_round_trip in Ziggurat (see NOTICE) */
+static const uint8_t rejoin_req[] = {0x06, 0x8e};
+static const uint8_t rejoin_rsp[] = {0x07, 0x34, 0x12, 0x00};
+
+ZTEST(zzb_nwk_frame, test_rejoin)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(rejoin_req, sizeof(rejoin_req));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_REJOIN_REQ);
+	zassert_equal(cmd.capability, 0x8e);
+
+	cmd = check_cmd_round_trip(rejoin_rsp, sizeof(rejoin_rsp));
+	zassert_equal(cmd.id, ZZB_NWK_CMD_REJOIN_RSP);
+	zassert_equal(cmd.rejoin_rsp.short_addr, 0x1234);
+	zassert_equal(cmd.rejoin_rsp.status, 0x00);
+}
+
+static const uint8_t link_status[] = {0x08, 0x62, 0x01, 0x00, 0x11, 0x34, 0x12, 0x73};
+
+ZTEST(zzb_nwk_frame, test_link_status)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(link_status, sizeof(link_status));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_LINK_STATUS);
+	zassert_equal(cmd.link_status.flags,
+		      ZZB_NWK_LINK_STATUS_FIRST_FRAME | ZZB_NWK_LINK_STATUS_LAST_FRAME);
+	zassert_equal(cmd.link_status.count, 2);
+	zassert_equal(cmd.link_status.entries, link_status + 2);
+}
+
+static const uint8_t nwk_report[] = {
+	0x09, 0x02, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x62, 0x1a, 0x78, 0x56,
+};
+
+ZTEST(zzb_nwk_frame, test_network_report)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(nwk_report, sizeof(nwk_report));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_NWK_REPORT);
+	zassert_equal(cmd.nwk_report.epid, EPID);
+	zassert_equal(cmd.nwk_report.count, 2);
+	zassert_equal(cmd.nwk_report.pan_ids, nwk_report + 10);
+}
+
+static const uint8_t nwk_update[] = {
+	0x0a, 0x01, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x05, 0x63, 0x1a,
+};
+
+ZTEST(zzb_nwk_frame, test_network_update)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(nwk_update, sizeof(nwk_update));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_NWK_UPDATE);
+	zassert_equal(cmd.nwk_update.epid, EPID);
+	zassert_equal(cmd.nwk_update.update_id, 5);
+	zassert_equal(cmd.nwk_update.pan_id, 0x1a63);
+}
+
+static const uint8_t ed_timeout_req[] = {0x0b, 0x08, 0x00};
+static const uint8_t ed_timeout_rsp[] = {0x0c, 0x00, 0x03};
+
+ZTEST(zzb_nwk_frame, test_end_device_timeout)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(ed_timeout_req, sizeof(ed_timeout_req));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_ED_TIMEOUT_REQ);
+	zassert_equal(cmd.ed_timeout_req.timeout, 8);
+	zassert_equal(cmd.ed_timeout_req.config, 0);
+
+	cmd = check_cmd_round_trip(ed_timeout_rsp, sizeof(ed_timeout_rsp));
+	zassert_equal(cmd.id, ZZB_NWK_CMD_ED_TIMEOUT_RSP);
+	zassert_equal(cmd.ed_timeout_rsp.status, 0);
+	zassert_equal(cmd.ed_timeout_rsp.parent_info, 0x03);
+}
+
+static const uint8_t power_delta[] = {0x0d, 0x00, 0x01, 0x00, 0x00, 0xf6};
+
+ZTEST(zzb_nwk_frame, test_link_power_delta)
+{
+	struct zzb_nwk_cmd cmd = check_cmd_round_trip(power_delta, sizeof(power_delta));
+
+	zassert_equal(cmd.id, ZZB_NWK_CMD_LINK_POWER_DELTA);
+	zassert_equal(cmd.power_delta.type, 0);
+	zassert_equal(cmd.power_delta.count, 1);
+	zassert_equal(cmd.power_delta.entries, power_delta + 3);
+}
+
+ZTEST(zzb_nwk_frame, test_command_trailing_bytes_are_ignored)
+{
+	static const uint8_t bytes[] = {0x06, 0x8e, 0x01};
+	struct zzb_nwk_cmd cmd;
+
+	zassert_equal(zzb_nwk_cmd_parse(bytes, sizeof(bytes), &cmd), 2);
+}
+
+ZTEST(zzb_nwk_frame, test_command_rejected)
+{
+	static const uint8_t reserved_ids[] = {0x00, 0x0e};
+	static const uint8_t report_type_1[] = {
+		0x09, 0x22, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x62, 0x1a, 0x78, 0x56,
+	};
+	static const uint8_t update_type_1[] = {
+		0x0a, 0x21, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x05, 0x63, 0x1a,
+	};
+	static const uint8_t update_two_pan_ids[] = {
+		0x0a, 0x02, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03,
+		0x02, 0x01, 0x05, 0x63, 0x1a, 0x64, 0x1a,
+	};
+	struct zzb_nwk_cmd cmd;
+
+	ARRAY_FOR_EACH(reserved_ids, i) {
+		zassert_equal(zzb_nwk_cmd_parse(&reserved_ids[i], 1, &cmd), -ENOTSUP);
+	}
+
+	zassert_equal(zzb_nwk_cmd_parse(report_type_1, sizeof(report_type_1), &cmd), -ENOTSUP);
+	zassert_equal(zzb_nwk_cmd_parse(update_type_1, sizeof(update_type_1), &cmd), -ENOTSUP);
+	zassert_equal(zzb_nwk_cmd_parse(update_two_pan_ids, sizeof(update_two_pan_ids), &cmd),
+		      -EINVAL);
+}
+
+ZTEST(zzb_nwk_frame, test_command_truncated)
+{
+	/* The network status address is optional, so its truncation is not tested here */
+	static const struct {
+		const uint8_t *bytes;
+		size_t len;
+	} cmds[] = {
+		{route_req, sizeof(route_req)},           {route_req_ieee, sizeof(route_req_ieee)},
+		{route_reply, sizeof(route_reply)},       {leave, sizeof(leave)},
+		{route_record, sizeof(route_record)},     {rejoin_req, sizeof(rejoin_req)},
+		{rejoin_rsp, sizeof(rejoin_rsp)},         {link_status, sizeof(link_status)},
+		{nwk_report, sizeof(nwk_report)},         {nwk_update, sizeof(nwk_update)},
+		{ed_timeout_req, sizeof(ed_timeout_req)}, {ed_timeout_rsp, sizeof(ed_timeout_rsp)},
+		{power_delta, sizeof(power_delta)},
+	};
+	struct zzb_nwk_cmd cmd;
+
+	zassert_equal(zzb_nwk_cmd_parse(nwk_status, 1, &cmd), -EINVAL);
+
+	ARRAY_FOR_EACH(cmds, i) {
+		zassert_equal(zzb_nwk_cmd_parse(cmds[i].bytes, cmds[i].len - 1, &cmd), -EINVAL,
+			      "command 0x%02x", cmds[i].bytes[0]);
+	}
+}
+
 ZTEST_SUITE(zzb_nwk_frame, NULL, NULL, NULL, NULL, NULL);
