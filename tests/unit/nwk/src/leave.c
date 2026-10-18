@@ -154,4 +154,104 @@ ZTEST(zzb_nwk_leave, test_reset)
 	zzb_mlme_scan_conf(child, ZZB_MAC_STATUS_NO_BEACON);
 }
 
+/* A leave command from node 1 with the MAC and NWK source address of node 1 */
+static void receive_leave(uint16_t dst, uint8_t options)
+{
+	const struct zzb_nwk_hdr hdr = {
+		.type = ZZB_NWK_FRAME_CMD,
+		.flags = ZZB_NWK_SECURITY | ZZB_NWK_SRC_IEEE,
+		.dst = dst,
+		.src = parent->nwk.nib.short_addr,
+		.radius = 1,
+		.src_ext = parent->eui64,
+	};
+	const struct zzb_nwk_cmd cmd = {
+		.id = ZZB_NWK_CMD_LEAVE,
+		.leave_options = options,
+	};
+
+	receive_cmd(child, parent, &hdr, &cmd);
+}
+
+static void check_leave_ind(uint64_t ext_addr, bool rejoin)
+{
+	zassert_equal(zzb_nlme_leave_ind_fake.call_count, 1);
+	zassert_equal_ptr(zzb_nlme_leave_ind_fake.arg0_val, child);
+	zassert_equal(zzb_nlme_leave_ind_fake.arg1_val, ext_addr);
+	zassert_equal(zzb_nlme_leave_ind_fake.arg2_val, rejoin);
+}
+
+/* R22 3.6.1.10.3.1: the node leaves as for NLME-LEAVE.request, then indicates it */
+ZTEST(zzb_nwk_leave, test_leave_request_from_the_parent)
+{
+	receive_leave(CHILD_SHORT, ZZB_NWK_LEAVE_REQUEST | ZZB_NWK_LEAVE_REJOIN);
+	check_leave(0, ZZB_NWK_LEAVE_REJOIN, ZZB_MAC_STATUS_SUCCESS);
+
+	check_leave_ind(0, true);
+	zassert_equal(zzb_nlme_leave_conf_fake.call_count, 0);
+	zassert_equal(child->nwk.nib.ext_pan_id, EXT_PAN_ID);
+}
+
+ZTEST(zzb_nwk_leave, test_leave_request_without_rejoin)
+{
+	receive_leave(CHILD_SHORT, ZZB_NWK_LEAVE_REQUEST);
+	check_leave(0, 0, ZZB_MAC_STATUS_NO_ACK);
+
+	check_leave_ind(0, false);
+	check_reset();
+}
+
+ZTEST(zzb_nwk_leave, test_other_leave_requests_are_dropped)
+{
+	/* A broadcast, and a request during an NLME procedure */
+	receive_leave(0xfffd, ZZB_NWK_LEAVE_REQUEST);
+	zassert_ok(zzb_nlme_network_discovery_req(child, BIT(15), 0));
+	receive_leave(CHILD_SHORT, ZZB_NWK_LEAVE_REQUEST);
+	zzb_mlme_scan_conf(child, ZZB_MAC_STATUS_NO_BEACON);
+
+	/* A MAC source other than the parent */
+	parent->nwk.nib.short_addr = 0x2222;
+	receive_leave(CHILD_SHORT, ZZB_NWK_LEAVE_REQUEST);
+
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 0);
+	zassert_equal(zzb_nlme_leave_ind_fake.call_count, 0);
+}
+
+ZTEST(zzb_nwk_leave, test_parent_leaving_with_its_children)
+{
+	receive_leave(0xfffd, ZZB_NWK_LEAVE_REMOVE_CHILDREN);
+
+	check_leave_ind(0, false);
+	check_reset();
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 0);
+}
+
+/* The node stays on the network, so that BDB rejoins another parent */
+ZTEST(zzb_nwk_leave, test_parent_leaving_without_its_children)
+{
+	receive_leave(0xfffd, ZZB_NWK_LEAVE_REJOIN);
+
+	check_leave_ind(parent->eui64, true);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 1);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.arg1_val, 0x09);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.arg2_val, PARENT_SHORT);
+	zassert_is_null(zzb_nwk_neighbor_parent(child));
+	zassert_equal(child->nwk.nib.ext_pan_id, EXT_PAN_ID);
+	zassert_true(child->nwk.nib.keys[0].valid);
+}
+
+/* R22 3.6.1.10.3 */
+ZTEST(zzb_nwk_leave, test_neighbor_leaving)
+{
+	zzb_nwk_neighbor_parent(child)->ext_addr = 0x0102030405060708ULL;
+	zassert_not_null(zzb_nwk_neighbor_add(child, parent->eui64, 0x2222, ZZB_NWK_REL_SIBLING));
+	parent->nwk.nib.short_addr = 0x2222;
+
+	receive_leave(0xfffd, 0);
+	check_leave_ind(parent->eui64, false);
+	zassert_is_null(zzb_nwk_neighbor_find_ext(child, parent->eui64));
+	zassert_not_null(zzb_nwk_neighbor_parent(child));
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+}
+
 ZTEST_SUITE(zzb_nwk_leave, NULL, setup, before, after, NULL);

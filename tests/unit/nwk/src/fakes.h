@@ -31,6 +31,7 @@ DECLARE_FAKE_VOID_FUNC(zzb_nlme_nwk_status_ind, struct zzb_node *, uint8_t, uint
 DECLARE_FAKE_VALUE_FUNC(int, zzb_mlme_poll_req, struct zzb_node *, const struct zzb_mac_addr *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_mlme_set_channel, struct zzb_node *, uint8_t);
 DECLARE_FAKE_VOID_FUNC(zzb_nlme_leave_conf, struct zzb_node *, uint8_t);
+DECLARE_FAKE_VOID_FUNC(zzb_nlme_leave_ind, struct zzb_node *, uint64_t, bool);
 
 /* Copy of a frame passed to MCPS-DATA.request or NLDE-DATA.indication */
 struct frame_copy {

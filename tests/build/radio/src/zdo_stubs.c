@@ -20,3 +20,7 @@ void zzb_nlme_nwk_status_ind(struct zzb_node *node, uint8_t code, uint16_t addr)
 void zzb_nlme_leave_conf(struct zzb_node *node, uint8_t status)
 {
 }
+
+void zzb_nlme_leave_ind(struct zzb_node *node, uint64_t ext_addr, bool rejoin)
+{
+}

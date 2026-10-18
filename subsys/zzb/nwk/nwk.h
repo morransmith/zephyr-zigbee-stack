@@ -156,8 +156,9 @@ struct zzb_nwk {
 	uint16_t prev_pan_id;
 	uint16_t prev_short_addr;
 	uint8_t prev_channel;
-	/* The rejoin flag of the leave in progress */
+	/* The leave in progress: its rejoin flag, and whether the parent requested it */
 	bool leave_rejoin;
+	bool leave_requested;
 	/* Set by an association join or a trust center rejoin until NLME-SET of a network key */
 	bool key_pending;
 	/* Sends the End Device Timeout Request and the keepalives */
@@ -274,6 +275,12 @@ int zzb_nlme_leave_req(struct zzb_node *node, bool rejoin);
 void zzb_nlme_leave_conf(struct zzb_node *node, uint8_t status);
 
 /*
+ * Defined by ZDO. NLME-LEAVE.indication: the neighbor ext_addr has left, or the node has left
+ * when ext_addr is 0.
+ */
+void zzb_nlme_leave_ind(struct zzb_node *node, uint64_t ext_addr, bool rejoin);
+
+/*
  * NLME-RESET.request with WarmStart FALSE: clears the NIB and the tables except the outgoing frame
  * counter and nwkSequenceNumber. Returns -EBUSY while an NLME procedure runs.
  */
@@ -337,6 +344,10 @@ void zzb_nwk_rejoin_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 void zzb_nwk_reset(struct zzb_node *node);
 
 void zzb_nwk_leave_conf(struct zzb_node *node, enum zzb_mac_status status);
+
+/* Handles a received leave command from the MAC source mac_src */
+void zzb_nwk_leave_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
+		      const struct zzb_nwk_cmd *cmd, uint16_t mac_src);
 
 void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 

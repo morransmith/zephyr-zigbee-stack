@@ -82,6 +82,10 @@ void zzb_nlme_leave_conf(struct zzb_node *node, uint8_t status)
 {
 }
 
+void zzb_nlme_leave_ind(struct zzb_node *node, uint64_t ext_addr, bool rejoin)
+{
+}
+
 /* The test thread is cooperative and has a lower priority than the stack thread */
 static void run_stack(void)
 {

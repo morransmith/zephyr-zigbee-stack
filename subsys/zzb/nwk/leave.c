@@ -76,6 +76,7 @@ int zzb_nlme_leave_req(struct zzb_node *node, bool rejoin)
 
 	nwk->op = ZZB_NWK_OP_LEAVE;
 	nwk->leave_rejoin = rejoin;
+	nwk->leave_requested = false;
 	return 0;
 }
 
@@ -97,5 +98,73 @@ void zzb_nwk_leave_conf(struct zzb_node *node, enum zzb_mac_status status)
 
 	nwk->op = ZZB_NWK_OP_NONE;
 	leave_locally(node, nwk->leave_rejoin);
+	if (nwk->leave_requested) {
+		zzb_nlme_leave_ind(node, 0, nwk->leave_rejoin);
+		return;
+	}
+
 	zzb_nlme_leave_conf(node, status);
+}
+
+/* R22 3.6.1.10.3.1: the node leaves as for NLME-LEAVE.request, whatever the status */
+static void leave_on_request(struct zzb_node *node, const struct zzb_nwk_neighbor *parent,
+			     bool rejoin)
+{
+	struct zzb_nwk *nwk = &node->nwk;
+
+	if (send_leave(node, parent, rejoin) != 0) {
+		leave_locally(node, rejoin);
+		zzb_nlme_leave_ind(node, 0, rejoin);
+		return;
+	}
+
+	nwk->op = ZZB_NWK_OP_LEAVE;
+	nwk->leave_rejoin = rejoin;
+	nwk->leave_requested = true;
+}
+
+/*
+ * A parent that leaves without its children takes only itself off the network; the node reports
+ * the lost parent, so BDB rejoins another one
+ */
+static void neighbor_left(struct zzb_node *node, struct zzb_nwk_neighbor *nb, bool rejoin)
+{
+	bool parent = nb->relationship == ZZB_NWK_REL_PARENT;
+	uint16_t short_addr = nb->short_addr;
+	uint64_t ext_addr = nb->ext_addr;
+
+	zzb_nwk_neighbor_remove(nb);
+	zzb_nlme_leave_ind(node, ext_addr, rejoin);
+	if (parent) {
+		zzb_nlme_nwk_status_ind(node, ZZB_NWK_CODE_PARENT_LINK_FAILURE, short_addr);
+	}
+}
+
+void zzb_nwk_leave_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
+		      const struct zzb_nwk_cmd *cmd, uint16_t mac_src)
+{
+	struct zzb_nwk_neighbor *parent = zzb_nwk_neighbor_parent(node);
+	bool from_parent = parent != NULL && mac_src == parent->short_addr;
+	bool rejoin = cmd->leave_options & ZZB_NWK_LEAVE_REJOIN;
+	struct zzb_nwk_neighbor *nb;
+
+	if (cmd->leave_options & ZZB_NWK_LEAVE_REQUEST) {
+		if (from_parent && hdr->dst == node->nwk.nib.short_addr &&
+		    node->nwk.op == ZZB_NWK_OP_NONE) {
+			leave_on_request(node, parent, rejoin);
+		}
+
+		return;
+	}
+
+	if (from_parent && (cmd->leave_options & ZZB_NWK_LEAVE_REMOVE_CHILDREN)) {
+		leave_locally(node, rejoin);
+		zzb_nlme_leave_ind(node, 0, rejoin);
+		return;
+	}
+
+	nb = from_parent ? parent : zzb_nwk_neighbor_find_short(node, mac_src);
+	if (nb != NULL && (hdr->flags & ZZB_NWK_SRC_IEEE) && nb->ext_addr == hdr->src_ext) {
+		neighbor_left(node, nb, rejoin);
+	}
 }

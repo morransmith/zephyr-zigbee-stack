@@ -252,6 +252,9 @@ static void rx_cmd(struct zzb_node *node, struct net_buf *buf, const struct zzb_
 	case ZZB_NWK_CMD_NWK_STATUS:
 		zzb_nwk_status_rx(node, hdr, &cmd);
 		break;
+	case ZZB_NWK_CMD_LEAVE:
+		zzb_nwk_leave_rx(node, hdr, &cmd, mac_src);
+		break;
 	case ZZB_NWK_CMD_REJOIN_RSP:
 		zzb_nwk_rejoin_rsp_rx(node, hdr, &cmd, mac_src);
 		break;
