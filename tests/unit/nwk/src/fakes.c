@@ -24,12 +24,14 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_mlme_assoc_req, struct zzb_node *, uint8_t,
 DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_mlme_get_coord_ext_addr, const struct zzb_node *);
 DEFINE_FAKE_VOID_FUNC(zzb_nlme_join_conf, struct zzb_node *, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_nlme_nwk_status_ind, struct zzb_node *, uint8_t, uint16_t);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_mlme_poll_req, struct zzb_node *, const struct zzb_mac_addr *);
 
 const uint8_t test_key[ZZB_SEC_KEY_LEN] = {0x01, 0x02, 0x03};
 
 struct frame_copy sent[8];
 struct frame_copy data_ind;
 struct zzb_mac_addr assoc_coord;
+struct zzb_mac_addr poll_coord;
 
 static void copy_frame(struct frame_copy *copy, struct net_buf *buf)
 {
@@ -52,6 +54,12 @@ static int assoc_req_copy(struct zzb_node *node, uint8_t channel, const struct z
 {
 	assoc_coord = *coord;
 	return zzb_mlme_assoc_req_fake.return_val;
+}
+
+static int poll_req_copy(struct zzb_node *node, const struct zzb_mac_addr *coord)
+{
+	poll_coord = *coord;
+	return zzb_mlme_poll_req_fake.return_val;
 }
 
 static void nlde_data_ind_take(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr,
@@ -92,11 +100,13 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_mlme_get_coord_ext_addr);
 	RESET_FAKE(zzb_nlme_join_conf);
 	RESET_FAKE(zzb_nlme_nwk_status_ind);
+	RESET_FAKE(zzb_mlme_poll_req);
 	FFF_RESET_HISTORY();
 
 	zzb_mcps_data_req_fake.custom_fake = mcps_data_req_take;
 	zzb_nlde_data_ind_fake.custom_fake = nlde_data_ind_take;
 	zzb_mlme_assoc_req_fake.custom_fake = assoc_req_copy;
+	zzb_mlme_poll_req_fake.custom_fake = poll_req_copy;
 }
 
 void check_no_buffer_leak(void)

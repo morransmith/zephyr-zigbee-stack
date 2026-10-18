@@ -121,10 +121,13 @@ void zzb_mlme_poll_conf(struct zzb_node *node, enum zzb_mac_status status);
 /* Defined by NWK. short_addr is 0xffff unless status is SUCCESS. */
 void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_mac_status status);
 
-/* Within the MAC */
-
 /* aBaseSuperframeDuration: 960 symbols of 16 us */
 #define ZZB_MAC_BASE_SUPERFRAME_US 15360
+
+/* macResponseWaitTime: 32 * aBaseSuperframeDuration */
+#define ZZB_MAC_RESPONSE_WAIT_US (32 * ZZB_MAC_BASE_SUPERFRAME_US)
+
+/* Within the MAC */
 
 /*
  * macMaxFrameTotalWaitTime: 9846 symbols, from the formula of 802.15.4 Table 52 with macMinBE 5,

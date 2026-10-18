@@ -33,6 +33,15 @@ struct zzb_node;
 #define ZZB_NWK_CAP_RX_ON_IDLE BIT(3)
 #define ZZB_NWK_CAP_ALLOC_ADDR BIT(7)
 
+/* nwkParentInformation (R22 Table 3-55) */
+#define ZZB_NWK_PARENT_POLL_KEEPALIVE       BIT(0)
+#define ZZB_NWK_PARENT_ED_TIMEOUT_KEEPALIVE BIT(1)
+
+/* Status codes of the network status command and NLME-NWK-STATUS.indication (R22 Table 3-51) */
+enum zzb_nwk_status_code {
+	ZZB_NWK_CODE_PARENT_LINK_FAILURE = 0x09,
+};
+
 /* Entry of nwkSecurityMaterialSet */
 struct zzb_nwk_key {
 	bool valid;
@@ -132,9 +141,11 @@ struct zzb_nwk {
 	struct zzb_nwk_neighbor *candidate;
 	/* Set by an association join until NLME-SET of a network key (R22 3.6.2.2) */
 	bool key_pending;
-	/* Sends the End Device Timeout Request */
+	/* Sends the End Device Timeout Request and the keepalives */
 	struct k_work_delayable keepalive;
 	bool ed_timeout_due;
+	/* A keepalive End Device Timeout Request waits for its response */
+	bool ed_timeout_wait;
 };
 
 /* Clears the NWK state. The NIB has no PAN ID, no network address and a random sequence number. */
@@ -267,9 +278,15 @@ void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 /* Sends the End Device Timeout Request from the stack queue, again after 1 s if that fails */
 void zzb_nwk_ed_timeout_start(struct zzb_node *node);
 
+/* Cancels the End Device Timeout Request and the keepalive */
+void zzb_nwk_keepalive_stop(struct zzb_node *node);
+
 /* Handles a received End Device Timeout Response from the MAC source mac_src */
 void zzb_nwk_ed_timeout_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 			       const struct zzb_nwk_cmd *cmd, uint16_t mac_src);
+
+/* NLME-NWK-STATUS.indication with parent link failure */
+void zzb_nwk_parent_link_failure(struct zzb_node *node);
 
 /* Handles a received network status command */
 void zzb_nwk_status_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,

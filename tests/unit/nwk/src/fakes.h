@@ -28,6 +28,7 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_mlme_assoc_req, struct zzb_node *, uint8_t,
 DECLARE_FAKE_VALUE_FUNC(uint64_t, zzb_mlme_get_coord_ext_addr, const struct zzb_node *);
 DECLARE_FAKE_VOID_FUNC(zzb_nlme_join_conf, struct zzb_node *, uint8_t);
 DECLARE_FAKE_VOID_FUNC(zzb_nlme_nwk_status_ind, struct zzb_node *, uint8_t, uint16_t);
+DECLARE_FAKE_VALUE_FUNC(int, zzb_mlme_poll_req, struct zzb_node *, const struct zzb_mac_addr *);
 
 /* Copy of a frame passed to MCPS-DATA.request or NLDE-DATA.indication */
 struct frame_copy {
@@ -40,8 +41,9 @@ struct frame_copy {
 extern struct frame_copy sent[8];
 extern struct frame_copy data_ind;
 
-/* Coordinator of the last MLME-ASSOCIATE.request */
+/* Coordinator of the last MLME-ASSOCIATE.request and MLME-POLL.request */
 extern struct zzb_mac_addr assoc_coord;
+extern struct zzb_mac_addr poll_coord;
 
 /* Checks that every frame buffer is free */
 void check_no_buffer_leak(void);

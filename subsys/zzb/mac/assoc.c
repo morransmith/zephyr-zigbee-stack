@@ -9,9 +9,6 @@
 #include "mac/frame.h"
 #include "mac/mac.h"
 
-/* macResponseWaitTime: 32 * aBaseSuperframeDuration */
-#define RESPONSE_WAIT_US (32 * ZZB_MAC_BASE_SUPERFRAME_US)
-
 /* First form of R22 Tables D-1 and D-2: source PAN ID 0xffff, extended source address */
 static void send_cmd(struct zzb_node *node, const struct zzb_mac_cmd *cmd)
 {
@@ -77,7 +74,7 @@ void zzb_mac_assoc_cmd_done(struct zzb_node *node, enum zzb_mac_status status, b
 	}
 
 	if (node->mac.op == ZZB_MAC_OP_ASSOC) {
-		zzb_timer_arm(&node->mac.timer, K_USEC(RESPONSE_WAIT_US));
+		zzb_timer_arm(&node->mac.timer, K_USEC(ZZB_MAC_RESPONSE_WAIT_US));
 		return;
 	}
 

@@ -138,4 +138,91 @@ ZTEST(zzb_nwk_ed_timeout, test_other_responses_are_ignored)
 	zassert_equal(child->nwk.nib.parent_info, 0);
 }
 
+/* Timeout / 3 for the 10 s of CONFIG_ZZB_NWK_ED_TIMEOUT=0 (R22 3.6.10.3) */
+#define PERIOD_MS 3333
+
+/* R22 3.6.10.3: bit 0 of the parent information selects MAC data poll keepalives */
+ZTEST(zzb_nwk_ed_timeout, test_keepalive_polls_the_parent)
+{
+	receive_rsp(0x00, 0x03, parent->eui64);
+
+	k_sleep(K_MSEC(PERIOD_MS - 50));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 0);
+	k_sleep(K_MSEC(100));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	zassert_equal_ptr(zzb_mlme_poll_req_fake.arg0_val, child);
+	zassert_equal(poll_coord.mode, ZZB_MAC_ADDR_SHORT);
+	zassert_equal(poll_coord.pan_id, PAN_ID);
+	zassert_equal(poll_coord.short_addr, PARENT_SHORT);
+
+	k_sleep(K_MSEC(PERIOD_MS));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 2);
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 0);
+}
+
+/* A poll that cannot start is tried again after 1 s */
+ZTEST(zzb_nwk_ed_timeout, test_busy_poll_is_retried)
+{
+	zzb_mlme_poll_req_fake.return_val = -EBUSY;
+	receive_rsp(0x00, 0x01, parent->eui64);
+
+	k_sleep(K_MSEC(PERIOD_MS + 50));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	zzb_mlme_poll_req_fake.return_val = 0;
+	k_sleep(K_MSEC(1000));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 2);
+	k_sleep(K_MSEC(PERIOD_MS - 100));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 2);
+}
+
+/* With bit 1 the keepalive is an End Device Timeout Request answered in macResponseWaitTime */
+ZTEST(zzb_nwk_ed_timeout, test_keepalive_without_response_reports_parent_link_failure)
+{
+	struct zzb_nwk_hdr hdr;
+	struct zzb_nwk_cmd cmd;
+
+	receive_rsp(0x00, 0x02, parent->eui64);
+	k_sleep(K_MSEC(PERIOD_MS + 50));
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
+	parse_sent_cmd(0, parent, &hdr, &cmd);
+	zassert_equal(cmd.id, ZZB_NWK_CMD_ED_TIMEOUT_REQ);
+	zassert_true(hdr.flags & ZZB_NWK_ED_INITIATOR);
+
+	receive_rsp(0x00, 0x02, parent->eui64);
+	k_sleep(K_MSEC(PERIOD_MS));
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 2);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+
+	/* macResponseWaitTime, 491.52 ms */
+	k_sleep(K_MSEC(500));
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 1);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.arg1_val, 0x09);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.arg2_val, PARENT_SHORT);
+
+	/* The keepalive has stopped */
+	k_sleep(K_MSEC(2 * PERIOD_MS));
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 2);
+}
+
+ZTEST(zzb_nwk_ed_timeout, test_failed_keepalive_response_reports_parent_link_failure)
+{
+	receive_rsp(0x00, 0x02, parent->eui64);
+	k_sleep(K_MSEC(PERIOD_MS + 50));
+	receive_rsp(0x01, 0x02, parent->eui64);
+
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 1);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.arg1_val, 0x09);
+	k_sleep(K_MSEC(2 * PERIOD_MS));
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
+}
+
+ZTEST(zzb_nwk_ed_timeout, test_no_keepalive_without_parent_support)
+{
+	receive_rsp(0x00, 0x00, parent->eui64);
+	k_sleep(K_MSEC(2 * PERIOD_MS));
+
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 0);
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 0);
+}
+
 ZTEST_SUITE(zzb_nwk_ed_timeout, NULL, setup, before, after, NULL);
