@@ -12,4 +12,5 @@ void zzb_nwk_init(struct zzb_node *node)
 		.short_addr = 0xffff,
 		.seq = sys_rand8_get(),
 	};
+	zzb_nwk_fc_init(node);
 }

@@ -19,4 +19,7 @@ struct zzb_node {
 	struct zzb_nwk nwk;
 };
 
+/* Index of the node in the pool */
+int zzb_node_index(const struct zzb_node *node);
+
 #endif /* ZZB_SUBSYS_COMMON_NODE_H_ */

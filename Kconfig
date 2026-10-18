@@ -52,6 +52,13 @@ config ZZB_NWK
 	  Zigbee network layer. The application enables a settings backend for the
 	  frame counter. Tests that fake NWK turn it off.
 
+config ZZB_FRAME_COUNTER_JUMP
+	int "Outgoing frame counter jump at boot"
+	default 1024
+	help
+	  Distance between the outgoing frame counter and its saved watermark.
+	  On boot the counter starts at the watermark, which moves by this value.
+
 config ZZB_NEIGHBOR_COUNT
 	int "Neighbor table entries"
 	default 16

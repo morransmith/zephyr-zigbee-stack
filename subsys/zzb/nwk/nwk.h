@@ -5,6 +5,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <zephyr/kernel.h>
+#include <zephyr/settings/settings.h>
 
 #include "sec/mmo.h"
 
@@ -50,8 +52,17 @@ struct zzb_nwk_neighbor {
 	uint32_t in_fc[2];
 };
 
+/* Outgoing NWK frame counter, global to the node, and its saved watermark */
+struct zzb_nwk_fc {
+	uint32_t value;
+	uint32_t watermark;
+	bool saving;
+	struct k_work save;
+};
+
 struct zzb_nwk {
 	struct zzb_nib nib;
+	struct zzb_nwk_fc fc;
 	struct zzb_nwk_neighbor neighbors[CONFIG_ZZB_NEIGHBOR_COUNT];
 };
 
@@ -70,6 +81,20 @@ void zzb_nlme_set_ext_pan_id(struct zzb_node *node, uint64_t ext_pan_id);
  * slot are reset. The first key becomes the active key.
  */
 void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_LEN], uint8_t seq);
+
+void zzb_nwk_fc_init(struct zzb_node *node);
+
+/* Loads the watermark from the record fc/nwk */
+int zzb_nwk_fc_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
+
+/* Starts the counter at the loaded watermark and saves the next watermark */
+int zzb_nwk_fc_start(struct zzb_node *node);
+
+/*
+ * Sets fc to the next outgoing frame counter. Returns -EBUSY while the counter is at a watermark
+ * that is not saved yet, or -EOVERFLOW once the counter is 2^32-1.
+ */
+int zzb_nwk_fc_next(struct zzb_node *node, uint32_t *fc);
 
 /* Adds a neighbor, or returns NULL if the table is full. The caller checks for a duplicate. */
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_add(struct zzb_node *node, uint64_t ext_addr,

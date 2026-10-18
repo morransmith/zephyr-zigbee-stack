@@ -28,8 +28,12 @@ struct zzb_node_config {
  * @param cfg Node configuration, not referenced after the call returns.
  * @param node Set to the new node on success, NULL otherwise.
  *
+ * With CONFIG_ZZB_NWK the node loads its settings records and saves the next outgoing frame
+ * counter watermark; a settings error is returned as it is.
+ *
  * @retval 0 on success.
- * @retval -EINVAL cfg->radio is NULL and CONFIG_ZZB_MAC is set.
+ * @retval -EINVAL cfg->radio is NULL and CONFIG_ZZB_MAC is set, or a settings record of the node
+ *                 has an unknown version or length.
  * @retval -ENOMEM all CONFIG_ZZB_NODE_COUNT nodes are in use.
  * @retval -ENODEV cfg->eui64 is 0 and the hardware provides no EUI-64, or the custom-L2 backend
  *                 finds no interface for cfg->radio.
