@@ -23,9 +23,10 @@ struct parent_log {
 	int ed_timeout_reqs;
 	int rejoin_reqs;
 	int leaves;
-	/* The last NWK command */
+	/* The last NWK command, and the header of the last rejoin request */
 	struct zzb_nwk_hdr hdr;
 	struct zzb_nwk_cmd cmd;
+	struct zzb_nwk_hdr rejoin_hdr;
 };
 
 extern struct parent_log parent_log;

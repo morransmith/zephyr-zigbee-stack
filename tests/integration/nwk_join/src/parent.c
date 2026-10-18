@@ -167,6 +167,7 @@ static void reply(const struct zzb_nwk_hdr *hdr, const struct zzb_nwk_cmd *cmd, 
 		/* The child keeps its address (R22 3.6.1.4.2); the security of the request is kept
 		 */
 		parent_log.rejoin_reqs++;
+		parent_log.rejoin_hdr = *hdr;
 		parent.child_addr = hdr->src;
 		parent.child_eui64 = hdr->src_ext;
 		rsp = (struct zzb_nwk_cmd){

@@ -14,6 +14,8 @@
 #define PARENT_ADDR  0x0000
 #define PARENT_EUI64 0x00124b0000000001ULL
 #define CHILD_ADDR   0x1234
+#define ROUTER_ADDR  0x2222
+#define ROUTER_EUI64 0x00124b0000000002ULL
 
 /* Receiver on when idle, allocate address */
 #define CAPABILITY (ZZB_NWK_CAP_RX_ON_IDLE | ZZB_NWK_CAP_ALLOC_ADDR)
@@ -151,6 +153,84 @@ ZTEST(zzb_nwk_join, test_keepalive_polls_the_parent)
 	k_sleep(K_MSEC(3333));
 	zassert_equal(parent_log.polls, 2);
 	zassert_equal(nlme.status_count, 0);
+}
+
+static void rejoin(bool secure)
+{
+	zassert_ok(zzb_nlme_join_req(child, EXT_PAN_ID, ZZB_NWK_JOIN_REJOIN, BIT(CHANNEL), 0,
+				     CAPABILITY, secure));
+	k_sleep(K_MSEC(100));
+
+	zassert_equal(nlme.join_count, 1);
+	zassert_equal(nlme.join_status, ZZB_NWK_STATUS_SUCCESS);
+	zassert_equal(parent_log.rejoin_reqs, 1);
+	zassert_equal(child->nwk.nib.short_addr, CHILD_ADDR);
+}
+
+ZTEST(zzb_nwk_join, test_secure_rejoin)
+{
+	nlme.join_count = 0;
+	rejoin(true);
+
+	zassert_true(parent_log.rejoin_hdr.flags & ZZB_NWK_SECURITY);
+	zassert_equal(parent_log.ed_timeout_reqs, 2);
+	zassert_equal(zzb_nwk_neighbor_parent(child)->ext_addr, PARENT_EUI64);
+}
+
+/* The child knows the new parent from its beacon only, until the secured response */
+ZTEST(zzb_nwk_join, test_secure_rejoin_to_a_new_parent)
+{
+	parent_start(ROUTER_ADDR, ROUTER_EUI64, CHILD_ADDR, ZZB_NWK_PARENT_POLL_KEEPALIVE);
+	nlme.join_count = 0;
+	rejoin(true);
+
+	zassert_false(parent_log.rejoin_hdr.flags & ZZB_NWK_DST_IEEE);
+	zassert_equal(zzb_nwk_neighbor_parent(child)->short_addr, ROUTER_ADDR);
+	zassert_equal(zzb_nwk_neighbor_parent(child)->ext_addr, ROUTER_EUI64);
+	zassert_equal(parent_log.ed_timeout_reqs, 1);
+}
+
+/* R22 4.6.3.3.2: without NWK security, then the key from the trust center */
+ZTEST(zzb_nwk_join, test_trust_center_rejoin)
+{
+	nlme.join_count = 0;
+	rejoin(false);
+
+	zassert_false(parent_log.rejoin_hdr.flags & ZZB_NWK_SECURITY);
+	zassert_true(child->nwk.key_pending);
+	zassert_equal(parent_log.ed_timeout_reqs, 1);
+
+	zzb_nlme_set_nwk_key(child, nwk_key, 0);
+	k_sleep(K_MSEC(10));
+	zassert_equal(parent_log.ed_timeout_reqs, 2);
+}
+
+/* R22 3.6.10.4.1: a parent that has aged the child out asks it to rejoin */
+ZTEST(zzb_nwk_join, test_leave_request_with_rejoin)
+{
+	parent_send_leave_request(true);
+	k_sleep(K_MSEC(10));
+
+	zassert_equal(parent_log.leaves, 1);
+	zassert_equal(parent_log.cmd.leave_options, ZZB_NWK_LEAVE_REJOIN);
+	zassert_equal(parent_log.hdr.dst, 0xfffd);
+	zassert_equal(nlme.leave_ind_count, 1);
+	zassert_true(nlme.leave_ind_rejoin);
+	zassert_equal(child->nwk.nib.ext_pan_id, EXT_PAN_ID);
+}
+
+ZTEST(zzb_nwk_join, test_leave_without_rejoin)
+{
+	zassert_ok(zzb_nlme_leave_req(child, false));
+	k_sleep(K_MSEC(10));
+
+	zassert_equal(parent_log.leaves, 1);
+	zassert_equal(parent_log.cmd.leave_options, 0);
+	zassert_equal(nlme.leave_count, 1);
+	zassert_equal(nlme.leave_status, ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(child->nwk.nib.ext_pan_id, 0);
+	zassert_equal(child->mac.pan_id, 0xffff);
+	zassert_equal(child->mac.short_addr, 0xffff);
 }
 
 ZTEST_SUITE(zzb_nwk_join, NULL, setup, before, NULL, NULL);
