@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-#include <zephyr/net/ieee802154_radio.h>
-#include <zephyr/net/net_pkt.h>
+/* Stand-ins for functions the stack does not define yet */
 
-int net_recv_data(struct net_if *iface, struct net_pkt *pkt)
+#include <zephyr/net/ieee802154_radio.h>
+
+#include "radio/port.h"
+
+void zzb_radio_rx(struct zzb_radio_port *port, struct net_buf *buf)
 {
-	net_pkt_unref(pkt);
-	return 0;
+	net_buf_unref(buf);
 }
 
 enum net_verdict ieee802154_handle_ack(struct net_if *iface, struct net_pkt *pkt)
