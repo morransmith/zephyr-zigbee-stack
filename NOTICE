@@ -1,0 +1,18 @@
+zzb
+
+This repository contains test data taken from the following projects.
+
+Ziggurat
+https://github.com/zigpy/ziggurat
+License: Apache-2.0
+NWK frame, network key and payload of test_nwk_decryption_unicast in
+crates/ziggurat-zigbee/src/nwk/frame.rs, commit 9f91dbb3.
+Used in tests/unit/sec.
+
+zigbee-rs
+https://github.com/zigbee-rs/zigbee-rs
+Copyright 2024 Stürmer, Benjamin
+License: MIT OR Apache-2.0, used under Apache-2.0
+APS Transport Key frame of decrypt_aps_frame_key_transport in
+zigbee-core/src/security/mod.rs, commit 7e9fa244.
+Used in tests/unit/sec.
