@@ -13,6 +13,7 @@ target_sources(app PRIVATE
   src/fc.c
   src/frame.c
   src/join.c
+  src/leave.c
   src/neighbor.c
   src/nib.c
   src/rejoin.c

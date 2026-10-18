@@ -122,6 +122,7 @@ enum zzb_nwk_op {
 	ZZB_NWK_OP_DISCOVERY,
 	ZZB_NWK_OP_JOIN,
 	ZZB_NWK_OP_REJOIN,
+	ZZB_NWK_OP_LEAVE,
 };
 
 /* RejoinNetwork parameter of NLME-JOIN.request */
@@ -155,6 +156,8 @@ struct zzb_nwk {
 	uint16_t prev_pan_id;
 	uint16_t prev_short_addr;
 	uint8_t prev_channel;
+	/* The rejoin flag of the leave in progress */
+	bool leave_rejoin;
 	/* Set by an association join or a trust center rejoin until NLME-SET of a network key */
 	bool key_pending;
 	/* Sends the End Device Timeout Request and the keepalives */
@@ -261,6 +264,22 @@ int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_j
 void zzb_nlme_join_conf(struct zzb_node *node, uint8_t status);
 
 /*
+ * NLME-LEAVE.request of an end device, which removes itself and has no children. Returns -EBUSY
+ * while an NLME procedure runs, -ENOTCONN off a network or without a parent, or an error of
+ * zzb_nwk_send_cmd(), -ENOENT without a network key.
+ */
+int zzb_nlme_leave_req(struct zzb_node *node, bool rejoin);
+
+/* Defined by ZDO. status is the status of MCPS-DATA.confirm of the leave command. */
+void zzb_nlme_leave_conf(struct zzb_node *node, uint8_t status);
+
+/*
+ * NLME-RESET.request with WarmStart FALSE: clears the NIB and the tables except the outgoing frame
+ * counter and nwkSequenceNumber. Returns -EBUSY while an NLME procedure runs.
+ */
+int zzb_nlme_reset_req(struct zzb_node *node);
+
+/*
  * Defined by ZDO. NLME-NWK-STATUS.indication with a status code of R22 Table 3-51 and the network
  * address it concerns.
  */
@@ -313,6 +332,11 @@ void zzb_nwk_rejoin_scan_conf(struct zzb_node *node, enum zzb_mac_status status)
 void zzb_nwk_rejoin_req_conf(struct zzb_node *node, enum zzb_mac_status status);
 void zzb_nwk_rejoin_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 			   const struct zzb_nwk_cmd *cmd, uint16_t mac_src);
+
+/* Clears the NWK state as NLME-RESET.request does */
+void zzb_nwk_reset(struct zzb_node *node);
+
+void zzb_nwk_leave_conf(struct zzb_node *node, enum zzb_mac_status status);
 
 void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 

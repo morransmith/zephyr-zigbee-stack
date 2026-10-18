@@ -148,16 +148,20 @@ int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_a
 
 void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status)
 {
-	if (handle == (ZZB_NWK_CMD_HANDLE | ZZB_NWK_CMD_REJOIN_REQ)) {
+	switch (handle) {
+	case ZZB_NWK_CMD_HANDLE | ZZB_NWK_CMD_REJOIN_REQ:
 		zzb_nwk_rejoin_req_conf(node, status);
 		return;
-	}
-
-	if (handle >= ZZB_NWK_CMD_HANDLE) {
+	case ZZB_NWK_CMD_HANDLE | ZZB_NWK_CMD_LEAVE:
+		zzb_nwk_leave_conf(node, status);
 		return;
+	default:
+		break;
 	}
 
-	zzb_nlde_data_conf(node, handle, status);
+	if (handle < ZZB_NWK_CMD_HANDLE) {
+		zzb_nlde_data_conf(node, handle, status);
+	}
 }
 
 static bool for_node(const struct zzb_nib *nib, const struct zzb_nwk_hdr *hdr)

@@ -26,6 +26,7 @@ DEFINE_FAKE_VOID_FUNC(zzb_nlme_join_conf, struct zzb_node *, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_nlme_nwk_status_ind, struct zzb_node *, uint8_t, uint16_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_mlme_poll_req, struct zzb_node *, const struct zzb_mac_addr *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_mlme_set_channel, struct zzb_node *, uint8_t);
+DEFINE_FAKE_VOID_FUNC(zzb_nlme_leave_conf, struct zzb_node *, uint8_t);
 
 const uint8_t test_key[ZZB_SEC_KEY_LEN] = {0x01, 0x02, 0x03};
 
@@ -103,6 +104,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nlme_nwk_status_ind);
 	RESET_FAKE(zzb_mlme_poll_req);
 	RESET_FAKE(zzb_mlme_set_channel);
+	RESET_FAKE(zzb_nlme_leave_conf);
 	FFF_RESET_HISTORY();
 
 	zzb_mcps_data_req_fake.custom_fake = mcps_data_req_take;
