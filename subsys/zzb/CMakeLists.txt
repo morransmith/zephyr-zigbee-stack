@@ -13,6 +13,7 @@ zephyr_library_sources(
   sec/ccm.c
   sec/hmac.c
   sec/install_code.c
+  sec/key_cache.c
   sec/mmo.c
 )
 zephyr_library_sources_ifdef(CONFIG_DT_HAS_ESPRESSIF_ESP32_IEEE802154_ENABLED common/eui64_esp32.c)

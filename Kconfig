@@ -30,6 +30,13 @@ config ZZB_WORKQ_PRIORITY
 	int "Stack thread cooperative priority"
 	default 8
 
+config ZZB_KEY_CACHE_SIZE
+	int "PSA keys imported at a time"
+	default 4
+	help
+	  Entries of the PSA key cache shared by all nodes. Each entry holds one
+	  PSA key slot.
+
 config ZZB_MAC
 	bool "MAC layer"
 	default y
