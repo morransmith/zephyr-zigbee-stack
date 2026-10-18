@@ -7,6 +7,7 @@
 #include "common/eui64.h"
 #include "common/node.h"
 #include "common/queue.h"
+#include "mac/mac.h"
 
 static struct zzb_node nodes[CONFIG_ZZB_NODE_COUNT];
 
@@ -31,9 +32,15 @@ static struct zzb_node *free_node(void)
 static void init_handler(struct k_work *work)
 {
 	struct init_req *req = CONTAINER_OF(work, struct init_req, work);
-	struct zzb_node *node = free_node();
+	struct zzb_node *node;
 	uint64_t eui64 = req->cfg->eui64;
 
+	if (IS_ENABLED(CONFIG_ZZB_MAC) && req->cfg->radio == NULL) {
+		req->err = -EINVAL;
+		return;
+	}
+
+	node = free_node();
 	if (node == NULL) {
 		req->err = -ENOMEM;
 		return;
@@ -47,9 +54,17 @@ static void init_handler(struct k_work *work)
 	}
 
 	*node = (struct zzb_node){
-		.in_use = true,
 		.eui64 = eui64,
 	};
+
+	if (IS_ENABLED(CONFIG_ZZB_MAC)) {
+		req->err = zzb_mac_init(node, req->cfg->radio);
+		if (req->err) {
+			return;
+		}
+	}
+
+	node->in_use = true;
 	req->node = node;
 }
 
