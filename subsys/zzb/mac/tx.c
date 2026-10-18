@@ -64,6 +64,20 @@ int zzb_mcps_data_req(struct zzb_node *node, struct net_buf *buf)
 	return 0;
 }
 
+void zzb_mac_send_cmd(struct zzb_node *node, struct zzb_mac_hdr *hdr, const struct zzb_mac_cmd *cmd)
+{
+	struct net_buf *buf = node->mac.cmd_buf;
+	size_t len;
+
+	hdr->type = ZZB_MAC_FRAME_CMD;
+	hdr->seq = node->mac.dsn++;
+	net_buf_reset(buf);
+	len = zzb_mac_hdr_write(hdr, buf->data);
+	len += zzb_mac_cmd_write(cmd, buf->data + len);
+	net_buf_add(buf, len);
+	enqueue(node, buf);
+}
+
 void zzb_radio_tx_done(struct zzb_radio_port *port, struct net_buf *buf, enum zzb_mac_status status,
 		       bool frame_pending)
 {
@@ -84,6 +98,11 @@ void zzb_radio_tx_done(struct zzb_radio_port *port, struct net_buf *buf, enum zz
 	next = k_fifo_peek_head(&mac->tx_fifo);
 	if (next != NULL) {
 		zzb_radio_tx(port, next);
+	}
+
+	if (buf == mac->cmd_buf) {
+		zzb_mac_cmd_done(node, status, frame_pending);
+		return;
 	}
 
 	net_buf_unref(buf);

@@ -39,8 +39,13 @@ struct sent_frame {
 struct parent {
 	/* Number of frames with the ACK request bit that get no ACK */
 	int lost;
-	/* tx() returns -EBUSY, as after a CSMA-CA failure */
-	bool busy;
+	/* tx() on this channel returns -EBUSY, as after a CSMA-CA failure */
+	uint16_t busy_channel;
+	/* Frame received after the command reply_to, on reply_channel or on any channel if 0 */
+	const uint8_t *reply;
+	size_t reply_len;
+	uint8_t reply_to;
+	uint16_t reply_channel;
 };
 
 /* Frame passed up by an indication */
@@ -57,9 +62,13 @@ extern int sent_count;
 extern struct parent parent;
 extern struct zzb_node *node;
 extern struct rx_copy data_ind;
+extern struct rx_copy beacon;
 
 DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
 DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_ind, struct zzb_node *, struct net_buf *);
+DECLARE_FAKE_VOID_FUNC(zzb_mlme_scan_conf, struct zzb_node *, enum zzb_mac_status);
+DECLARE_FAKE_VOID_FUNC(zzb_mlme_beacon_notify_ind, struct zzb_node *, struct net_buf *, uint8_t,
+		       uint16_t);
 
 /* Suite hooks shared by the MAC suites: one node, its MAC initialized again before each test */
 void *mac_setup(void);

@@ -70,7 +70,7 @@ ZTEST(zzb_mac_tx, test_retries_stop_at_ack)
 
 ZTEST(zzb_mac_tx, test_channel_access_failure_is_not_retried)
 {
-	parent.busy = true;
+	parent.busy_channel = radio.channel;
 
 	send(1);
 	run_stack();

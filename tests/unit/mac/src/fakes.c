@@ -25,6 +25,9 @@ FAKE_VALUE_FUNC(int, radio_tx, const struct device *, enum ieee802154_tx_mode, s
 		struct net_buf *);
 DEFINE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
 DEFINE_FAKE_VOID_FUNC(zzb_mcps_data_ind, struct zzb_node *, struct net_buf *);
+DEFINE_FAKE_VOID_FUNC(zzb_mlme_scan_conf, struct zzb_node *, enum zzb_mac_status);
+DEFINE_FAKE_VOID_FUNC(zzb_mlme_beacon_notify_ind, struct zzb_node *, struct net_buf *, uint8_t,
+		      uint16_t);
 
 static const struct ieee802154_radio_api radio_api = {
 	.get_capabilities = radio_get_caps,
@@ -44,6 +47,7 @@ int sent_count;
 struct parent parent;
 struct zzb_node *node;
 struct rx_copy data_ind;
+struct rx_copy beacon;
 
 static void copy_rx(struct rx_copy *copy, struct net_buf *buf)
 {
@@ -56,6 +60,12 @@ static void copy_rx(struct rx_copy *copy, struct net_buf *buf)
 static void data_ind_fake(struct zzb_node *n, struct net_buf *buf)
 {
 	copy_rx(&data_ind, buf);
+}
+
+static void beacon_notify_ind_fake(struct zzb_node *n, struct net_buf *buf, uint8_t channel,
+				   uint16_t superframe)
+{
+	copy_rx(&beacon, buf);
 }
 
 static int start_fake(const struct device *dev)
@@ -102,6 +112,16 @@ static void send_ack(uint8_t seq)
 	net_pkt_unref(pkt);
 }
 
+static bool reply_due(struct net_buf *frag)
+{
+	struct zzb_mac_hdr hdr;
+	int len = zzb_mac_hdr_parse(frag->data, frag->len, &hdr);
+
+	return parent.reply != NULL && len > 0 && hdr.type == ZZB_MAC_FRAME_CMD &&
+	       frag->data[len] == parent.reply_to &&
+	       (parent.reply_channel == 0 || parent.reply_channel == radio.channel);
+}
+
 static int tx_fake(const struct device *dev, enum ieee802154_tx_mode mode, struct net_pkt *pkt,
 		   struct net_buf *frag)
 {
@@ -113,20 +133,23 @@ static int tx_fake(const struct device *dev, enum ieee802154_tx_mode mode, struc
 	s->len = frag->len;
 	s->radio = radio;
 
-	if (parent.busy) {
+	if (radio.channel == parent.busy_channel) {
 		return -EBUSY;
 	}
 
-	if (!ieee802154_is_ar_flag_set(frag)) {
-		return 0;
+	if (ieee802154_is_ar_flag_set(frag)) {
+		if (parent.lost > 0) {
+			parent.lost--;
+			return -ENOMSG;
+		}
+
+		send_ack(frag->data[2]);
 	}
 
-	if (parent.lost > 0) {
-		parent.lost--;
-		return -ENOMSG;
+	if (reply_due(frag)) {
+		inject(parent.reply, parent.reply_len);
 	}
 
-	send_ack(frag->data[2]);
 	return 0;
 }
 
@@ -139,6 +162,8 @@ static void reset_fakes(void)
 	RESET_FAKE(radio_tx);
 	RESET_FAKE(zzb_mcps_data_conf);
 	RESET_FAKE(zzb_mcps_data_ind);
+	RESET_FAKE(zzb_mlme_scan_conf);
+	RESET_FAKE(zzb_mlme_beacon_notify_ind);
 	FFF_RESET_HISTORY();
 	radio_get_caps_fake.return_val = IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_CSMA;
 	radio_start_fake.custom_fake = start_fake;
@@ -146,6 +171,7 @@ static void reset_fakes(void)
 	radio_filter_fake.custom_fake = filter_fake;
 	radio_tx_fake.custom_fake = tx_fake;
 	zzb_mcps_data_ind_fake.custom_fake = data_ind_fake;
+	zzb_mlme_beacon_notify_ind_fake.custom_fake = beacon_notify_ind_fake;
 	radio = (struct radio_state){0};
 	sent_count = 0;
 	parent = (struct parent){0};
@@ -177,6 +203,8 @@ void mac_after(void *fixture)
 {
 	struct net_buf *bufs[CONFIG_ZZB_BUF_COUNT];
 
+	zassert_equal(node->mac.op, ZZB_MAC_OP_NONE);
+	zassert_false(k_work_delayable_is_pending(&node->mac.timer));
 	zassert_true(k_fifo_is_empty(&node->mac.tx_fifo));
 
 	ARRAY_FOR_EACH(bufs, i) {

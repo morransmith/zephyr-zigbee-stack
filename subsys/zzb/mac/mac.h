@@ -8,6 +8,8 @@
 #include <zephyr/kernel.h>
 #include <zephyr/net_buf.h>
 
+#include "mac/frame.h"
+
 struct zzb_node;
 
 /* Numeric values from 802.15.4-2006 */
@@ -15,6 +17,12 @@ enum zzb_mac_status {
 	ZZB_MAC_STATUS_SUCCESS = 0x00,
 	ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE = 0xe1,
 	ZZB_MAC_STATUS_NO_ACK = 0xe9,
+	ZZB_MAC_STATUS_NO_BEACON = 0xea,
+};
+
+enum zzb_mac_op {
+	ZZB_MAC_OP_NONE,
+	ZZB_MAC_OP_SCAN,
 };
 
 struct zzb_mac {
@@ -26,6 +34,15 @@ struct zzb_mac {
 	/* Data and command frames; the head is in flight */
 	struct k_fifo tx_fifo;
 	uint8_t tx_retries;
+	/* The MLME procedure in progress, its command frame and its timer */
+	enum zzb_mac_op op;
+	struct net_buf *cmd_buf;
+	struct k_work_delayable timer;
+	/* Active scan: channels left, the channel scanned, ScanDuration, whether a beacon came */
+	uint32_t scan_channels;
+	uint8_t scan_channel;
+	uint8_t scan_duration;
+	bool scan_beacon;
 };
 
 /* Binds the node to radio, programs the address filters and starts the radio */
@@ -38,10 +55,49 @@ int zzb_mac_init(struct zzb_node *node, const struct device *radio);
  */
 int zzb_mcps_data_req(struct zzb_node *node, struct net_buf *buf);
 
+/*
+ * MLME-SCAN.request for an active scan. Bit n of channels selects channel n (11 to 26). Each
+ * channel is scanned for aBaseSuperframeDuration * (2^duration + 1) symbols.
+ */
+int zzb_mlme_scan_req(struct zzb_node *node, uint32_t channels, uint8_t duration);
+
 /* Defined by NWK */
 void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status);
 
 /* Defined by NWK. buf holds the MSDU, and its metadata the addresses, flags, LQI and RSSI. */
 void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf);
+
+/* Defined by NWK. buf holds the beacon payload, and its metadata the coordinator address. */
+void zzb_mlme_beacon_notify_ind(struct zzb_node *node, struct net_buf *buf, uint8_t channel,
+				uint16_t superframe);
+
+/* Defined by NWK. SUCCESS if a beacon was received, otherwise NO_BEACON. */
+void zzb_mlme_scan_conf(struct zzb_node *node, enum zzb_mac_status status);
+
+/* Within the MAC */
+
+/* aBaseSuperframeDuration: 960 symbols of 16 us */
+#define ZZB_MAC_BASE_SUPERFRAME_US 15360
+
+/* Allocates the command buffer for op, or returns -EBUSY while another procedure runs */
+int zzb_mac_start_op(struct zzb_node *node, enum zzb_mac_op op);
+
+/* Releases the command buffer and ends the procedure */
+void zzb_mac_end_op(struct zzb_node *node);
+
+/* Sends cmd from the command buffer; its confirm reaches zzb_mac_cmd_done() */
+void zzb_mac_send_cmd(struct zzb_node *node, struct zzb_mac_hdr *hdr,
+		      const struct zzb_mac_cmd *cmd);
+void zzb_mac_cmd_done(struct zzb_node *node, enum zzb_mac_status status, bool frame_pending);
+
+void zzb_mac_set_radio_pan_id(struct zzb_node *node, uint16_t pan_id);
+
+/* Sets the channel and restarts RX, since esp32 applies a new channel only then */
+int zzb_mac_set_radio_channel(struct zzb_node *node, uint8_t channel);
+
+/* Scans the next channel, or ends the scan after the last one */
+void zzb_mac_scan_next(struct zzb_node *node);
+void zzb_mac_scan_cmd_done(struct zzb_node *node, enum zzb_mac_status status);
+void zzb_mac_scan_rx(struct zzb_node *node, struct net_buf *buf);
 
 #endif /* ZZB_SUBSYS_MAC_MAC_H_ */
