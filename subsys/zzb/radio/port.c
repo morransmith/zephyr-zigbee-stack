@@ -64,6 +64,9 @@ static enum zzb_mac_status transmit(struct zzb_radio_port *port, struct net_buf 
 	enum ieee802154_tx_mode mode = IEEE802154_TX_MODE_CSMA_CA;
 	int err;
 
+	acked = false;
+	ack_pending = false;
+
 	if (!port->hw_csma) {
 		if (csma_ca(port->dev)) {
 			return ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE;
@@ -72,8 +75,6 @@ static enum zzb_mac_status transmit(struct zzb_radio_port *port, struct net_buf 
 		mode = IEEE802154_TX_MODE_DIRECT;
 	}
 
-	acked = false;
-	ack_pending = false;
 	err = api->tx(port->dev, mode, &port->tx_pkt, buf);
 
 	/* esp32 returns 0 also when the ACK is missing */

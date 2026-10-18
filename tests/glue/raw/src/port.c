@@ -292,14 +292,19 @@ ZTEST(zzb_radio_raw, test_sw_csma_ca_retries_cca_then_sends_direct)
 ZTEST(zzb_radio_raw, test_sw_csma_ca_gives_up_after_max_backoffs)
 {
 	init_without_hw_csma();
-	radio_cca_fake.return_val = -EBUSY;
+	ack[0] = 0x12;
+	radio_tx_fake.custom_fake = tx_acked;
+	transmit(tx_buf(unicast_frame, sizeof(unicast_frame)));
 
-	transmit(tx_buf(bcast_frame, sizeof(bcast_frame)));
+	RESET_FAKE(radio_cca);
+	radio_cca_fake.return_val = -EBUSY;
+	transmit(tx_buf(unicast_frame, sizeof(unicast_frame)));
 
 	/* macMaxCSMABackoffs + 1 */
 	zassert_equal(radio_cca_fake.call_count, 5);
-	zassert_equal(radio_tx_fake.call_count, 0);
+	zassert_equal(radio_tx_fake.call_count, 1);
 	zassert_equal(zzb_radio_tx_done_fake.arg2_val, ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE);
+	zassert_false(zzb_radio_tx_done_fake.arg3_val);
 }
 
 ZTEST_SUITE(zzb_radio_raw, NULL, NULL, before, NULL, NULL);
