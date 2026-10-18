@@ -6,4 +6,7 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(zzb_build_radio)
 
 target_sources(app PRIVATE src/main.c)
-target_sources_ifdef(CONFIG_IEEE802154_RAW_MODE app PRIVATE src/raw_mode.c)
+if(CONFIG_IEEE802154_RAW_MODE OR CONFIG_NET_L2_CUSTOM_IEEE802154)
+  target_include_directories(app PRIVATE ${ZEPHYR_ZZB_MODULE_DIR}/subsys/zzb)
+  target_sources(app PRIVATE src/mac_stubs.c)
+endif()
