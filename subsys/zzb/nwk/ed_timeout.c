@@ -106,6 +106,14 @@ void zzb_nwk_ed_timeout_start(struct zzb_node *node)
 	arm(node, K_NO_WAIT);
 }
 
+void zzb_nwk_keepalive_resume(struct zzb_node *node)
+{
+	if (node->nwk.nib.parent_info &
+	    (ZZB_NWK_PARENT_POLL_KEEPALIVE | ZZB_NWK_PARENT_ED_TIMEOUT_KEEPALIVE)) {
+		arm(node, K_NO_WAIT);
+	}
+}
+
 void zzb_nwk_keepalive_stop(struct zzb_node *node)
 {
 	k_work_cancel_delayable(&node->nwk.keepalive);
@@ -134,7 +142,11 @@ void zzb_nwk_ed_timeout_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *
 		return;
 	}
 
-	nwk->nib.parent_info = parent_info;
+	if (parent_info != nwk->nib.parent_info) {
+		nwk->nib.parent_info = parent_info;
+		zzb_nwk_save(node);
+	}
+
 	nwk->ed_timeout_wait = false;
 	if (parent_info & (ZZB_NWK_PARENT_POLL_KEEPALIVE | ZZB_NWK_PARENT_ED_TIMEOUT_KEEPALIVE)) {
 		arm(node, PERIOD);

@@ -189,6 +189,19 @@ void zzb_nlme_set_ext_pan_id(struct zzb_node *node, uint64_t ext_pan_id);
  */
 void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_LEN], uint8_t seq);
 
+/*
+ * Saves the records nwk/net and nwk/keys while the node is on a network and its key is not
+ * pending. Errors are ignored; the next save writes the whole records again.
+ */
+void zzb_nwk_save(struct zzb_node *node);
+
+/* Deletes the records nwk/net and nwk/keys */
+void zzb_nwk_delete(struct zzb_node *node);
+
+/* Load the records nwk/net and nwk/keys; -EINVAL for an unknown version or length */
+int zzb_nwk_net_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
+int zzb_nwk_keys_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
+
 void zzb_nwk_fc_init(struct zzb_node *node);
 
 /* Loads the watermark from the record fc/nwk */
@@ -357,6 +370,9 @@ void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 
 /* Sends the End Device Timeout Request from the stack queue, again after 1 s if that fails */
 void zzb_nwk_ed_timeout_start(struct zzb_node *node);
+
+/* Starts the keepalive of a node loaded from its records (R22 3.6.10.8) */
+void zzb_nwk_keepalive_resume(struct zzb_node *node);
 
 /* Cancels the End Device Timeout Request and the keepalive */
 void zzb_nwk_keepalive_stop(struct zzb_node *node);

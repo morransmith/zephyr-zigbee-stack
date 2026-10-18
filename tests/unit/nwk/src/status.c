@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 
 #include "common/node.h"
@@ -20,6 +21,7 @@ static void *setup(void)
 
 static void before(void *fixture)
 {
+	delete_nwk_records();
 	reset_fakes();
 	pair_nodes(child, parent);
 }
@@ -163,6 +165,8 @@ static void receive_rejoin_rsp(uint16_t short_addr, uint8_t status)
 /* R22 3.6.1.9.3: the parent resolves a conflict with an unsolicited rejoin response */
 ZTEST(zzb_nwk_status, test_network_address_update)
 {
+	uint8_t rec[64];
+
 	receive_rejoin_rsp(0x5678, 0x01);
 	receive_rejoin_rsp(0xfff8, 0x00);
 	zassert_equal(child->nwk.nib.short_addr, CHILD_SHORT);
@@ -170,6 +174,8 @@ ZTEST(zzb_nwk_status, test_network_address_update)
 
 	receive_rejoin_rsp(0x5678, 0x00);
 	zassert_equal(child->nwk.nib.short_addr, 0x5678);
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 28);
+	zassert_equal(sys_get_le16(rec + NET_SHORT_ADDR), 0x5678);
 	zassert_equal(zzb_mlme_set_short_addr_fake.arg1_val, 0x5678);
 	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 1);
 	zassert_equal(zzb_nlme_nwk_status_ind_fake.arg1_val, 0x10);

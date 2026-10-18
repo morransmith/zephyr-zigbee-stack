@@ -2,6 +2,8 @@
 
 #include <string.h>
 #include <zephyr/fff.h>
+#include <zephyr/settings/settings.h>
+#include <zephyr/sys/printk.h>
 #include <zephyr/ztest.h>
 #include <zzb/zzb.h>
 
@@ -139,6 +141,22 @@ static void join(struct zzb_node *node, uint16_t short_addr, struct zzb_node *pe
 	zzb_nlme_set_ext_pan_id(node, EXT_PAN_ID);
 	zzb_nlme_set_nwk_key(node, test_key, 0);
 	zassert_not_null(zzb_nwk_neighbor_add(node, peer->eui64, peer_short, relationship));
+}
+
+int load_record(const char *key, uint8_t *rec, size_t len)
+{
+	char name[32];
+	int ret;
+
+	snprintk(name, sizeof(name), "zzb/0/%s", key);
+	ret = settings_load_one(name, rec, len);
+	return ret < 0 ? 0 : ret;
+}
+
+void delete_nwk_records(void)
+{
+	settings_delete("zzb/0/nwk/net");
+	settings_delete("zzb/0/nwk/keys");
 }
 
 /* The test thread is cooperative and has a lower priority than the stack thread */

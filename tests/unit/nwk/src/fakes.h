@@ -69,6 +69,17 @@ struct zzb_node *test_node(int index);
 /* Resets every fake */
 void reset_fakes(void);
 
+/* Offsets in the record nwk/net */
+#define NET_SHORT_ADDR   11
+#define NET_PARENT_INFO  16
+#define NET_PARENT_SHORT 17
+
+/* Reads the record zzb/0/<key>; returns its length, 0 when there is none */
+int load_record(const char *key, uint8_t *rec, size_t len);
+
+/* Deletes the NWK records of node 0 */
+void delete_nwk_records(void);
+
 /* Runs the stack thread until it waits, without advancing the time */
 void run_stack(void);
 

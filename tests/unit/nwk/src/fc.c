@@ -92,6 +92,7 @@ static void before(void *fixture)
 	/* A save scheduled by the previous test runs before the record is deleted */
 	run_stack();
 	settings_delete(KEY);
+	delete_nwk_records();
 	zassert_ok(reboot());
 }
 

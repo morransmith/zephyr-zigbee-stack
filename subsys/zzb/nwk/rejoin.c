@@ -185,6 +185,7 @@ static void update_addr(struct zzb_node *node, const struct zzb_nwk_hdr *hdr, ui
 	}
 
 	zzb_nlme_set_short_addr(node, addr);
+	zzb_nwk_save(node);
 	zzb_nlme_nwk_status_ind(node, ZZB_NWK_CODE_ADDR_UPDATE, addr);
 }
 
@@ -223,6 +224,7 @@ void zzb_nwk_rejoin_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 
 	/* After a trust center rejoin the network key comes from the trust center */
 	if (nwk->join_secure) {
+		zzb_nwk_save(node);
 		zzb_nwk_ed_timeout_start(node);
 	} else {
 		nwk->key_pending = true;

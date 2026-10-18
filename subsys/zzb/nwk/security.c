@@ -131,8 +131,9 @@ int zzb_nwk_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len)
 		nb->ext_addr = aux.src_addr;
 	}
 
-	if (slot == nib->newest_key) {
+	if (slot == nib->newest_key && slot != nib->active_key) {
 		nib->active_key = slot;
+		zzb_nwk_save(node);
 	}
 
 	net_buf_remove_mem(buf, ZZB_SEC_MIC_LEN);

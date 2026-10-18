@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 
 #include "common/node.h"
@@ -50,6 +51,7 @@ static void before(void *fixture)
 {
 	struct zzb_nwk_neighbor *nb;
 
+	delete_nwk_records();
 	reset_fakes();
 	pair_nodes(child, parent);
 	child->nwk.nib.channel = CHANNEL;
@@ -172,6 +174,7 @@ ZTEST(zzb_nwk_rejoin, test_secure_rejoin_to_the_parent)
 ZTEST(zzb_nwk_rejoin, test_secure_rejoin_to_a_new_parent)
 {
 	struct zzb_nwk_neighbor *nb;
+	uint8_t rec[64];
 
 	/* Node 1 plays another router; the old parent is not heard */
 	zzb_nwk_neighbor_parent(child)->ext_addr = 0x0102030405060708ULL;
@@ -184,6 +187,9 @@ ZTEST(zzb_nwk_rejoin, test_secure_rejoin_to_a_new_parent)
 
 	respond(0x5678, 0x00, child->eui64);
 	check_conf(ZZB_NWK_STATUS_SUCCESS);
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 28);
+	zassert_equal(sys_get_le16(rec + NET_SHORT_ADDR), 0x5678);
+	zassert_equal(sys_get_le16(rec + NET_PARENT_SHORT), NEW_SHORT);
 	nb = zzb_nwk_neighbor_parent(child);
 	zassert_equal(nb->short_addr, NEW_SHORT);
 	zassert_equal(nb->ext_addr, parent->eui64);
@@ -320,6 +326,7 @@ ZTEST(zzb_nwk_rejoin, test_trust_center_rejoin)
 {
 	struct zzb_nwk_hdr hdr;
 	struct zzb_nwk_cmd cmd;
+	uint8_t rec[64];
 
 	zassert_ok(rejoin(false));
 	notify_beacon(child, &parent_beacon, PAN_ID, PARENT_SHORT, CHANNEL, SF_COORD, 150);
@@ -329,6 +336,7 @@ ZTEST(zzb_nwk_rejoin, test_trust_center_rejoin)
 	respond_security(CHILD_SHORT, 0x00, child->eui64, 0);
 	check_conf(ZZB_NWK_STATUS_SUCCESS);
 	zassert_true(child->nwk.key_pending);
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 0);
 	run_stack();
 	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
 

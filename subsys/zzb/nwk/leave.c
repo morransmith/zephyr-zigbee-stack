@@ -86,6 +86,7 @@ static void leave_locally(struct zzb_node *node, bool rejoin)
 {
 	if (!rejoin) {
 		zzb_nwk_reset(node);
+		zzb_nwk_delete(node);
 	}
 }
 

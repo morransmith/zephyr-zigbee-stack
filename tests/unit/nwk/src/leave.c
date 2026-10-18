@@ -23,6 +23,7 @@ static void *setup(void)
 
 static void before(void *fixture)
 {
+	delete_nwk_records();
 	reset_fakes();
 	pair_nodes(child, parent);
 }
@@ -82,6 +83,9 @@ ZTEST(zzb_nwk_leave, test_leave_without_rejoin)
 	net_buf_reserve(buf, ZZB_NLDE_HEADROOM);
 	zzb_nwk_ed_timeout_start(child);
 
+	uint8_t rec[64];
+
+	zzb_nwk_save(child);
 	zassert_ok(zzb_nlme_leave_req(child, false));
 	seq = child->nwk.nib.seq;
 	zassert_equal(zzb_nlde_data_req(child, buf, PARENT_SHORT, 0, true), -EBUSY);
@@ -93,6 +97,9 @@ ZTEST(zzb_nwk_leave, test_leave_without_rejoin)
 	zassert_equal(zzb_nlme_leave_conf_fake.arg1_val, ZZB_MAC_STATUS_SUCCESS);
 	check_reset();
 
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 0);
+	zassert_equal(load_record("nwk/keys", rec, sizeof(rec)), 0);
+
 	/* The outgoing frame counter survives the leave (R22 4.3.4) */
 	zassert_equal(child->nwk.fc.value, fc + 1);
 	zassert_equal(child->nwk.nib.seq, seq);
@@ -102,6 +109,9 @@ ZTEST(zzb_nwk_leave, test_leave_without_rejoin)
 /* The rejoin that follows needs the network */
 ZTEST(zzb_nwk_leave, test_leave_with_rejoin_keeps_the_network)
 {
+	uint8_t rec[64];
+
+	zzb_nwk_save(child);
 	zassert_ok(zzb_nlme_leave_req(child, true));
 	check_leave(0, ZZB_NWK_LEAVE_REJOIN, ZZB_MAC_STATUS_NO_ACK);
 
@@ -111,6 +121,7 @@ ZTEST(zzb_nwk_leave, test_leave_with_rejoin_keeps_the_network)
 	zassert_equal(child->nwk.nib.short_addr, CHILD_SHORT);
 	zassert_true(child->nwk.nib.keys[0].valid);
 	zassert_not_null(zzb_nwk_neighbor_parent(child));
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 28);
 }
 
 ZTEST(zzb_nwk_leave, test_leave_rejected)

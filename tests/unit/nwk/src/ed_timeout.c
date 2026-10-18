@@ -23,6 +23,7 @@ static void *setup(void)
 
 static void before(void *fixture)
 {
+	delete_nwk_records();
 	reset_fakes();
 	pair_nodes(child, parent);
 }
@@ -119,8 +120,12 @@ ZTEST(zzb_nwk_ed_timeout, test_response_sets_the_parent_information)
 	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
 	struct zzb_nwk_hdr hdr;
 
+	uint8_t rec[64];
+
 	receive_rsp(0x00, 0x03, parent->eui64);
 	zassert_equal(child->nwk.nib.parent_info, 0x03);
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 28);
+	zassert_equal(rec[NET_PARENT_INFO], 0x03);
 
 	zassert_not_null(buf);
 	net_buf_reserve(buf, ZZB_NLDE_HEADROOM);
