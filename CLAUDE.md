@@ -26,6 +26,22 @@ west build -b nrf52840dk/nrf52840 samples/<name>
 - Work happens in a feature/<name> branch off develop. Never merge into develop or master, and never delete a branch.
 - Never create a pull request. Never git push unless asked; one request covers one push.
 
+## AI usage
+
+Permitted, as common examples:
+
+- learning, exploring and explaining the codebase;
+- suggestions on human-written code;
+- mechanical tasks: formatting, repetitive patterns, completing code from an established design;
+- documentation drafts for components the user already understands;
+- code written from a design the user owns.
+
+Before writing code, make sure the user owns the design choices it depends on: they are recorded in `doc/architecture.md` or were decided by the user in the conversation. Ask about any choice that is not covered.
+
+A change is acceptable only if the user can fully understand it, debug it without AI help, and discuss it with reviewers without AI help. Keep changes small enough for that.
+
+Never write pull request descriptions or responses to reviewers.
+
 ## Writing style
 
 Applies to every document here, and to answers given in conversation.
@@ -50,11 +66,21 @@ Early exit. Return, raise or continue as soon as a case is decided. Rewrite nest
 
 Short and plain. Prefer the version a human reads faster: fewer branches, fewer locals, direct names. Replace code that needs a comment to be understood with the obvious version.
 
+Keep it simple. A simpler change that does 90% of the job is often preferable to a complex one that does 100%. Flag unnecessary project-defined macros, generic containers and extra abstraction layers. Standard C and Zephyr macros may be used.
+
 Reuse before adding. Extend what is already there. Introducing a new subsystem, a new dependency or a new pattern requires the user's agreement first - ask before writing it. A large change made without prior discussion is likely to be rejected.
 
 Read before writing. Read the files a change touches and the files around them, then match the patterns in place.
 
 Every source file starts with an `SPDX-License-Identifier: Apache-2.0` line. Code follows the Zephyr coding style.
+
+## Tests
+
+- Follow the existing testing patterns: ztest suites under `tests/`, run by twister. Do not add a new testing system.
+- New test cases go into an existing test file when one covers the same component. Add a new file under `tests/` only when none does.
+- Add only tests that produce meaningful results. Trivial tests increase suite size and CI time without catching defects.
+- No time-sensitive tests: no thresholds on host wall-clock time, no host sleeps, no races between threads. Test timer logic through Zephyr kernel time on native_sim.
+- Flag tests that significantly increase CI run time (expensive computation, large inputs, long waits) or download large amounts of data, and ask whether a smaller input or an existing fixture would do.
 
 ## Git
 
