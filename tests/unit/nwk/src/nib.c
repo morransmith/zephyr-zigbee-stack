@@ -89,4 +89,11 @@ ZTEST(zzb_nwk_nib, test_key_resets_incoming_counters_of_its_slot)
 	zassert_equal(nb->in_fc[1], 0);
 }
 
+ZTEST(zzb_nwk_nib, test_key_ends_the_pending_state)
+{
+	node.nwk.key_pending = true;
+	zzb_nlme_set_nwk_key(&node, key_a, 1);
+	zassert_false(node.nwk.key_pending);
+}
+
 ZTEST_SUITE(zzb_nwk_nib, NULL, NULL, before, NULL, NULL);

@@ -133,6 +133,9 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_h
 		if (err) {
 			return err;
 		}
+	} else if (hdr->type != ZZB_NWK_FRAME_DATA || !node->nwk.key_pending) {
+		/* R22 3.6.2.2: APS takes the Transport Key from unsecured data frames */
+		return -EACCES;
 	}
 
 	nb = meta->src.mode == ZZB_MAC_ADDR_SHORT

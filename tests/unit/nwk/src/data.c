@@ -200,12 +200,17 @@ ZTEST(zzb_nwk_data, test_confirm)
 	zassert_equal(zzb_nlde_data_conf_fake.arg2_val, ZZB_MAC_STATUS_NO_ACK);
 }
 
-ZTEST(zzb_nwk_data, test_unsecured_frames_are_indicated)
+/* R22 3.6.2.2: APS takes the Transport Key from them */
+ZTEST(zzb_nwk_data, test_unsecured_data_passes_while_the_key_is_pending)
 {
 	/* Data to 0x1234 and to 0xffff from 0x0000 */
 	static const uint8_t unicast[] = {0x08, 0x00, 0x34, 0x12, 0x00, 0x00, 0x1e, 0x01, 0x42};
 	static const uint8_t broadcast[] = {0x08, 0x00, 0xff, 0xff, 0x00, 0x00, 0x1e, 0x02, 0x42};
 
+	receive(child, unicast, sizeof(unicast), PARENT_SHORT);
+	zassert_equal(zzb_nlde_data_ind_fake.call_count, 0);
+
+	child->nwk.key_pending = true;
 	receive(child, unicast, sizeof(unicast), PARENT_SHORT);
 	zassert_equal(zzb_nlde_data_ind_fake.call_count, 1);
 	zassert_false(zzb_nlde_data_ind_fake.arg4_val);
@@ -216,6 +221,10 @@ ZTEST(zzb_nwk_data, test_unsecured_frames_are_indicated)
 	receive(child, broadcast, sizeof(broadcast), PARENT_SHORT);
 	zassert_equal(zzb_nlde_data_ind_fake.call_count, 2);
 	zassert_equal(zzb_nlde_data_ind_fake.arg2_val, 0xffff);
+
+	zzb_nlme_set_nwk_key(child, key, 1);
+	receive(child, unicast, sizeof(unicast), PARENT_SHORT);
+	zassert_equal(zzb_nlde_data_ind_fake.call_count, 2);
 }
 
 ZTEST(zzb_nwk_data, test_frames_are_dropped)

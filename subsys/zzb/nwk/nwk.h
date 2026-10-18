@@ -142,7 +142,7 @@ void zzb_nlme_set_ext_pan_id(struct zzb_node *node, uint64_t ext_pan_id);
 /*
  * NLME-SET of a network key in nwkSecurityMaterialSet. The key replaces the key with the same
  * sequence number, otherwise the key that is not active, and the incoming frame counters of its
- * slot are reset. The first key becomes the active key.
+ * slot are reset. The first key becomes the active key. The key is no longer pending.
  */
 void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_LEN], uint8_t seq);
 
