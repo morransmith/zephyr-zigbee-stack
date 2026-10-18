@@ -8,6 +8,7 @@ zephyr_library_sources(
   common/node.c
   common/queue.c
   common/timer.c
+  sec/hmac.c
   sec/mmo.c
 )
 zephyr_library_sources_ifdef(CONFIG_DT_HAS_ESPRESSIF_ESP32_IEEE802154_ENABLED common/eui64_esp32.c)
