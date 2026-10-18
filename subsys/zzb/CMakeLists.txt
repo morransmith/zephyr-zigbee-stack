@@ -17,3 +17,4 @@ zephyr_library_sources(
 )
 zephyr_library_sources_ifdef(CONFIG_DT_HAS_ESPRESSIF_ESP32_IEEE802154_ENABLED common/eui64_esp32.c)
 zephyr_library_sources_ifdef(CONFIG_IEEE802154_RAW_MODE radio/port.c radio/raw.c)
+zephyr_library_sources_ifdef(CONFIG_NET_L2_CUSTOM_IEEE802154 radio/port.c radio/custom_l2.c)
