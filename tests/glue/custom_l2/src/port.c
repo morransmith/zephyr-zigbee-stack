@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <zephyr/fff.h>
+#include <zephyr/net/ieee802154_radio.h>
 #include <zephyr/ztest.h>
 
 #include "common/buf.h"
@@ -52,6 +53,13 @@ static enum zzb_mac_status transmit(const uint8_t *frame, size_t len)
 	return zzb_radio_tx_done_fake.arg2_val;
 }
 
+static void set_filter(enum ieee802154_filter_type type, const struct ieee802154_filter *filter)
+{
+	const struct ieee802154_radio_api *api = fake_radios[1]->api;
+
+	zassert_ok(api->filter(fake_radios[1], true, type, filter));
+}
+
 static void before(void *fixture)
 {
 	RESET_FAKE(zzb_radio_rx);
@@ -62,6 +70,10 @@ static void before(void *fixture)
 	ARRAY_FOR_EACH(ports, i) {
 		zassert_ok(zzb_radio_init(&ports[i], fake_radios[i]));
 	}
+
+	fake_radio_reset();
+	set_filter(IEEE802154_FILTER_TYPE_PAN_ID, &(struct ieee802154_filter){.pan_id = 0x1a62});
+	set_filter(IEEE802154_FILTER_TYPE_SHORT_ADDR, &(struct ieee802154_filter){.short_addr = 0});
 }
 
 ZTEST(zzb_radio_custom_l2, test_unicast_is_received_and_acked)
@@ -72,6 +84,23 @@ ZTEST(zzb_radio_custom_l2, test_unicast_is_received_and_acked)
 	zassert_equal_ptr(zzb_radio_rx_fake.arg0_val, &ports[1]);
 	zassert_equal(rx_len, sizeof(unicast_frame));
 	zassert_mem_equal(rx_data, unicast_frame, rx_len);
+}
+
+ZTEST(zzb_radio_custom_l2, test_link_down_gives_no_ack)
+{
+	fake_radio_set_link(0, 1, false);
+
+	zassert_equal(transmit(unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(zzb_radio_rx_fake.call_count, 0);
+}
+
+ZTEST(zzb_radio_custom_l2, test_frame_for_other_address_gives_no_ack)
+{
+	set_filter(IEEE802154_FILTER_TYPE_SHORT_ADDR,
+		   &(struct ieee802154_filter){.short_addr = 0x5678});
+
+	zassert_equal(transmit(unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(zzb_radio_rx_fake.call_count, 0);
 }
 
 ZTEST_SUITE(zzb_radio_custom_l2, NULL, NULL, before, NULL, NULL);
