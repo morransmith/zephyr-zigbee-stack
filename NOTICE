@@ -7,7 +7,7 @@ https://github.com/zigpy/ziggurat
 License: Apache-2.0
 NWK frame, network key and payload of test_nwk_decryption_unicast in
 crates/ziggurat-zigbee/src/nwk/frame.rs, commit 9f91dbb3.
-Used in tests/unit/sec.
+Used in tests/unit/sec and tests/unit/nwk.
 MAC frames of test_frame_data, test_frame_ack, test_beacon_request and
 test_association_request in crates/ziggurat-ieee-802154/src/lib.rs,
 commit 9f91dbb3. Used in tests/unit/mac.
