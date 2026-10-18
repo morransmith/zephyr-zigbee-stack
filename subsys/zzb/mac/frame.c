@@ -180,3 +180,89 @@ int zzb_mac_beacon_parse(const uint8_t *p, size_t len, uint16_t *superframe)
 
 	return off;
 }
+
+/* Returns the length of the command fields after the identifier, or -ENOTSUP */
+static int cmd_payload_len(uint8_t id)
+{
+	switch (id) {
+	case ZZB_MAC_CMD_DATA_REQ:
+	case ZZB_MAC_CMD_ORPHAN:
+	case ZZB_MAC_CMD_BEACON_REQ:
+		return 0;
+	case ZZB_MAC_CMD_ASSOC_REQ:
+		return 1;
+	case ZZB_MAC_CMD_ASSOC_RSP:
+		return 3;
+	case ZZB_MAC_CMD_COORD_REALIGN:
+		return 7;
+	default:
+		return -ENOTSUP;
+	}
+}
+
+size_t zzb_mac_cmd_write(const struct zzb_mac_cmd *cmd, uint8_t *p)
+{
+	p[0] = cmd->id;
+
+	switch (cmd->id) {
+	case ZZB_MAC_CMD_ASSOC_REQ:
+		p[1] = cmd->capability;
+		break;
+	case ZZB_MAC_CMD_ASSOC_RSP:
+		sys_put_le16(cmd->assoc_rsp.short_addr, p + 1);
+		p[3] = cmd->assoc_rsp.status;
+		break;
+	case ZZB_MAC_CMD_COORD_REALIGN:
+		sys_put_le16(cmd->realign.pan_id, p + 1);
+		sys_put_le16(cmd->realign.coord_short_addr, p + 3);
+		p[5] = cmd->realign.channel;
+		sys_put_le16(cmd->realign.short_addr, p + 6);
+		break;
+	default:
+		break;
+	}
+
+	return 1 + cmd_payload_len(cmd->id);
+}
+
+int zzb_mac_cmd_parse(const uint8_t *p, size_t len, struct zzb_mac_cmd *cmd)
+{
+	int payload_len;
+
+	if (len < 1) {
+		return -EINVAL;
+	}
+
+	payload_len = cmd_payload_len(p[0]);
+	if (payload_len < 0) {
+		return payload_len;
+	}
+
+	if (len < 1 + payload_len) {
+		return -EINVAL;
+	}
+
+	*cmd = (struct zzb_mac_cmd){
+		.id = p[0],
+	};
+
+	switch (cmd->id) {
+	case ZZB_MAC_CMD_ASSOC_REQ:
+		cmd->capability = p[1];
+		break;
+	case ZZB_MAC_CMD_ASSOC_RSP:
+		cmd->assoc_rsp.short_addr = sys_get_le16(p + 1);
+		cmd->assoc_rsp.status = p[3];
+		break;
+	case ZZB_MAC_CMD_COORD_REALIGN:
+		cmd->realign.pan_id = sys_get_le16(p + 1);
+		cmd->realign.coord_short_addr = sys_get_le16(p + 3);
+		cmd->realign.channel = p[5];
+		cmd->realign.short_addr = sys_get_le16(p + 6);
+		break;
+	default:
+		break;
+	}
+
+	return 1 + payload_len;
+}

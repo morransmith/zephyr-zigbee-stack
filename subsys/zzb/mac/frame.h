@@ -55,4 +55,47 @@ size_t zzb_mac_beacon_write(uint16_t superframe, uint8_t *p);
  */
 int zzb_mac_beacon_parse(const uint8_t *p, size_t len, uint16_t *superframe);
 
+/* Command Frame Identifiers of the commands Zigbee uses */
+enum zzb_mac_cmd_id {
+	ZZB_MAC_CMD_ASSOC_REQ = 0x01,
+	ZZB_MAC_CMD_ASSOC_RSP = 0x02,
+	ZZB_MAC_CMD_DATA_REQ = 0x04,
+	ZZB_MAC_CMD_ORPHAN = 0x06,
+	ZZB_MAC_CMD_BEACON_REQ = 0x07,
+	ZZB_MAC_CMD_COORD_REALIGN = 0x08,
+};
+
+struct zzb_mac_cmd {
+	enum zzb_mac_cmd_id id;
+	union {
+		/* ZZB_MAC_CMD_ASSOC_REQ */
+		uint8_t capability;
+		/* ZZB_MAC_CMD_ASSOC_RSP */
+		struct {
+			uint16_t short_addr;
+			uint8_t status;
+		} assoc_rsp;
+		/* ZZB_MAC_CMD_COORD_REALIGN */
+		struct {
+			uint16_t pan_id;
+			uint16_t coord_short_addr;
+			uint8_t channel;
+			uint16_t short_addr;
+		} realign;
+	};
+};
+
+/*
+ * Writes the Command Frame Identifier and the command fields and returns their length.
+ * Coordinator realignment is written without the Channel Page field (R22 D.5).
+ */
+size_t zzb_mac_cmd_write(const struct zzb_mac_cmd *cmd, uint8_t *p);
+
+/*
+ * Parses a command that starts at the Command Frame Identifier. Returns the length of the fields
+ * read, -EINVAL if the command is longer than len, or -ENOTSUP for a command Zigbee does not use.
+ * A Channel Page field after a coordinator realignment command is ignored.
+ */
+int zzb_mac_cmd_parse(const uint8_t *p, size_t len, struct zzb_mac_cmd *cmd);
+
 #endif /* ZZB_SUBSYS_MAC_FRAME_H_ */
