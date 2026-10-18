@@ -271,7 +271,7 @@ void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf)
 	struct zzb_nwk_hdr hdr;
 	int hdr_len = rx_frame(node, buf, &hdr);
 
-	if (hdr_len < 0) {
+	if (hdr_len < 0 || zzb_nwk_addr_conflict(node, &hdr)) {
 		net_buf_unref(buf);
 		return;
 	}

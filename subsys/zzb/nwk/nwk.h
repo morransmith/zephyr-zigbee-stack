@@ -47,6 +47,8 @@ enum zzb_nwk_status {
 /* Status codes of the network status command and NLME-NWK-STATUS.indication (R22 Table 3-51) */
 enum zzb_nwk_status_code {
 	ZZB_NWK_CODE_PARENT_LINK_FAILURE = 0x09,
+	ZZB_NWK_CODE_ADDR_CONFLICT = 0x0d,
+	ZZB_NWK_CODE_ADDR_UPDATE = 0x10,
 };
 
 /* Entry of nwkSecurityMaterialSet */
@@ -363,6 +365,12 @@ void zzb_nwk_ed_timeout_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *
 
 /* NLME-NWK-STATUS.indication with parent link failure */
 void zzb_nwk_parent_link_failure(struct zzb_node *node);
+
+/*
+ * Returns true and reports the conflict if a frame for the address of the node carries another
+ * destination IEEE address (R22 3.6.1.9.2)
+ */
+bool zzb_nwk_addr_conflict(struct zzb_node *node, const struct zzb_nwk_hdr *hdr);
 
 /* Handles a received network status command */
 void zzb_nwk_status_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,

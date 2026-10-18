@@ -166,20 +166,51 @@ void zzb_nwk_rejoin_req_conf(struct zzb_node *node, enum zzb_mac_status status)
 	k_work_reschedule_for_queue(&zzb_workq, &node->nwk.timer, K_USEC(ZZB_MAC_RESPONSE_WAIT_US));
 }
 
+/* The response carries the IEEE address of the node as destination and a source IEEE address */
+static bool ieee_addressed(const struct zzb_node *node, const struct zzb_nwk_hdr *hdr)
+{
+	return (hdr->flags & ZZB_NWK_DST_IEEE) && hdr->dst_ext == node->eui64 &&
+	       (hdr->flags & ZZB_NWK_SRC_IEEE);
+}
+
+/* R22 3.6.1.9.3: the parent has given the node a new address */
+static void update_addr(struct zzb_node *node, const struct zzb_nwk_hdr *hdr, uint16_t addr,
+			uint16_t mac_src)
+{
+	const struct zzb_nwk_neighbor *parent = zzb_nwk_neighbor_parent(node);
+
+	if (parent == NULL || mac_src != parent->short_addr || !ieee_addressed(node, hdr) ||
+	    hdr->src_ext != parent->ext_addr || addr == node->nwk.nib.short_addr) {
+		return;
+	}
+
+	zzb_nlme_set_short_addr(node, addr);
+	zzb_nlme_nwk_status_ind(node, ZZB_NWK_CODE_ADDR_UPDATE, addr);
+}
+
 void zzb_nwk_rejoin_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 			   const struct zzb_nwk_cmd *cmd, uint16_t mac_src)
 {
 	struct zzb_nwk *nwk = &node->nwk;
 	struct zzb_nwk_neighbor *nb = nwk->candidate;
 	uint16_t addr = cmd->rejoin_rsp.short_addr;
+	bool accepted =
+		cmd->rejoin_rsp.status == ZZB_MAC_STATUS_SUCCESS && addr < FIRST_SPECIAL_ADDR;
 
-	if (nwk->op != ZZB_NWK_OP_REJOIN || nb == NULL || mac_src != nb->short_addr ||
-	    !(hdr->flags & ZZB_NWK_DST_IEEE) || hdr->dst_ext != node->eui64 ||
-	    !(hdr->flags & ZZB_NWK_SRC_IEEE) || (nb->ext_addr && hdr->src_ext != nb->ext_addr)) {
+	if (nwk->op != ZZB_NWK_OP_REJOIN) {
+		if (accepted && nwk->op == ZZB_NWK_OP_NONE) {
+			update_addr(node, hdr, addr, mac_src);
+		}
+
 		return;
 	}
 
-	if (cmd->rejoin_rsp.status != ZZB_MAC_STATUS_SUCCESS || addr >= FIRST_SPECIAL_ADDR) {
+	if (nb == NULL || mac_src != nb->short_addr || !ieee_addressed(node, hdr) ||
+	    (nb->ext_addr && hdr->src_ext != nb->ext_addr)) {
+		return;
+	}
+
+	if (!accepted) {
 		fail_candidate(node);
 		return;
 	}
