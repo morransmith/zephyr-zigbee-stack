@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* Stand-ins for the MAC until it exists (milestone 6) */
+/* Stubs of the MAC callbacks until the MAC exists (milestone 6) */
 
 #include "radio/port.h"
 

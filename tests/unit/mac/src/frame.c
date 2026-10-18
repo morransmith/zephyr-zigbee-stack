@@ -99,10 +99,10 @@ ZTEST(zzb_mac_frame, test_association_request_header)
 	check_hdr_round_trip(assoc_req_hdr, sizeof(assoc_req_hdr), &expected);
 }
 
-/* R22 Table D-1 other options: IntraPAN set, then no destination (sent to the PAN coordinator) */
+/* R22 Table D-1 other options: PAN ID compression, then no destination (to the PAN coordinator) */
 ZTEST(zzb_mac_frame, test_association_request_header_options)
 {
-	static const uint8_t intra_pan[] = {
+	static const uint8_t pan_id_comp[] = {
 		0x63, 0xc8, 0x13, 0x26, 0x1c, 0x00, 0x00, 0x31,
 		0x4a, 0x49, 0xfe, 0xff, 0x6e, 0x02, 0xbc,
 	};
@@ -117,7 +117,7 @@ ZTEST(zzb_mac_frame, test_association_request_header_options)
 		.src = {.mode = ZZB_MAC_ADDR_EXT, .pan_id = 0x1c26, .ext_addr = joiner_addr},
 	};
 
-	check_hdr_round_trip(intra_pan, sizeof(intra_pan), &expected);
+	check_hdr_round_trip(pan_id_comp, sizeof(pan_id_comp), &expected);
 
 	expected.dst = (struct zzb_mac_addr){.mode = ZZB_MAC_ADDR_NONE};
 	check_hdr_round_trip(no_dst, sizeof(no_dst), &expected);
@@ -213,7 +213,6 @@ ZTEST(zzb_mac_frame, test_truncated_beacon_is_rejected)
 	zassert_equal(zzb_mac_beacon_parse(gts_beacon, 17, &superframe), -EINVAL);
 }
 
-/* Parses a command, checks that writing it back gives the same bytes and returns it */
 static struct zzb_mac_cmd cmd_round_trip(const uint8_t *bytes, size_t len)
 {
 	struct zzb_mac_cmd cmd;
@@ -236,7 +235,6 @@ ZTEST(zzb_mac_frame, test_association_request_command)
 	zassert_equal(cmd.capability, 0x8e);
 }
 
-/* Extended address of the coordinator in the frames below */
 static const uint64_t coord_addr = 0x00124b00012e5a7fULL;
 
 /* R22 Table D-3 first option */
@@ -263,11 +261,11 @@ ZTEST(zzb_mac_frame, test_association_response)
 	zassert_equal(cmd.assoc_rsp.status, 0x00);
 }
 
-/* Data request, orphan notification, and beacon request of test_beacon_request in Ziggurat */
 ZTEST(zzb_mac_frame, test_commands_without_payload)
 {
 	static const uint8_t data_req[] = {0x04};
 	static const uint8_t orphan[] = {0x06};
+	/* From test_beacon_request in Ziggurat (see NOTICE) */
 	static const uint8_t beacon_req[] = {0x07};
 
 	zassert_equal(cmd_round_trip(data_req, 1).id, ZZB_MAC_CMD_DATA_REQ);
@@ -337,7 +335,6 @@ ZTEST(zzb_mac_frame, test_coordinator_realignment_channel_page_is_ignored)
 	check_realign_cmd(&cmd);
 }
 
-/* Disassociation notification, PAN ID conflict notification, GTS request */
 ZTEST(zzb_mac_frame, test_unsupported_commands_are_rejected)
 {
 	static const uint8_t disassoc[] = {0x03, 0x02};

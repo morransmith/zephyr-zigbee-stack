@@ -181,7 +181,6 @@ int zzb_mac_beacon_parse(const uint8_t *p, size_t len, uint16_t *superframe)
 	return off;
 }
 
-/* Returns the length of the command fields after the identifier, or -ENOTSUP */
 static int cmd_payload_len(uint8_t id)
 {
 	switch (id) {

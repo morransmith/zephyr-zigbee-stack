@@ -24,7 +24,7 @@ struct zzb_mac_addr {
 	enum zzb_mac_addr_mode mode;
 };
 
-/* zzb_frame_meta.flags */
+/* zzb_frame_meta.flags and zzb_mac_hdr.flags */
 #define ZZB_FRAME_ACK_REQ  BIT(0)
 #define ZZB_FRAME_INDIRECT BIT(1)
 #define ZZB_FRAME_PENDING  BIT(2)
