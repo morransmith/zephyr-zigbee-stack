@@ -47,6 +47,21 @@ void zzb_mlme_set_short_addr(struct zzb_node *node, uint16_t short_addr)
 	zzb_mac_set_radio_short_addr(node, short_addr);
 }
 
+int zzb_mlme_set_channel(struct zzb_node *node, uint8_t channel)
+{
+	if (node->mac.op != ZZB_MAC_OP_NONE) {
+		return -EBUSY;
+	}
+
+	node->mac.channel = channel;
+	return zzb_mac_set_radio_channel(node, channel);
+}
+
+uint64_t zzb_mlme_get_coord_ext_addr(const struct zzb_node *node)
+{
+	return node->mac.coord_ext_addr;
+}
+
 int zzb_mac_set_radio_channel(struct zzb_node *node, uint8_t channel)
 {
 	const struct ieee802154_radio_api *api = node->port.dev->api;

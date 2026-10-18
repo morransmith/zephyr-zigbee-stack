@@ -90,6 +90,15 @@ int zzb_mlme_assoc_req(struct zzb_node *node, uint8_t channel, const struct zzb_
 void zzb_mlme_set_pan_id(struct zzb_node *node, uint16_t pan_id);
 void zzb_mlme_set_short_addr(struct zzb_node *node, uint16_t short_addr);
 
+/*
+ * MLME-SET of phyCurrentChannel. Returns -EBUSY during an MLME procedure, whose end may restore
+ * the channel, or the error of the radio.
+ */
+int zzb_mlme_set_channel(struct zzb_node *node, uint8_t channel);
+
+/* MLME-GET of macCoordExtendedAddress, set by a successful association */
+uint64_t zzb_mlme_get_coord_ext_addr(const struct zzb_node *node);
+
 /* Defined by NWK */
 void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status);
 

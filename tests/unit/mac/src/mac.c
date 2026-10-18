@@ -86,4 +86,24 @@ ZTEST(zzb_mac, test_set_pan_id_and_short_address)
 	check_sent(0, frame, sizeof(frame));
 }
 
+ZTEST(zzb_mac, test_set_channel)
+{
+	radio.started = false;
+
+	zassert_ok(zzb_mlme_set_channel(node, 20));
+	zassert_equal(node->mac.channel, 20);
+	zassert_equal(radio.channel, 20);
+	zassert_true(radio.started);
+}
+
+/* The end of the scan would restore the channel set during it */
+ZTEST(zzb_mac, test_set_channel_during_a_scan_is_busy)
+{
+	zassert_ok(zzb_mlme_scan_req(node, BIT(15), 0));
+	zassert_equal(zzb_mlme_set_channel(node, 20), -EBUSY);
+	k_sleep(K_MSEC(40));
+
+	zassert_equal(radio.channel, 11);
+}
+
 ZTEST_SUITE(zzb_mac, NULL, mac_setup, mac_before, mac_after, NULL);

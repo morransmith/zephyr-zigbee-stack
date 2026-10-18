@@ -69,7 +69,7 @@ ZTEST(zzb_mac_assoc, test_association_succeeds)
 	zassert_equal(zzb_mlme_assoc_conf_fake.arg2_val, ZZB_MAC_STATUS_SUCCESS);
 	zassert_equal(radio.short_addr, 0x5678);
 	zassert_equal(node->mac.coord_short_addr, PARENT_SHORT);
-	zassert_equal(node->mac.coord_ext_addr, PARENT_EUI64);
+	zassert_equal(zzb_mlme_get_coord_ext_addr(node), PARENT_EUI64);
 
 	zassert_ok(zzb_mcps_data_req(node, msdu_buf(1, msdu, sizeof(msdu))));
 	run_stack();
