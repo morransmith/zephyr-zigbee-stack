@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+
+when:
+  - event: [push, pull_request, manual]
+
+# west init -l makes the parent of the repository the west topdir, so zephyr
+# and the modules are cloned into the workspace volume shared by all steps.
+workspace:
+  base: /woodpecker
+  path: zephyr-zigbee-stack
+
+variables:
+  - &image ghcr.io/zephyrproject-rtos/ci-repo-cache:v0.29.1.20260327
+
+steps:
+  - name: west
+    image: *image
+    commands:
+      - west init -l .
+      - west update --path-cache /repo-cache/zephyrproject
+      - west blobs fetch hal_espressif --allow-regex 'lib/esp32(c6|h2)/'
+
+  - name: native_sim
+    image: *image
+    depends_on: [west]
+    commands:
+      - west twister -T tests -p native_sim -p native_sim/native/64 -O twister-out-native --inline-logs
+
+  - name: hardware
+    image: *image
+    depends_on: [west]
+    commands:
+      # Installs esptool from the hal_espressif requirements into this step's container.
+      - west packages pip --install
+      - >-
+        west twister -T tests --build-only -O twister-out-hw --inline-logs
+        -p nrf52840dk/nrf52840
+        -p esp32c6_devkitc/esp32c6/hpcore
+        -p esp32h2_devkitm/esp32h2
