@@ -15,4 +15,5 @@ target_sources(app PRIVATE
   src/neighbor.c
   src/nib.c
   src/security.c
+  src/status.c
 )

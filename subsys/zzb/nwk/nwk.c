@@ -124,7 +124,8 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_h
 		return hdr_len;
 	}
 
-	if (!for_node(&node->nwk.nib, hdr)) {
+	/* An end device drops frames with the end device initiator bit (R22 3.6.2.2) */
+	if (!for_node(&node->nwk.nib, hdr) || (hdr->flags & ZZB_NWK_ED_INITIATOR)) {
 		return -EINVAL;
 	}
 
@@ -148,18 +149,42 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_h
 	return hdr_len;
 }
 
+static void rx_cmd(struct zzb_node *node, struct net_buf *buf, const struct zzb_nwk_hdr *hdr)
+{
+	struct zzb_nwk_cmd cmd;
+	int len = zzb_nwk_cmd_parse(buf->data, buf->len, &cmd);
+
+	/* The commands handled here hold no pointers into the frame */
+	net_buf_unref(buf);
+	if (len < 0) {
+		return;
+	}
+
+	switch (cmd.id) {
+	case ZZB_NWK_CMD_NWK_STATUS:
+		zzb_nwk_status_rx(node, hdr, &cmd);
+		break;
+	default:
+		break;
+	}
+}
+
 void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf)
 {
 	struct zzb_nwk_hdr hdr;
 	int hdr_len = rx_frame(node, buf, &hdr);
 
-	/* Command frames are processed from milestone 8 */
-	if (hdr_len < 0 || hdr.type != ZZB_NWK_FRAME_DATA) {
+	if (hdr_len < 0) {
 		net_buf_unref(buf);
 		return;
 	}
 
 	net_buf_pull(buf, hdr_len);
+	if (hdr.type == ZZB_NWK_FRAME_CMD) {
+		rx_cmd(node, buf, &hdr);
+		return;
+	}
+
 	zzb_nlde_data_ind(node, buf, hdr.dst, hdr.src, hdr.flags & ZZB_NWK_SECURITY);
 }
 

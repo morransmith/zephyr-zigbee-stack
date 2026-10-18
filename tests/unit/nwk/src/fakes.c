@@ -5,6 +5,7 @@
 #include <zephyr/ztest.h>
 #include <zzb/zzb.h>
 
+#include "common/node.h"
 #include "fakes.h"
 
 DEFINE_FFF_GLOBALS;
@@ -22,6 +23,9 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_mlme_assoc_req, struct zzb_node *, uint8_t,
 		       const struct zzb_mac_addr *, uint8_t);
 DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_mlme_get_coord_ext_addr, const struct zzb_node *);
 DEFINE_FAKE_VOID_FUNC(zzb_nlme_join_conf, struct zzb_node *, uint8_t);
+DEFINE_FAKE_VOID_FUNC(zzb_nlme_nwk_status_ind, struct zzb_node *, uint8_t, uint16_t);
+
+const uint8_t test_key[ZZB_SEC_KEY_LEN] = {0x01, 0x02, 0x03};
 
 struct frame_copy sent[4];
 struct frame_copy data_ind;
@@ -87,6 +91,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_mlme_assoc_req);
 	RESET_FAKE(zzb_mlme_get_coord_ext_addr);
 	RESET_FAKE(zzb_nlme_join_conf);
+	RESET_FAKE(zzb_nlme_nwk_status_ind);
 	FFF_RESET_HISTORY();
 
 	zzb_mcps_data_req_fake.custom_fake = mcps_data_req_take;
@@ -106,6 +111,71 @@ void check_no_buffer_leak(void)
 	ARRAY_FOR_EACH(bufs, i) {
 		net_buf_unref(bufs[i]);
 	}
+}
+
+static void join(struct zzb_node *node, uint16_t short_addr, struct zzb_node *peer,
+		 uint16_t peer_short, enum zzb_nwk_relationship relationship)
+{
+	zzb_nwk_init(node);
+	zassert_ok(zzb_nwk_fc_start(node));
+	zzb_nlme_set_pan_id(node, PAN_ID);
+	zzb_nlme_set_short_addr(node, short_addr);
+	zzb_nlme_set_ext_pan_id(node, EXT_PAN_ID);
+	zzb_nlme_set_nwk_key(node, test_key, 0);
+	zassert_not_null(zzb_nwk_neighbor_add(node, peer->eui64, peer_short, relationship));
+}
+
+void pair_nodes(struct zzb_node *child, struct zzb_node *parent)
+{
+	join(child, CHILD_SHORT, parent, PARENT_SHORT, ZZB_NWK_REL_PARENT);
+	join(parent, PARENT_SHORT, child, CHILD_SHORT, ZZB_NWK_REL_CHILD);
+}
+
+static void deliver(struct zzb_node *node, struct net_buf *buf, uint16_t src)
+{
+	struct zzb_frame_meta *meta = zzb_frame_meta(buf);
+
+	meta->src = (struct zzb_mac_addr){
+		.mode = ZZB_MAC_ADDR_SHORT,
+		.pan_id = PAN_ID,
+		.short_addr = src,
+	};
+	meta->lqi = 200;
+	zzb_mcps_data_ind(node, buf);
+}
+
+void receive(struct zzb_node *node, const uint8_t *frame, size_t len, uint16_t src)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+
+	zassert_not_null(buf);
+	net_buf_add_mem(buf, frame, len);
+	deliver(node, buf, src);
+}
+
+void receive_frame(struct zzb_node *node, struct zzb_node *sender, const struct zzb_nwk_hdr *hdr,
+		   const uint8_t *payload, size_t len)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	size_t hdr_len = zzb_nwk_hdr_len(hdr);
+
+	zassert_not_null(buf);
+	net_buf_reserve(buf, ZZB_NWK_AUX_LEN);
+	zzb_nwk_hdr_write(hdr, net_buf_add(buf, hdr_len));
+	net_buf_add_mem(buf, payload, len);
+	if (hdr->flags & ZZB_NWK_SECURITY) {
+		zassert_ok(zzb_nwk_secure(sender, buf, hdr_len));
+	}
+
+	deliver(node, buf, sender->nwk.nib.short_addr);
+}
+
+void receive_cmd(struct zzb_node *node, struct zzb_node *sender, const struct zzb_nwk_hdr *hdr,
+		 const struct zzb_nwk_cmd *cmd)
+{
+	uint8_t payload[ZZB_BUF_SIZE];
+
+	receive_frame(node, sender, hdr, payload, zzb_nwk_cmd_write(cmd, payload));
 }
 
 void notify_beacon(struct zzb_node *node, const struct zzb_nwk_beacon *beacon, uint16_t pan_id,

@@ -220,6 +220,12 @@ int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_j
 /* Defined by ZDO. status is SUCCESS or the status of the last MLME-ASSOCIATE.confirm. */
 void zzb_nlme_join_conf(struct zzb_node *node, uint8_t status);
 
+/*
+ * Defined by ZDO. NLME-NWK-STATUS.indication with a status code of R22 Table 3-51 and the network
+ * address it concerns.
+ */
+void zzb_nlme_nwk_status_ind(struct zzb_node *node, uint8_t code, uint16_t addr);
+
 /* Adds a neighbor, or returns NULL if the table is full. The caller checks for a duplicate. */
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_add(struct zzb_node *node, uint64_t ext_addr,
 					      uint16_t short_addr,
@@ -232,5 +238,11 @@ struct zzb_nwk_neighbor *zzb_nwk_neighbor_find_ext(struct zzb_node *node, uint64
 /* Skips the entries without relationship, which come from beacons */
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_find_short(struct zzb_node *node, uint16_t short_addr);
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_parent(struct zzb_node *node);
+
+/* Within NWK */
+
+/* Handles a received network status command */
+void zzb_nwk_status_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
+		       const struct zzb_nwk_cmd *cmd);
 
 #endif /* ZZB_SUBSYS_NWK_NWK_H_ */

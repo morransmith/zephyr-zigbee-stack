@@ -12,7 +12,6 @@
 #include "nwk/nwk.h"
 
 #define PARENT_EUI64 0x0102030405060708ULL
-#define CHILD_SHORT  0x5678
 
 /* Receiver on when idle, allocate address */
 #define CAPABILITY (ZZB_NWK_CAP_RX_ON_IDLE | ZZB_NWK_CAP_ALLOC_ADDR)

@@ -27,6 +27,7 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_mlme_assoc_req, struct zzb_node *, uint8_t,
 			const struct zzb_mac_addr *, uint8_t);
 DECLARE_FAKE_VALUE_FUNC(uint64_t, zzb_mlme_get_coord_ext_addr, const struct zzb_node *);
 DECLARE_FAKE_VOID_FUNC(zzb_nlme_join_conf, struct zzb_node *, uint8_t);
+DECLARE_FAKE_VOID_FUNC(zzb_nlme_nwk_status_ind, struct zzb_node *, uint8_t, uint16_t);
 
 /* Copy of a frame passed to MCPS-DATA.request or NLDE-DATA.indication */
 struct frame_copy {
@@ -45,6 +46,14 @@ extern struct zzb_mac_addr assoc_coord;
 /* Checks that every frame buffer is free */
 void check_no_buffer_leak(void);
 
+/* The test network of pair_nodes() */
+#define PAN_ID       0x1a62
+#define EXT_PAN_ID   0x00124b0000001a62ULL
+#define CHILD_SHORT  0x1234
+#define PARENT_SHORT 0x0000
+
+extern const uint8_t test_key[ZZB_SEC_KEY_LEN];
+
 #define NODE_EUI64   0x0011223344556677ULL
 /* Source of the Ziggurat frame in tests/unit/sec (see NOTICE) */
 #define SENDER_EUI64 0x00124b001e17efa8ULL
@@ -54,6 +63,21 @@ struct zzb_node *test_node(int index);
 
 /* Resets every fake */
 void reset_fakes(void);
+
+/* Initializes both nodes and makes child the child of parent on the test network */
+void pair_nodes(struct zzb_node *child, struct zzb_node *parent);
+
+/* Passes frame to node as MCPS-DATA.indication from the MAC source address src */
+void receive(struct zzb_node *node, const uint8_t *frame, size_t len, uint16_t src);
+
+/*
+ * Passes a frame with hdr and payload from sender to node, secured by sender when hdr has
+ * ZZB_NWK_SECURITY
+ */
+void receive_frame(struct zzb_node *node, struct zzb_node *sender, const struct zzb_nwk_hdr *hdr,
+		   const uint8_t *payload, size_t len);
+void receive_cmd(struct zzb_node *node, struct zzb_node *sender, const struct zzb_nwk_hdr *hdr,
+		 const struct zzb_nwk_cmd *cmd);
 
 /* Passes a beacon from short_addr in PAN pan_id as MLME-BEACON-NOTIFY.indication */
 void notify_beacon(struct zzb_node *node, const struct zzb_nwk_beacon *beacon, uint16_t pan_id,

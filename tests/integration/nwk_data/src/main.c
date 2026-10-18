@@ -74,6 +74,10 @@ void zzb_nlme_join_conf(struct zzb_node *node, uint8_t status)
 {
 }
 
+void zzb_nlme_nwk_status_ind(struct zzb_node *node, uint8_t code, uint16_t addr)
+{
+}
+
 /* The test thread is cooperative and has a lower priority than the stack thread */
 static void run_stack(void)
 {

@@ -13,28 +13,13 @@
 #include "nwk/nwk.h"
 #include "sec/ccm.h"
 
-#define PAN_ID       0x1a62
-#define CHILD_SHORT  0x1234
-#define PARENT_SHORT 0x0000
-#define HANDLE       5
+#define HANDLE 5
 
-static const uint8_t key[ZZB_SEC_KEY_LEN] = {0x01, 0x02, 0x03};
 static const uint8_t nsdu[] = {0x40, 0x00, 0x06, 0x00, 0x04, 0x01, 0x01, 0x10};
 
 /* Node 0 is the child of node 1 */
 static struct zzb_node *child;
 static struct zzb_node *parent;
-
-static void join(struct zzb_node *node, uint16_t short_addr, struct zzb_node *peer,
-		 uint16_t peer_short, enum zzb_nwk_relationship relationship)
-{
-	zzb_nwk_init(node);
-	zassert_ok(zzb_nwk_fc_start(node));
-	zzb_nlme_set_pan_id(node, PAN_ID);
-	zzb_nlme_set_short_addr(node, short_addr);
-	zzb_nlme_set_nwk_key(node, key, 0);
-	zassert_not_null(zzb_nwk_neighbor_add(node, peer->eui64, peer_short, relationship));
-}
 
 static struct net_buf *nsdu_buf(void)
 {
@@ -45,24 +30,6 @@ static struct net_buf *nsdu_buf(void)
 	net_buf_add_mem(buf, nsdu, sizeof(nsdu));
 	zzb_frame_meta(buf)->handle = HANDLE;
 	return buf;
-}
-
-/* Passes frame to node as MCPS-DATA.indication from the MAC source address src */
-static void receive(struct zzb_node *node, const uint8_t *frame, size_t len, uint16_t src)
-{
-	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
-	struct zzb_frame_meta *meta;
-
-	zassert_not_null(buf);
-	net_buf_add_mem(buf, frame, len);
-	meta = zzb_frame_meta(buf);
-	meta->src = (struct zzb_mac_addr){
-		.mode = ZZB_MAC_ADDR_SHORT,
-		.pan_id = PAN_ID,
-		.short_addr = src,
-	};
-	meta->lqi = 200;
-	zzb_mcps_data_ind(node, buf);
 }
 
 static void check_mac_dst(int i, uint16_t short_addr, uint8_t flags)
@@ -84,8 +51,7 @@ static void *setup(void)
 static void before(void *fixture)
 {
 	reset_fakes();
-	join(child, CHILD_SHORT, parent, PARENT_SHORT, ZZB_NWK_REL_PARENT);
-	join(parent, PARENT_SHORT, child, CHILD_SHORT, ZZB_NWK_REL_CHILD);
+	pair_nodes(child, parent);
 }
 
 static void after(void *fixture)
@@ -222,7 +188,7 @@ ZTEST(zzb_nwk_data, test_unsecured_data_passes_while_the_key_is_pending)
 	zassert_equal(zzb_nlde_data_ind_fake.call_count, 2);
 	zassert_equal(zzb_nlde_data_ind_fake.arg2_val, 0xffff);
 
-	zzb_nlme_set_nwk_key(child, key, 1);
+	zzb_nlme_set_nwk_key(child, test_key, 1);
 	receive(child, unicast, sizeof(unicast), PARENT_SHORT);
 	zassert_equal(zzb_nlde_data_ind_fake.call_count, 2);
 }
@@ -248,6 +214,21 @@ ZTEST(zzb_nwk_data, test_frames_are_dropped)
 	sent[0].data[sent[0].len - 1] ^= 0x01;
 	receive(parent, sent[0].data, sent[0].len, CHILD_SHORT);
 
+	zassert_equal(zzb_nlde_data_ind_fake.call_count, 0);
+}
+
+/* R22 3.6.2.2 step 1 */
+ZTEST(zzb_nwk_data, test_end_device_drops_frames_with_end_device_initiator)
+{
+	const struct zzb_nwk_hdr hdr = {
+		.type = ZZB_NWK_FRAME_DATA,
+		.flags = ZZB_NWK_SECURITY | ZZB_NWK_ED_INITIATOR,
+		.dst = CHILD_SHORT,
+		.src = PARENT_SHORT,
+		.radius = 1,
+	};
+
+	receive_frame(child, parent, &hdr, nsdu, sizeof(nsdu));
 	zassert_equal(zzb_nlde_data_ind_fake.call_count, 0);
 }
 
