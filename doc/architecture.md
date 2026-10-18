@@ -23,7 +23,7 @@ subsys/zzb/
   mac/      frame.c mac.c scan.c assoc.c poll.c tx.c
             coord/   beacon.c assoc_resp.c indirect.c fpb.c
   nwk/      nwk.c frame.c nib.c neighbor.c addr_map.c security.c join.c rejoin.c leave.c
-            ed_timeout.c fc.c
+            ed_timeout.c status.c fc.c
             router/  addr_alloc.c route.c link_status.c btt.c mtorr.c src_route.c
             coord/   formation.c concentrator.c nwk_manager.c
   sec/      ccm.c mmo.c hmac.c aux_hdr.c key_cache.c install_code.c
@@ -92,7 +92,7 @@ The `net_buf` pool and the PSA key cache are shared by all nodes.
 | Layer | Tables |
 |---|---|
 | MAC | PIB, TX queue, indirect queue, mirror of the driver frame-pending table |
-| NWK | neighbor table (parent and children as entries with relationship, timeout, keepalive, incoming frame counter), `nwkAddressMap`, route table, route discovery table, broadcast transaction table, route record table, network keys (two), group ID table |
+| NWK | neighbor table (parent and children as entries with relationship, timeout, keepalive, incoming frame counter), network descriptors of the last discovery, `nwkAddressMap`, route table, route discovery table, broadcast transaction table, route record table, network keys (two), group ID table |
 | APS | binding table, group table, device key-pair table (incoming frame counter, verified state), trust center IEEE address, duplicate rejection table |
 | ZDO | descriptors generated from the device definition, transaction table |
 | ZCL | reporting slots |
@@ -168,14 +168,14 @@ The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not 
 
 - `CONFIG_ZZB_MAC` builds `mac.c`, `tx.c`, `scan.c`, `assoc.c` and `poll.c`; `frame.c` is always built.
 - One TX FIFO per node holds data and command frames, and its head is the frame in flight. A frame with the ACK request bit is sent again after NO_ACK, up to macMaxFrameRetries (3) times, with the same sequence number (802.15.4 5.1.6.4.3). CHANNEL_ACCESS_FAILURE is reported without a retry. macDSN starts at a random value.
-- MLME-SCAN, MLME-ASSOCIATE and MLME-POLL exclude each other: a second request returns `-EBUSY`. Each procedure allocates one command buffer and reuses it for its frames. MCPS-DATA.request always enqueues. A data frame enqueued during a scan is sent on the channel being scanned, so NWK must not send data while it scans.
+- MLME-SCAN, MLME-ASSOCIATE and MLME-POLL exclude each other: a second request returns `-EBUSY`. Scan and association also return `-EBUSY` while the TX FIFO holds frames, since those frames would go out on the channel being scanned or on the channel of the coordinator. Each procedure allocates one command buffer and reuses it for its frames. MCPS-DATA.request always enqueues. A data frame enqueued during a scan is sent on the channel being scanned, so NWK must not send data while it scans.
 - The source address of a transmitted frame is the short address when macShortAddress is below 0xfffe, otherwise the extended address (802.15.4 5.1.6.1).
 - Active scan (802.15.4 5.1.2.1.2): the PAN ID filter is 0xffff during the scan. On each channel the MAC sends a beacon request and listens for aBaseSuperframeDuration * (2^n + 1) symbols; after a failed beacon request it moves to the next channel. Frames other than beacons are dropped. Every beacon produces MLME-BEACON-NOTIFY.indication with the channel and the Superframe Specification field, without duplicate filtering. MLME-SCAN.confirm carries only the status: SUCCESS, or NO_BEACON when no beacon arrived. The PAN ID filter and the channel are restored after the scan.
 - Association (802.15.4 5.1.3.1): the association request and its data request use the first header form of R22 Tables D-1 and D-2, with source PAN ID 0xffff and the extended source address. The data request follows macResponseWaitTime after the ACK of the request. After any failure macPANId is 0xffff again.
 - Data poll (802.15.4 5.1.6.3): after an ACK with frame pending, the MAC waits for a data frame from the polled coordinator. A zero-length frame or the end of the wait gives NO_DATA. MLME-POLL.confirm precedes MCPS-DATA.indication. The frame pending bit of the received frame reaches NWK in the frame metadata, and NWK decides whether to poll again.
 - Outside these procedures, data frames with a payload produce MCPS-DATA.indication. Zero-length data frames, beacons and commands are dropped.
 - The receiver stays on between polls until milestone 14.
-- MLME-SET of macPANId and macShortAddress (`zzb_mlme_set_pan_id()`, `zzb_mlme_set_short_addr()`) writes the PIB and the radio filter. The other PIB getters and setters and MLME-RESET are added with the NWK join (milestone 8).
+- MLME-SET of macPANId, macShortAddress and phyCurrentChannel (`zzb_mlme_set_pan_id()`, `zzb_mlme_set_short_addr()`, `zzb_mlme_set_channel()`) writes the PIB and the radio. `zzb_mlme_set_channel()` returns `-EBUSY` during an MLME procedure, since the end of a scan restores the channel. MLME-GET of macCoordExtendedAddress (`zzb_mlme_get_coord_ext_addr()`) gives NWK the IEEE address of the parent after an association. MLME-RESET is not implemented (section 10, Leave and reset).
 
 | Time | Definition | Value at 2.4 GHz |
 |---|---|---|
@@ -187,7 +187,7 @@ The 2011 text of the macMaxFrameTotalWaitTime formula has 2^macMinBE in its seco
 
 ## 10. NWK
 
-`CONFIG_ZZB_NWK` builds `nwk/` and `storage/settings.c`. It selects `CONFIG_SETTINGS`; the application enables the settings backend (section 12).
+`CONFIG_ZZB_NWK` builds `nwk/` and `storage/settings.c`. It selects `CONFIG_SETTINGS`; the application enables the settings backend (section 12). Milestone 8 implements the end device side of join, rejoin, leave and the End Device Timeout; the parent side is part of the router (milestone 15).
 
 ### Frame codec
 
@@ -199,27 +199,93 @@ The 2011 text of the macMaxFrameTotalWaitTime formula has 2^macMinBE in its seco
 
 ### NIB and neighbor table
 
-- The NIB holds the attributes that milestone 7 uses: nwkPANId, nwkNetworkAddress, nwkExtendedPANID, nwkSequenceNumber (random initial value, R22 3.6.2.1), nwkSecurityMaterialSet (two key slots with the key, its sequence number and a valid flag), nwkActiveKeySeqNumber and the slot written last. nwkIeeeAddress is the EUI-64 of the node, nwkSecurityLevel is the constant 5, and the default radius is 2 * nwkMaxDepth = 30. Other attributes are added with the milestones that use them.
-- NLME-SET: `zzb_nlme_set_pan_id()` and `zzb_nlme_set_short_addr()` write the NIB and call MLME-SET; `zzb_nlme_set_ext_pan_id()`; `zzb_nlme_set_nwk_key(node, key, seq)` writes the key into the slot with the same sequence number, otherwise into the slot that is not active, and resets the incoming frame counters of that slot in every neighbor entry. The first key becomes the active key.
-- A neighbor table entry holds the extended address, network address, relationship, LQI and two incoming frame counters, one per key slot (R22 4.3.1.2 bounds the counters by the number of keys times the number of neighbors). Device type, RxOnWhenIdle, timeout, keepalive and the network discovery fields come with milestone 8. The table has `CONFIG_ZZB_NEIGHBOR_COUNT` entries (default 16); add returns NULL when it is full.
+- The NIB holds nwkPANId, nwkNetworkAddress, nwkExtendedPANID, nwkSequenceNumber (random initial value, R22 3.6.2.1), nwkUpdateId, nwkCapabilityInformation, nwkParentInformation, the channel of the network (the channel of the nwkMacInterfaceTable entry), nwkSecurityMaterialSet (two key slots with the key, its sequence number and a valid flag), nwkActiveKeySeqNumber and the slot written last. nwkIeeeAddress is the EUI-64 of the node, nwkSecurityLevel is the constant 5, and the default radius is 2 * nwkMaxDepth = 30. Other attributes are added with the milestones that use them. A node is on a network while nwkExtendedPANID is not 0.
+- NLME-SET: `zzb_nlme_set_pan_id()` and `zzb_nlme_set_short_addr()` write the NIB and call MLME-SET; `zzb_nlme_set_ext_pan_id()`; `zzb_nlme_set_nwk_key(node, key, seq)` writes the key into the slot with the same sequence number, otherwise into the slot that is not active, and resets the incoming frame counters of that slot in every neighbor entry. The first key becomes the active key. A key set while the key is pending (see Unsecured frames) ends the pending state, saves the NWK records and starts the End Device Timeout Request.
+- A neighbor table entry holds the extended address, network address, device type, relationship, LQI and two incoming frame counters, one per key slot (R22 4.3.1.2 bounds the counters by the number of keys times the number of neighbors). The discovery fields of R22 Table 3-64 are the parsed beacon payload (`struct zzb_nwk_beacon`), the PAN ID, the channel, permit joining and potential parent. The device type is coordinator when the beacon has the PAN Coordinator bit of the Superframe Specification set, otherwise router. RxOnWhenIdle, timeout and keepalive describe children and come with the router (milestone 15). The table has `CONFIG_ZZB_NEIGHBOR_COUNT` entries (default 16); add returns NULL when it is full.
+- `zzb_nwk_neighbor_find_short()` skips entries with relationship none, which come from beacons, so the next hop of NLDE-DATA and the LQI update use only the parent and children.
 
 ### Frame security
 
 Two functions secure and unsecure in place a buffer whose data starts at the NWK header (R22 4.3.1).
 
 - Outgoing: the active key (none: `-ENOENT`), the next outgoing frame counter (section 11), an auxiliary header with key identifier 1, the extended nonce and the EUI-64 of the node, inserted after the NWK header by moving the header into the headroom, then CCM and the MIC at the tail.
-- Incoming: the auxiliary header must have key identifier 1 and the extended nonce, otherwise `-EINVAL`. A frame counter of 2^32-1 or below the stored counter gives `-EALREADY`. The key slot is found by the key sequence number and the neighbor by the source address of the auxiliary header; a missing slot or neighbor gives `-ENOENT`. Frames from devices without a neighbor entry are therefore dropped; an end device receives a broadcast relayed by another router again from its parent. A MIC mismatch gives `-EBADMSG`. After verification the counter of the slot is set to the received counter + 1.
-- A frame secured with the key of the slot written last, when that slot is not active, makes that key active (R22 4.3.1.2 step 7). A frame secured with the older key does not switch back.
+- Incoming: the auxiliary header must have key identifier 1 and the extended nonce, otherwise `-EINVAL`. A frame counter of 2^32-1 or below the stored counter gives `-EALREADY`. The key slot is found by the key sequence number and the neighbor by the source address of the auxiliary header; a missing slot or neighbor gives `-ENOENT`. A MIC mismatch gives `-EBADMSG`. After verification the counter of the slot is set to the received counter + 1.
+- During a rejoin the candidate parent may be known only from its beacon, with extended address 0. A frame whose MAC source is the short address of that candidate is then verified against the candidate entry, which takes the source address of the auxiliary header after the MIC check (R22 3.6.1.9.2). Outside a rejoin, frames from devices without a neighbor entry are dropped; an end device receives a broadcast relayed by another router again from its parent.
+- A frame secured with the key of the slot written last, when that slot is not active, makes that key active (R22 4.3.1.2 step 7) and saves the key record. A frame secured with the older key does not switch back.
 - R22 4.3.1.2 step 8 (unauthenticated child) is part of the router (milestone 15).
 
 ### Data service
 
-- `zzb_nlde_data_req(node, buf, dst_addr, radius, secure)` takes the NSDU after `ZZB_NLDE_HEADROOM` bytes of headroom and the NSDU handle in the frame metadata. It returns `-ENOTCONN` while the node has no network address or no parent. The header has frame type data, discover route 1 for unicast and 0 for broadcast, end device initiator 0 (nwkParentInformation arrives with milestone 8) and no IEEE address fields. Radius 0 selects the default radius.
+- `zzb_nlde_data_req(node, buf, dst_addr, radius, secure)` takes the NSDU after `ZZB_NLDE_HEADROOM` bytes of headroom and the NSDU handle in the frame metadata. It returns `-ENOTCONN` while the node has no network address or no parent, `-EBUSY` while an NLME procedure runs, and `-EINVAL` for a handle from 0xf0, which NWK command frames use. The header has frame type data, discover route 1 for unicast and 0 for broadcast, end device initiator set on an end device whose nwkParentInformation is not 0 (R22 3.3.1.1.9), and no IEEE address fields. Radius 0 selects the default radius.
 - The MAC destination is the neighbor whose network address is the NWK destination, otherwise the parent. Unicast frames request a MAC ACK. A broadcast from an end device is a MAC unicast to the parent without ACK request (R22 3.6.5).
 - Security and MCPS-DATA.request errors are returned by the request, which then leaves the buffer with the caller. MCPS-DATA.confirm produces `zzb_nlde_data_conf(node, handle, status)` with the MAC status.
-- Received data frames addressed to the node, to 0xffff or to 0xfffd (the receiver stays on until milestone 14) produce `zzb_nlde_data_ind(node, buf, dst_addr, src_addr, security_use)` with the NSDU in the buffer and the LQI in the metadata. Frames with the network address of the node as source are dropped. Command frames are dropped until milestone 8. Every received frame updates the LQI of the neighbor whose network address matches the MAC source address.
+- Received data frames addressed to the node, to 0xffff or to 0xfffd (the receiver stays on until milestone 14) produce `zzb_nlde_data_ind(node, buf, dst_addr, src_addr, security_use)` with the NSDU in the buffer and the LQI in the metadata. Frames with the network address of the node as source are dropped, and an end device drops frames with the end device initiator bit (R22 3.6.2.2). Command frames go to the command handlers below. Every received frame updates the LQI of the neighbor whose network address matches the MAC source address.
 - There is no broadcast transaction table until milestone 16. A repeated secured frame from the parent is rejected by the incoming frame counter check.
 - `zzb_nlde_data_conf()` and `zzb_nlde_data_ind()` are defined by APS (milestone 9); until then the tests and `tests/build/radio` define them.
+
+### Command frames
+
+- NWK command frames are sent through the same function as NLDE-DATA frames. Their MSDU handle is 0xf0 | command identifier; `zzb_mcps_data_conf()` passes other handles to `zzb_nlde_data_conf()`. Command frames have discover route 0 (R22 3.3.1.1.3), the source IEEE address, and the destination IEEE address when it is known.
+- An end device handles the rejoin response, leave, End Device Timeout Response and network status commands and drops the others. The network status reply 0x13 to an unknown unicast command (R22 3.6.13) comes with the router (milestone 15); R21 devices do not send it either.
+
+### Unsecured frames
+
+R22 3.6.2.2:
+
+- After a successful association join or trust center rejoin the network key is pending until NLME-SET of a network key. While it is pending, unsecured data frames reach APS, which accepts only Transport Key among them (milestone 9). NWK cannot check the APS command identifier, because APS encrypts it.
+- An unsecured rejoin response is accepted only by a trust center rejoin waiting for it. All other unsecured frames are dropped.
+
+### NLME procedures
+
+- Network discovery, join, rejoin and leave exclude each other; a second request returns `-EBUSY`. A request that fails before anything is sent returns an error and produces no confirm; otherwise exactly one confirm follows. The procedure state is cleared before the confirm, so ZDO can issue the next request from the callback.
+- Confirms carry a `uint8_t` status: a value of `enum zzb_nwk_status` (R22 Table 3-73) or the MAC status that R22 passes through; the two ranges do not overlap. `enum zzb_nwk_status_code` holds the codes of R22 Table 3-51, used by network status commands and NLME-NWK-STATUS.indication.
+- The `zzb_nlme_*_conf()` and `zzb_nlme_*_ind()` callbacks are defined by ZDO (milestone 10); until then the tests and `tests/build/radio` define them.
+- One `k_work_delayable` serves the rejoin response wait, a second one the End Device Timeout Request and the keepalive. Both are rescheduled with `k_work_reschedule_for_queue()`, since `zzb_timer_arm()` only moves a deadline earlier. `zzb_nwk_init()` cancels them first; leave and reset clear the NWK fields one by one and never assign over a `k_work`.
+
+### Network discovery
+
+- `zzb_nlme_network_discovery_req(node, channels, duration)` issues an active MLME-SCAN. At the start of every scan the entries with relationship none are removed and the remaining entries get potential parent set (R22 3.6.1.4.1).
+- Beacons with stack profile 2, protocol version 2 and a short source address are used. Each one updates the descriptor of its network (`CONFIG_ZZB_NWK_NETWORK_COUNT` entries, default 8): extended PAN ID, PAN ID, channel, stack profile, update ID, and permit joining, router capacity and end device capacity ORed over the routers of the network.
+- A beacon with association permit set updates the neighbor entry with the same extended PAN ID and short address, or adds one; a full table keeps the descriptor and drops the entry. Beacons without association permit do not enter the table, so the networks on lower channels cannot fill it before the network to join is scanned.
+- `zzb_nlme_network_discovery_conf(node, status, networks, count)` carries the MLME-SCAN status. The descriptors stay valid until the next discovery.
+
+### Parent selection
+
+- A candidate has the requested extended PAN ID, potential parent set and capacity for the device type. An association also needs permit joining, and a rejoin a beacon update ID not older than nwkUpdateId (difference as int8 >= 0). The current parent qualifies for a rejoin without capacity, because a parent with a full table accepts the rejoin of a child it knows. The candidate with the highest LQI is chosen.
+- The link cost limit of 3 (R22 3.6.1.4.1, 3.6.1.4.2) is not checked, because the LQI scales of the nrf5 and esp32 drivers differ. Depth is not used: R22 3.6.1.4.1 excludes it for stack profile 2, while 3.6.1.4.2 asks for the minimum depth on a rejoin.
+- A failed attempt clears potential parent of the candidate, and the next candidate is tried.
+
+### Join
+
+- `zzb_nlme_join_req(node, ext_pan_id, method, channels, duration, capability, secure)` takes method `ZZB_NWK_JOIN_ASSOC` (0x00) or `ZZB_NWK_JOIN_REJOIN` (0x02). It returns `-EINVAL` for extended PAN ID 0, and `-ENOTSUP` for orphaning, a channel change, the router device type (until milestone 15) and RxOnWhenIdle 0 (until milestone 14, since the Transport Key and the rejoin response then need polling). Every join first sets nwkParentInformation to 0 (R22 3.2.2.13.3) and stops the keepalive.
+- Association (R22 3.6.1.4.1): channels and duration are ignored, since the channel comes from the neighbor entry and BDB 8.2 passes 0; R22 3.2.2.13.3 requires a single channel. The request returns `-EALREADY` on a node on a network (R22 INVALID_REQUEST) and `-ENETUNREACH` without a candidate (R22 NOT_PERMITTED). MLME-ASSOCIATE goes to the channel, PAN ID and short address of the candidate. After a failure the next candidate is tried; without one the confirm carries the last MAC status. On success the candidate becomes the parent with the extended address from MLME-GET of macCoordExtendedAddress, the other entries are removed, the NIB takes the PAN ID and address that the MAC already holds, and the key becomes pending. Nothing is saved until the key arrives.
+- Rejoin (R22 3.6.1.4.2): an active scan of channels, or of the channel of the network when channels is 0 (BDB 7.1 passes 0). Only beacons with the requested extended PAN ID are used. The NIB PAN ID and the MAC channel are set to those of the candidate. The source address is nwkNetworkAddress; when it is not valid, a random address from 0x0001 to 0xfff7 is written to the NIB and the MAC, since the rejoin response is addressed to it. The rejoin request has radius 1, the source IEEE address, the destination IEEE address when the candidate's is known, NWK security when secure, and the capability with allocate address 0 (stochastic addressing).
+- After the confirm of the rejoin request with SUCCESS, NWK waits macResponseWaitTime (491.52 ms) for the rejoin response; a response that arrives before the confirm is accepted too. The response must come from the candidate, with the EUI-64 of the node as destination IEEE address, the IEEE address of the candidate as source when it is known, status SUCCESS and an address below 0xfff8. While a rejoin runs, all other frames are dropped.
+- Without any beacon the confirm is NO_NETWORKS, after the last candidate NOT_PERMITTED, and the PAN ID, channel and address of the node before the rejoin are restored. On success the candidate becomes the parent with the IEEE address from the response header, the other entries are removed, and the node takes the address in the response. A trust center rejoin leaves the key pending; a secure rejoin saves the NWK records and starts the End Device Timeout Request.
+
+### End device timeout and keepalive
+
+- The End Device Timeout Request (R22 3.6.10.2) goes to the parent with the timeout `CONFIG_ZZB_NWK_ED_TIMEOUT` (default 8, 256 minutes, the value of nwkEndDeviceTimeoutDefault), configuration 0, radius 1, both IEEE addresses and NWK security. It is started on the keepalive timer with delay 0; a request that cannot be sent (no buffer, frame counter busy) is retried after 1 s.
+- A response is accepted only from the parent, checked by the MAC source and the source IEEE address. SUCCESS sets nwkParentInformation and starts the keepalive with a period of timeout / 3 (R22 3.6.10.3). With bit 0 of nwkParentInformation the keepalive is MLME-POLL to the parent; otherwise, with bit 1, it is an End Device Timeout Request answered within macResponseWaitTime. A missing or unsuccessful answer produces NLME-NWK-STATUS.indication with parent link failure (0x09) and stops the keepalive.
+- A keepalive that cannot start (MLME-POLL `-EBUSY` or `-ENOBUFS`, an NLME procedure running) is retried after 1 s. After loading the NWK records with nwkParentInformation not 0 the keepalive starts at once (R22 3.6.10.8).
+
+### Parent link failure
+
+While the node has a parent and no NLME procedure runs, NO_ACK in MCPS-DATA.confirm and MLME-POLL.confirm counts a failure, and SUCCESS and NO_DATA reset the count. CHANNEL_ACCESS_FAILURE means a busy channel and changes nothing. At `CONFIG_ZZB_NWK_PARENT_FAILURES` (default 3) NWK issues NLME-NWK-STATUS.indication with parent link failure and the address of the parent and resets the count; the keepalive failure also resets it. BDB rejoins (milestone 11).
+
+### Leave and reset
+
+- `zzb_nlme_leave_req(node, rejoin)` is the end device form of NLME-LEAVE.request: the node removes itself and has no children. It returns `-ENOTCONN` when the node is not on a network or has no parent, and `-ENOENT` without a network key. The leave command has destination 0xfffd, radius 1, the source IEEE address and NWK security. It goes to the parent as MAC unicast with ACK request (R22 3.4.4.1), so NLME-LEAVE.confirm reports delivery; the rule for broadcasts from end devices in Data service does not apply. After its confirm the local leave runs, then `zzb_nlme_leave_conf(node, status)`.
+- Local leave without rejoin (R22 3.6.1.10.4) clears the NIB, the neighbor table, the network descriptors, the pending key state, the failure count, the keepalive and the rejoin candidate, sets macPANId and macShortAddress to 0xffff through MLME-SET, and deletes the NWK records. The outgoing frame counter and nwkSequenceNumber are kept. MLME-RESET is not used: aborting an MLME procedure whose command frame is in the radio is unsafe, and MLME-SET resets the attributes the MAC holds. With rejoin nothing changes, including nwkExtendedPANID; R22 3.6.1.10.1 clears it, but the rejoin that follows needs it.
+- `zzb_nlme_reset_req(node)` is NLME-RESET.request with WarmStart FALSE: the same clearing without a frame and without deleting the records. It returns `-EBUSY` while an NLME procedure runs. BDB uses it when the network key does not arrive (BDB 8.2 step 10), since a leave needs the key.
+- A received leave request (request 1) is processed only as a unicast from the parent, checked by the MAC source, while no NLME procedure runs. The node sends the leave command with the rejoin flag of the request, performs the local leave and issues `zzb_nlme_leave_ind(node, 0, rejoin)`.
+- A received leave indication (request 0) from the parent with remove children makes the node leave in the same way. Without remove children the parent entry is removed, and `zzb_nlme_leave_ind(node, parent IEEE address, rejoin)` and NLME-NWK-STATUS.indication with parent link failure follow, so that BDB rejoins another parent. The R22 text after 3.6.1.10.3.1 can also be read as removing the end device in both cases (R23 has the same wording); with that reading, removing a router from ZHA would take its end device children off the network. A leave indication from another neighbor removes its entry and issues `zzb_nlme_leave_ind(node, its IEEE address, rejoin)`.
+
+### Network status and address conflicts
+
+- A received network status command produces `zzb_nlme_nwk_status_ind(node, code, addr)` with the address in the payload, or the NWK source address when the payload has none.
+- On a node on a network with no NLME procedure running, a frame to the address of the node with a destination IEEE address other than its EUI-64 (R22 3.6.1.9.2, checked after NWK security) is dropped. The node broadcasts a network status command with address conflict (0x0d) and its address to 0xfffd, with the source IEEE address and NWK security, as MAC unicast to the parent without ACK request, and issues NLME-NWK-STATUS.indication with the same code and address; BDB rejoins. The random jitter of R22 3.6.1.9.3 is not applied, because the frame of an end device goes to its parent, which applies the jitter when it relays the broadcast.
+- An unsolicited rejoin response from the parent with a new address sets the address, saves the NWK records and produces NLME-NWK-STATUS.indication with network address update (0x10) and the new address (R22 3.6.1.9.3).
 
 ## 11. Security and frame counters
 
@@ -255,6 +321,17 @@ Persisted records:
 
 ZHA writes bindings and reporting configuration once, during pairing. Losing them on reboot stops attribute reports without an error on either side.
 
+NWK records, little-endian:
+
+| Key | Contents | Length |
+|---|---|---|
+| `zzb/<n>/nwk/net` | version (1), PAN ID, extended PAN ID, network address, channel, nwkUpdateId, nwkCapabilityInformation, nwkParentInformation, network address, IEEE address and device type of the parent | 28 |
+| `zzb/<n>/nwk/keys` | version (1), active slot, slot written last, two slots of valid flag, key sequence number and key | 39 |
+
+- NWK writes its records only while the node is on a network and the key is not pending: when a key ends the pending state, after a secure rejoin, when nwkParentInformation or the address changes, when a key is set on the network and when a received frame switches the active key. Save errors are ignored; the next save writes the whole record again.
+- The loader writes the NIB and the key slots directly, adds the parent entry with the extended PAN ID, PAN ID, channel and device type, calls MLME-SET for the PAN ID, the address and the channel, and starts the keepalive. A record with an unknown version or length makes `zzb_node_init()` return `-EINVAL`.
+- A leave without rejoin deletes both records.
+
 ## 13. ZCL data model
 
 - Attribute metadata is constant and declared with macros: cluster ID, attribute ID, type, access, flags, offset into the storage struct.
@@ -273,8 +350,8 @@ ZHA writes bindings and reporting configuration once, during pairing. Losing the
 - ESP32-C6/H2: `CONFIG_PM` and `CONFIG_IEEE802154_ESP32_SLEEP_ENABLE`. With sleep enabled the driver does not report `IEEE802154_RX_ON_WHEN_IDLE`, so the MAC opens the post-poll receive window itself: `start()`, wait up to macMaxFrameTotalWaitTime when the ACK had frame pending set, `stop()`.
 - A zero-length data frame from the parent means no pending data; the device returns to sleep.
 - Poll rate (BDB 6.8): at most 3 s between polls while a response is expected, during joining and during finding & binding. A parent holds a buffered frame for 7.5 s.
-- An End Device Timeout Request follows every join and rejoin, with a timeout longer than the slow poll interval. The keepalive method comes from the parent information field of the response.
-- Parent loss, after N consecutive failed polls or transmissions: secure rejoin on the current channel, secure rejoin on all channels, trust center rejoin. This also recovers from a channel change missed while asleep.
+- An End Device Timeout Request follows every join and rejoin, and the keepalive method comes from the parent information field of the response (section 10). Milestone 14 chooses a timeout longer than the slow poll interval.
+- Parent loss, reported by NWK after a keepalive failure or `CONFIG_ZZB_NWK_PARENT_FAILURES` failed transmissions (section 10): BDB rejoins securely on the current channel, then securely on all channels, then with a trust center rejoin. This also recovers from a channel change missed while asleep.
 
 ## 15. Extension points for coordinator and trust center
 
@@ -304,16 +381,18 @@ No C implementation of AES-MMO or install code key derivation under a permissive
 
 - Unit tests: ztest on `native_sim/native/64`; CI also runs `native_sim` (32-bit) to catch pointer-size errors.
 - Crypto and codec tests use R22 Annex C vectors, BDB 10.1 install code examples and frames captured from real networks. The first frames come from the Ziggurat and zigbee-rs test suites (listed in `NOTICE`) and from a test network whose network key may be published. MAC frames missing from these sources are built from the IEEE 802.15.4-2011 figures and R22 Tables D-1 to D-3.
-- Multi-node integration tests: fake radio devices implementing `ieee802154_radio_api` (`tests/common/fake_radio.c`), connected by an in-process medium. Each fake radio is a net device for the custom-L2 backend with its own `net_if`, since the raw backend serves one port. The medium has a link matrix and filters by PAN ID and destination address; frame loss is added with the router MAC (milestone 15). It logs every frame with `LOG_HEXDUMP_DBG`. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
+- Multi-node integration tests: fake radio devices implementing `ieee802154_radio_api` (`tests/common/fake_radio.c`), connected by an in-process medium. Each fake radio is a net device for the custom-L2 backend with its own `net_if`, since the raw backend serves one port. The medium has a link matrix, delivers a frame only to radios on the same channel and filters by PAN ID and destination address; frame loss is added with the router MAC (milestone 15). It logs every frame with `LOG_HEXDUMP_DBG`. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
+- A test can replace the interface of a fake radio by a callback, which receives the frames the radio accepts and returns the frame pending bit of the ACK, and can send frames from that radio with `fake_radio_send()`.
 - `tests/glue/raw` tests the radio port in raw mode against FFF fakes of the radio API: TX modes, software CSMA-CA, status mapping, frame pending from the ACK and the RX copy. `tests/glue/custom_l2` tests the custom-L2 backend with two fake radios.
 - `tests/unit/mac` tests the device MAC in raw mode against FFF fakes of the radio API. The `tx()` fake plays the parent: it returns the ACK through `ieee802154_handle_ack()`, with frame pending when the test sets it, and injects replies with `net_recv_data()`. It simulates frame loss by withholding the ACK.
-- `tests/unit/nwk` tests NWK with the MAC turned off, against FFF fakes of MCPS, MLME and the NLDE callbacks.
+- `tests/unit/nwk` tests NWK with the MAC turned off, against FFF fakes of MCPS, MLME and the NLDE and NLME callbacks. Node 1 plays the parent: the test builds its frames, secured commands included, with the NWK send functions and passes the frames caught by the MCPS fake to node 0.
 - `tests/build/radio` is a build-only consumer application. It enables the module with NVS as the settings backend and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. A second scenario builds nrf52840dk with the custom-L2 backend. The application passes the `zephyr,ieee802154` chosen device to `zzb_node_init()` and defines the NLDE callbacks of NWK until APS defines them.
 - CI runs on Woodpecker (`.woodpecker/build.yaml`): twister runs the tests on `native_sim` and `native_sim/native/64` and only builds the hardware targets.
 - `tests/common/scripted_tc.c` plays the trust center side of join sequences captured with a sniffer from EZSP and Z-Stack coordinators on a test network with a known network key.
 - Reboot and power-loss tests run on NVS over the flash simulator, kept in RAM with `--flash_in_ram` so that every run starts with erased flash; the node is destroyed and re-initialized. In the NWK tests a reboot is a second `zzb_nwk_init()` followed by loading the settings.
 - A test asserts that no timer is armed while a sleepy node is idle.
 - `tests/integration/nwk_data` runs two nodes on fake radios with the custom-L2 backend. Node 1 is a child of node 0; the test sets up both with NLME-SET and the neighbor table functions and sends APS frames built by hand.
+- `tests/integration/nwk_join` runs one node on fake radio 1 against a parent scripted in the test on fake radio 0. The script answers inside the `tx()` of the child: a beacon to a beacon request, an association response to the data request, the End Device Timeout Response and rejoin responses, and it secures and checks frames with the `sec/` functions. Frames it sends on its own, such as a leave request, are built on the stack thread with `zzb_call_sync()`, since a PSA key ID is valid only there. Every test starts with NLME-RESET and a join, because ztest orders tests by name. All secured frames use the key of `ci/check-frame-log.sh`; frames with a wrong MIC stay in the unit tests.
 - text2pcap and tshark decode the frame log of the medium and check MICs, as a decoder independent of the stack. The CI step `frame-log` runs after `native_sim` in the `antrea/tshark` image (Ubuntu 24.04, tshark 4.2.2), pinned by digest. `ci/check-frame-log.sh` takes the hexdumps of the medium from `handler.log`, builds a pcap with `text2pcap -l 230` (IEEE 802.15.4 without FCS) and decodes it with the test network key. The step fails if the log holds no frame or a frame with NWK security that tshark does not decrypt.
 - Hardware interoperability: joining ZHA with EZSP and Z-Stack coordinators from milestone 11; current measurement from milestone 14.
 
@@ -328,7 +407,7 @@ Each milestone is one feature branch with its tests.
 5. Radio port: fake radio and medium, raw and custom-L2 shims, TX modes and error mapping, frame pending from the ACK.
 6. MAC device side: active scan, association with response polling, data poll, software retries, filters, binding of the radio port to the node, EUI-64 from the custom-L2 link address.
 7. NWK frame codec (header, the 13 commands of R22 3.4, beacon payload) and security, PSA key cache, NIB, neighbor table, frame counter persistence, NLDE-DATA for end devices, MLME-SET of macPANId and macShortAddress, tshark check of the frame log in CI.
-8. NWK join, secure rejoin, trust center rejoin, leave (with rejoin flag), End Device Timeout Request, network status, address conflict.
+8. NWK end device: network discovery, join, secure rejoin, trust center rejoin, leave (with rejoin flag), NLME-RESET, End Device Timeout Request and keepalive, parent link failure, network status, address conflict, persistence of the NWK state; MLME-SET of the channel and MLME-GET of the coordinator address; channels and a scripted parent in the fake medium.
 9. APS: APSDE, ACK, retries with a new frame counter, duplicate rejection, link-key security, Transport Key, Request Key, Verify Key, Confirm Key, Switch Key, key-pair table.
 10. ZDO server (descriptors, IEEE_addr/NWK_addr, Device_annce, Mgmt_Leave, Bind/Unbind, Mgmt_Lqi, Mgmt_Bind, Mgmt_NWK_Update channel change) and Node_Desc_req client. The Node Descriptor server mask reports stack compliance revision 22: the TCLK exchange sends Request Key only after Node_Desc_rsp from the trust center reports revision 21 or later (BDB 10.2.5).
 11. BDB end device: initialization and boot rejoin (7.1), steering of a node not on a network (8.2), TCLK exchange (10.2.5), resets (chapter 9), parent-loss rejoin. Interop: join ZHA on EZSP and Z-Stack and stay joined across reboot.
