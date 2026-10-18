@@ -24,7 +24,7 @@ struct zzb_radio_port {
 
 /*
  * Binds port to the radio device dev. Returns -ENOTSUP if the driver does not wait for the ACK
- * in tx().
+ * in tx(), or -ENODEV if the custom-L2 backend finds no interface for dev.
  */
 int zzb_radio_init(struct zzb_radio_port *port, const struct device *dev);
 

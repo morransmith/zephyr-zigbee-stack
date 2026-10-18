@@ -18,7 +18,7 @@ static enum net_verdict l2_recv(struct net_if *iface, struct net_pkt *pkt)
 	return NET_OK;
 }
 
-/* IP does not run over 802.15.4 */
+/* zzb transmits with zzb_radio_tx(); no IP traffic uses this interface */
 static int l2_send(struct net_if *iface, struct net_pkt *pkt)
 {
 	return -ENOTSUP;

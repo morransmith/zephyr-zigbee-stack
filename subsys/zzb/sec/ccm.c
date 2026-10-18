@@ -8,10 +8,7 @@
 #include "sec/aux_hdr.h"
 #include "sec/ccm.h"
 
-/*
- * Zephyr builds PSA with MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS, so input and output must not
- * overlap. The in-place functions copy their input to a local buffer first.
- */
+/* Zephyr builds PSA with MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS; input and output must not overlap */
 
 int zzb_sec_ccm_encrypt(psa_key_id_t key, const uint8_t nonce[ZZB_SEC_NONCE_LEN], const uint8_t *a,
 			size_t a_len, uint8_t *m, size_t m_len, size_t mic_len)

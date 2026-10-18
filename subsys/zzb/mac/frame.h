@@ -35,7 +35,7 @@ size_t zzb_mac_hdr_write(const struct zzb_mac_hdr *hdr, uint8_t *p);
 
 /*
  * Returns the header length, -EINVAL if the header is longer than len or has a reserved frame
- * type or addressing mode, or -ENOTSUP for frame version 2 and MAC security.
+ * type or addressing mode, or -ENOTSUP for a frame version above 1 or MAC security.
  */
 int zzb_mac_hdr_parse(const uint8_t *p, size_t len, struct zzb_mac_hdr *hdr);
 
@@ -70,12 +70,10 @@ struct zzb_mac_cmd {
 	union {
 		/* ZZB_MAC_CMD_ASSOC_REQ */
 		uint8_t capability;
-		/* ZZB_MAC_CMD_ASSOC_RSP */
 		struct {
 			uint16_t short_addr;
 			uint8_t status;
 		} assoc_rsp;
-		/* ZZB_MAC_CMD_COORD_REALIGN */
 		struct {
 			uint16_t pan_id;
 			uint16_t coord_short_addr;

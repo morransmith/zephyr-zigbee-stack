@@ -9,7 +9,7 @@ tests:
       - nrf52840dk/nrf52840
       - esp32c6_devkitc/esp32c6/hpcore
       - esp32h2_devkitm/esp32h2
-  # The esp32 driver has no custom-L2 branch
+  # The esp32 driver has no #if branch for CONFIG_NET_L2_CUSTOM_IEEE802154
   zzb.build.radio.custom_l2:
     build_only: true
     platform_allow:

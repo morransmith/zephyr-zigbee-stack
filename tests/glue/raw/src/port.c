@@ -111,7 +111,6 @@ static void flush_tx(void)
 	k_work_flush(&port.tx_work, &sync);
 }
 
-/* Sends buf and checks that it comes back in a single confirm */
 static void transmit(struct net_buf *buf)
 {
 	RESET_FAKE(zzb_radio_tx_done);

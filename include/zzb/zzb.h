@@ -19,7 +19,7 @@ struct zzb_node_config {
 /**
  * @brief Allocate and initialize a node.
  *
- * @param cfg Node configuration.
+ * @param cfg Node configuration, not referenced after the call returns.
  * @param node Set to the new node on success, NULL otherwise.
  *
  * @retval 0 on success.
