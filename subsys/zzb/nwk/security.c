@@ -4,6 +4,7 @@
 #include <string.h>
 #include <zephyr/net_buf.h>
 
+#include "common/buf.h"
 #include "common/node.h"
 #include "nwk/nwk.h"
 #include "sec/aux_hdr.h"
@@ -64,6 +65,20 @@ int zzb_nwk_secure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len)
 	return 0;
 }
 
+/* During a rejoin the candidate may be known only from its beacon (R22 3.6.1.9.2) */
+static struct zzb_nwk_neighbor *rejoin_candidate(struct zzb_node *node, struct net_buf *buf)
+{
+	struct zzb_nwk_neighbor *nb = node->nwk.candidate;
+	const struct zzb_mac_addr *src = &zzb_frame_meta(buf)->src;
+
+	if (node->nwk.op != ZZB_NWK_OP_REJOIN || nb == NULL || nb->ext_addr != 0 ||
+	    src->mode != ZZB_MAC_ADDR_SHORT || src->short_addr != nb->short_addr) {
+		return NULL;
+	}
+
+	return nb;
+}
+
 int zzb_nwk_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len)
 {
 	struct zzb_nib *nib = &node->nwk.nib;
@@ -90,6 +105,10 @@ int zzb_nwk_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len)
 
 	nb = zzb_nwk_neighbor_find_ext(node, aux.src_addr);
 	if (nb == NULL) {
+		nb = rejoin_candidate(node, buf);
+	}
+
+	if (nb == NULL) {
 		return -ENOENT;
 	}
 
@@ -108,6 +127,10 @@ int zzb_nwk_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len)
 	}
 
 	nb->in_fc[slot] = aux.frame_counter + 1;
+	if (nb->ext_addr == 0) {
+		nb->ext_addr = aux.src_addr;
+	}
+
 	if (slot == nib->newest_key) {
 		nib->active_key = slot;
 	}

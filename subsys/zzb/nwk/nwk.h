@@ -37,6 +37,13 @@ struct zzb_node;
 #define ZZB_NWK_PARENT_POLL_KEEPALIVE       BIT(0)
 #define ZZB_NWK_PARENT_ED_TIMEOUT_KEEPALIVE BIT(1)
 
+/* NWK layer status values (R22 Table 3-73) */
+enum zzb_nwk_status {
+	ZZB_NWK_STATUS_SUCCESS = 0x00,
+	ZZB_NWK_STATUS_NOT_PERMITTED = 0xc3,
+	ZZB_NWK_STATUS_NO_NETWORKS = 0xca,
+};
+
 /* Status codes of the network status command and NLME-NWK-STATUS.indication (R22 Table 3-51) */
 enum zzb_nwk_status_code {
 	ZZB_NWK_CODE_PARENT_LINK_FAILURE = 0x09,
@@ -114,11 +121,13 @@ enum zzb_nwk_op {
 	ZZB_NWK_OP_NONE,
 	ZZB_NWK_OP_DISCOVERY,
 	ZZB_NWK_OP_JOIN,
+	ZZB_NWK_OP_REJOIN,
 };
 
 /* RejoinNetwork parameter of NLME-JOIN.request */
 enum zzb_nwk_join_method {
 	ZZB_NWK_JOIN_ASSOC = 0x00,
+	ZZB_NWK_JOIN_REJOIN = 0x02,
 };
 
 /* Outgoing NWK frame counter, global to the node, and its saved watermark */
@@ -136,9 +145,16 @@ struct zzb_nwk {
 	struct zzb_nwk_network networks[CONFIG_ZZB_NWK_NETWORK_COUNT];
 	size_t network_count;
 	enum zzb_nwk_op op;
-	/* The network to join and the parent tried */
+	/* The network to join, the parent tried and whether a rejoin is secured */
 	uint64_t join_ext_pan_id;
 	struct zzb_nwk_neighbor *candidate;
+	bool join_secure;
+	/* Waits for the rejoin response */
+	struct k_work_delayable timer;
+	/* PAN ID, network address and channel before a rejoin, restored when it fails */
+	uint16_t prev_pan_id;
+	uint16_t prev_short_addr;
+	uint8_t prev_channel;
 	/* Set by an association join until NLME-SET of a network key (R22 3.6.2.2) */
 	bool key_pending;
 	/* Sends the End Device Timeout Request and the keepalives */
@@ -229,14 +245,19 @@ void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,
 
 /*
  * NLME-JOIN.request. An association uses the neighbor entries of the last discovery and ignores
- * channels and duration. Returns -EINVAL for extended PAN ID 0, -ENOTSUP for another method, the
- * router device type or a receiver off when idle, -EBUSY while an NLME procedure runs, -EALREADY
- * on a network, -ENETUNREACH without a suitable parent, or an error of MLME-ASSOCIATE.request.
+ * channels and duration. A rejoin scans channels, or the channel of the network when channels is
+ * 0. Returns -EINVAL for extended PAN ID 0, -ENOTSUP for another method, the router device type or
+ * a receiver off when idle, -EBUSY while an NLME procedure runs, -EALREADY for an association on
+ * a network, -ENETUNREACH for an association without a suitable parent, -ENOENT for a secure
+ * rejoin without a network key, or an error of MLME-ASSOCIATE.request or MLME-SCAN.request.
  */
 int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_join_method method,
 		      uint32_t channels, uint8_t duration, uint8_t capability, bool secure);
 
-/* Defined by ZDO. status is SUCCESS or the status of the last MLME-ASSOCIATE.confirm. */
+/*
+ * Defined by ZDO. status is SUCCESS, the status of the last MLME-ASSOCIATE.confirm of an
+ * association, or NO_NETWORKS or NOT_PERMITTED of a rejoin.
+ */
 void zzb_nlme_join_conf(struct zzb_node *node, uint8_t status);
 
 /*
@@ -272,6 +293,26 @@ int zzb_nwk_send(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_hdr 
 /* Sends cmd as a command frame with hdr; see zzb_nwk_send(). Returns -ENOBUFS without a buffer. */
 int zzb_nwk_send_cmd(struct zzb_node *node, struct zzb_nwk_hdr *hdr, const struct zzb_nwk_cmd *cmd,
 		     uint16_t mac_dst, bool ack);
+
+/* Removes the entries without relationship; the beacons of the scan mark the potential parents */
+void zzb_nwk_start_scan(struct zzb_node *node);
+
+/* Starts a join or rejoin of ext_pan_id: nwkParentInformation 0, no keepalive */
+void zzb_nwk_start_join(struct zzb_node *node, uint64_t ext_pan_id, uint8_t capability);
+
+/* The suitable parent with the highest LQI, or NULL */
+struct zzb_nwk_neighbor *zzb_nwk_select_parent(struct zzb_node *node, bool rejoin);
+
+/* Makes parent the only neighbor entry; the NIB takes its network */
+void zzb_nwk_become_child(struct zzb_node *node, struct zzb_nwk_neighbor *parent);
+
+void zzb_nwk_rejoin_init(struct zzb_node *node);
+int zzb_nwk_rejoin_req(struct zzb_node *node, uint64_t ext_pan_id, uint32_t channels,
+		       uint8_t duration, uint8_t capability, bool secure);
+void zzb_nwk_rejoin_scan_conf(struct zzb_node *node, enum zzb_mac_status status);
+void zzb_nwk_rejoin_req_conf(struct zzb_node *node, enum zzb_mac_status status);
+void zzb_nwk_rejoin_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
+			   const struct zzb_nwk_cmd *cmd, uint16_t mac_src);
 
 void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 

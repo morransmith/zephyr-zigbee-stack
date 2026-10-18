@@ -15,6 +15,7 @@ target_sources(app PRIVATE
   src/join.c
   src/neighbor.c
   src/nib.c
+  src/rejoin.c
   src/security.c
   src/status.c
 )

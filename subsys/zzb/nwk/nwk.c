@@ -20,6 +20,7 @@ void zzb_nwk_init(struct zzb_node *node)
 {
 	/* Safe on the zeroed struct of a new node */
 	k_work_cancel_delayable(&node->nwk.keepalive);
+	k_work_cancel_delayable(&node->nwk.timer);
 	node->nwk = (struct zzb_nwk){0};
 	node->nwk.nib = (struct zzb_nib){
 		.pan_id = 0xffff,
@@ -28,6 +29,7 @@ void zzb_nwk_init(struct zzb_node *node)
 	};
 	zzb_nwk_fc_init(node);
 	zzb_nwk_ed_timeout_init(node);
+	zzb_nwk_rejoin_init(node);
 }
 
 /* R22 Table 3-69 */
@@ -146,6 +148,11 @@ int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_a
 
 void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status)
 {
+	if (handle == (ZZB_NWK_CMD_HANDLE | ZZB_NWK_CMD_REJOIN_REQ)) {
+		zzb_nwk_rejoin_req_conf(node, status);
+		return;
+	}
+
 	if (handle >= ZZB_NWK_CMD_HANDLE) {
 		return;
 	}
@@ -158,6 +165,14 @@ static bool for_node(const struct zzb_nib *nib, const struct zzb_nwk_hdr *hdr)
 	/* The receiver stays on until milestone 14, so 0xfffd is accepted */
 	return hdr->src != nib->short_addr &&
 	       (hdr->dst == nib->short_addr || hdr->dst == 0xffff || hdr->dst == 0xfffd);
+}
+
+static bool from_candidate(const struct zzb_node *node, const struct zzb_frame_meta *meta)
+{
+	const struct zzb_nwk_neighbor *nb = node->nwk.candidate;
+
+	return nb != NULL && meta->src.mode == ZZB_MAC_ADDR_SHORT &&
+	       meta->src.short_addr == nb->short_addr;
 }
 
 /* Returns the header length of an unsecured frame for the node, or a negative error */
@@ -176,6 +191,12 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_h
 	/* An end device drops frames with the end device initiator bit (R22 3.6.2.2) */
 	if (!for_node(&node->nwk.nib, hdr) || (hdr->flags & ZZB_NWK_ED_INITIATOR)) {
 		return -EINVAL;
+	}
+
+	/* While a rejoin runs, only the rejoin response of the candidate is processed */
+	if (node->nwk.op == ZZB_NWK_OP_REJOIN &&
+	    (hdr->type != ZZB_NWK_FRAME_CMD || !from_candidate(node, meta))) {
+		return -EBUSY;
 	}
 
 	if (hdr->flags & ZZB_NWK_SECURITY) {
@@ -207,13 +228,16 @@ static void rx_cmd(struct zzb_node *node, struct net_buf *buf, const struct zzb_
 
 	/* The commands handled here hold no pointers into the frame */
 	net_buf_unref(buf);
-	if (len < 0) {
+	if (len < 0 || (node->nwk.op == ZZB_NWK_OP_REJOIN && cmd.id != ZZB_NWK_CMD_REJOIN_RSP)) {
 		return;
 	}
 
 	switch (cmd.id) {
 	case ZZB_NWK_CMD_NWK_STATUS:
 		zzb_nwk_status_rx(node, hdr, &cmd);
+		break;
+	case ZZB_NWK_CMD_REJOIN_RSP:
+		zzb_nwk_rejoin_rsp_rx(node, hdr, &cmd, mac_src);
 		break;
 	case ZZB_NWK_CMD_ED_TIMEOUT_RSP:
 		zzb_nwk_ed_timeout_rsp_rx(node, hdr, &cmd, mac_src);

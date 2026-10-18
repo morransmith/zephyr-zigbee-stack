@@ -169,22 +169,28 @@ ZTEST(zzb_nwk_join, test_repeated_beacon_updates_its_entry)
 	zassert_equal(router(EPID_A, 0x1111)->device_type, ZZB_NWK_DEVICE_ROUTER);
 }
 
-/* R22 3.6.1.4.1: every scan makes the remaining entries potential parents again */
+/* Only the routers heard in the last scan are potential parents */
 ZTEST(zzb_nwk_join, test_scan_removes_previous_results)
 {
 	struct zzb_nwk_neighbor *parent =
 		zzb_nwk_neighbor_add(node, 0x0102030405060708ULL, 0x2222, ZZB_NWK_REL_PARENT);
 
+	parent->beacon.ext_pan_id = EPID_A;
+	parent->potential_parent = true;
 	discover();
 	notify_beacon(node, &router_a, PAN_A, 0x1111, 15, SF_ROUTER, 100);
 	end_discovery(1);
 
 	discover();
-	end_discovery(0);
-
 	zassert_is_null(router(EPID_A, 0x1111));
 	zassert_true(parent->in_use);
+	zassert_false(parent->potential_parent);
+
+	notify_beacon(node, &router_a, PAN_A, 0x2222, 15, SF_ROUTER, 100);
+	end_discovery(1);
 	zassert_true(parent->potential_parent);
+	zassert_equal(parent->relationship, ZZB_NWK_REL_PARENT);
+	zassert_equal(entry_count(), 1);
 }
 
 ZTEST(zzb_nwk_join, test_unusable_beacons_are_ignored)
