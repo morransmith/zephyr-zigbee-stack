@@ -8,6 +8,7 @@
 #include <zzb/zzb.h>
 
 #include "mac/mac.h"
+#include "nwk/nwk.h"
 #include "radio/port.h"
 
 struct zzb_node {
@@ -15,6 +16,10 @@ struct zzb_node {
 	uint64_t eui64;
 	struct zzb_radio_port port;
 	struct zzb_mac mac;
+	struct zzb_nwk nwk;
 };
+
+/* Index of the node in the pool */
+int zzb_node_index(const struct zzb_node *node);
 
 #endif /* ZZB_SUBSYS_COMMON_NODE_H_ */

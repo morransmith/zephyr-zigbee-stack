@@ -22,7 +22,8 @@ subsys/zzb/
   radio/    port.c raw.c custom_l2.c
   mac/      frame.c mac.c scan.c assoc.c poll.c tx.c
             coord/   beacon.c assoc_resp.c indirect.c fpb.c
-  nwk/      frame.c nib.c neighbor.c addr_map.c security.c join.c rejoin.c leave.c ed_timeout.c fc.c
+  nwk/      nwk.c frame.c nib.c neighbor.c addr_map.c security.c join.c rejoin.c leave.c
+            ed_timeout.c fc.c
             router/  addr_alloc.c route.c link_status.c btt.c mtorr.c src_route.c
             coord/   formation.c concentrator.c nwk_manager.c
   sec/      ccm.c mmo.c hmac.c aux_hdr.c key_cache.c install_code.c
@@ -40,6 +41,7 @@ tests/integration/<scenario>/
 tests/glue/{raw,custom_l2}/
 tests/build/radio/
 samples/  on_off_light  contact_sensor
+ci/       release.sh check-frame-log.sh
 ```
 
 | Directory | Specification |
@@ -59,7 +61,7 @@ All stack state is in `struct zzb_node`, passed explicitly to every function, as
 
 Kconfig selects capabilities: `CONFIG_ZZB_ROUTER_CAPABLE`, `CONFIG_ZZB_COORDINATOR_CAPABLE`, `CONFIG_ZZB_TRUST_CENTER`. The role and the sleepy flag are runtime properties of each node, so one test binary holds an end device, a router and a trust center.
 
-The device definition (endpoints, clusters, attribute storage) is passed to `zzb_node_init()`. The stack does not use global iterable sections. One settings handler `zzb` dispatches `zzb/<instance>/...` to the registered nodes.
+The device definition (endpoints, clusters, attribute storage) is passed to `zzb_node_init()`. The stack does not use global iterable sections. `zzb_node_init()` loads the settings records of the node with `settings_load_subtree_direct("zzb/<n>")`, where n is the index of the node in the pool, and passes each key to its layer. The stack registers no settings handler, so a `settings_load()` call of the application does not reach a node before it exists.
 
 The `net_buf` pool and the PSA key cache are shared by all nodes.
 
@@ -83,7 +85,7 @@ The `net_buf` pool and the PSA key cache are shared by all nodes.
 - Data polling is in NWK (NLME-SYNC and a poll scheduler). Fast poll is a reference-counted hold, taken by the APS ACK wait, ZDO and ZCL transactions, BDB procedures and OTA.
 - Calls between stack layers are direct function calls. A `.request` primitive is defined in the layer that serves it; `.confirm` and `.indication` primitives are defined in the layer above and called directly by the layer below.
 - Function pointers are used where several implementations exist at runtime: radio drivers (`struct ieee802154_radio_api`), the local trust center (`node->tc`, NULL when not built), application callbacks.
-- Unit tests replace adjacent layers by link-time substitution with the FFF bundled with Zephyr (`zephyr/fff.h`): a test links the sources of the layer under test and defines fakes with the names of the neighbor layer's functions. Zephyr links libzzb with `--whole-archive`, so each layer has a Kconfig option that removes it from the build. `CONFIG_ZZB_MAC` defaults to y when a radio backend is enabled; the glue tests turn it off because they fake `zzb_radio_rx()` and `zzb_radio_tx_done()`. NWK and the layers above get their options when they are added, and the MAC tests then turn off NWK.
+- Unit tests replace adjacent layers by link-time substitution with the FFF bundled with Zephyr (`zephyr/fff.h`): a test links the sources of the layer under test and defines fakes with the names of the neighbor layer's functions. Zephyr links libzzb with `--whole-archive`, so each layer has a Kconfig option that removes it from the build. `CONFIG_ZZB_MAC` defaults to y when a radio backend is enabled; the glue tests turn it off because they fake `zzb_radio_rx()` and `zzb_radio_tx_done()`. `CONFIG_ZZB_NWK` defaults to the value of `CONFIG_ZZB_MAC`; the MAC tests turn it off, and the NWK tests turn it on with the MAC off. APS and the layers above get their options when they are added.
 
 ## 6. Tables
 
@@ -172,7 +174,8 @@ The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not 
 - Association (802.15.4 5.1.3.1): the association request and its data request use the first header form of R22 Tables D-1 and D-2, with source PAN ID 0xffff and the extended source address. The data request follows macResponseWaitTime after the ACK of the request. After any failure macPANId is 0xffff again.
 - Data poll (802.15.4 5.1.6.3): after an ACK with frame pending, the MAC waits for a data frame from the polled coordinator. A zero-length frame or the end of the wait gives NO_DATA. MLME-POLL.confirm precedes MCPS-DATA.indication. The frame pending bit of the received frame reaches NWK in the frame metadata, and NWK decides whether to poll again.
 - Outside these procedures, data frames with a payload produce MCPS-DATA.indication. Zero-length data frames, beacons and commands are dropped.
-- The receiver stays on between polls until milestone 14. PIB getters and setters and MLME-RESET are added with the NWK join (milestone 8).
+- The receiver stays on between polls until milestone 14.
+- MLME-SET of macPANId and macShortAddress (`zzb_mlme_set_pan_id()`, `zzb_mlme_set_short_addr()`) writes the PIB and the radio filter. The other PIB getters and setters and MLME-RESET are added with the NWK join (milestone 8).
 
 | Time | Definition | Value at 2.4 GHz |
 |---|---|---|
@@ -182,7 +185,43 @@ The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not 
 
 The 2011 text of the macMaxFrameTotalWaitTime formula has 2^macMinBE in its second term. The value above uses 2^macMaxBE, because the backoffs after the first m use BE = macMaxBE.
 
-## 10. Security and frame counters
+## 10. NWK
+
+`CONFIG_ZZB_NWK` builds `nwk/` and `storage/settings.c`. It selects `CONFIG_SETTINGS`; the application enables the settings backend (section 12).
+
+### Frame codec
+
+`nwk/frame.c` is a byte codec in the style of `mac/frame.c`.
+
+- The header struct holds the frame type, the frame control flags (discover route, multicast, security, source route, destination IEEE address, source IEEE address, end device initiator), the destination and source addresses, radius, sequence number, the IEEE addresses, the multicast control field and the source route subframe. Transmitted frames have protocol version 2 (nwkcProtocolVersion). The parser rejects other protocol versions and inter-PAN frames with `-ENOTSUP` and the reserved frame type with `-EINVAL`. The relay list of the source route subframe is copied into an array of nwkMaxSourceRoute (12) entries; a longer list is rejected with `-ENOTSUP`.
+- Commands: all 13 commands of R22 3.4, in a struct with a union like `struct zzb_mac_cmd`. Lists (link status entries, route record relays, network report PAN IDs, link power delta entries) are not decoded: the struct holds the entry count and a pointer to the first encoded entry, which points into the frame after parsing. The writer copies the encoded entries from that pointer.
+- Beacon payload (R22 3.6.7): 15 octets. A Protocol ID other than 0 gives `-ENOTSUP`, a shorter payload `-EINVAL`.
+
+### NIB and neighbor table
+
+- The NIB holds the attributes that milestone 7 uses: nwkPANId, nwkNetworkAddress, nwkExtendedPANID, nwkSequenceNumber (random initial value, R22 3.6.2.1), nwkSecurityMaterialSet (two key slots with the key, its sequence number and a valid flag), nwkActiveKeySeqNumber and the slot written last. nwkIeeeAddress is the EUI-64 of the node, nwkSecurityLevel is the constant 5, and the default radius is 2 * nwkMaxDepth = 30. Other attributes are added with the milestones that use them.
+- NLME-SET: `zzb_nlme_set_pan_id()` and `zzb_nlme_set_short_addr()` write the NIB and call MLME-SET; `zzb_nlme_set_ext_pan_id()`; `zzb_nlme_set_nwk_key(node, key, seq)` writes the key into the slot with the same sequence number, otherwise into the slot that is not active, and resets the incoming frame counters of that slot in every neighbor entry. The first key becomes the active key.
+- A neighbor table entry holds the extended address, network address, relationship, LQI and two incoming frame counters, one per key slot (R22 4.3.1.2 bounds the counters by the number of keys times the number of neighbors). Device type, RxOnWhenIdle, timeout, keepalive and the network discovery fields come with milestone 8. The table has `CONFIG_ZZB_NEIGHBOR_COUNT` entries (default 16); add returns NULL when it is full.
+
+### Frame security
+
+Two functions secure and unsecure in place a buffer whose data starts at the NWK header (R22 4.3.1).
+
+- Outgoing: the active key (none: `-ENOENT`), the next outgoing frame counter (section 11), an auxiliary header with key identifier 1, the extended nonce and the EUI-64 of the node, inserted after the NWK header by moving the header into the headroom, then CCM and the MIC at the tail.
+- Incoming: the auxiliary header must have key identifier 1 and the extended nonce, otherwise `-EINVAL`. A frame counter of 2^32-1 or below the stored counter gives `-EALREADY`. The key slot is found by the key sequence number and the neighbor by the source address of the auxiliary header; a missing slot or neighbor gives `-ENOENT`. Frames from devices without a neighbor entry are therefore dropped; an end device receives a broadcast relayed by another router again from its parent. A MIC mismatch gives `-EBADMSG`. After verification the counter of the slot is set to the received counter + 1.
+- A frame secured with the key of the slot written last, when that slot is not active, makes that key active (R22 4.3.1.2 step 7). A frame secured with the older key does not switch back.
+- R22 4.3.1.2 step 8 (unauthenticated child) is part of the router (milestone 15).
+
+### Data service
+
+- `zzb_nlde_data_req(node, buf, dst_addr, radius, secure)` takes the NSDU after `ZZB_NLDE_HEADROOM` bytes of headroom and the NSDU handle in the frame metadata. It returns `-ENOTCONN` while the node has no network address or no parent. The header has frame type data, discover route 1 for unicast and 0 for broadcast, end device initiator 0 (nwkParentInformation arrives with milestone 8) and no IEEE address fields. Radius 0 selects the default radius.
+- The MAC destination is the neighbor whose network address is the NWK destination, otherwise the parent. Unicast frames request a MAC ACK. A broadcast from an end device is a MAC unicast to the parent without ACK request (R22 3.6.5).
+- Security and MCPS-DATA.request errors are returned by the request, which then leaves the buffer with the caller. MCPS-DATA.confirm produces `zzb_nlde_data_conf(node, handle, status)` with the MAC status.
+- Received data frames addressed to the node, to 0xffff or to 0xfffd (the receiver stays on until milestone 14) produce `zzb_nlde_data_ind(node, buf, dst_addr, src_addr, security_use)` with the NSDU in the buffer and the LQI in the metadata. Frames with the network address of the node as source are dropped. Command frames are dropped until milestone 8. Every received frame updates the LQI of the neighbor whose network address matches the MAC source address.
+- There is no broadcast transaction table until milestone 16. A repeated secured frame from the parent is rejected by the incoming frame counter check.
+- `zzb_nlde_data_conf()` and `zzb_nlde_data_ind()` are defined by APS (milestone 9); until then the tests and `tests/build/radio` define them.
+
+## 11. Security and frame counters
 
 `sec/` contains pure functions on top of PSA Crypto:
 
@@ -191,18 +230,18 @@ The 2011 text of the macMaxFrameTotalWaitTime formula has 2^macMinBE in its seco
 - HMAC-MMO with a 16-byte key and a 1-octet input, the only form R22 uses: key-transport key (0x00), key-load key (0x02), verify-key hash (0x03) (R22 4.5.3, 4.4.10.7.4, Annex B.1.4);
 - install code CRC (CRC-16/X-25 with Zephyr `crc16_ccitt()`, BDB 10.1.1) and install code key derivation (BDB 10.1.2).
 
-CCM functions take a `psa_key_id_t`. The PSA key cache arrives with NWK security (milestone 7) and imports keys with the policy `PSA_ALG_AEAD_WITH_AT_LEAST_THIS_LENGTH_TAG(PSA_ALG_CCM, 4)`. Zephyr builds PSA with `MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS`, under which input and output buffers must not overlap, so in-place CCM copies its input to a local buffer first. The auxiliary header codec writes the security level sub-field as 0; the frame functions set it to 5 for the CCM operation.
+CCM functions take a `psa_key_id_t`. The PSA key cache in `sec/key_cache.c` serves all nodes: `zzb_sec_key_get(key, &id)` returns the ID of an imported key with the same 16 bytes, or imports the key with the policy `PSA_ALG_AEAD_WITH_AT_LEAST_THIS_LENGTH_TAG(PSA_ALG_CCM, 4)` into the least recently used of `CONFIG_ZZB_KEY_CACHE_SIZE` entries (default 4). The ID is valid until the next call on the stack thread. Tables store the 16 key bytes. Zephyr builds PSA with `MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS`, under which input and output buffers must not overlap, so in-place CCM copies its input to a local buffer first. The auxiliary header codec writes the security level sub-field as 0; the frame functions set it to 5 for the CCM operation.
 
 Keys are stored as arrays: two network keys and N link-key pairs. The trust center is identified by `apsTrustCenterAddress` (IEEE address). Code must not assume that the trust center is the parent or has short address 0x0000.
 
-Outgoing frame counters: one for NWK and one for APS, global to the node. The NWK counter must survive factory reset, leave and joining another network (R22 4.3.4). Both are persisted as a watermark under a settings key outside the subtree erased by factory reset:
+Outgoing frame counters: one for NWK and one for APS, global to the node. The NWK counter must survive factory reset, leave and joining another network (R22 4.3.4). Both are persisted as a watermark under `zzb/<n>/fc/nwk` and `zzb/<n>/fc/aps`: a version byte (1) followed by the watermark, little-endian, 4 bytes. Factory reset (milestone 11) erases `zzb/<n>/nwk`, `zzb/<n>/aps`, `zzb/<n>/bdb` and `zzb/<n>/zcl` and keeps `zzb/<n>/fc`.
 
-- on boot: counter = watermark, then watermark += `CONFIG_ZZB_FRAME_COUNTER_JUMP` (default 1024) is saved before the first secured TX;
-- at runtime: a save is scheduled when the counter reaches watermark - JUMP/2; if the counter reaches the watermark before the save completes, the TX fails with `-EBUSY`.
+- On boot: counter = watermark, then `zzb_node_init()` saves watermark + `CONFIG_ZZB_FRAME_COUNTER_JUMP` (default 1024). It returns the error if the save fails or the record has an unknown version or length.
+- At runtime: when the counter reaches watermark - JUMP/2, a work item on the stack queue saves counter + JUMP and moves the watermark when the save succeeds. After a failed save, the next secured frame schedules the save again. While the counter equals the watermark, securing a frame fails with `-EBUSY`; a counter of 2^32-1 fails with `-EOVERFLOW` (R22 4.3.1.1 step 1).
 
-Incoming frame counters are kept in RAM.
+Incoming frame counters are kept in RAM, in the neighbor table (section 10).
 
-## 11. Persistence
+## 12. Persistence
 
 Zephyr settings: NVS on flash parts (nRF52840, ESP32-C6/H2), ZMS on RRAM parts. Each record has its own key and a version field, since writes are atomic per key. Tables that grow on a trust center store one key per entry.
 
@@ -216,7 +255,7 @@ Persisted records:
 
 ZHA writes bindings and reporting configuration once, during pairing. Losing them on reboot stops attribute reports without an error on either side.
 
-## 12. ZCL data model
+## 13. ZCL data model
 
 - Attribute metadata is constant and declared with macros: cluster ID, attribute ID, type, access, flags, offset into the storage struct.
 - Attribute values live in a struct per cluster instance, declared by the application. The endpoint list is part of the device definition passed to `zzb_node_init()`.
@@ -227,7 +266,7 @@ ZHA writes bindings and reporting configuration once, during pairing. Losing the
 - ZCL is a Kconfig option. An NCP build leaves ZCL to the host.
 - Cluster tables may be generated from the project-chip/zap ZCL XML (`zcl-builtin/silabs`, Apache-2.0, ZCL rev 8) and checked against zigbee-herdsman `src/zspec/zcl` (MIT).
 
-## 13. Sleepy end device and power management
+## 14. Sleepy end device and power management
 
 - The stack does not call PM APIs. It stops the radio between polls and arms only deadline timers; Zephyr tickless idle does the rest.
 - nRF52840: System ON idle with the radio stopped. The MAC uses `IEEE802154_CONFIG_RX_ON_WHEN_IDLE`.
@@ -237,7 +276,7 @@ ZHA writes bindings and reporting configuration once, during pairing. Losing the
 - An End Device Timeout Request follows every join and rejoin, with a timeout longer than the slow poll interval. The keepalive method comes from the parent information field of the response.
 - Parent loss, after N consecutive failed polls or transmissions: secure rejoin on the current channel, secure rejoin on all channels, trust center rejoin. This also recovers from a channel change missed while asleep.
 
-## 14. Extension points for coordinator and trust center
+## 15. Extension points for coordinator and trust center
 
 - Join, rejoin and leave are split into joiner-side and parent-side files sharing the frame codecs. Parent-side files are compiled with `zephyr_library_sources_ifdef(CONFIG_ZZB_ROUTER_CAPABLE ...)`. Small branches use `IS_ENABLED()`; functions contain no `#ifdef`.
 - The parent has one "device joined" path. It sends APS Update Device to a remote trust center, or calls the local trust center through `node->tc` ops, which are NULL when `CONFIG_ZZB_TRUST_CENTER` is off. Children of the trust center itself never produce an Update Device frame on air. Received Request Key and Verify Key commands use the same dispatch.
@@ -246,7 +285,7 @@ ZHA writes bindings and reporting configuration once, during pairing. Losing the
 - Export and import of keys, frame counters and the device table are defined together with persistence, because zigpy relies on network backup and restore.
 - NCP framing is independent of the transport (UART, USB CDC, TCP). Protocol candidates: ZBOSS NCP (zigpy-zboss exists), Z-Stack MT/ZNP (zigpy-znp exists), or a new protocol with a new zigpy radio library. The choice is made at milestone 20.
 
-## 15. Reference code
+## 16. Reference code
 
 | Source | License | Use |
 |---|---|---|
@@ -261,22 +300,24 @@ ZHA writes bindings and reporting configuration once, during pairing. Losing the
 
 No C implementation of AES-MMO or install code key derivation under a permissive license exists. Both are written from R22 Annex B.6 and BDB 10.1 and tested against herdsman, Ziggurat and the spec vectors.
 
-## 16. Testing
+## 17. Testing
 
 - Unit tests: ztest on `native_sim/native/64`; CI also runs `native_sim` (32-bit) to catch pointer-size errors.
 - Crypto and codec tests use R22 Annex C vectors, BDB 10.1 install code examples and frames captured from real networks. The first frames come from the Ziggurat and zigbee-rs test suites (listed in `NOTICE`) and from a test network whose network key may be published. MAC frames missing from these sources are built from the IEEE 802.15.4-2011 figures and R22 Tables D-1 to D-3.
 - Multi-node integration tests: fake radio devices implementing `ieee802154_radio_api` (`tests/common/fake_radio.c`), connected by an in-process medium. Each fake radio is a net device for the custom-L2 backend with its own `net_if`, since the raw backend serves one port. The medium has a link matrix and filters by PAN ID and destination address; frame loss is added with the router MAC (milestone 15). It logs every frame with `LOG_HEXDUMP_DBG`. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
 - `tests/glue/raw` tests the radio port in raw mode against FFF fakes of the radio API: TX modes, software CSMA-CA, status mapping, frame pending from the ACK and the RX copy. `tests/glue/custom_l2` tests the custom-L2 backend with two fake radios.
 - `tests/unit/mac` tests the device MAC in raw mode against FFF fakes of the radio API. The `tx()` fake plays the parent: it returns the ACK through `ieee802154_handle_ack()`, with frame pending when the test sets it, and injects replies with `net_recv_data()`. It simulates frame loss by withholding the ACK.
-- `tests/build/radio` is a build-only consumer application. It enables the module on native_sim and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. A second scenario builds nrf52840dk with the custom-L2 backend. The application passes the `zephyr,ieee802154` chosen device to `zzb_node_init()` and defines the NWK callbacks of the MAC until NWK defines them.
+- `tests/unit/nwk` tests NWK with the MAC turned off, against FFF fakes of MCPS, MLME and the NLDE callbacks.
+- `tests/build/radio` is a build-only consumer application. It enables the module with NVS as the settings backend and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. A second scenario builds nrf52840dk with the custom-L2 backend. The application passes the `zephyr,ieee802154` chosen device to `zzb_node_init()` and defines the NLDE callbacks of NWK until APS defines them.
 - CI runs on Woodpecker (`.woodpecker/build.yaml`): twister runs the tests on `native_sim` and `native_sim/native/64` and only builds the hardware targets.
 - `tests/common/scripted_tc.c` plays the trust center side of join sequences captured with a sniffer from EZSP and Z-Stack coordinators on a test network with a known network key.
-- Reboot and power-loss tests run on NVS over the flash simulator; the node is destroyed and re-initialized.
+- Reboot and power-loss tests run on NVS over the flash simulator, kept in RAM with `--flash_in_ram` so that every run starts with erased flash; the node is destroyed and re-initialized. In the NWK tests a reboot is a second `zzb_nwk_init()` followed by loading the settings.
 - A test asserts that no timer is armed while a sleepy node is idle.
-- From milestone 7, text2pcap and tshark decode the frame log of the medium and check MICs in CI, as a decoder independent of the stack.
+- `tests/integration/nwk_data` runs two nodes on fake radios with the custom-L2 backend. Node 1 is a child of node 0; the test sets up both with NLME-SET and the neighbor table functions and sends APS frames built by hand.
+- text2pcap and tshark decode the frame log of the medium and check MICs, as a decoder independent of the stack. The CI step `frame-log` runs after `native_sim` in the `antrea/tshark` image (Ubuntu 24.04, tshark 4.2.2), pinned by digest. `ci/check-frame-log.sh` takes the hexdumps of the medium from `handler.log`, builds a pcap with `text2pcap -l 230` (IEEE 802.15.4 without FCS) and decodes it with the test network key. The step fails if the log holds no frame or a frame with NWK security that tshark does not decrypt.
 - Hardware interoperability: joining ZHA with EZSP and Z-Stack coordinators from milestone 11; current measurement from milestone 14.
 
-## 17. Milestones
+## 18. Milestones
 
 Each milestone is one feature branch with its tests.
 
@@ -286,7 +327,7 @@ Each milestone is one feature branch with its tests.
 4. MAC frame codec: data, beacon and command frames.
 5. Radio port: fake radio and medium, raw and custom-L2 shims, TX modes and error mapping, frame pending from the ACK.
 6. MAC device side: active scan, association with response polling, data poll, software retries, filters, binding of the radio port to the node, EUI-64 from the custom-L2 link address.
-7. NWK frame codec and security, NIB, neighbor table, frame counter persistence, tshark check of the frame log in CI.
+7. NWK frame codec (header, the 13 commands of R22 3.4, beacon payload) and security, PSA key cache, NIB, neighbor table, frame counter persistence, NLDE-DATA for end devices, MLME-SET of macPANId and macShortAddress, tshark check of the frame log in CI.
 8. NWK join, secure rejoin, trust center rejoin, leave (with rejoin flag), End Device Timeout Request, network status, address conflict.
 9. APS: APSDE, ACK, retries with a new frame counter, duplicate rejection, link-key security, Transport Key, Request Key, Verify Key, Confirm Key, Switch Key, key-pair table.
 10. ZDO server (descriptors, IEEE_addr/NWK_addr, Device_annce, Mgmt_Leave, Bind/Unbind, Mgmt_Lqi, Mgmt_Bind, Mgmt_NWK_Update channel change) and Node_Desc_req client. The Node Descriptor server mask reports stack compliance revision 22: the TCLK exchange sends Request Key only after Node_Desc_rsp from the trust center reports revision 21 or later (BDB 10.2.5).
@@ -301,7 +342,7 @@ Each milestone is one feature branch with its tests.
 19. Trust center (BDB 10.3): key generation with `psa_generate_random()`, join and rejoin policy, network key update and switch, per-entry storage.
 20. NCP; Green Power proxy basic.
 
-## 18. Risks
+## 19. Risks
 
 | Risk | Mitigation |
 |---|---|
@@ -311,4 +352,4 @@ Each milestone is one feature branch with its tests.
 | Router and coordinator scope | ZigBee PRO/2007 layer PICS (08-0006-05) as a per-milestone checklist; features outside the ZHA path deferred |
 | Sleepy timing and current are not observable on native_sim | driver RX_ON_WHEN_IDLE where available; deadline-only timers with an idle test; current measurement on hardware |
 
-New dependencies accepted with this document: PSA Crypto (Zephyr mbedTLS / TF-PSA-Crypto), settings with NVS or ZMS, FFF, `net_buf`. Zephyr shell, MCUboot and pcap tooling are confirmed at the milestones that introduce them.
+New dependencies accepted with this document: PSA Crypto (Zephyr mbedTLS / TF-PSA-Crypto), settings with NVS or ZMS, FFF, `net_buf`. The `antrea/tshark` container image is accepted for the frame log check (milestone 7). Zephyr shell and MCUboot are confirmed at the milestones that introduce them.

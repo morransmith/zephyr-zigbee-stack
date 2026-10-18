@@ -30,11 +30,37 @@ config ZZB_WORKQ_PRIORITY
 	int "Stack thread cooperative priority"
 	default 8
 
+config ZZB_KEY_CACHE_SIZE
+	int "PSA keys imported at a time"
+	default 4
+	help
+	  Entries of the PSA key cache shared by all nodes. Each entry holds one
+	  PSA key slot.
+
 config ZZB_MAC
 	bool "MAC layer"
 	default y
 	depends on IEEE802154_RAW_MODE || NET_L2_CUSTOM_IEEE802154
 	help
 	  IEEE 802.15.4 MAC sublayer. Tests that fake the MAC turn it off.
+
+config ZZB_NWK
+	bool "NWK layer"
+	default ZZB_MAC
+	select SETTINGS
+	help
+	  Zigbee network layer. The application enables a settings backend for the
+	  frame counter. Tests that fake NWK turn it off.
+
+config ZZB_FRAME_COUNTER_JUMP
+	int "Outgoing frame counter jump at boot"
+	default 1024
+	help
+	  Distance between the outgoing frame counter and its saved watermark.
+	  On boot the counter starts at the watermark, which moves by this value.
+
+config ZZB_NEIGHBOR_COUNT
+	int "Neighbor table entries"
+	default 16
 
 endif # ZZB

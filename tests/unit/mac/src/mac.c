@@ -70,4 +70,20 @@ ZTEST(zzb_mac, test_unexpected_frames_are_dropped)
 	zassert_equal(zzb_mcps_data_ind_fake.call_count, 0);
 }
 
+ZTEST(zzb_mac, test_set_pan_id_and_short_address)
+{
+	static const uint8_t msdu[] = {0x42};
+	/* Data frame from 0x5678 to the parent with ACK request */
+	static const uint8_t frame[] = {0x61, 0x88, 0x00, 0x62, 0x1a, 0x00, 0x00, 0x78, 0x56, 0x42};
+
+	zzb_mlme_set_pan_id(node, PAN_ID);
+	zzb_mlme_set_short_addr(node, 0x5678);
+	zassert_equal(radio.pan_id, PAN_ID);
+	zassert_equal(radio.short_addr, 0x5678);
+
+	zassert_ok(zzb_mcps_data_req(node, msdu_buf(1, msdu, sizeof(msdu))));
+	run_stack();
+	check_sent(0, frame, sizeof(frame));
+}
+
 ZTEST_SUITE(zzb_mac, NULL, mac_setup, mac_before, mac_after, NULL);

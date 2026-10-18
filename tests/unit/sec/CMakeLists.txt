@@ -11,5 +11,6 @@ target_sources(app PRIVATE
   src/ccm.c
   src/hmac.c
   src/install_code.c
+  src/key_cache.c
   src/mmo.c
 )

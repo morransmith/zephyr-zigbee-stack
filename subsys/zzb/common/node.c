@@ -8,6 +8,8 @@
 #include "common/node.h"
 #include "common/queue.h"
 #include "mac/mac.h"
+#include "nwk/nwk.h"
+#include "storage/settings.h"
 
 static struct zzb_node nodes[CONFIG_ZZB_NODE_COUNT];
 
@@ -17,6 +19,11 @@ struct init_req {
 	struct zzb_node *node;
 	int err;
 };
+
+int zzb_node_index(const struct zzb_node *node)
+{
+	return node - nodes;
+}
 
 static struct zzb_node *free_node(void)
 {
@@ -69,6 +76,19 @@ static void init_handler(struct k_work *work)
 
 	if (IS_ENABLED(CONFIG_ZZB_MAC)) {
 		req->err = zzb_mac_init(node, req->cfg->radio);
+		if (req->err) {
+			return;
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_NWK)) {
+		zzb_nwk_init(node);
+		req->err = zzb_settings_load(node);
+		if (req->err) {
+			return;
+		}
+
+		req->err = zzb_nwk_fc_start(node);
 		if (req->err) {
 			return;
 		}
