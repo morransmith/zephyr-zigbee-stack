@@ -10,13 +10,22 @@
 #include <zephyr/ztest.h>
 
 #include "common/buf.h"
+#include "mac/mac.h"
 #include "radio/port.h"
 
 DEFINE_FFF_GLOBALS;
 
+FAKE_VALUE_FUNC(enum ieee802154_hw_caps, radio_get_caps, const struct device *);
+FAKE_VALUE_FUNC(int, radio_tx, const struct device *, enum ieee802154_tx_mode, struct net_pkt *,
+		struct net_buf *);
 FAKE_VOID_FUNC(zzb_radio_rx, struct zzb_radio_port *, struct net_buf *);
+FAKE_VOID_FUNC(zzb_radio_tx_done, struct zzb_radio_port *, struct net_buf *, enum zzb_mac_status,
+	       bool);
 
-static const struct ieee802154_radio_api radio_api;
+static const struct ieee802154_radio_api radio_api = {
+	.get_capabilities = radio_get_caps,
+	.tx = radio_tx,
+};
 
 DEVICE_DEFINE(test_radio, "test_radio", NULL, NULL, NULL, NULL, POST_KERNEL,
 	      CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, &radio_api);
@@ -26,6 +35,9 @@ static struct zzb_radio_port port;
 /* Data frame: MAC header, one payload byte, then the two bytes the driver appends */
 static const uint8_t rx_frame[] = {0x61, 0x88, 0xa3, 0xf5, 0x3e, 0x34,
 				   0x52, 0x63, 0xf6, 0x42, 0xaa, 0xbb};
+
+/* Broadcast data frame without ACK request */
+static const uint8_t bcast_frame[] = {0x41, 0x88, 0x01, 0xf5, 0x3e, 0xff, 0xff, 0x63, 0xf6, 0x42};
 
 static uint8_t rx_data[ZZB_BUF_SIZE];
 static size_t rx_len;
@@ -56,10 +68,51 @@ static void flush_rx(void)
 	k_work_flush(&port.rx_work, &sync);
 }
 
+static void tx_done_fake(struct zzb_radio_port *p, struct net_buf *buf, enum zzb_mac_status status,
+			 bool frame_pending)
+{
+	net_buf_unref(buf);
+}
+
+static struct net_buf *tx_buf(const uint8_t *frame, size_t len)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+
+	zassert_not_null(buf);
+	net_buf_add_mem(buf, frame, len);
+	return buf;
+}
+
+static void flush_tx(void)
+{
+	struct k_work_sync sync;
+
+	k_work_flush(&port.tx_work, &sync);
+}
+
+/* Sends buf and checks that it comes back in a single confirm */
+static void transmit(struct net_buf *buf)
+{
+	RESET_FAKE(zzb_radio_tx_done);
+	zzb_radio_tx_done_fake.custom_fake = tx_done_fake;
+
+	zassert_ok(zzb_radio_tx(&port, buf));
+	flush_tx();
+
+	zassert_equal(zzb_radio_tx_done_fake.call_count, 1);
+	zassert_equal_ptr(zzb_radio_tx_done_fake.arg0_val, &port);
+	zassert_equal_ptr(zzb_radio_tx_done_fake.arg1_val, buf);
+}
+
 static void before(void *fixture)
 {
+	RESET_FAKE(radio_get_caps);
+	RESET_FAKE(radio_tx);
 	RESET_FAKE(zzb_radio_rx);
+	RESET_FAKE(zzb_radio_tx_done);
+	radio_get_caps_fake.return_val = IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_CSMA;
 	zzb_radio_rx_fake.custom_fake = rx_fake;
+	zzb_radio_tx_done_fake.custom_fake = tx_done_fake;
 	zassert_ok(zzb_radio_init(&port, DEVICE_GET(test_radio)));
 }
 
@@ -108,6 +161,60 @@ ZTEST(zzb_radio_raw, test_rx_without_buffer_leaves_pkt_with_driver)
 	flush_rx();
 
 	zassert_equal(zzb_radio_rx_fake.call_count, 0);
+}
+
+ZTEST(zzb_radio_raw, test_init_requires_ack_offload)
+{
+	struct zzb_radio_port other;
+
+	radio_get_caps_fake.return_val = IEEE802154_HW_CSMA;
+
+	zassert_equal(zzb_radio_init(&other, DEVICE_GET(test_radio)), -ENOTSUP);
+}
+
+ZTEST(zzb_radio_raw, test_tx_uses_hardware_csma_ca)
+{
+	struct net_buf *buf = tx_buf(bcast_frame, sizeof(bcast_frame));
+
+	transmit(buf);
+
+	zassert_equal(radio_tx_fake.call_count, 1);
+	zassert_equal_ptr(radio_tx_fake.arg0_val, DEVICE_GET(test_radio));
+	zassert_equal(radio_tx_fake.arg1_val, IEEE802154_TX_MODE_CSMA_CA);
+	zassert_equal_ptr(radio_tx_fake.arg3_val, buf);
+	zassert_equal(zzb_radio_tx_done_fake.arg2_val, ZZB_MAC_STATUS_SUCCESS);
+	zassert_false(zzb_radio_tx_done_fake.arg3_val);
+}
+
+ZTEST(zzb_radio_raw, test_tx_errors_map_to_mac_status)
+{
+	static const struct {
+		int err;
+		enum zzb_mac_status status;
+	} cases[] = {
+		{-EBUSY, ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE},
+		{-ENOMSG, ZZB_MAC_STATUS_NO_ACK},
+		{-EIO, ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE},
+	};
+
+	ARRAY_FOR_EACH_PTR(cases, c) {
+		radio_tx_fake.return_val = c->err;
+		transmit(tx_buf(bcast_frame, sizeof(bcast_frame)));
+		zassert_equal(zzb_radio_tx_done_fake.arg2_val, c->status, "tx() returned %d",
+			      c->err);
+	}
+}
+
+ZTEST(zzb_radio_raw, test_tx_is_busy_until_confirm)
+{
+	struct net_buf *first = tx_buf(bcast_frame, sizeof(bcast_frame));
+	struct net_buf *second = tx_buf(bcast_frame, sizeof(bcast_frame));
+
+	zassert_ok(zzb_radio_tx(&port, first));
+	zassert_equal(zzb_radio_tx(&port, second), -EBUSY);
+	flush_tx();
+
+	transmit(second);
 }
 
 ZTEST_SUITE(zzb_radio_raw, NULL, NULL, before, NULL, NULL);
