@@ -389,4 +389,75 @@ ZTEST(zzb_nwk_frame, test_command_truncated)
 	}
 }
 
+static void check_beacon_round_trip(const uint8_t *bytes, const struct zzb_nwk_beacon *expected)
+{
+	struct zzb_nwk_beacon beacon;
+	uint8_t buf[ZZB_NWK_BEACON_LEN];
+
+	zassert_equal(zzb_nwk_beacon_parse(bytes, ZZB_NWK_BEACON_LEN, &beacon), ZZB_NWK_BEACON_LEN);
+	zassert_equal(beacon.stack_profile, expected->stack_profile);
+	zassert_equal(beacon.protocol_version, expected->protocol_version);
+	zassert_equal(beacon.router_capacity, expected->router_capacity);
+	zassert_equal(beacon.depth, expected->depth);
+	zassert_equal(beacon.ed_capacity, expected->ed_capacity);
+	zassert_equal(beacon.ext_pan_id, expected->ext_pan_id);
+	zassert_equal(beacon.tx_offset, expected->tx_offset);
+	zassert_equal(beacon.update_id, expected->update_id);
+
+	zassert_equal(zzb_nwk_beacon_write(&beacon, buf), ZZB_NWK_BEACON_LEN);
+	zassert_mem_equal(buf, bytes, ZZB_NWK_BEACON_LEN);
+}
+
+/* test_zigbee_beacon_round_trip in Ziggurat (see NOTICE) */
+static const uint8_t coord_beacon[] = {
+	0x00, 0x22, 0x84, 0x93, 0xcb, 0x3c, 0x0b, 0x01, 0x44, 0x9f, 0x3a, 0xff, 0xff, 0xff, 0x00,
+};
+
+ZTEST(zzb_nwk_frame, test_coordinator_beacon_payload)
+{
+	const struct zzb_nwk_beacon expected = {
+		.stack_profile = 2,
+		.protocol_version = 2,
+		.router_capacity = true,
+		.depth = 0,
+		.ed_capacity = true,
+		.ext_pan_id = 0x3a9f44010b3ccb93ULL,
+		.tx_offset = 0xffffff,
+		.update_id = 0,
+	};
+
+	check_beacon_round_trip(coord_beacon, &expected);
+}
+
+ZTEST(zzb_nwk_frame, test_router_beacon_payload)
+{
+	static const uint8_t bytes[] = {
+		0x00, 0x22, 0x2c, 0x08, 0x07, 0x06, 0x05, 0x04,
+		0x03, 0x02, 0x01, 0x56, 0x34, 0x12, 0x07,
+	};
+	const struct zzb_nwk_beacon expected = {
+		.stack_profile = 2,
+		.protocol_version = 2,
+		.router_capacity = true,
+		.depth = 5,
+		.ext_pan_id = EPID,
+		.tx_offset = 0x123456,
+		.update_id = 7,
+	};
+
+	check_beacon_round_trip(bytes, &expected);
+}
+
+ZTEST(zzb_nwk_frame, test_beacon_payload_rejected)
+{
+	uint8_t other_protocol[ZZB_NWK_BEACON_LEN];
+	struct zzb_nwk_beacon beacon;
+
+	memcpy(other_protocol, coord_beacon, sizeof(other_protocol));
+	other_protocol[0] = 0x01;
+
+	zassert_equal(zzb_nwk_beacon_parse(other_protocol, ZZB_NWK_BEACON_LEN, &beacon), -ENOTSUP);
+	zassert_equal(zzb_nwk_beacon_parse(coord_beacon, ZZB_NWK_BEACON_LEN - 1, &beacon), -EINVAL);
+}
+
 ZTEST_SUITE(zzb_nwk_frame, NULL, NULL, NULL, NULL, NULL);

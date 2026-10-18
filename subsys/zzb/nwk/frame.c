@@ -403,3 +403,48 @@ int zzb_nwk_cmd_parse(const uint8_t *p, size_t len, struct zzb_nwk_cmd *cmd)
 
 	return 1 + payload_len(cmd);
 }
+
+/* Octets 1 and 2 of the beacon payload (R22 Figure 3-54) */
+#define BEACON_STACK_PROFILE GENMASK(3, 0)
+#define BEACON_VERSION       GENMASK(7, 4)
+#define BEACON_ROUTER_CAP    BIT(2)
+#define BEACON_DEPTH         GENMASK(6, 3)
+#define BEACON_ED_CAP        BIT(7)
+
+size_t zzb_nwk_beacon_write(const struct zzb_nwk_beacon *beacon, uint8_t *p)
+{
+	p[0] = 0;
+	p[1] = FIELD_PREP(BEACON_STACK_PROFILE, beacon->stack_profile) |
+	       FIELD_PREP(BEACON_VERSION, beacon->protocol_version);
+	p[2] = (beacon->router_capacity ? BEACON_ROUTER_CAP : 0) |
+	       FIELD_PREP(BEACON_DEPTH, beacon->depth) | (beacon->ed_capacity ? BEACON_ED_CAP : 0);
+	sys_put_le64(beacon->ext_pan_id, p + 3);
+	sys_put_le24(beacon->tx_offset, p + 11);
+	p[14] = beacon->update_id;
+
+	return ZZB_NWK_BEACON_LEN;
+}
+
+int zzb_nwk_beacon_parse(const uint8_t *p, size_t len, struct zzb_nwk_beacon *beacon)
+{
+	if (len < ZZB_NWK_BEACON_LEN) {
+		return -EINVAL;
+	}
+
+	if (p[0] != 0) {
+		return -ENOTSUP;
+	}
+
+	*beacon = (struct zzb_nwk_beacon){
+		.stack_profile = FIELD_GET(BEACON_STACK_PROFILE, p[1]),
+		.protocol_version = FIELD_GET(BEACON_VERSION, p[1]),
+		.router_capacity = p[2] & BEACON_ROUTER_CAP,
+		.depth = FIELD_GET(BEACON_DEPTH, p[2]),
+		.ed_capacity = p[2] & BEACON_ED_CAP,
+		.ext_pan_id = sys_get_le64(p + 3),
+		.tx_offset = sys_get_le24(p + 11),
+		.update_id = p[14],
+	};
+
+	return ZZB_NWK_BEACON_LEN;
+}

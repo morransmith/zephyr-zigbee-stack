@@ -183,4 +183,27 @@ size_t zzb_nwk_cmd_write(const struct zzb_nwk_cmd *cmd, uint8_t *p);
  */
 int zzb_nwk_cmd_parse(const uint8_t *p, size_t len, struct zzb_nwk_cmd *cmd);
 
+/* Zigbee beacon payload (R22 3.6.7) */
+#define ZZB_NWK_BEACON_LEN 15
+
+struct zzb_nwk_beacon {
+	uint8_t stack_profile;
+	uint8_t protocol_version;
+	bool router_capacity;
+	uint8_t depth;
+	bool ed_capacity;
+	uint64_t ext_pan_id;
+	uint32_t tx_offset;
+	uint8_t update_id;
+};
+
+/* Writes the beacon payload with Protocol ID 0 and returns ZZB_NWK_BEACON_LEN. */
+size_t zzb_nwk_beacon_write(const struct zzb_nwk_beacon *beacon, uint8_t *p);
+
+/*
+ * Returns ZZB_NWK_BEACON_LEN, -EINVAL if len is shorter, or -ENOTSUP for a Protocol ID other
+ * than 0.
+ */
+int zzb_nwk_beacon_parse(const uint8_t *p, size_t len, struct zzb_nwk_beacon *beacon);
+
 #endif /* ZZB_SUBSYS_NWK_FRAME_H_ */
