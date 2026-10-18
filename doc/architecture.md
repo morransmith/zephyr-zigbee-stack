@@ -131,7 +131,18 @@ The stack holds the EUI-64 as a `uint64_t` and converts it at the frame codec, t
 
 The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not run.
 
-## 9. Security and frame counters
+## 9. MAC frames
+
+`mac/frame.c` is a byte codec in the style of `sec/aux_hdr.c`: its functions take a pointer and a length and do not use `net_buf` or `struct zzb_frame_meta`. The MAC layer copies addresses and flags between the header struct and the frame metadata.
+
+- The header struct holds the frame type, the ACK request and frame pending flags as `ZZB_FRAME_ACK_REQ` and `ZZB_FRAME_PENDING`, the sequence number, and the destination and source addresses as `struct zzb_mac_addr`. On transmit, PAN ID compression is set when both addresses are present and their PAN IDs are equal. On receive, a compressed source PAN ID is copied from the destination.
+- Transmitted frames have frame version 0 and Security Enabled 0 (R22 D.5; the PICS excludes MAC security, item MS2). Received frames with version 0 or 1 are parsed. Version 2 frames (Enhanced Beacon and Enhanced Beacon Request, optional at 2.4 GHz, R22 D.9.1) and frames with Security Enabled set are rejected with `-ENOTSUP`. This departs from R22 D.5, which requires reception of every non-reserved frame version.
+- The parser accepts every addressing variant in R22 Tables D-1 to D-3.
+- Commands: association request and response, data request, orphan notification, beacon request, coordinator realignment. Disassociation notification and PAN ID conflict notification are excluded by the PICS, GTS is not used; the parser returns `-ENOTSUP` for them. Coordinator realignment is sent without the Channel Page field (R22 D.5); a received Channel Page field is ignored.
+- Beacons: the codec reads the Superframe Specification field, skips the GTS and pending address fields and returns the offset of the beacon payload. The Zigbee beacon payload (R22 3.6.7) is part of the NWK frame codec (milestone 7).
+- The FCS is not written or checked. The nrf5 and esp32 drivers remove it on receive and add it on transmit while `CONFIG_IEEE802154_L2_PKT_INCL_FCS` is off.
+
+## 10. Security and frame counters
 
 `sec/` contains pure functions on top of PSA Crypto:
 
@@ -151,7 +162,7 @@ Outgoing frame counters: one for NWK and one for APS, global to the node. The NW
 
 Incoming frame counters are kept in RAM.
 
-## 10. Persistence
+## 11. Persistence
 
 Zephyr settings: NVS on flash parts (nRF52840, ESP32-C6/H2), ZMS on RRAM parts. Each record has its own key and a version field, since writes are atomic per key. Tables that grow on a trust center store one key per entry.
 
@@ -165,7 +176,7 @@ Persisted records:
 
 ZHA writes bindings and reporting configuration once, during pairing. Losing them on reboot stops attribute reports without an error on either side.
 
-## 11. ZCL data model
+## 12. ZCL data model
 
 - Attribute metadata is constant and declared with macros: cluster ID, attribute ID, type, access, flags, offset into the storage struct.
 - Attribute values live in a struct per cluster instance, declared by the application. The endpoint list is part of the device definition passed to `zzb_node_init()`.
@@ -176,7 +187,7 @@ ZHA writes bindings and reporting configuration once, during pairing. Losing the
 - ZCL is a Kconfig option. An NCP build leaves ZCL to the host.
 - Cluster tables may be generated from the project-chip/zap ZCL XML (`zcl-builtin/silabs`, Apache-2.0, ZCL rev 8) and checked against zigbee-herdsman `src/zspec/zcl` (MIT).
 
-## 12. Sleepy end device and power management
+## 13. Sleepy end device and power management
 
 - The stack does not call PM APIs. It stops the radio between polls and arms only deadline timers; Zephyr tickless idle does the rest.
 - nRF52840: System ON idle with the radio stopped. The MAC uses `IEEE802154_CONFIG_RX_ON_WHEN_IDLE`.
@@ -186,7 +197,7 @@ ZHA writes bindings and reporting configuration once, during pairing. Losing the
 - An End Device Timeout Request follows every join and rejoin, with a timeout longer than the slow poll interval. The keepalive method comes from the parent information field of the response.
 - Parent loss, after N consecutive failed polls or transmissions: secure rejoin on the current channel, secure rejoin on all channels, trust center rejoin. This also recovers from a channel change missed while asleep.
 
-## 13. Extension points for coordinator and trust center
+## 14. Extension points for coordinator and trust center
 
 - Join, rejoin and leave are split into joiner-side and parent-side files sharing the frame codecs. Parent-side files are compiled with `zephyr_library_sources_ifdef(CONFIG_ZZB_ROUTER_CAPABLE ...)`. Small branches use `IS_ENABLED()`; functions contain no `#ifdef`.
 - The parent has one "device joined" path. It sends APS Update Device to a remote trust center, or calls the local trust center through `node->tc` ops, which are NULL when `CONFIG_ZZB_TRUST_CENTER` is off. Children of the trust center itself never produce an Update Device frame on air. Received Request Key and Verify Key commands use the same dispatch.
@@ -195,7 +206,7 @@ ZHA writes bindings and reporting configuration once, during pairing. Losing the
 - Export and import of keys, frame counters and the device table are defined together with persistence, because zigpy relies on network backup and restore.
 - NCP framing is independent of the transport (UART, USB CDC, TCP). Protocol candidates: ZBOSS NCP (zigpy-zboss exists), Z-Stack MT/ZNP (zigpy-znp exists), or a new protocol with a new zigpy radio library. The choice is made at milestone 20.
 
-## 14. Reference code
+## 15. Reference code
 
 | Source | License | Use |
 |---|---|---|
@@ -210,10 +221,10 @@ ZHA writes bindings and reporting configuration once, during pairing. Losing the
 
 No C implementation of AES-MMO or install code key derivation under a permissive license exists. Both are written from R22 Annex B.6 and BDB 10.1 and tested against herdsman, Ziggurat and the spec vectors.
 
-## 15. Testing
+## 16. Testing
 
 - Unit tests: ztest on `native_sim/native/64`; CI also runs `native_sim` (32-bit) to catch pointer-size errors.
-- Crypto and codec tests use R22 Annex C vectors, BDB 10.1 install code examples and frames captured from real networks. The first frames come from the Ziggurat and zigbee-rs test suites (listed in `NOTICE`) and from a test network whose network key may be published.
+- Crypto and codec tests use R22 Annex C vectors, BDB 10.1 install code examples and frames captured from real networks. The first frames come from the Ziggurat and zigbee-rs test suites (listed in `NOTICE`) and from a test network whose network key may be published. MAC frames missing from these sources are built from the IEEE 802.15.4-2011 figures and R22 Tables D-1 to D-3.
 - Multi-node integration tests: N fake radio devices implementing `ieee802154_radio_api`, connected by an in-process medium with configurable loss and links. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
 - The raw-mode and custom-L2 shims have single-node tests in `tests/glue/`, modeled on Zephyr `tests/net/ieee802154/custom_l2`.
 - `tests/build/radio` is a build-only consumer application. It enables the module on native_sim and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. Until the raw backend exists (milestone 5), it defines `net_recv_data()` and `ieee802154_handle_ack()` itself.
@@ -224,7 +235,7 @@ No C implementation of AES-MMO or install code key derivation under a permissive
 - Under consideration for milestone 5: the fake medium logs frames as hex, and text2pcap and tshark decode them and check MICs in CI, as a decoder independent of the stack.
 - Hardware interoperability: joining ZHA with EZSP and Z-Stack coordinators from milestone 11; current measurement from milestone 14.
 
-## 16. Milestones
+## 17. Milestones
 
 Each milestone is one feature branch with its tests.
 
@@ -249,7 +260,7 @@ Each milestone is one feature branch with its tests.
 19. Trust center (BDB 10.3): key generation with `psa_generate_random()`, join and rejoin policy, network key update and switch, per-entry storage.
 20. NCP; Green Power proxy basic.
 
-## 17. Risks
+## 18. Risks
 
 | Risk | Mitigation |
 |---|---|

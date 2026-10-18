@@ -8,6 +8,7 @@ zephyr_library_sources(
   common/node.c
   common/queue.c
   common/timer.c
+  mac/frame.c
   sec/aux_hdr.c
   sec/ccm.c
   sec/hmac.c
