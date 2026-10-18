@@ -32,7 +32,7 @@ int zzb_mlme_poll_req(struct zzb_node *node, const struct zzb_mac_addr *coord)
 		return err;
 	}
 
-	node->mac.poll_coord = *coord;
+	node->mac.coord = *coord;
 	zzb_mac_send_cmd(node, &hdr, &cmd);
 	return 0;
 }

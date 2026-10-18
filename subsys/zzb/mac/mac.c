@@ -29,6 +29,12 @@ void zzb_mac_set_radio_pan_id(struct zzb_node *node, uint16_t pan_id)
 		   (struct ieee802154_filter){.pan_id = pan_id});
 }
 
+void zzb_mac_set_radio_short_addr(struct zzb_node *node, uint16_t short_addr)
+{
+	set_filter(node->port.dev, IEEE802154_FILTER_TYPE_SHORT_ADDR,
+		   (struct ieee802154_filter){.short_addr = short_addr});
+}
+
 int zzb_mac_set_radio_channel(struct zzb_node *node, uint8_t channel)
 {
 	const struct ieee802154_radio_api *api = node->port.dev->api;
@@ -51,6 +57,10 @@ static void timer_handler(struct k_work *work)
 	case ZZB_MAC_OP_POLL_RX:
 		zzb_mac_poll_timeout(node);
 		break;
+	case ZZB_MAC_OP_ASSOC:
+	case ZZB_MAC_OP_ASSOC_RX:
+		zzb_mac_assoc_timeout(node);
+		break;
 	default:
 		break;
 	}
@@ -67,6 +77,7 @@ int zzb_mac_init(struct zzb_node *node, const struct device *radio)
 	}
 
 	node->mac = (struct zzb_mac){
+		.coord_short_addr = 0xffff,
 		.pan_id = 0xffff,
 		.short_addr = 0xffff,
 		.dsn = sys_rand8_get(),
@@ -78,8 +89,7 @@ int zzb_mac_init(struct zzb_node *node, const struct device *radio)
 	sys_put_le64(node->eui64, ext_addr);
 	set_filter(radio, IEEE802154_FILTER_TYPE_IEEE_ADDR,
 		   (struct ieee802154_filter){.ieee_addr = ext_addr});
-	set_filter(radio, IEEE802154_FILTER_TYPE_SHORT_ADDR,
-		   (struct ieee802154_filter){.short_addr = node->mac.short_addr});
+	zzb_mac_set_radio_short_addr(node, node->mac.short_addr);
 	zzb_mac_set_radio_pan_id(node, node->mac.pan_id);
 
 	return zzb_mac_set_radio_channel(node, node->mac.channel);
@@ -117,6 +127,10 @@ void zzb_mac_cmd_done(struct zzb_node *node, enum zzb_mac_status status, bool fr
 		break;
 	case ZZB_MAC_OP_POLL:
 		zzb_mac_poll_cmd_done(node, status, frame_pending);
+		break;
+	case ZZB_MAC_OP_ASSOC:
+	case ZZB_MAC_OP_ASSOC_POLL:
+		zzb_mac_assoc_cmd_done(node, status, frame_pending);
 		break;
 	default:
 		break;
@@ -156,8 +170,13 @@ void zzb_radio_rx(struct zzb_radio_port *port, struct net_buf *buf)
 	}
 
 	if (node->mac.op == ZZB_MAC_OP_POLL_RX && hdr.type == ZZB_MAC_FRAME_DATA &&
-	    same_addr(&hdr.src, &node->mac.poll_coord)) {
+	    same_addr(&hdr.src, &node->mac.coord)) {
 		zzb_mac_poll_rx(node, buf);
+		return;
+	}
+
+	if (node->mac.op == ZZB_MAC_OP_ASSOC_RX && hdr.type == ZZB_MAC_FRAME_CMD) {
+		zzb_mac_assoc_rx(node, buf);
 		return;
 	}
 

@@ -26,3 +26,7 @@ void zzb_mlme_scan_conf(struct zzb_node *node, enum zzb_mac_status status)
 void zzb_mlme_poll_conf(struct zzb_node *node, enum zzb_mac_status status)
 {
 }
+
+void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_mac_status status)
+{
+}

@@ -70,6 +70,7 @@ DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_
 DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_ind, struct zzb_node *, struct net_buf *);
 DECLARE_FAKE_VOID_FUNC(zzb_mlme_scan_conf, struct zzb_node *, enum zzb_mac_status);
 DECLARE_FAKE_VOID_FUNC(zzb_mlme_poll_conf, struct zzb_node *, enum zzb_mac_status);
+DECLARE_FAKE_VOID_FUNC(zzb_mlme_assoc_conf, struct zzb_node *, uint16_t, enum zzb_mac_status);
 DECLARE_FAKE_VOID_FUNC(zzb_mlme_beacon_notify_ind, struct zzb_node *, struct net_buf *, uint8_t,
 		       uint16_t);
 
