@@ -18,7 +18,7 @@ The repository is a Zephyr module and a west T2 manifest repository, following z
 west.yml  zephyr/module.yml  CMakeLists.txt  Kconfig  LICENSE  NOTICE
 include/zzb/      zzb.h aps.h zdo.h bdb.h zcl.h zcl/<cluster>.h types.h
 subsys/zzb/
-  common/   buf.c queue.c timer.c eui64.c
+  common/   buf.c queue.c timer.c eui64.c eui64_esp32.c node.c
   radio/    port.h raw.c custom_l2.c
   mac/      frame.c scan.c assoc.c poll.c tx.c
             coord/   beacon.c assoc_resp.c indirect.c fpb.c
@@ -53,7 +53,7 @@ samples/  on_off_light  contact_sensor
 
 ## 3. Node context and roles
 
-All stack state is in `struct zzb_node`, passed explicitly to every function, as OpenThread does with `otInstance`. One binary can run several nodes, which the integration tests use.
+All stack state is in `struct zzb_node`, passed explicitly to every function, as OpenThread does with `otInstance`. One binary can run several nodes, which the integration tests use. Nodes come from a static pool of `CONFIG_ZZB_NODE_COUNT` entries; `zzb_node_init()` returns a pointer into it. The public header declares `struct zzb_node` without its definition, so layer state stays in internal headers.
 
 Kconfig selects capabilities: `CONFIG_ZZB_ROUTER_CAPABLE`, `CONFIG_ZZB_COORDINATOR_CAPABLE`, `CONFIG_ZZB_TRUST_CENTER`. The role and the sleepy flag are runtime properties of each node, so one test binary holds an end device, a router and a trust center.
 
@@ -63,7 +63,7 @@ The `net_buf` pool and the PSA key cache are shared by all nodes.
 
 ## 4. Execution model
 
-- A dedicated `k_work_q` owns all stack state. Stack code needs no locks.
+- A dedicated `k_work_q`, shared by all nodes and started at boot, owns all stack state. Stack code needs no locks.
 - Public API calls are asynchronous. The caller owns a request struct that embeds a `k_work`; the result is delivered by callback on the stack thread. Callbacks must not block.
 - Synchronous wrappers compare `k_current_get()` with the stack thread and run inline on a match, so a callback that calls them does not deadlock.
 - Read-only status is copied to a snapshot protected by a spinlock.
@@ -97,7 +97,7 @@ Every table is accessed through find/add/remove functions. The coordinator can r
 
 ## 7. Buffers
 
-- One frame is one linear `net_buf` from a stack pool; the PSDU is at most 127 bytes. The buffer user data is `struct zzb_frame_meta` (addresses, handle, LQI, RSSI, flags). Headroom covers the MAC, NWK, auxiliary security and APS headers; the MIC is appended at the tail.
+- One frame is one linear `net_buf` from a stack pool; the PSDU is at most 127 bytes. The buffer user data is `struct zzb_frame_meta`: source and destination MAC addresses (addressing mode, PAN ID, short and extended address), MSDU handle, LQI, RSSI and flags (ACK request, indirect transmission, frame pending). Headroom covers the MAC, NWK, auxiliary security and APS headers; the MIC is appended at the tail.
 - RX: the radio port copies the PSDU out of the driver `net_pkt` and releases the `net_pkt` immediately, returning it to the driver RX pool.
 - TX: one `net_pkt` is allocated at init and reused for every `tx()`, with the stack buffer as its fragment.
 - Ownership: a request returning a negative error leaves the buffer with the caller. A request returning 0 takes the buffer and produces exactly one confirm. An indication passes the buffer to the upper layer.
@@ -121,7 +121,15 @@ Frame pending on the parent side:
 - nrf5: `IEEE802154_CONFIG_AUTO_ACK_FPB` with `IEEE802154_FPB_ADDR_MATCH_ZIGBEE` and the `IEEE802154_CONFIG_ACK_FPB` table. In Zigbee mode the table lists short addresses without pending data; data requests from extended addresses always get the bit set.
 - esp32: the driver returns `-ENOTSUP` for both settings and sets frame pending on every ACK to a data request. When a data request arrives with `ack_fpb` set and nothing is queued for the child, the MAC sends a zero-length data frame without ACK request, so the child can sleep (802.15.4-2011 5.1.6.3). The same rule covers table races on nrf5. The upstream fix maps both settings to `esp_ieee802154_set_pending_mode(ESP_IEEE802154_AUTO_PENDING_ZIGBEE)` and `esp_ieee802154_add_pending_addr()`, and adds the custom-L2 branch to the driver; it is part of milestone 15. Software emulation of auto-ACK is not possible within the ACK turnaround time.
 
-EUI-64 source, first match wins: settings override, `net_if` link address (custom L2), `hwinfo_get_device_id()`, platform hook (ESP32 eFuse). The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not run.
+The stack holds the EUI-64 as a `uint64_t` and converts it at the frame codec, the radio filter and the hardware sources. EUI-64 source, first match wins:
+
+1. `eui64` in the node configuration, used by tests that run several nodes in one binary;
+2. settings override;
+3. `net_if` link address (custom L2);
+4. ESP32 eFuse, `esp_efuse_mac_get_default()`: the MAC-48 with the eFuse MAC_EXT field inserted, the same value the esp32 driver uses;
+5. `hwinfo_get_device_id()`: an ID of 8 bytes or more gives its first 8 bytes, a 6-byte ID is a MAC-48 and gets FF:FE inserted after the OUI, a shorter ID is padded with leading zeros.
+
+The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not run.
 
 ## 9. Security and frame counters
 

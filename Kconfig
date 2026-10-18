@@ -2,5 +2,27 @@
 
 menuconfig ZZB
 	bool "Zigbee stack"
+	select NET_BUF
+	select HWINFO
 	help
 	  Zigbee PRO R22 stack with Base Device Behavior 3.0.1 and ZCL rev 8.
+
+if ZZB
+
+config ZZB_NODE_COUNT
+	int "Maximum number of nodes"
+	default 1
+
+config ZZB_BUF_COUNT
+	int "Frame buffers shared by all nodes"
+	default 16
+
+config ZZB_WORKQ_STACK_SIZE
+	int "Stack thread stack size"
+	default 2048
+
+config ZZB_WORKQ_PRIORITY
+	int "Stack thread cooperative priority"
+	default 8
+
+endif # ZZB
