@@ -5,4 +5,5 @@ zephyr_library_include_directories(.)
 zephyr_library_sources(
   common/buf.c
   common/queue.c
+  common/timer.c
 )
