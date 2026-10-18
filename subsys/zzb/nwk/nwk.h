@@ -155,7 +155,7 @@ struct zzb_nwk {
 	uint16_t prev_pan_id;
 	uint16_t prev_short_addr;
 	uint8_t prev_channel;
-	/* Set by an association join until NLME-SET of a network key (R22 3.6.2.2) */
+	/* Set by an association join or a trust center rejoin until NLME-SET of a network key */
 	bool key_pending;
 	/* Sends the End Device Timeout Request and the keepalives */
 	struct k_work_delayable keepalive;

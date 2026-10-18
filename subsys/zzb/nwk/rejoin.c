@@ -190,6 +190,12 @@ void zzb_nwk_rejoin_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 		zzb_nlme_set_short_addr(node, addr);
 	}
 
-	zzb_nwk_ed_timeout_start(node);
+	/* After a trust center rejoin the network key comes from the trust center */
+	if (nwk->join_secure) {
+		zzb_nwk_ed_timeout_start(node);
+	} else {
+		nwk->key_pending = true;
+	}
+
 	end_rejoin(node, ZZB_NWK_STATUS_SUCCESS);
 }

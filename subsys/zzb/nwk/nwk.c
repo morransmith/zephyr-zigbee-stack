@@ -175,6 +175,19 @@ static bool from_candidate(const struct zzb_node *node, const struct zzb_frame_m
 	       meta->src.short_addr == nb->short_addr;
 }
 
+/*
+ * R22 3.6.2.2: APS takes the Transport Key from unsecured data frames, and a trust center rejoin
+ * takes an unsecured rejoin response
+ */
+static bool unsecured_allowed(const struct zzb_nwk *nwk, const struct zzb_nwk_hdr *hdr)
+{
+	if (hdr->type == ZZB_NWK_FRAME_DATA) {
+		return nwk->key_pending;
+	}
+
+	return nwk->op == ZZB_NWK_OP_REJOIN && !nwk->join_secure;
+}
+
 /* Returns the header length of an unsecured frame for the node, or a negative error */
 static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_hdr *hdr)
 {
@@ -204,8 +217,7 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_h
 		if (err) {
 			return err;
 		}
-	} else if (hdr->type != ZZB_NWK_FRAME_DATA || !node->nwk.key_pending) {
-		/* R22 3.6.2.2: APS takes the Transport Key from unsecured data frames */
+	} else if (!unsecured_allowed(&node->nwk, hdr)) {
 		return -EACCES;
 	}
 

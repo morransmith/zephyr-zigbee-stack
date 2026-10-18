@@ -75,7 +75,8 @@ static void end_scan(void)
 }
 
 /* Checks rejoin request i, sent to short_addr, and confirms it */
-static void check_request(int i, uint16_t short_addr, uint64_t dst_ext, uint16_t src)
+static void check_request_security(int i, uint16_t short_addr, uint64_t dst_ext, uint16_t src,
+				   uint16_t security)
 {
 	struct zzb_nwk_hdr hdr;
 	struct zzb_nwk_cmd cmd;
@@ -86,8 +87,7 @@ static void check_request(int i, uint16_t short_addr, uint64_t dst_ext, uint16_t
 	zassert_equal(sent[i].meta.handle, 0xf0 | ZZB_NWK_CMD_REJOIN_REQ);
 
 	parse_sent_cmd(i, parent, &hdr, &cmd);
-	zassert_equal(hdr.flags,
-		      ZZB_NWK_SECURITY | ZZB_NWK_SRC_IEEE | (dst_ext ? ZZB_NWK_DST_IEEE : 0));
+	zassert_equal(hdr.flags, security | ZZB_NWK_SRC_IEEE | (dst_ext ? ZZB_NWK_DST_IEEE : 0));
 	zassert_equal(hdr.dst, short_addr);
 	zassert_equal(hdr.src, src);
 	zassert_equal(hdr.radius, 1);
@@ -100,11 +100,17 @@ static void check_request(int i, uint16_t short_addr, uint64_t dst_ext, uint16_t
 	zzb_mcps_data_conf(child, sent[i].meta.handle, ZZB_MAC_STATUS_SUCCESS);
 }
 
-static void respond(uint16_t short_addr, uint8_t status, uint64_t dst_ext)
+static void check_request(int i, uint16_t short_addr, uint64_t dst_ext, uint16_t src)
+{
+	check_request_security(i, short_addr, dst_ext, src, ZZB_NWK_SECURITY);
+}
+
+static void respond_security(uint16_t short_addr, uint8_t status, uint64_t dst_ext,
+			     uint16_t security)
 {
 	const struct zzb_nwk_hdr hdr = {
 		.type = ZZB_NWK_FRAME_CMD,
-		.flags = ZZB_NWK_SECURITY | ZZB_NWK_SRC_IEEE | ZZB_NWK_DST_IEEE,
+		.flags = security | ZZB_NWK_SRC_IEEE | ZZB_NWK_DST_IEEE,
 		.dst = child->nwk.nib.short_addr,
 		.src = parent->nwk.nib.short_addr,
 		.radius = 1,
@@ -117,6 +123,11 @@ static void respond(uint16_t short_addr, uint8_t status, uint64_t dst_ext)
 	};
 
 	receive_cmd(child, parent, &hdr, &cmd);
+}
+
+static void respond(uint16_t short_addr, uint8_t status, uint64_t dst_ext)
+{
+	respond_security(short_addr, status, dst_ext, ZZB_NWK_SECURITY);
 }
 
 static void check_conf(uint8_t status)
@@ -302,6 +313,46 @@ ZTEST(zzb_nwk_rejoin, test_other_frames_are_dropped)
 
 	respond(CHILD_SHORT, 0x00, child->eui64);
 	check_conf(ZZB_NWK_STATUS_SUCCESS);
+}
+
+/* R22 4.6.3.3.2: the request and the response have no NWK security */
+ZTEST(zzb_nwk_rejoin, test_trust_center_rejoin)
+{
+	struct zzb_nwk_hdr hdr;
+	struct zzb_nwk_cmd cmd;
+
+	zassert_ok(rejoin(false));
+	notify_beacon(child, &parent_beacon, PAN_ID, PARENT_SHORT, CHANNEL, SF_COORD, 150);
+	end_scan();
+	check_request_security(0, PARENT_SHORT, parent->eui64, CHILD_SHORT, 0);
+
+	respond_security(CHILD_SHORT, 0x00, child->eui64, 0);
+	check_conf(ZZB_NWK_STATUS_SUCCESS);
+	zassert_true(child->nwk.key_pending);
+	run_stack();
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
+
+	/* The Transport Key from the trust center */
+	zzb_nlme_set_nwk_key(child, test_key, 1);
+	run_stack();
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 2);
+	parse_sent_cmd(1, parent, &hdr, &cmd);
+	zassert_equal(cmd.id, ZZB_NWK_CMD_ED_TIMEOUT_REQ);
+}
+
+/* R22 3.6.2.2: only a trust center rejoin takes an unsecured rejoin response */
+ZTEST(zzb_nwk_rejoin, test_secure_rejoin_needs_a_secured_response)
+{
+	zassert_ok(rejoin(true));
+	notify_beacon(child, &parent_beacon, PAN_ID, PARENT_SHORT, CHANNEL, SF_COORD, 150);
+	end_scan();
+	check_request(0, PARENT_SHORT, parent->eui64, CHILD_SHORT);
+
+	respond_security(CHILD_SHORT, 0x00, child->eui64, 0);
+	zassert_equal(zzb_nlme_join_conf_fake.call_count, 0);
+	respond(CHILD_SHORT, 0x00, child->eui64);
+	check_conf(ZZB_NWK_STATUS_SUCCESS);
+	zassert_false(child->nwk.key_pending);
 }
 
 ZTEST(zzb_nwk_rejoin, test_rejoin_request_rejected)
