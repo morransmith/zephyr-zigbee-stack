@@ -22,3 +22,9 @@ int net_recv_data(struct net_if *iface, struct net_pkt *pkt)
 
 	return zzb_radio_recv(raw_port, pkt);
 }
+
+/* Raw mode runs no iface init, which is where the drivers set their link address */
+int zzb_radio_eui64(const struct device *dev, uint64_t *eui64)
+{
+	return -ENODEV;
+}

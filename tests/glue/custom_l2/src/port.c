@@ -103,4 +103,12 @@ ZTEST(zzb_radio_custom_l2, test_frame_for_other_address_gives_no_ack)
 	zassert_equal(zzb_radio_rx_fake.call_count, 0);
 }
 
+ZTEST(zzb_radio_custom_l2, test_eui64_is_read_from_link_address)
+{
+	uint64_t eui64;
+
+	zassert_ok(zzb_radio_eui64(fake_radios[0], &eui64));
+	zassert_equal(eui64, 0x0011223344556677ULL);
+}
+
 ZTEST_SUITE(zzb_radio_custom_l2, NULL, NULL, before, NULL, NULL);

@@ -29,6 +29,16 @@ static struct zzb_node *free_node(void)
 	return NULL;
 }
 
+/* The link address of the radio comes before the hardware sources */
+static int hw_eui64(const struct zzb_node_config *cfg, uint64_t *eui64)
+{
+	if (IS_ENABLED(CONFIG_ZZB_MAC) && zzb_radio_eui64(cfg->radio, eui64) == 0) {
+		return 0;
+	}
+
+	return zzb_eui64_get(eui64);
+}
+
 static void init_handler(struct k_work *work)
 {
 	struct init_req *req = CONTAINER_OF(work, struct init_req, work);
@@ -47,7 +57,7 @@ static void init_handler(struct k_work *work)
 	}
 
 	if (eui64 == 0) {
-		req->err = zzb_eui64_get(&eui64);
+		req->err = hw_eui64(req->cfg, &eui64);
 		if (req->err) {
 			return;
 		}

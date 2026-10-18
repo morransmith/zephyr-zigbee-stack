@@ -50,4 +50,7 @@ int zzb_radio_recv(struct zzb_radio_port *port, struct net_pkt *pkt);
 /* Defined by the backend: passes the frames received by port->dev to zzb_radio_recv(). */
 int zzb_radio_attach(struct zzb_radio_port *port);
 
+/* Defined by the backend: reads the EUI-64 of dev, or returns -ENODEV if the backend has none. */
+int zzb_radio_eui64(const struct device *dev, uint64_t *eui64);
+
 #endif /* ZZB_SUBSYS_RADIO_PORT_H_ */
