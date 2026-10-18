@@ -52,4 +52,8 @@ config ZZB_NWK
 	  Zigbee network layer. The application enables a settings backend for the
 	  frame counter. Tests that fake NWK turn it off.
 
+config ZZB_NEIGHBOR_COUNT
+	int "Neighbor table entries"
+	default 16
+
 endif # ZZB
