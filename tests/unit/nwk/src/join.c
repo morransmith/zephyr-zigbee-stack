@@ -11,6 +11,12 @@
 #include "nwk/frame.h"
 #include "nwk/nwk.h"
 
+#define PARENT_EUI64 0x0102030405060708ULL
+#define CHILD_SHORT  0x5678
+
+/* Receiver on when idle, allocate address */
+#define CAPABILITY (ZZB_NWK_CAP_RX_ON_IDLE | ZZB_NWK_CAP_ALLOC_ADDR)
+
 #define EPID_A 0x00124b0000001a62ULL
 #define EPID_B 0x00124b0000002b73ULL
 #define PAN_A  0x1a62
@@ -81,6 +87,7 @@ static void discover(void)
 
 static void end_discovery(size_t count)
 {
+	RESET_FAKE(zzb_nlme_network_discovery_conf);
 	zzb_mlme_scan_conf(node, ZZB_MAC_STATUS_SUCCESS);
 	zassert_equal(zzb_nlme_network_discovery_conf_fake.call_count, 1);
 	zassert_equal_ptr(zzb_nlme_network_discovery_conf_fake.arg0_val, node);
@@ -173,7 +180,6 @@ ZTEST(zzb_nwk_join, test_scan_removes_previous_results)
 	notify_beacon(node, &router_a, PAN_A, 0x1111, 15, SF_ROUTER, 100);
 	end_discovery(1);
 
-	RESET_FAKE(zzb_nlme_network_discovery_conf);
 	discover();
 	end_discovery(0);
 
@@ -266,6 +272,113 @@ ZTEST(zzb_nwk_join, test_scan_error_is_returned)
 	zzb_mlme_scan_req_fake.return_val = 0;
 	discover();
 	end_discovery(0);
+}
+
+/* Two routers of network A that accept end devices, 0x1111 with the better link */
+static void discover_routers(void)
+{
+	discover();
+	notify_beacon(node, &router_a, PAN_A, 0x1111, 15, SF_ROUTER, 200);
+	notify_beacon(node, &router_a, PAN_A, 0x2222, 20, SF_ROUTER, 100);
+	end_discovery(1);
+}
+
+static int join(uint64_t ext_pan_id, uint8_t capability)
+{
+	return zzb_nlme_join_req(node, ext_pan_id, ZZB_NWK_JOIN_ASSOC, 0, 0, capability, false);
+}
+
+static void check_assoc_req(int call, uint8_t channel, uint16_t short_addr)
+{
+	zassert_equal(zzb_mlme_assoc_req_fake.call_count, call);
+	zassert_equal_ptr(zzb_mlme_assoc_req_fake.arg0_val, node);
+	zassert_equal(zzb_mlme_assoc_req_fake.arg1_val, channel);
+	zassert_equal(zzb_mlme_assoc_req_fake.arg3_val, CAPABILITY);
+	zassert_equal(assoc_coord.mode, ZZB_MAC_ADDR_SHORT);
+	zassert_equal(assoc_coord.pan_id, PAN_A);
+	zassert_equal(assoc_coord.short_addr, short_addr);
+}
+
+ZTEST(zzb_nwk_join, test_association_join)
+{
+	struct zzb_nwk_neighbor *parent;
+	struct zzb_nib *nib = &node->nwk.nib;
+
+	discover_routers();
+	zassert_ok(join(EPID_A, CAPABILITY));
+	check_assoc_req(1, 15, 0x1111);
+
+	zzb_mlme_get_coord_ext_addr_fake.return_val = PARENT_EUI64;
+	zzb_mlme_assoc_conf(node, CHILD_SHORT, ZZB_MAC_STATUS_SUCCESS);
+
+	zassert_equal(zzb_nlme_join_conf_fake.call_count, 1);
+	zassert_equal_ptr(zzb_nlme_join_conf_fake.arg0_val, node);
+	zassert_equal(zzb_nlme_join_conf_fake.arg1_val, ZZB_MAC_STATUS_SUCCESS);
+
+	/* The MAC holds the PAN ID and the address already */
+	zassert_equal(nib->pan_id, PAN_A);
+	zassert_equal(nib->short_addr, CHILD_SHORT);
+	zassert_equal(nib->ext_pan_id, EPID_A);
+	zassert_equal(nib->update_id, 3);
+	zassert_equal(nib->channel, 15);
+	zassert_equal(nib->capability, CAPABILITY);
+	zassert_equal(zzb_mlme_set_pan_id_fake.call_count, 0);
+	zassert_equal(zzb_mlme_set_short_addr_fake.call_count, 0);
+
+	parent = zzb_nwk_neighbor_parent(node);
+	zassert_not_null(parent);
+	zassert_equal(parent->ext_addr, PARENT_EUI64);
+	zassert_equal(parent->short_addr, 0x1111);
+	zassert_equal(entry_count(), 1);
+	zassert_true(node->nwk.key_pending);
+
+	zassert_equal(join(EPID_A, CAPABILITY), -EALREADY);
+}
+
+ZTEST(zzb_nwk_join, test_failed_association_tries_the_next_parent)
+{
+	discover_routers();
+	zassert_ok(join(EPID_A, CAPABILITY));
+	zzb_mlme_assoc_conf(node, 0xffff, ZZB_MAC_STATUS_PAN_AT_CAPACITY);
+	check_assoc_req(2, 20, 0x2222);
+	zassert_equal(zzb_nlme_join_conf_fake.call_count, 0);
+
+	/* No candidate is left; the confirm has the last MAC status */
+	zzb_mlme_assoc_conf(node, 0xffff, ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(zzb_mlme_assoc_req_fake.call_count, 2);
+	zassert_equal(zzb_nlme_join_conf_fake.call_count, 1);
+	zassert_equal(zzb_nlme_join_conf_fake.arg1_val, ZZB_MAC_STATUS_NO_ACK);
+	zassert_false(router(EPID_A, 0x1111)->potential_parent);
+	zassert_false(router(EPID_A, 0x2222)->potential_parent);
+	zassert_is_null(zzb_nwk_neighbor_parent(node));
+	zassert_equal(node->nwk.nib.ext_pan_id, 0);
+
+	/* The procedure has ended */
+	zzb_mlme_assoc_conf(node, CHILD_SHORT, ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(zzb_nlme_join_conf_fake.call_count, 1);
+}
+
+ZTEST(zzb_nwk_join, test_join_request_rejected)
+{
+	discover();
+	notify_beacon(node, &coord_a, PAN_A, 0x0000, 15, SF_COORD, 200);
+	zassert_equal(join(EPID_A, CAPABILITY), -EBUSY);
+	end_discovery(1);
+
+	zassert_equal(join(0, CAPABILITY), -EINVAL);
+	zassert_equal(zzb_nlme_join_req(node, EPID_A, 0x01, 0, 0, CAPABILITY, false), -ENOTSUP);
+	zassert_equal(join(EPID_A, CAPABILITY | ZZB_NWK_CAP_ROUTER), -ENOTSUP);
+	zassert_equal(join(EPID_A, ZZB_NWK_CAP_ALLOC_ADDR), -ENOTSUP);
+
+	/* The coordinator has no capacity for end devices, and network B was not heard */
+	zassert_equal(join(EPID_A, CAPABILITY), -ENETUNREACH);
+	zassert_equal(join(EPID_B, CAPABILITY), -ENETUNREACH);
+
+	discover_routers();
+	zzb_mlme_assoc_req_fake.return_val = -EBUSY;
+	zassert_equal(join(EPID_A, CAPABILITY), -EBUSY);
+	zassert_equal(node->nwk.op, ZZB_NWK_OP_NONE);
+	zassert_equal(zzb_nlme_join_conf_fake.call_count, 0);
 }
 
 ZTEST_SUITE(zzb_nwk_join, NULL, setup, before, after, NULL);

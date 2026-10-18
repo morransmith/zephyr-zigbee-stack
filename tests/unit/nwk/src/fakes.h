@@ -23,6 +23,10 @@ DECLARE_FAKE_VOID_FUNC(zzb_nlde_data_ind, struct zzb_node *, struct net_buf *, u
 DECLARE_FAKE_VALUE_FUNC(int, zzb_mlme_scan_req, struct zzb_node *, uint32_t, uint8_t);
 DECLARE_FAKE_VOID_FUNC(zzb_nlme_network_discovery_conf, struct zzb_node *, uint8_t,
 		       const struct zzb_nwk_network *, size_t);
+DECLARE_FAKE_VALUE_FUNC(int, zzb_mlme_assoc_req, struct zzb_node *, uint8_t,
+			const struct zzb_mac_addr *, uint8_t);
+DECLARE_FAKE_VALUE_FUNC(uint64_t, zzb_mlme_get_coord_ext_addr, const struct zzb_node *);
+DECLARE_FAKE_VOID_FUNC(zzb_nlme_join_conf, struct zzb_node *, uint8_t);
 
 /* Copy of a frame passed to MCPS-DATA.request or NLDE-DATA.indication */
 struct frame_copy {
@@ -34,6 +38,9 @@ struct frame_copy {
 /* By default the zzb_mcps_data_req() fake takes the buffer and copies the frame here */
 extern struct frame_copy sent[4];
 extern struct frame_copy data_ind;
+
+/* Coordinator of the last MLME-ASSOCIATE.request */
+extern struct zzb_mac_addr assoc_coord;
 
 /* Checks that every frame buffer is free */
 void check_no_buffer_leak(void);

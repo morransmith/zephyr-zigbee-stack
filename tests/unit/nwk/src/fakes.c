@@ -18,9 +18,14 @@ DEFINE_FAKE_VOID_FUNC(zzb_nlde_data_ind, struct zzb_node *, struct net_buf *, ui
 DEFINE_FAKE_VALUE_FUNC(int, zzb_mlme_scan_req, struct zzb_node *, uint32_t, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_nlme_network_discovery_conf, struct zzb_node *, uint8_t,
 		      const struct zzb_nwk_network *, size_t);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_mlme_assoc_req, struct zzb_node *, uint8_t,
+		       const struct zzb_mac_addr *, uint8_t);
+DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_mlme_get_coord_ext_addr, const struct zzb_node *);
+DEFINE_FAKE_VOID_FUNC(zzb_nlme_join_conf, struct zzb_node *, uint8_t);
 
 struct frame_copy sent[4];
 struct frame_copy data_ind;
+struct zzb_mac_addr assoc_coord;
 
 static void copy_frame(struct frame_copy *copy, struct net_buf *buf)
 {
@@ -36,6 +41,13 @@ static int mcps_data_req_take(struct zzb_node *node, struct net_buf *buf)
 	copy_frame(&sent[zzb_mcps_data_req_fake.call_count - 1], buf);
 	net_buf_unref(buf);
 	return 0;
+}
+
+static int assoc_req_copy(struct zzb_node *node, uint8_t channel, const struct zzb_mac_addr *coord,
+			  uint8_t capability)
+{
+	assoc_coord = *coord;
+	return zzb_mlme_assoc_req_fake.return_val;
 }
 
 static void nlde_data_ind_take(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr,
@@ -72,10 +84,14 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nlde_data_ind);
 	RESET_FAKE(zzb_mlme_scan_req);
 	RESET_FAKE(zzb_nlme_network_discovery_conf);
+	RESET_FAKE(zzb_mlme_assoc_req);
+	RESET_FAKE(zzb_mlme_get_coord_ext_addr);
+	RESET_FAKE(zzb_nlme_join_conf);
 	FFF_RESET_HISTORY();
 
 	zzb_mcps_data_req_fake.custom_fake = mcps_data_req_take;
 	zzb_nlde_data_ind_fake.custom_fake = nlde_data_ind_take;
+	zzb_mlme_assoc_req_fake.custom_fake = assoc_req_copy;
 }
 
 void check_no_buffer_leak(void)

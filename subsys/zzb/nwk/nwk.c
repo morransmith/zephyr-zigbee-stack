@@ -160,12 +160,8 @@ void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf)
 	zzb_nlde_data_ind(node, buf, hdr.dst, hdr.src, hdr.flags & ZZB_NWK_SECURITY);
 }
 
-/* The join and the keepalive use these confirms */
+/* The keepalive uses this confirm */
 
 void zzb_mlme_poll_conf(struct zzb_node *node, enum zzb_mac_status status)
-{
-}
-
-void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_mac_status status)
 {
 }

@@ -24,6 +24,12 @@ struct zzb_node;
 /* Default radius: 2 * nwkMaxDepth (15 for the Zigbee PRO stack profile) */
 #define ZZB_NWK_DEFAULT_RADIUS 30
 
+/* Capability Information (R22 Table 3-62) */
+#define ZZB_NWK_CAP_ROUTER     BIT(1)
+#define ZZB_NWK_CAP_MAINS      BIT(2)
+#define ZZB_NWK_CAP_RX_ON_IDLE BIT(3)
+#define ZZB_NWK_CAP_ALLOC_ADDR BIT(7)
+
 /* Entry of nwkSecurityMaterialSet */
 struct zzb_nwk_key {
 	bool valid;
@@ -36,6 +42,10 @@ struct zzb_nib {
 	uint16_t short_addr;
 	uint64_t ext_pan_id;
 	uint8_t seq;
+	uint8_t update_id;
+	uint8_t capability;
+	/* The channel of the network, as in nwkMacInterfaceTable */
+	uint8_t channel;
 	struct zzb_nwk_key keys[2];
 	/* The slot of nwkActiveKeySeqNumber and the slot written last */
 	uint8_t active_key;
@@ -90,6 +100,12 @@ struct zzb_nwk_network {
 enum zzb_nwk_op {
 	ZZB_NWK_OP_NONE,
 	ZZB_NWK_OP_DISCOVERY,
+	ZZB_NWK_OP_JOIN,
+};
+
+/* RejoinNetwork parameter of NLME-JOIN.request */
+enum zzb_nwk_join_method {
+	ZZB_NWK_JOIN_ASSOC = 0x00,
 };
 
 /* Outgoing NWK frame counter, global to the node, and its saved watermark */
@@ -107,6 +123,11 @@ struct zzb_nwk {
 	struct zzb_nwk_network networks[CONFIG_ZZB_NWK_NETWORK_COUNT];
 	size_t network_count;
 	enum zzb_nwk_op op;
+	/* The network to join and the parent tried */
+	uint64_t join_ext_pan_id;
+	struct zzb_nwk_neighbor *candidate;
+	/* Set by an association join until NLME-SET of a network key (R22 3.6.2.2) */
+	bool key_pending;
 };
 
 /* Clears the NWK state. The NIB has no PAN ID, no network address and a random sequence number. */
@@ -186,6 +207,18 @@ int zzb_nlme_network_discovery_req(struct zzb_node *node, uint32_t channels, uin
  */
 void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,
 				     const struct zzb_nwk_network *networks, size_t count);
+
+/*
+ * NLME-JOIN.request. An association uses the neighbor entries of the last discovery and ignores
+ * channels and duration. Returns -EINVAL for extended PAN ID 0, -ENOTSUP for another method, the
+ * router device type or a receiver off when idle, -EBUSY while an NLME procedure runs, -EALREADY
+ * on a network, -ENETUNREACH without a suitable parent, or an error of MLME-ASSOCIATE.request.
+ */
+int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_join_method method,
+		      uint32_t channels, uint8_t duration, uint8_t capability, bool secure);
+
+/* Defined by ZDO. status is SUCCESS or the status of the last MLME-ASSOCIATE.confirm. */
+void zzb_nlme_join_conf(struct zzb_node *node, uint8_t status);
 
 /* Adds a neighbor, or returns NULL if the table is full. The caller checks for a duplicate. */
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_add(struct zzb_node *node, uint64_t ext_addr,
