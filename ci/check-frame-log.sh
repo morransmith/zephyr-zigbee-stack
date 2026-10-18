@@ -30,7 +30,7 @@ for log in $logs; do
 		bytes = ""
 		in_frame = 0
 	}
-	/<dbg> fake_radio: fake_tx:/ { flush(); in_frame = 1; next }
+	/<dbg> fake_radio: transmit:/ { flush(); in_frame = 1; next }
 	in_frame && /^ +[0-9a-f][0-9a-f] / {
 		line = $0
 		sub(/\|.*/, "", line)
