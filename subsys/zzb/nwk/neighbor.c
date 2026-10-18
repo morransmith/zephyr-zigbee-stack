@@ -45,7 +45,8 @@ struct zzb_nwk_neighbor *zzb_nwk_neighbor_find_ext(struct zzb_node *node, uint64
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_find_short(struct zzb_node *node, uint16_t short_addr)
 {
 	ARRAY_FOR_EACH_PTR(node->nwk.neighbors, nb) {
-		if (nb->in_use && nb->short_addr == short_addr) {
+		if (nb->in_use && nb->relationship != ZZB_NWK_REL_NONE &&
+		    nb->short_addr == short_addr) {
 			return nb;
 		}
 	}

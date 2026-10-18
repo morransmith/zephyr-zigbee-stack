@@ -13,4 +13,7 @@ int zzb_settings_load(struct zzb_node *node);
 /* Saves value under zzb/<n>/key. */
 int zzb_settings_save(struct zzb_node *node, const char *key, const void *value, size_t len);
 
+/* Deletes the record zzb/<n>/key. */
+int zzb_settings_delete(struct zzb_node *node, const char *key);
+
 #endif /* ZZB_SUBSYS_STORAGE_SETTINGS_H_ */

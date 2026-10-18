@@ -69,4 +69,15 @@ ZTEST(zzb_nwk_neighbor, test_new_entry_is_cleared)
 	zassert_equal(nb->in_fc[1], 0);
 }
 
+/* Entries without a relationship come from beacons; frames do not go through them */
+ZTEST(zzb_nwk_neighbor, test_find_short_skips_entries_without_relationship)
+{
+	struct zzb_nwk_neighbor *parent =
+		zzb_nwk_neighbor_add(&node, 0x00124b001e17efa8ULL, 0x0000, ZZB_NWK_REL_PARENT);
+
+	zassert_not_null(zzb_nwk_neighbor_add(&node, 0, 0x1234, ZZB_NWK_REL_NONE));
+	zassert_is_null(zzb_nwk_neighbor_find_short(&node, 0x1234));
+	zassert_equal_ptr(zzb_nwk_neighbor_find_short(&node, 0x0000), parent);
+}
+
 ZTEST_SUITE(zzb_nwk_neighbor, NULL, NULL, before, NULL, NULL);

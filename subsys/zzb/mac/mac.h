@@ -90,6 +90,15 @@ int zzb_mlme_assoc_req(struct zzb_node *node, uint8_t channel, const struct zzb_
 void zzb_mlme_set_pan_id(struct zzb_node *node, uint16_t pan_id);
 void zzb_mlme_set_short_addr(struct zzb_node *node, uint16_t short_addr);
 
+/*
+ * MLME-SET of phyCurrentChannel. Returns -EBUSY during an MLME procedure, whose end may restore
+ * the channel, or the error of the radio.
+ */
+int zzb_mlme_set_channel(struct zzb_node *node, uint8_t channel);
+
+/* MLME-GET of macCoordExtendedAddress, set by a successful association */
+uint64_t zzb_mlme_get_coord_ext_addr(const struct zzb_node *node);
+
 /* Defined by NWK */
 void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status);
 
@@ -112,10 +121,13 @@ void zzb_mlme_poll_conf(struct zzb_node *node, enum zzb_mac_status status);
 /* Defined by NWK. short_addr is 0xffff unless status is SUCCESS. */
 void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_mac_status status);
 
-/* Within the MAC */
-
 /* aBaseSuperframeDuration: 960 symbols of 16 us */
 #define ZZB_MAC_BASE_SUPERFRAME_US 15360
+
+/* macResponseWaitTime: 32 * aBaseSuperframeDuration */
+#define ZZB_MAC_RESPONSE_WAIT_US (32 * ZZB_MAC_BASE_SUPERFRAME_US)
+
+/* Within the MAC */
 
 /*
  * macMaxFrameTotalWaitTime: 9846 symbols, from the formula of 802.15.4 Table 52 with macMinBE 5,
@@ -123,7 +135,10 @@ void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_ma
  */
 #define ZZB_MAC_MAX_FRAME_TOTAL_WAIT_US 157536
 
-/* Allocates the command buffer for op, or returns -EBUSY while another procedure runs */
+/*
+ * Allocates the command buffer for op, or returns -EBUSY while another procedure runs, or for a
+ * scan or an association while the TX FIFO holds frames
+ */
 int zzb_mac_start_op(struct zzb_node *node, enum zzb_mac_op op);
 
 /* Releases the command buffer and ends the procedure */

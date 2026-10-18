@@ -8,10 +8,15 @@ project(zzb_unit_nwk)
 target_include_directories(app PRIVATE ${ZEPHYR_ZZB_MODULE_DIR}/subsys/zzb)
 target_sources(app PRIVATE
   src/data.c
+  src/ed_timeout.c
   src/fakes.c
   src/fc.c
   src/frame.c
+  src/join.c
+  src/leave.c
   src/neighbor.c
   src/nib.c
+  src/rejoin.c
   src/security.c
+  src/status.c
 )

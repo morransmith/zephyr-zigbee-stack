@@ -56,12 +56,6 @@ static void take_all_handler(struct k_work *work)
 	}
 }
 
-/* The test thread is cooperative and has a lower priority than the stack thread */
-static void run_stack(void)
-{
-	k_yield();
-}
-
 static uint32_t next(void)
 {
 	uint32_t fc;
@@ -98,6 +92,7 @@ static void before(void *fixture)
 	/* A save scheduled by the previous test runs before the record is deleted */
 	run_stack();
 	settings_delete(KEY);
+	delete_nwk_records();
 	zassert_ok(reboot());
 }
 

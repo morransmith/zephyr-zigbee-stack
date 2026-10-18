@@ -16,10 +16,12 @@ LOG_MODULE_REGISTER(fake_radio, LOG_LEVEL_DBG);
 
 struct fake_radio {
 	struct net_if *iface;
+	fake_radio_rx_cb rx_cb;
 	uint8_t eui64[8];
 	uint64_t ext_addr;
 	uint16_t short_addr;
 	uint16_t pan_id;
+	uint16_t channel;
 };
 
 static struct fake_radio radios[FAKE_RADIO_COUNT] = {
@@ -34,6 +36,7 @@ void fake_radio_reset(void)
 {
 	memset(link_down, 0, sizeof(link_down));
 	ARRAY_FOR_EACH_PTR(radios, radio) {
+		radio->rx_cb = NULL;
 		radio->ext_addr = 0;
 		radio->short_addr = 0xfffe;
 		radio->pan_id = 0xffff;
@@ -43,6 +46,11 @@ void fake_radio_reset(void)
 void fake_radio_set_link(int from, int to, bool up)
 {
 	link_down[from][to] = !up;
+}
+
+void fake_radio_set_rx_cb(int radio, fake_radio_rx_cb cb)
+{
+	radios[radio].rx_cb = cb;
 }
 
 static void iface_init(struct net_if *iface)
@@ -66,9 +74,11 @@ static int start(const struct device *dev)
 	return 0;
 }
 
-/* The medium has one channel */
 static int set_channel(const struct device *dev, uint16_t channel)
 {
+	struct fake_radio *radio = dev->data;
+
+	radio->channel = channel;
 	return 0;
 }
 
@@ -97,11 +107,11 @@ static int filter(const struct device *dev, bool set, enum ieee802154_filter_typ
 }
 
 /* Destination address rules of the third-level filtering (802.15.4 5.1.6.2) */
-static bool accepts(const struct fake_radio *radio, struct net_buf *frag)
+static bool accepts(const struct fake_radio *radio, const uint8_t *frame, size_t len)
 {
 	struct zzb_mac_hdr hdr;
 
-	if (zzb_mac_hdr_parse(frag->data, frag->len, &hdr) < 0) {
+	if (zzb_mac_hdr_parse(frame, len, &hdr) < 0) {
 		return false;
 	}
 
@@ -130,41 +140,66 @@ static struct net_pkt *alloc_pkt(struct fake_radio *radio, const uint8_t *data, 
 	return pkt;
 }
 
-static void deliver(struct fake_radio *radio, struct net_buf *frag)
+static void deliver(struct fake_radio *radio, const uint8_t *frame, size_t len)
 {
-	struct net_pkt *pkt = alloc_pkt(radio, frag->data, frag->len);
+	struct net_pkt *pkt = alloc_pkt(radio, frame, len);
 
 	if (net_recv_data(radio->iface, pkt) < 0) {
 		net_pkt_unref(pkt);
 	}
 }
 
-static void send_ack(struct fake_radio *radio, uint8_t seq)
+static void send_ack(struct fake_radio *radio, uint8_t seq, bool pending)
 {
-	const uint8_t ack[] = {0x02, 0x00, seq};
+	const uint8_t ack[] = {pending ? 0x12 : 0x02, 0x00, seq};
 	struct net_pkt *pkt = alloc_pkt(radio, ack, sizeof(ack));
 
 	ieee802154_handle_ack(radio->iface, pkt);
 	net_pkt_unref(pkt);
 }
 
+/*
+ * Logs the frame for ci/check-frame-log.sh and passes it to the radios that receive it. Returns
+ * whether one accepted it; pending is set when a callback asks for frame pending in the ACK.
+ */
+static bool transmit(int from, const uint8_t *frame, size_t len, bool *pending)
+{
+	bool received = false;
+
+	LOG_HEXDUMP_DBG(frame, len, fake_radios[from]->name);
+
+	ARRAY_FOR_EACH(radios, to) {
+		if (to == from || link_down[from][to] ||
+		    radios[to].channel != radios[from].channel ||
+		    !accepts(&radios[to], frame, len)) {
+			continue;
+		}
+
+		received = true;
+		if (radios[to].rx_cb != NULL) {
+			*pending |= radios[to].rx_cb(frame, len);
+			continue;
+		}
+
+		deliver(&radios[to], frame, len);
+	}
+
+	return received;
+}
+
+void fake_radio_send(int from, const uint8_t *frame, size_t len)
+{
+	bool pending = false;
+
+	transmit(from, frame, len, &pending);
+}
+
 static int fake_tx(const struct device *dev, enum ieee802154_tx_mode mode, struct net_pkt *pkt,
 		   struct net_buf *frag)
 {
 	struct fake_radio *src = dev->data;
-	int from = src - radios;
-	bool received = false;
-
-	LOG_HEXDUMP_DBG(frag->data, frag->len, dev->name);
-
-	ARRAY_FOR_EACH(radios, to) {
-		if (to == from || link_down[from][to] || !accepts(&radios[to], frag)) {
-			continue;
-		}
-
-		deliver(&radios[to], frag);
-		received = true;
-	}
+	bool pending = false;
+	bool received = transmit(src - radios, frag->data, frag->len, &pending);
 
 	if (!ieee802154_is_ar_flag_set(frag)) {
 		return 0;
@@ -174,7 +209,7 @@ static int fake_tx(const struct device *dev, enum ieee802154_tx_mode mode, struc
 		return -ENOMSG;
 	}
 
-	send_ack(src, frag->data[2]);
+	send_ack(src, frag->data[2], pending);
 	return 0;
 }
 

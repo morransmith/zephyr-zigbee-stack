@@ -148,6 +148,10 @@ ZTEST(zzb_nwk_security, test_newer_key_becomes_active)
 {
 	static const uint8_t old_key[ZZB_SEC_KEY_LEN] = {0x01};
 	struct net_buf *buf = frame_buf(frame, sizeof(frame));
+	uint8_t rec[64];
+
+	delete_nwk_records();
+	zzb_nlme_set_ext_pan_id(node, 0x0102030405060708ULL);
 
 	zzb_nwk_neighbor_add(node, SENDER_EUI64, 0x0000, ZZB_NWK_REL_PARENT);
 	zzb_nlme_set_nwk_key(node, old_key, 0xff);
@@ -157,6 +161,9 @@ ZTEST(zzb_nwk_security, test_newer_key_becomes_active)
 	zassert_ok(zzb_nwk_unsecure(node, buf, HDR_LEN));
 	zassert_equal(node->nwk.nib.active_key, 1);
 	net_buf_unref(buf);
+
+	zassert_equal(load_record("nwk/keys", rec, sizeof(rec)), 39);
+	zassert_equal(rec[1], 1, "active slot");
 }
 
 ZTEST(zzb_nwk_security, test_older_key_does_not_become_active)

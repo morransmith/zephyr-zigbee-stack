@@ -63,4 +63,25 @@ config ZZB_NEIGHBOR_COUNT
 	int "Neighbor table entries"
 	default 16
 
+config ZZB_NWK_NETWORK_COUNT
+	int "Networks reported by a network discovery"
+	default 8
+
+config ZZB_NWK_ED_TIMEOUT
+	int "Requested Timeout Enumeration of the End Device Timeout Request"
+	range 0 14
+	default 8
+	help
+	  0 is 10 seconds, n from 1 to 14 is 2^n minutes. The default 8 is
+	  nwkEndDeviceTimeoutDefault, 256 minutes.
+
+config ZZB_NWK_PARENT_FAILURES
+	int "Failed transmissions to the parent before a parent link failure"
+	range 1 255
+	default 3
+	help
+	  Consecutive frames and polls without an ACK from the parent, after
+	  the MAC retries, before NLME-NWK-STATUS.indication reports parent
+	  link failure.
+
 endif # ZZB
