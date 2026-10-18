@@ -11,6 +11,9 @@ Used in tests/unit/sec.
 MAC frames of test_frame_data, test_frame_ack, test_beacon_request and
 test_association_request in crates/ziggurat-ieee-802154/src/lib.rs,
 commit 9f91dbb3. Used in tests/unit/mac.
+Beacon payload of test_zigbee_beacon_round_trip in
+crates/ziggurat-zigbee/src/beacon.rs, commit 9f91dbb3.
+Used in tests/unit/mac.
 
 zigbee-rs
 https://github.com/zigbee-rs/zigbee-rs

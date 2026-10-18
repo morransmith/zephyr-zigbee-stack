@@ -15,6 +15,11 @@
 #define FCF_VERSION     GENMASK(13, 12)
 #define FCF_SRC_MODE    GENMASK(15, 14)
 
+/* GTS Specification and Pending Address Specification fields */
+#define GTS_COUNT     GENMASK(2, 0)
+#define PENDING_SHORT GENMASK(2, 0)
+#define PENDING_EXT   GENMASK(6, 4)
+
 static size_t addr_len(const struct zzb_mac_addr *addr, bool pan_id)
 {
 	if (addr->mode == ZZB_MAC_ADDR_NONE) {
@@ -140,4 +145,38 @@ int zzb_mac_hdr_parse(const uint8_t *p, size_t len, struct zzb_mac_hdr *hdr)
 	}
 
 	return hdr_len(hdr, comp);
+}
+
+size_t zzb_mac_beacon_write(uint16_t superframe, uint8_t *p)
+{
+	sys_put_le16(superframe, p);
+	p[2] = 0;
+	p[3] = 0;
+
+	return 4;
+}
+
+int zzb_mac_beacon_parse(const uint8_t *p, size_t len, uint16_t *superframe)
+{
+	size_t gts_count;
+	size_t off;
+
+	if (len < 3) {
+		return -EINVAL;
+	}
+
+	*superframe = sys_get_le16(p);
+	gts_count = FIELD_GET(GTS_COUNT, p[2]);
+	/* The GTS Directions field is present only with GTS descriptors */
+	off = 3 + (gts_count > 0 ? 1 + 3 * gts_count : 0);
+	if (len < off + 1) {
+		return -EINVAL;
+	}
+
+	off += 1 + 2 * FIELD_GET(PENDING_SHORT, p[off]) + 8 * FIELD_GET(PENDING_EXT, p[off]);
+	if (len < off) {
+		return -EINVAL;
+	}
+
+	return off;
 }

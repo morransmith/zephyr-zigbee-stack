@@ -160,4 +160,57 @@ ZTEST(zzb_mac_frame, test_frame_version_and_security)
 	zassert_equal(zzb_mac_hdr_parse(bytes, sizeof(bytes), &hdr), -ENOTSUP);
 }
 
+/*
+ * Beacon of a coordinator that permits association: MAC header, Superframe Specification, empty
+ * GTS and pending address fields, and the beacon payload of test_zigbee_beacon_round_trip in
+ * Ziggurat (see NOTICE).
+ */
+static const uint8_t beacon[] = {
+	0x00, 0x80, 0x42, 0x26, 0x1c, 0x00, 0x00, 0xff, 0xcf, 0x00, 0x00, 0x00, 0x22,
+	0x84, 0x93, 0xcb, 0x3c, 0x0b, 0x01, 0x44, 0x9f, 0x3a, 0xff, 0xff, 0xff, 0x00,
+};
+
+ZTEST(zzb_mac_frame, test_coordinator_beacon)
+{
+	const struct zzb_mac_hdr expected = {
+		.type = ZZB_MAC_FRAME_BEACON,
+		.seq = 0x42,
+		.src = {.mode = ZZB_MAC_ADDR_SHORT, .pan_id = 0x1c26, .short_addr = 0x0000},
+	};
+	uint16_t superframe;
+	uint8_t buf[4];
+
+	check_hdr_round_trip(beacon, 7, &expected);
+
+	zassert_equal(zzb_mac_beacon_parse(beacon + 7, sizeof(beacon) - 7, &superframe), 4);
+	zassert_equal(superframe, 0x0fff | ZZB_MAC_SF_PAN_COORD | ZZB_MAC_SF_ASSOC_PERMIT);
+
+	zassert_equal(zzb_mac_beacon_write(superframe, buf), 4);
+	zassert_mem_equal(buf, beacon + 7, 4);
+}
+
+/* MAC payload with one GTS descriptor, one short and one extended pending address */
+static const uint8_t gts_beacon[] = {
+	0xff, 0xcf, 0x81, 0x01, 0x34, 0x12, 0x1e, 0x11, 0x78, 0x56,
+	0x31, 0x4a, 0x49, 0xfe, 0xff, 0x6e, 0x02, 0xbc, 0x00, 0x22,
+};
+
+ZTEST(zzb_mac_frame, test_beacon_gts_and_pending_fields_are_skipped)
+{
+	uint16_t superframe;
+
+	zassert_equal(zzb_mac_beacon_parse(gts_beacon, sizeof(gts_beacon), &superframe), 18);
+	zassert_equal(superframe, 0xcfff);
+	zassert_equal(zzb_mac_beacon_parse(gts_beacon, 18, &superframe), 18);
+}
+
+ZTEST(zzb_mac_frame, test_truncated_beacon_is_rejected)
+{
+	uint16_t superframe;
+
+	zassert_equal(zzb_mac_beacon_parse(beacon + 7, 3, &superframe), -EINVAL);
+	zassert_equal(zzb_mac_beacon_parse(gts_beacon, 6, &superframe), -EINVAL);
+	zassert_equal(zzb_mac_beacon_parse(gts_beacon, 17, &superframe), -EINVAL);
+}
+
 ZTEST_SUITE(zzb_mac_frame, NULL, NULL, NULL, NULL, NULL);

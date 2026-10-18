@@ -39,4 +39,20 @@ size_t zzb_mac_hdr_write(const struct zzb_mac_hdr *hdr, uint8_t *p);
  */
 int zzb_mac_hdr_parse(const uint8_t *p, size_t len, struct zzb_mac_hdr *hdr);
 
+/* Superframe Specification field */
+#define ZZB_MAC_SF_PAN_COORD    BIT(14)
+#define ZZB_MAC_SF_ASSOC_PERMIT BIT(15)
+
+/*
+ * Writes the beacon MAC payload up to the beacon payload: the Superframe Specification field and
+ * empty GTS and pending address fields. Returns its length, 4.
+ */
+size_t zzb_mac_beacon_write(uint16_t superframe, uint8_t *p);
+
+/*
+ * Parses the beacon MAC payload. Returns the offset of the beacon payload, or -EINVAL if the
+ * fields before it are longer than len.
+ */
+int zzb_mac_beacon_parse(const uint8_t *p, size_t len, uint16_t *superframe);
+
 #endif /* ZZB_SUBSYS_MAC_FRAME_H_ */
