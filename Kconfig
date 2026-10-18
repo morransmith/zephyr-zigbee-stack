@@ -3,6 +3,7 @@
 menuconfig ZZB
 	bool "Zigbee stack"
 	select NET_BUF
+	select HWINFO
 	help
 	  Zigbee PRO R22 stack with Base Device Behavior 3.0.1 and ZCL rev 8.
 
