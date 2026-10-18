@@ -4,6 +4,11 @@ menuconfig ZZB
 	bool "Zigbee stack"
 	select NET_BUF
 	select HWINFO
+	select CRC
+	select PSA_CRYPTO
+	select PSA_WANT_KEY_TYPE_AES
+	select PSA_WANT_ALG_ECB_NO_PADDING
+	select PSA_WANT_ALG_CCM
 	help
 	  Zigbee PRO R22 stack with Base Device Behavior 3.0.1 and ZCL rev 8.
 
