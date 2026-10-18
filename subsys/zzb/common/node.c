@@ -8,6 +8,7 @@
 #include "common/node.h"
 #include "common/queue.h"
 #include "mac/mac.h"
+#include "nwk/nwk.h"
 
 static struct zzb_node nodes[CONFIG_ZZB_NODE_COUNT];
 
@@ -72,6 +73,10 @@ static void init_handler(struct k_work *work)
 		if (req->err) {
 			return;
 		}
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_NWK)) {
+		zzb_nwk_init(node);
 	}
 
 	node->in_use = true;
