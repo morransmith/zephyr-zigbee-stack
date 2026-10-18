@@ -26,6 +26,13 @@ steps:
     commands:
       - west twister -T tests -p native_sim -p native_sim/native/64 -O twister-out-native --inline-logs
 
+  # tshark 4.2.2 on Ubuntu 24.04
+  - name: frame-log
+    image: antrea/tshark@sha256:80825a3937c4f68ea6eed7a36bb4a962ad74d4bc198c357037a83d6c38965948
+    depends_on: [native_sim]
+    commands:
+      - ci/check-frame-log.sh twister-out-native
+
   - name: hardware
     image: *image
     depends_on: [west]
