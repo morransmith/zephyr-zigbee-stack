@@ -6,6 +6,7 @@
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
+#include <zzb/zcl/level.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zzb.h>
 
@@ -84,25 +85,30 @@ static struct zzb_zcl_on_off on_off = {
 	.start_up_default = ZZB_ZCL_START_UP_PREVIOUS,
 };
 
-/* Basic, Identify, Groups and On/Off servers of an On/Off Light (Home Automation profile) */
+static struct zzb_zcl_level level = {
+	.start_up_default = 0xff,
+};
+
+/* Basic, Identify, Groups, On/Off and Level Control servers of a Dimmable Light */
 static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
 	ZZB_ZCL_GROUPS_SERVER(),
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
+	ZZB_ZCL_LEVEL_SERVER(&level),
 };
 
 /* An On/Off Switch, the initiator of finding & binding */
 static const struct zzb_zcl_cluster switch_clusters[] = {
 	ZZB_ZCL_IDENTIFY_CLIENT(),
-	{.id = ZZB_ZCL_ON_OFF},
+	ZZB_ZCL_ON_OFF_CLIENT(),
 };
 
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
 		.profile = 0x0104,
-		.device_id = 0x0100,
+		.device_id = 0x0101,
 		.clusters = light,
 		.cluster_count = ARRAY_SIZE(light),
 	},
@@ -385,6 +391,54 @@ ZTEST(zzb_bdb_integration, test_reporting)
 }
 
 /*
+ * ZHA binds Level Control and configures reporting of CurrentLevel with min 1, max 900 and change
+ * 1. It turns the light on with a brightness by Move to Level (with On/Off) without the Options
+ * fields, and off with a transition by the same command to level 0.
+ */
+ZTEST(zzb_bdb_integration, test_level)
+{
+	static const uint8_t configure[] = {0x00, 0x50, 0x06, 0x00, 0x00, 0x00,
+					    0x20, 0x01, 0x00, 0x84, 0x03, 0x01};
+	static const uint8_t configure_rsp[] = {0x18, 0x50, 0x07, 0x00};
+	static const uint8_t on_128[] = {0x01, 0x51, 0x04, 0x80, 0x0a, 0x00};
+	static const uint8_t off[] = {0x01, 0x52, 0x04, 0x00, 0x05, 0x00};
+	static const uint8_t report[] = {0x0a, 0x00, 0x00, 0x20, 0x80};
+	uint8_t bind[22] = {0x23};
+
+	steer();
+	sys_put_le64(child->eui64, bind + 1);
+	bind[9] = 1;
+	sys_put_le16(ZZB_ZCL_LEVEL, bind + 10);
+	bind[12] = ZZB_APS_ADDR_EXT;
+	sys_put_le64(PARENT_EUI64, bind + 13);
+	bind[21] = 1;
+	parent_send_zdo(ZZB_ZDP_BIND_REQ, bind, sizeof(bind));
+	k_sleep(K_MSEC(100));
+	parent_send_zcl(ZZB_ZCL_LEVEL, configure, sizeof(configure));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_len, sizeof(configure_rsp));
+	zassert_mem_equal(parent_log.zcl, configure_rsp, sizeof(configure_rsp));
+
+	/* 1 s to level 128; the last report after the minimum interval has the end value */
+	parent_send_zcl(ZZB_ZCL_LEVEL, on_128, sizeof(on_128));
+	k_sleep(K_MSEC(2500));
+	zassert_true(on_off.on_off);
+	zassert_equal(level.current_level, 0x80);
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_LEVEL);
+	zassert_equal(parent_log.zcl_len, 2 + sizeof(report));
+	zassert_equal(parent_log.zcl[0], 0x18);
+	zassert_mem_equal(parent_log.zcl + 2, report, sizeof(report));
+
+	/* Level 0 is the minimum, and OnOff goes FALSE at its end */
+	parent_send_zcl(ZZB_ZCL_LEVEL, off, sizeof(off));
+	k_sleep(K_MSEC(300));
+	zassert_true(on_off.on_off);
+	k_sleep(K_MSEC(500));
+	zassert_false(on_off.on_off);
+	zassert_equal(level.current_level, 1);
+}
+
+/*
  * ZHA adds the light to a group with a named Add Group, then switches the group on. A frame to
  * another group is dropped.
  */
@@ -443,6 +497,8 @@ ZTEST(zzb_bdb_integration, test_finding_binding_initiator)
 
 	steer();
 	events.count = 0;
+	/* The switch has no binding yet */
+	zassert_equal(zzb_zcl_send_bound(child, 2, ZZB_ZCL_ON_OFF, 0x02, NULL, 0), -ENOENT);
 	zassert_ok(zzb_bdb_finding_binding_initiator(child, 2, 0xffff));
 	k_sleep(K_MSEC(5500));
 	check_event(ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR, ZZB_BDB_SUCCESS);
@@ -457,6 +513,16 @@ ZTEST(zzb_bdb_integration, test_finding_binding_initiator)
 	zassert_equal(bindings[0].dst_ext, PARENT_EUI64);
 	zassert_equal(bindings[0].dst_ep, 1);
 	zassert_false(bindings[1].in_use);
+
+	/* The switch toggles the light it has found */
+	zassert_ok(zzb_zcl_send_bound(child, 2, ZZB_ZCL_ON_OFF, 0x02, NULL, 0));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_ON_OFF);
+	zassert_equal(parent_log.zcl_src_ep, 2);
+	zassert_equal(parent_log.zcl_dst_ep, 1);
+	zassert_equal(parent_log.zcl_len, 3);
+	zassert_equal(parent_log.zcl[0], 0x11);
+	zassert_equal(parent_log.zcl[2], 0x02);
 }
 
 /* BDB 8.5 step 10: a group binding, then Add Group If Identifying to all devices */

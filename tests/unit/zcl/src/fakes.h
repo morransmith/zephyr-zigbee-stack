@@ -8,10 +8,18 @@
 #include <zephyr/fff.h>
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
+#include <zzb/zcl/alarms.h>
+#include <zzb/zcl/ballast.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/color.h>
+#include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
+#include <zzb/zcl/illuminance.h>
+#include <zzb/zcl/level.h>
+#include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/power_config.h>
 #include <zzb/zcl/scenes.h>
 
 #include "aps/aps.h"
@@ -42,8 +50,9 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, u
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
- * Values of the test cluster, attributes 0x0000 to 0x0007 in this order; 0x0000 to 0x0002 are
- * reportable, 0x0002 is saved. The reset sets 0x0001 and 0x0002 to 0.
+ * Values of the test cluster, attributes 0x0000 to 0x000b in this order; 0x0000 to 0x0002 and
+ * 0x0008 are reportable, 0x0002 and 0x0008 to 0x000a are saved, 0x000b is read-only. The reset sets
+ * 0x0001 and 0x0002 to 0.
  */
 struct test_values {
 	bool b;
@@ -54,6 +63,10 @@ struct test_values {
 	const char *str;
 	const uint8_t *octstr;
 	const char *null_str;
+	int16_t i16;
+	uint32_t u24;
+	uint32_t map32;
+	uint16_t map16;
 };
 
 /* ClusterRevision of the test cluster */
@@ -71,6 +84,97 @@ extern struct zzb_zcl_on_off on_off;
 /* The On/Off server on endpoint 3, which has no Scenes server */
 extern struct zzb_zcl_on_off on_off3;
 
+/*
+ * A cluster of the test on endpoint 4, with a Scenes server: attributes 0x0000 to 0x0003 of struct
+ * test_values. Its scene extension field set is 0x0002 (uint16), 0x0000 (bool), 0x0100 (uint8),
+ * which the cluster does not have, and 0x0001 (uint8).
+ */
+#define SCENE_CLUSTER 0x0f01
+
+extern struct test_values values4;
+extern struct zzb_zcl_scenes scenes4;
+
+/* Calls of the recall hook of the scene test cluster, with the arguments of the last one */
+struct recall_calls {
+	int count;
+	uint8_t ep;
+	uint32_t set[8];
+	size_t set_count;
+	uint32_t transition_ds;
+};
+
+extern struct recall_calls recall_calls;
+
+/* Endpoint 5 has the client definitions of the stack, except Identify */
+#define CLIENT_EP 5
+
+/* The Level Control server on endpoint 10, without other clusters */
+extern struct zzb_zcl_level level10;
+
+/*
+ * The Scenes, On/Off and Level Control servers on endpoint 11. Both Level Control servers have the
+ * factory StartUpCurrentLevel 0xff.
+ */
+extern struct zzb_zcl_scenes scenes11;
+extern struct zzb_zcl_on_off on_off11;
+extern struct zzb_zcl_level level11;
+
+/* The Alarms servers on endpoints 20 and 21, which share the alarm table */
+extern struct zzb_zcl_alarms alarms20;
+extern struct zzb_zcl_alarms alarms21;
+
+/* A cluster of the test on endpoint 20 without attributes and with the alarm_reset hook */
+#define ALARM_CLUSTER 0x0f02
+
+extern struct test_values values20;
+
+/* Calls of the alarm_reset hook of the alarm test cluster, with the arguments of the last one */
+struct alarm_reset_calls {
+	int count;
+	uint8_t ep;
+	void *values;
+	uint8_t code;
+};
+
+extern struct alarm_reset_calls alarm_reset_calls;
+
+/*
+ * Endpoint 30 has the servers of the power, temperature, ballast and sensing clusters, and an
+ * Alarms server
+ */
+#define SENSOR_EP 30
+
+extern struct zzb_zcl_power_config power_config;
+extern struct zzb_zcl_device_temp device_temp;
+extern struct zzb_zcl_alarms alarms30;
+
+/* The physical levels of the ballast on endpoint 30 */
+#define PHYSICAL_MIN 0x10
+#define PHYSICAL_MAX 0xe0
+
+extern struct zzb_zcl_ballast ballast;
+extern struct zzb_zcl_illuminance illuminance;
+extern struct zzb_zcl_illuminance_level illuminance_level;
+extern struct zzb_zcl_occupancy occupancy;
+
+/*
+ * The Scenes, On/Off, Level Control and Color Control servers of an Extended Color Light on
+ * endpoint 40 (ColorCapabilities 0x0018), and the On/Off, Level Control and Color Control servers
+ * of a Color Temperature Light on endpoint 41 (0x0010). Both have this range of color temperature
+ * and the factory StartUpColorTemperatureMireds 0xffff.
+ */
+#define COLOR_TEMP_MIN   153
+#define COLOR_TEMP_MAX   500
+#define COLOR_COUPLE_MIN 200
+
+extern struct zzb_zcl_scenes scenes40;
+extern struct zzb_zcl_on_off on_off40;
+extern struct zzb_zcl_level level40;
+extern struct zzb_zcl_color color40;
+extern struct zzb_zcl_on_off on_off41;
+extern struct zzb_zcl_level level41;
+extern struct zzb_zcl_color color41;
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
@@ -86,6 +190,9 @@ extern int cmd_status;
 
 /* The check hook of the test cluster rejects a value of attribute 0x0003 above this */
 #define TEST_E8_MAX 0x10
+
+/* The value struct passed to the last call of the check hook of the test cluster */
+extern const void *check_values;
 
 /* Calls of the changed hook of the test cluster and of zcl_cb, in order */
 struct changed_calls {
@@ -162,5 +269,20 @@ void reset_node(void);
 
 /* Checks that frame i is a ZCL frame of cluster from endpoint ep to the requester with the ASDU */
 void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_t len);
+
+/* Checks that zcl_cb reported these attributes of cluster on endpoint ep in order, and no other */
+void check_zcl_cb(uint8_t ep, uint16_t cluster, const uint16_t *attrs, int count);
+
+/* Checks that frame i is Alarm with code of cluster from endpoint ep to the bound destinations */
+void check_alarm(int i, uint8_t ep, uint16_t cluster, uint8_t code);
+
+/* The number of entries of the alarm table with ep, cluster and code */
+int alarm_entries(uint8_t ep, uint16_t cluster, uint8_t code);
+
+/* Sends Reset Alarm with code of cluster to ep, without a Default Response */
+void reset_alarm(uint8_t ep, uint16_t cluster, uint8_t code);
+
+/* Sends Reset All Alarms to ep, without a Default Response */
+void reset_all_alarms(uint8_t ep);
 
 #endif /* ZZB_TESTS_UNIT_ZCL_FAKES_H_ */

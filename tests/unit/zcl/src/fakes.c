@@ -6,6 +6,7 @@
 #include <zephyr/ztest.h>
 #include <zzb/zzb.h>
 
+#include "common/node.h"
 #include "common/queue.h"
 #include "fakes.h"
 #include "storage/settings.h"
@@ -27,6 +28,62 @@ struct zzb_zcl_identify identify;
 struct zzb_zcl_scenes scenes;
 struct zzb_zcl_on_off on_off;
 struct zzb_zcl_on_off on_off3;
+struct test_values values4;
+struct zzb_zcl_scenes scenes4;
+struct recall_calls recall_calls;
+struct zzb_zcl_level level10 = {.start_up_default = 0xff};
+struct zzb_zcl_scenes scenes11;
+struct zzb_zcl_on_off on_off11;
+struct zzb_zcl_level level11 = {.start_up_default = 0xff};
+struct zzb_zcl_alarms alarms20;
+struct zzb_zcl_alarms alarms21;
+struct test_values values20;
+struct alarm_reset_calls alarm_reset_calls;
+
+struct zzb_zcl_power_config power_config = {
+	.mains_voltage = 2300,
+	.mains_frequency = 25,
+	.battery_voltage = 30,
+	.battery_percentage_remaining = 200,
+	.battery_manufacturer = "zzb",
+	.battery_size = 0x03,
+	.battery_ahr_rating = 250,
+	.battery_quantity = 2,
+	.battery_rated_voltage = 15,
+};
+struct zzb_zcl_device_temp device_temp = {
+	.current_temperature = INT16_MIN,
+};
+struct zzb_zcl_alarms alarms30;
+struct zzb_zcl_ballast ballast = {
+	.physical_min_level = PHYSICAL_MIN,
+	.physical_max_level = PHYSICAL_MAX,
+	.lamp_quantity = 1,
+};
+struct zzb_zcl_illuminance illuminance;
+struct zzb_zcl_illuminance_level illuminance_level;
+struct zzb_zcl_occupancy occupancy = {
+	.occupancy_sensor_type_bitmap = 0x01,
+};
+struct zzb_zcl_scenes scenes40;
+struct zzb_zcl_on_off on_off40;
+struct zzb_zcl_level level40 = {.start_up_default = 0xff};
+struct zzb_zcl_color color40 = {
+	.color_capabilities = ZZB_ZCL_COLOR_CAP_XY | ZZB_ZCL_COLOR_CAP_TEMPERATURE,
+	.color_temp_physical_min = COLOR_TEMP_MIN,
+	.color_temp_physical_max = COLOR_TEMP_MAX,
+	.couple_color_temp_min = COLOR_COUPLE_MIN,
+	.start_up_default = 0xffff,
+};
+struct zzb_zcl_on_off on_off41;
+struct zzb_zcl_level level41 = {.start_up_default = 0xff};
+struct zzb_zcl_color color41 = {
+	.color_capabilities = ZZB_ZCL_COLOR_CAP_TEMPERATURE,
+	.color_temp_physical_min = COLOR_TEMP_MIN,
+	.color_temp_physical_max = COLOR_TEMP_MAX,
+	.couple_color_temp_min = COLOR_COUPLE_MIN,
+	.start_up_default = 0xffff,
+};
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -44,6 +101,7 @@ struct zzb_zcl_basic basic = {
 };
 struct cmd_calls cmd_calls;
 int cmd_status;
+const void *check_values;
 struct changed_calls hook_calls;
 struct zcl_cb_calls zcl_cb_calls;
 struct effect_calls effect_calls;
@@ -138,8 +196,9 @@ static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *
 	return cmd_status;
 }
 
-static uint8_t test_check(const struct zzb_zcl_attr *attr, uint16_t value)
+static uint8_t test_check(const void *values, const struct zzb_zcl_attr *attr, uint32_t value)
 {
+	check_values = values;
 	return attr->id == 0x0003 && value > TEST_E8_MAX ? ZZB_ZCL_INVALID_VALUE : ZZB_ZCL_SUCCESS;
 }
 
@@ -190,6 +249,11 @@ static const struct zzb_zcl_attr test_attrs[] = {
 	ZZB_ZCL_ATTR(0x0005, ZZB_ZCL_STRING, 0, struct test_values, str),
 	ZZB_ZCL_ATTR(0x0006, ZZB_ZCL_OCTSTR, 0, struct test_values, octstr),
 	ZZB_ZCL_ATTR(0x0007, ZZB_ZCL_STRING, 0, struct test_values, null_str),
+	ZZB_ZCL_ATTR(0x0008, ZZB_ZCL_INT16, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT | ZZB_ZCL_NV,
+		     struct test_values, i16),
+	ZZB_ZCL_ATTR(0x0009, ZZB_ZCL_UINT24, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u24),
+	ZZB_ZCL_ATTR(0x000a, ZZB_ZCL_MAP32, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, map32),
+	ZZB_ZCL_ATTR(0x000b, ZZB_ZCL_MAP16, 0, struct test_values, map16),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, TEST_REVISION),
 };
 
@@ -200,6 +264,39 @@ static const struct zzb_zcl_cluster_def test_def = {
 	.cmd = test_cmd,
 	.check = test_check,
 	.changed = test_changed,
+};
+
+static void scene_recall(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set,
+			 size_t count, uint32_t transition_ds)
+{
+	zassert_true(count <= ARRAY_SIZE(recall_calls.set));
+	recall_calls.count++;
+	recall_calls.ep = ep;
+	memcpy(recall_calls.set, set, count * sizeof(set[0]));
+	recall_calls.set_count = count;
+	recall_calls.transition_ds = transition_ds;
+}
+
+static const struct zzb_zcl_attr scene_test_attrs[] = {
+	ZZB_ZCL_ATTR(0x0000, ZZB_ZCL_BOOL, ZZB_ZCL_WRITE, struct test_values, b),
+	ZZB_ZCL_ATTR(0x0001, ZZB_ZCL_UINT8, ZZB_ZCL_WRITE, struct test_values, u8),
+	ZZB_ZCL_ATTR(0x0002, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE, struct test_values, u16),
+	ZZB_ZCL_ATTR(0x0003, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE, struct test_values, e8),
+};
+
+static const struct zzb_zcl_scene_attr scene_test_set[] = {
+	{0x0002, ZZB_ZCL_UINT16},
+	{0x0000, ZZB_ZCL_BOOL},
+	{0x0100, ZZB_ZCL_UINT8},
+	{0x0001, ZZB_ZCL_UINT8},
+};
+
+static const struct zzb_zcl_cluster_def scene_test_def = {
+	.attrs = scene_test_attrs,
+	.attr_count = ARRAY_SIZE(scene_test_attrs),
+	.scene_attrs = scene_test_set,
+	.scene_attr_count = ARRAY_SIZE(scene_test_set),
+	.recall = scene_recall,
 };
 
 static const struct zzb_zcl_cluster ep1_clusters[] = {
@@ -220,6 +317,79 @@ static const struct zzb_zcl_cluster ep2_clusters[] = {
 static const struct zzb_zcl_cluster ep3_clusters[] = {
 	{.id = ON_OFF},
 	ZZB_ZCL_ON_OFF_SERVER(&on_off3),
+};
+
+static const struct zzb_zcl_cluster ep5_clusters[] = {
+	ZZB_ZCL_GROUPS_CLIENT(),
+	ZZB_ZCL_SCENES_CLIENT(),
+	ZZB_ZCL_ON_OFF_CLIENT(),
+	ZZB_ZCL_LEVEL_CLIENT(),
+	ZZB_ZCL_COLOR_CLIENT(),
+	ZZB_ZCL_ALARMS_CLIENT(),
+	ZZB_ZCL_ILLUMINANCE_CLIENT(),
+	ZZB_ZCL_ILLUMINANCE_LEVEL_CLIENT(),
+	ZZB_ZCL_OCCUPANCY_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster ep4_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes4),
+	{.id = SCENE_CLUSTER, .server = true, .values = &values4, .def = &scene_test_def},
+};
+
+static const struct zzb_zcl_cluster ep10_clusters[] = {
+	ZZB_ZCL_LEVEL_SERVER(&level10),
+};
+
+static const struct zzb_zcl_cluster ep11_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes11),
+	ZZB_ZCL_ON_OFF_SERVER(&on_off11),
+	ZZB_ZCL_LEVEL_SERVER(&level11),
+};
+
+static void alarm_reset(struct zzb_node *node, uint8_t ep, void *values, uint8_t code)
+{
+	alarm_reset_calls = (struct alarm_reset_calls){
+		.count = alarm_reset_calls.count + 1,
+		.ep = ep,
+		.values = values,
+		.code = code,
+	};
+}
+
+static const struct zzb_zcl_cluster_def alarm_test_def = {
+	.alarm_reset = alarm_reset,
+};
+
+static const struct zzb_zcl_cluster ep20_clusters[] = {
+	ZZB_ZCL_ALARMS_SERVER(&alarms20),
+	{.id = ALARM_CLUSTER, .server = true, .values = &values20, .def = &alarm_test_def},
+};
+
+static const struct zzb_zcl_cluster ep21_clusters[] = {
+	ZZB_ZCL_ALARMS_SERVER(&alarms21),
+};
+
+static const struct zzb_zcl_cluster ep30_clusters[] = {
+	ZZB_ZCL_POWER_CONFIG_SERVER(&power_config),
+	ZZB_ZCL_DEVICE_TEMP_SERVER(&device_temp),
+	ZZB_ZCL_ALARMS_SERVER(&alarms30),
+	ZZB_ZCL_BALLAST_SERVER(&ballast),
+	ZZB_ZCL_ILLUMINANCE_SERVER(&illuminance),
+	ZZB_ZCL_ILLUMINANCE_LEVEL_SERVER(&illuminance_level),
+	ZZB_ZCL_OCCUPANCY_SERVER(&occupancy),
+};
+
+static const struct zzb_zcl_cluster ep40_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes40),
+	ZZB_ZCL_ON_OFF_SERVER(&on_off40),
+	ZZB_ZCL_LEVEL_SERVER(&level40),
+	ZZB_ZCL_COLOR_SERVER(&color40),
+};
+
+static const struct zzb_zcl_cluster ep41_clusters[] = {
+	ZZB_ZCL_ON_OFF_SERVER(&on_off41),
+	ZZB_ZCL_LEVEL_SERVER(&level41),
+	ZZB_ZCL_COLOR_SERVER(&color41),
 };
 
 static const struct zzb_endpoint endpoints[] = {
@@ -243,6 +413,69 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0103,
 		.clusters = ep3_clusters,
 		.cluster_count = ARRAY_SIZE(ep3_clusters),
+	},
+	{
+		.id = 4,
+		.profile = 0x0104,
+		.device_id = 0xfff0,
+		.clusters = ep4_clusters,
+		.cluster_count = ARRAY_SIZE(ep4_clusters),
+	},
+	{
+		.id = CLIENT_EP,
+		.profile = 0x0104,
+		.device_id = 0x0840,
+		.clusters = ep5_clusters,
+		.cluster_count = ARRAY_SIZE(ep5_clusters),
+	},
+	{
+		.id = 10,
+		.profile = 0x0104,
+		.device_id = 0x0101,
+		.clusters = ep10_clusters,
+		.cluster_count = ARRAY_SIZE(ep10_clusters),
+	},
+	{
+		.id = 11,
+		.profile = 0x0104,
+		.device_id = 0x0101,
+		.clusters = ep11_clusters,
+		.cluster_count = ARRAY_SIZE(ep11_clusters),
+	},
+	{
+		.id = 20,
+		.profile = 0x0104,
+		.device_id = 0x0101,
+		.clusters = ep20_clusters,
+		.cluster_count = ARRAY_SIZE(ep20_clusters),
+	},
+	{
+		.id = 21,
+		.profile = 0x0104,
+		.device_id = 0x0101,
+		.clusters = ep21_clusters,
+		.cluster_count = ARRAY_SIZE(ep21_clusters),
+	},
+	{
+		.id = SENSOR_EP,
+		.profile = 0x0104,
+		.device_id = 0x0108,
+		.clusters = ep30_clusters,
+		.cluster_count = ARRAY_SIZE(ep30_clusters),
+	},
+	{
+		.id = 40,
+		.profile = 0x0104,
+		.device_id = 0x010d,
+		.clusters = ep40_clusters,
+		.cluster_count = ARRAY_SIZE(ep40_clusters),
+	},
+	{
+		.id = 41,
+		.profile = 0x0104,
+		.device_id = 0x010c,
+		.clusters = ep41_clusters,
+		.cluster_count = ARRAY_SIZE(ep41_clusters),
 	},
 };
 
@@ -294,9 +527,12 @@ void reset_fakes(void)
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
 	cmd_calls = (struct cmd_calls){0};
 	cmd_status = ZZB_ZCL_SUCCESS;
+	check_values = NULL;
 	hook_calls = (struct changed_calls){0};
 	zcl_cb_calls = (struct zcl_cb_calls){0};
 	effect_calls = (struct effect_calls){0};
+	recall_calls = (struct recall_calls){0};
+	alarm_reset_calls = (struct alarm_reset_calls){0};
 	memset(memberships, 0, sizeof(memberships));
 }
 
@@ -358,6 +594,61 @@ void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_
 	zassert_equal(copy->handle, ZZB_ZCL_HANDLE);
 	zassert_equal(copy->len, len);
 	zassert_mem_equal(copy->data, asdu, len);
+}
+
+void check_zcl_cb(uint8_t ep, uint16_t cluster, const uint16_t *attrs, int count)
+{
+	int n = 0;
+
+	for (int i = 0; i < zcl_cb_calls.count; i++) {
+		if (zcl_cb_calls.ep[i] != ep || zcl_cb_calls.cluster[i] != cluster) {
+			continue;
+		}
+
+		zassert_true(n < count);
+		zassert_equal(zcl_cb_calls.attr[i], attrs[n++]);
+	}
+
+	zassert_equal(n, count);
+}
+
+void check_alarm(int i, uint8_t ep, uint16_t cluster, uint8_t code)
+{
+	const struct frame_copy *copy = &sent[i];
+	const uint8_t payload[] = {ZZB_ZCL_ALARMS_ALARM, code, cluster & 0xff, cluster >> 8};
+
+	zassert_true(zzb_apsde_data_req_fake.call_count > i);
+	zassert_equal(copy->req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(copy->req.src_ep, ep);
+	zassert_equal(copy->req.cluster, ZZB_ZCL_ALARMS);
+	zassert_equal(copy->len, 2 + sizeof(payload));
+	zassert_equal(copy->data[0], 0x19);
+	zassert_mem_equal(copy->data + 2, payload, sizeof(payload));
+}
+
+int alarm_entries(uint8_t ep, uint16_t cluster, uint8_t code)
+{
+	int n = 0;
+
+	ARRAY_FOR_EACH_PTR(test_node()->zcl.alarms, a) {
+		n += a->in_use && a->ep == ep && a->cluster == cluster && a->code == code;
+	}
+
+	return n;
+}
+
+void reset_alarm(uint8_t ep, uint16_t cluster, uint8_t code)
+{
+	const uint8_t req[] = {0x11, 0x70, 0x00, code, cluster & 0xff, cluster >> 8};
+
+	receive_ep(ep, ZZB_ZCL_ALARMS, req, sizeof(req));
+}
+
+void reset_all_alarms(uint8_t ep)
+{
+	const uint8_t req[] = {0x11, 0x71, 0x01};
+
+	receive_ep(ep, ZZB_ZCL_ALARMS, req, sizeof(req));
 }
 
 struct reboot_call {

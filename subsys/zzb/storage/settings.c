@@ -62,6 +62,8 @@ static void load_zcl(struct load_ctx *ctx, const char *key, size_t len, settings
 		ctx->err = zzb_zcl_report_load(ctx->node, atoi(next), len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "zcl/scene", &next) && next != NULL) {
 		ctx->err = zzb_zcl_scenes_load(ctx->node, atoi(next), len, read_cb, cb_arg);
+	} else if (settings_name_steq(key, "zcl/alarm", &next) && next != NULL) {
+		ctx->err = zzb_zcl_alarms_load(ctx->node, atoi(next), len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "zcl", &next) && next != NULL) {
 		ctx->err = zzb_zcl_attr_load(ctx->node, next, len, read_cb, cb_arg);
 	}

@@ -12,14 +12,6 @@
 /* ClusterRevision (ZCL 3.8.1.1) */
 #define REVISION 2
 
-/* Commands received (ZCL Table 3-47) */
-#define CMD_OFF                         0x00
-#define CMD_ON                          0x01
-#define CMD_TOGGLE                      0x02
-#define CMD_OFF_WITH_EFFECT             0x40
-#define CMD_ON_WITH_RECALL_GLOBAL_SCENE 0x41
-#define CMD_ON_WITH_TIMED_OFF           0x42
-
 /* On/Off Control of On With Timed Off */
 #define ACCEPT_ONLY_WHEN_ON BIT(0)
 
@@ -27,8 +19,8 @@
 #define UPDATE_MS 100
 
 static const struct zzb_zcl_attr attrs[] = {
-	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_BOOL,
-		     ZZB_ZCL_REPORT | ZZB_ZCL_NV | ZZB_ZCL_SCENE, struct zzb_zcl_on_off, on_off),
+	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_BOOL, ZZB_ZCL_REPORT | ZZB_ZCL_NV,
+		     struct zzb_zcl_on_off, on_off),
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, ZZB_ZCL_BOOL, 0, struct zzb_zcl_on_off,
 		     global_scene_control),
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_TIME, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE, struct zzb_zcl_on_off,
@@ -38,6 +30,11 @@ static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_START_UP, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE | ZZB_ZCL_NV,
 		     struct zzb_zcl_on_off, start_up_on_off),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+/* ZCL 3.8.2.4 */
+static const struct zzb_zcl_scene_attr scene_attrs[] = {
+	{ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_BOOL},
 };
 
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint16_t value)
@@ -171,7 +168,7 @@ static void on_with_recall_global_scene(struct zzb_node *node, uint8_t ep,
 	}
 
 	if (scene_table(node, ep)) {
-		zzb_zcl_scene_recall(node, ep, 0, 0);
+		zzb_zcl_scene_recall(node, ep, 0, 0, 0xffff);
 	} else {
 		set(node, ep, ZZB_ZCL_ON_OFF_ON_OFF, v->global_scene);
 	}
@@ -218,15 +215,20 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 {
 	struct zzb_zcl_on_off *v = values;
 
+	/* Level Control applies Off, On and Toggle when they move its level (ZCL Table 3-55) */
+	if (cmd->id <= ZZB_ZCL_ON_OFF_TOGGLE && zzb_zcl_level_on_off(node, cmd->ep, cmd->id) == 0) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
 	switch (cmd->id) {
-	case CMD_OFF:
+	case ZZB_ZCL_ON_OFF_OFF:
 		off(node, cmd->ep);
 		return ZZB_ZCL_SUCCESS;
-	case CMD_ON:
+	case ZZB_ZCL_ON_OFF_ON:
 		on(node, cmd->ep, v);
 		return ZZB_ZCL_SUCCESS;
 	/* ZCL 3.8.2.3.3 */
-	case CMD_TOGGLE:
+	case ZZB_ZCL_ON_OFF_TOGGLE:
 		if (v->on_off) {
 			off(node, cmd->ep);
 		} else {
@@ -234,12 +236,12 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 		}
 
 		return ZZB_ZCL_SUCCESS;
-	case CMD_OFF_WITH_EFFECT:
+	case ZZB_ZCL_ON_OFF_OFF_WITH_EFFECT:
 		return off_with_effect(node, cmd, v);
-	case CMD_ON_WITH_RECALL_GLOBAL_SCENE:
+	case ZZB_ZCL_ON_OFF_ON_WITH_RECALL_GLOBAL_SCENE:
 		on_with_recall_global_scene(node, cmd->ep, v);
 		return ZZB_ZCL_SUCCESS;
-	case CMD_ON_WITH_TIMED_OFF:
+	case ZZB_ZCL_ON_OFF_ON_WITH_TIMED_OFF:
 		return on_with_timed_off(node, cmd, v);
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
@@ -247,7 +249,7 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 }
 
 /* ZCL Table 3-46 */
-static uint8_t check(const struct zzb_zcl_attr *attr, uint16_t value)
+static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32_t value)
 {
 	if (attr->id != ZZB_ZCL_ON_OFF_START_UP) {
 		return ZZB_ZCL_SUCCESS;
@@ -277,12 +279,16 @@ static void init(void *values)
 	v->timed = false;
 }
 
-/* ZCL 3.8.2.2.2: a recalled scene that turns the endpoint on is like an On command */
-static void recalled(struct zzb_node *node, uint8_t ep, void *values)
+/* OnOff switches at once; a recalled scene that turns the endpoint on is like On (ZCL 3.8.2.2.2) */
+static void recall(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set_values,
+		   size_t count, uint32_t transition_ds)
 {
-	const struct zzb_zcl_on_off *v = values;
+	if (count == 0) {
+		return;
+	}
 
-	if (v->on_off) {
+	set(node, ep, ZZB_ZCL_ON_OFF_ON_OFF, set_values[0] != 0);
+	if (set_values[0] != 0) {
 		set(node, ep, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, true);
 	}
 }
@@ -321,14 +327,41 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 const struct zzb_zcl_cluster_def zzb_zcl_on_off_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
+	.scene_attrs = scene_attrs,
+	.scene_attr_count = ARRAY_SIZE(scene_attrs),
 	.init = init,
 	.start = start,
 	.reset = reset,
 	.cmd = cmd,
 	.check = check,
 	.changed = changed,
-	.recalled = recalled,
+	.recall = recall,
 };
+
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_on_off_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};
+
+void zzb_zcl_on_off_switch(struct zzb_node *node, uint8_t ep, bool on_off)
+{
+	const struct zzb_zcl_on_off *v = server(zzb_node_endpoint(node, ep));
+
+	if (v == NULL) {
+		return;
+	}
+
+	if (on_off) {
+		on(node, ep, v);
+	} else {
+		off(node, ep);
+	}
+}
 
 void zzb_zcl_on_off_init(struct zzb_node *node)
 {

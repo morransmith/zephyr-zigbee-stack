@@ -57,7 +57,7 @@ struct write_record {
 	uint16_t id;
 	const struct zzb_zcl_attr *attr;
 	uint8_t status;
-	uint16_t value;
+	uint32_t value;
 };
 
 /* Every record has an attribute ID and a data type */
@@ -193,6 +193,9 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req)
 		return zzb_zcl_configure_reporting(node, req);
 	case ZZB_ZCL_READ_REPORTING:
 		return zzb_zcl_read_reporting(node, req);
+	/* A client takes the reports of its bindings; their values do not reach the application */
+	case ZZB_ZCL_REPORT_ATTRIBUTES:
+		return req->cluster->server ? ZZB_ZCL_UNSUP_COMMAND : ZZB_ZCL_SUCCESS;
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}

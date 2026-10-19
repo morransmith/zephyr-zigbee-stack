@@ -21,6 +21,14 @@ extern "C" {
 #define ZZB_ZCL_ON_OFF_OFF_WAIT_TIME        0x4002
 #define ZZB_ZCL_ON_OFF_START_UP             0x4003
 
+/** Commands received (ZCL Table 3-47). */
+#define ZZB_ZCL_ON_OFF_OFF                        0x00
+#define ZZB_ZCL_ON_OFF_ON                         0x01
+#define ZZB_ZCL_ON_OFF_TOGGLE                     0x02
+#define ZZB_ZCL_ON_OFF_OFF_WITH_EFFECT            0x40
+#define ZZB_ZCL_ON_OFF_ON_WITH_RECALL_GLOBAL_SCENE 0x41
+#define ZZB_ZCL_ON_OFF_ON_WITH_TIMED_OFF          0x42
+
 /** Values of StartUpOnOff (ZCL Table 3-46). */
 enum zzb_zcl_start_up_on_off {
 	ZZB_ZCL_START_UP_OFF = 0x00,
@@ -49,6 +57,7 @@ struct zzb_zcl_on_off {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_client_def;
 
 /** An On/Off server with the values v, a pointer to struct zzb_zcl_on_off. */
 #define ZZB_ZCL_ON_OFF_SERVER(v)                                                                   \
@@ -57,6 +66,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_on_off *)NULL),                               \
 		.def = &zzb_zcl_on_off_def,                                                        \
+	}
+
+/** An On/Off client, which switches and controllers have (DTL). */
+#define ZZB_ZCL_ON_OFF_CLIENT()                                                                    \
+	{                                                                                          \
+		.id = ZZB_ZCL_ON_OFF,                                                              \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_on_off_client_def,                                                 \
 	}
 
 #ifdef __cplusplus

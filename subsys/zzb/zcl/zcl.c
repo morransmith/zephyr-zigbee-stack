@@ -7,6 +7,7 @@
 #include "aps/aps.h"
 #include "common/buf.h"
 #include "common/node.h"
+#include "common/queue.h"
 #include "nwk/nwk.h"
 #include "zcl/frame.h"
 #include "zcl/zcl.h"
@@ -79,6 +80,68 @@ int zzb_zcl_send_cmd(struct zzb_node *node, uint8_t src_ep, uint16_t dst_addr, u
 	return zzb_zcl_send(node, &aps, &hdr, payload, len);
 }
 
+int zzb_zcl_send_bindings(struct zzb_node *node, const struct zzb_endpoint *ep, uint16_t cluster,
+			  enum zzb_zcl_frame_type type, bool to_client, uint8_t cmd,
+			  const uint8_t *payload, size_t len)
+{
+	const struct zzb_zcl_hdr hdr = {
+		.type = type,
+		.flags = ZZB_ZCL_DISABLE_DEFAULT_RSP | (to_client ? ZZB_ZCL_TO_CLIENT : 0),
+		.tsn = node->zcl.tsn++,
+		.cmd = cmd,
+	};
+	const struct zzb_apsde_req aps = {
+		.dst_mode = ZZB_APS_ADDR_BINDING,
+		.profile = ep->profile,
+		.cluster = cluster,
+		.src_ep = ep->id,
+		.tx_options = ZZB_APS_TX_ACK,
+	};
+
+	return zzb_zcl_send(node, &aps, &hdr, payload, len);
+}
+
+struct send_bound_req {
+	struct k_work work;
+	struct zzb_node *node;
+	uint8_t ep;
+	uint16_t cluster;
+	uint8_t cmd;
+	const uint8_t *payload;
+	size_t len;
+	int err;
+};
+
+static void send_bound_handler(struct k_work *work)
+{
+	struct send_bound_req *req = CONTAINER_OF(work, struct send_bound_req, work);
+	const struct zzb_endpoint *ep = zzb_node_endpoint(req->node, req->ep);
+
+	if (ep == NULL || zzb_zcl_find_cluster(ep, req->cluster, false) == NULL) {
+		req->err = -ENOENT;
+		return;
+	}
+
+	req->err = zzb_zcl_send_bindings(req->node, ep, req->cluster, ZZB_ZCL_FRAME_CLUSTER, false,
+					 req->cmd, req->payload, req->len);
+}
+
+int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t cmd,
+		       const uint8_t *payload, size_t len)
+{
+	struct send_bound_req req = {
+		.node = node,
+		.ep = ep,
+		.cluster = cluster,
+		.cmd = cmd,
+		.payload = payload,
+		.len = len,
+	};
+
+	zzb_call_sync(&req.work, send_bound_handler);
+	return req.err;
+}
+
 void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 		     enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len)
 {
@@ -108,6 +171,11 @@ void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, u
 {
 	zzb_zcl_respond(node, CONTAINER_OF(cmd, struct zzb_zcl_req, cmd), ZZB_ZCL_FRAME_CLUSTER, id,
 			payload, len);
+}
+
+int zzb_zcl_client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
+{
+	return ZZB_ZCL_SUCCESS;
 }
 
 void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t effect,
@@ -245,12 +313,20 @@ void zzb_zcl_init(struct zzb_node *node)
 	k_work_cancel_delayable(&node->zcl.identify_timer);
 	k_work_cancel_delayable(&node->zcl.on_off_timer);
 	k_work_cancel_delayable(&node->zcl.report_timer);
+	k_work_cancel_delayable(&node->zcl.level_timer);
+	k_work_cancel_delayable(&node->zcl.color_timer);
+	k_work_cancel_delayable(&node->zcl.mains_alarm_timer);
+	k_work_cancel_delayable(&node->zcl.temp_alarm_timer);
 	node->zcl = (struct zzb_zcl){
 		.tsn = sys_rand8_get(),
 	};
 	zzb_zcl_identify_init(node);
 	zzb_zcl_on_off_init(node);
 	zzb_zcl_report_init(node);
+	zzb_zcl_level_init(node);
+	zzb_zcl_color_init(node);
+	zzb_zcl_power_config_init(node);
+	zzb_zcl_device_temp_init(node);
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];
@@ -297,6 +373,7 @@ void zzb_zcl_reset(struct zzb_node *node)
 		}
 	}
 
+	zzb_zcl_alarms_reset(node);
 	/* After the reset hooks, which may have armed the reporting timer */
 	zzb_zcl_report_reset(node);
 	zzb_zcl_scenes_delete(node);

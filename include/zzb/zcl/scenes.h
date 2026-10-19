@@ -20,6 +20,18 @@ extern "C" {
 #define ZZB_ZCL_SCENES_CURRENT_GROUP 0x0002
 #define ZZB_ZCL_SCENES_SCENE_VALID   0x0003
 
+/** Commands received (ZCL Table 3-42); each response has the identifier of its command. */
+#define ZZB_ZCL_SCENES_ADD_SCENE            0x00
+#define ZZB_ZCL_SCENES_VIEW_SCENE           0x01
+#define ZZB_ZCL_SCENES_REMOVE_SCENE         0x02
+#define ZZB_ZCL_SCENES_REMOVE_ALL_SCENES    0x03
+#define ZZB_ZCL_SCENES_STORE_SCENE          0x04
+#define ZZB_ZCL_SCENES_RECALL_SCENE         0x05
+#define ZZB_ZCL_SCENES_GET_SCENE_MEMBERSHIP 0x06
+#define ZZB_ZCL_SCENES_ENHANCED_ADD_SCENE   0x40
+#define ZZB_ZCL_SCENES_ENHANCED_VIEW_SCENE  0x41
+#define ZZB_ZCL_SCENES_COPY_SCENE           0x42
+
 /**
  * Values of a Scenes server (ZCL 3.7.2.2), all read-only. The scene table of the node holds the
  * scenes; scene names are not stored.
@@ -33,6 +45,7 @@ struct zzb_zcl_scenes {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_scenes_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_scenes_client_def;
 
 /**
  * A Scenes server with the values v, a pointer to struct zzb_zcl_scenes. ZCL 3.7.2.1 requires a
@@ -44,6 +57,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_scenes_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_scenes *)NULL),                               \
 		.def = &zzb_zcl_scenes_def,                                                        \
+	}
+
+/** A Scenes client; it accepts the responses to its commands. */
+#define ZZB_ZCL_SCENES_CLIENT()                                                                    \
+	{                                                                                          \
+		.id = ZZB_ZCL_SCENES,                                                              \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_scenes_client_def,                                                 \
 	}
 
 #ifdef __cplusplus

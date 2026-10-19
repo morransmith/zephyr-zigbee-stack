@@ -322,6 +322,52 @@ ZTEST(zzb_zcl_scenes, test_scene_valid)
 	zassert_equal(zcl_cb_calls.count, 0);
 }
 
+/*
+ * A set follows the list of its cluster, with 0 for an attribute that the cluster does not have.
+ * The recall hook gets the values of the set and the transition time in tenths of a second: the
+ * field of Recall Scene, or without it or with 0xffff the time of the scene.
+ */
+ZTEST(zzb_zcl_scenes, test_ordered_set)
+{
+	static const uint8_t store[] = {0x01, 0x60, 0x04, 0x00, 0x00, 0x01};
+	static const uint8_t view[] = {0x01, 0x61, 0x01, 0x00, 0x00, 0x01};
+	static const uint8_t view_rsp[] = {0x19, 0x61, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+					   0x00, 0x01, 0x0f, 0x05, 0x44, 0x33, 0x01, 0x00, 0x22};
+	/* Scene 2 with 3 s and the set without its last two attributes */
+	static const uint8_t add[] = {0x01, 0x62, 0x00, 0x00, 0x00, 0x02, 0x03, 0x00,
+				      0x00, 0x01, 0x0f, 0x03, 0x55, 0x66, 0x00};
+	static const uint8_t recall_25[] = {0x11, 0x63, 0x05, 0x00, 0x00, 0x01, 0x19, 0x00};
+	static const uint8_t recall_own[] = {0x11, 0x65, 0x05, 0x00, 0x00, 0x02, 0xff, 0xff};
+
+	values4 = (struct test_values){.b = true, .u8 = 0x22, .u16 = 0x3344};
+	receive_ep(4, ZZB_ZCL_SCENES, store, sizeof(store));
+	receive_ep(4, ZZB_ZCL_SCENES, view, sizeof(view));
+	check_frame(1, 4, ZZB_ZCL_SCENES, view_rsp, sizeof(view_rsp));
+
+	receive_ep(4, ZZB_ZCL_SCENES, recall_25, sizeof(recall_25));
+	zassert_equal(recall_calls.count, 1);
+	zassert_equal(recall_calls.ep, 4);
+	zassert_equal(recall_calls.set_count, 4);
+	zassert_mem_equal(recall_calls.set, ((uint32_t[]){0x3344, 1, 0, 0x22}),
+			  4 * sizeof(uint32_t));
+	zassert_equal(recall_calls.transition_ds, 25);
+
+	receive_ep(4, ZZB_ZCL_SCENES, add, sizeof(add));
+	receive_ep(4, ZZB_ZCL_SCENES, (uint8_t[]){0x11, 0x64, 0x05, 0x00, 0x00, 0x02}, 6);
+	zassert_equal(recall_calls.set_count, 2);
+	zassert_mem_equal(recall_calls.set, ((uint32_t[]){0x6655, 0}), 2 * sizeof(uint32_t));
+	zassert_equal(recall_calls.transition_ds, 30);
+	receive_ep(4, ZZB_ZCL_SCENES, recall_own, sizeof(recall_own));
+	zassert_equal(recall_calls.transition_ds, 30);
+	zassert_true(scenes4.scene_valid);
+
+	/* Only the attributes of the list clear SceneValid */
+	zassert_ok(zzb_zcl_attr_set(test_node(), 4, SCENE_CLUSTER, 0x0003, &(uint8_t){1}));
+	zassert_true(scenes4.scene_valid);
+	zassert_ok(zzb_zcl_attr_set(test_node(), 4, SCENE_CLUSTER, 0x0001, &(uint8_t){1}));
+	zassert_false(scenes4.scene_valid);
+}
+
 /* ZCL 3.7.2.4.9, 3.7.2.4.10: the transition time in tenths of a second */
 ZTEST(zzb_zcl_scenes, test_enhanced_add_and_view)
 {

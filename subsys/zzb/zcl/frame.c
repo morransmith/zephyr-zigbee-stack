@@ -66,8 +66,7 @@ int zzb_zcl_hdr_parse(const uint8_t *p, size_t len, struct zzb_zcl_hdr *hdr)
 	return zzb_zcl_hdr_len(hdr);
 }
 
-/* Length of a type of fixed length, or -ENOTSUP */
-static int fixed_len(uint8_t type)
+int zzb_zcl_type_len(uint8_t type)
 {
 	/* data8 to data64, then map8 to map64, uint8 to uint64 and int8 to int64 */
 	if ((type >= 0x08 && type <= 0x0f) || (type >= 0x18 && type <= 0x2f)) {
@@ -127,7 +126,7 @@ static int value_len(uint8_t type, const uint8_t *p, size_t len)
 
 		return sys_get_le16(p) == 0xffff ? 2 : 2 + sys_get_le16(p);
 	default:
-		return fixed_len(type);
+		return zzb_zcl_type_len(type);
 	}
 }
 
@@ -146,4 +145,25 @@ int zzb_zcl_value_len(uint8_t type, const uint8_t *p, size_t len)
 	}
 
 	return (size_t)n <= len ? n : -EINVAL;
+}
+
+uint32_t zzb_zcl_value_get(uint8_t type, const uint8_t *p)
+{
+	int len = MIN(zzb_zcl_type_len(type), 4);
+	uint32_t value = 0;
+
+	for (int i = len - 1; i >= 0; i--) {
+		value = value << 8 | p[i];
+	}
+
+	return value;
+}
+
+void zzb_zcl_value_put(uint8_t type, uint32_t value, uint8_t *p)
+{
+	int len = MIN(zzb_zcl_type_len(type), 4);
+
+	for (int i = 0; i < len; i++) {
+		p[i] = value >> (8 * i);
+	}
 }

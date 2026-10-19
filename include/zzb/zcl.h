@@ -18,8 +18,12 @@ struct zzb_node;
 enum zzb_zcl_type {
 	ZZB_ZCL_BOOL = 0x10,
 	ZZB_ZCL_MAP8 = 0x18,
+	ZZB_ZCL_MAP16 = 0x19,
+	ZZB_ZCL_MAP32 = 0x1b,
 	ZZB_ZCL_UINT8 = 0x20,
 	ZZB_ZCL_UINT16 = 0x21,
+	ZZB_ZCL_UINT24 = 0x22,
+	ZZB_ZCL_INT16 = 0x29,
 	ZZB_ZCL_ENUM8 = 0x30,
 	ZZB_ZCL_OCTSTR = 0x41,
 	ZZB_ZCL_STRING = 0x42,
@@ -30,11 +34,18 @@ enum zzb_zcl_type {
 	((type) == ZZB_ZCL_BOOL || (type) == ZZB_ZCL_MAP8 || (type) == ZZB_ZCL_UINT8 ||            \
 	 (type) == ZZB_ZCL_ENUM8)
 
-/** Size of the value struct field of a type; 0 for a type that the stack does not store. */
+#define ZZB_ZCL_IS_WORD(type)                                                                      \
+	((type) == ZZB_ZCL_MAP16 || (type) == ZZB_ZCL_UINT16 || (type) == ZZB_ZCL_INT16)
+
+/**
+ * Size of the value struct field of a type; 0 for a type that the stack does not store. A uint24
+ * has a field of 4 octets.
+ */
 #define ZZB_ZCL_STORAGE_SIZE(type)                                                                 \
-	((type) == ZZB_ZCL_UINT16  ? 2                                                             \
-	 : ZZB_ZCL_IS_STRING(type) ? sizeof(void *)                                                \
-				   : ZZB_ZCL_IS_BYTE(type))
+	((type) == ZZB_ZCL_MAP32 || (type) == ZZB_ZCL_UINT24 ? 4                                   \
+	 : ZZB_ZCL_IS_WORD(type)                             ? 2                                   \
+	 : ZZB_ZCL_IS_STRING(type)                           ? sizeof(void *)                      \
+							     : ZZB_ZCL_IS_BYTE(type))
 
 /** zzb_zcl_attr.flags; every attribute is readable. */
 #define ZZB_ZCL_WRITE  BIT(0)
@@ -43,8 +54,6 @@ enum zzb_zcl_type {
 #define ZZB_ZCL_CONST  BIT(2)
 /** The attribute is saved in the settings at every change. */
 #define ZZB_ZCL_NV     BIT(3)
-/** The attribute is in the scene extension field set of its cluster, in the order of the table. */
-#define ZZB_ZCL_SCENE  BIT(4)
 
 /**
  * An attribute. A character string is stored as a const char pointer, an octet string as a const
@@ -120,11 +129,26 @@ struct zzb_zcl_cmd {
 	bool unicast;
 };
 
+/** An attribute of the scene extension field set of a cluster (ZCL 3.7.2.4.2). */
+struct zzb_zcl_scene_attr {
+	uint16_t id;
+	uint8_t type;
+};
+
+/** The longest scene extension field set of a cluster, in attributes. */
+#define ZZB_ZCL_SCENE_ATTRS_MAX 8
+
 /** The attributes and commands of a cluster. */
 struct zzb_zcl_cluster_def {
 	/** Attributes in ascending order of ID. */
 	const struct zzb_zcl_attr *attrs;
 	uint8_t attr_count;
+	/**
+	 * The attributes of the scene extension field set in its order, at most
+	 * ZZB_ZCL_SCENE_ATTRS_MAX, or NULL. An attribute that attrs does not have is stored as 0.
+	 */
+	const struct zzb_zcl_scene_attr *scene_attrs;
+	uint8_t scene_attr_count;
 	/** Sets the defaults before the settings records are loaded, or NULL. */
 	void (*init)(void *values);
 	/** Runs after the settings records are loaded, on the stack thread, or NULL. */
@@ -137,17 +161,25 @@ struct zzb_zcl_cluster_def {
 	 */
 	int (*cmd)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values);
 	/**
-	 * Checks a remote write of value to attr, or NULL. Returns ZZB_ZCL_SUCCESS or
-	 * ZZB_ZCL_INVALID_VALUE.
+	 * Checks a remote write of value to attr against the values before the write, or NULL.
+	 * Returns ZZB_ZCL_SUCCESS or ZZB_ZCL_INVALID_VALUE.
 	 */
-	uint8_t (*check)(const struct zzb_zcl_attr *attr, uint16_t value);
+	uint8_t (*check)(const void *values, const struct zzb_zcl_attr *attr, uint32_t value);
 	/** Called on the stack thread after every change of the value of attr, or NULL. */
 	void (*changed)(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr);
 	/**
-	 * Called on the stack thread after a scene recall has written the attributes of the
-	 * extension field set of the cluster, or NULL.
+	 * Applies the extension field set of a recalled scene on the stack thread, or NULL: count
+	 * values in the order of scene_attrs, fewer when the set lacks trailing attributes, and the
+	 * transition time in tenths of a second.
 	 */
-	void (*recalled)(struct zzb_node *node, uint8_t ep, void *values);
+	void (*recall)(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set,
+		       size_t count, uint32_t transition_ds);
+	/**
+	 * Raises the alarms of the cluster whose conditions last again (ZCL 3.11.2.4.1), on the
+	 * stack thread, or NULL. code is the alarm code of Reset Alarm, or 0xff for Reset All
+	 * Alarms.
+	 */
+	void (*alarm_reset)(struct zzb_node *node, uint8_t ep, void *values, uint8_t code);
 };
 
 /** A cluster on an endpoint. */
@@ -159,6 +191,24 @@ struct zzb_zcl_cluster {
 	void *values;
 	/** Attributes and commands, or NULL for a cluster without them. */
 	const struct zzb_zcl_cluster_def *def;
+};
+
+/**
+ * Internal: a transition of Level Control or Color Control, a field of the value struct. It moves
+ * up to two attributes of at most 16 bits together.
+ */
+struct zzb_zcl_transition {
+	/** k_uptime_get() at the start. */
+	int64_t start;
+	/** Milliseconds. */
+	uint32_t duration;
+	/** The number of attributes, 0 while no transition runs. */
+	uint8_t count;
+	uint16_t attr[2];
+	uint16_t from[2];
+	uint16_t to[2];
+	/** The values written last. */
+	uint16_t last[2];
 };
 
 /**
@@ -180,8 +230,8 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
  * @brief Set an attribute of a server cluster on an endpoint.
  *
  * Runs on the stack thread. value points to a value of the type of the field: uint8_t or bool for
- * the one-octet types, uint16_t for ZZB_ZCL_UINT16. A non-volatile attribute is saved. zcl_cb is
- * not called.
+ * the one-octet types, uint16_t or int16_t for the two-octet types, uint32_t for ZZB_ZCL_UINT24 and
+ * ZZB_ZCL_MAP32. A non-volatile attribute is saved. zcl_cb is not called.
  *
  * @retval 0 on success.
  * @retval -ENOENT the node has no server cluster with the attribute on the endpoint.
@@ -189,6 +239,22 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
  */
 int zzb_zcl_attr_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
 		     const void *value);
+
+/**
+ * @brief Send a cluster-specific command of a client cluster to the bound destinations.
+ *
+ * Runs on the stack thread. The command goes from the client instance of the cluster on the
+ * endpoint to the destinations of its bindings, with Disable Default Response 1. The application
+ * builds the payload; no confirm follows.
+ *
+ * @retval 0 on success.
+ * @retval -ENOENT the endpoint has no client instance of the cluster, or the cluster no binding.
+ * @retval -ENOBUFS no buffer or transmission table entry is free.
+ * @retval -ENOTCONN the node is not on a network.
+ * @retval -EBUSY the network layer runs a procedure, such as a rejoin.
+ */
+int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t cmd,
+		       const uint8_t *payload, size_t len);
 
 #ifdef __cplusplus
 }
