@@ -9,6 +9,7 @@ target_include_directories(app PRIVATE ${ZEPHYR_ZZB_MODULE_DIR}/subsys/zzb)
 target_sources(app PRIVATE
   src/attr.c
   src/basic.c
+  src/device_temp.c
   src/fakes.c
   src/foundation.c
   src/frame.c

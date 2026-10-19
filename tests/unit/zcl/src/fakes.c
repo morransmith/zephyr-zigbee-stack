@@ -42,6 +42,9 @@ struct zzb_zcl_power_config power_config = {
 	.battery_quantity = 2,
 	.battery_rated_voltage = 15,
 };
+struct zzb_zcl_device_temp device_temp = {
+	.current_temperature = INT16_MIN,
+};
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -284,6 +287,7 @@ static const struct zzb_zcl_cluster ep4_clusters[] = {
 
 static const struct zzb_zcl_cluster ep30_clusters[] = {
 	ZZB_ZCL_POWER_CONFIG_SERVER(&power_config),
+	ZZB_ZCL_DEVICE_TEMP_SERVER(&device_temp),
 };
 
 static const struct zzb_endpoint endpoints[] = {

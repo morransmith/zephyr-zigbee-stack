@@ -9,6 +9,7 @@
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/on_off.h>
@@ -102,6 +103,7 @@ extern struct recall_calls recall_calls;
 #define SENSOR_EP 30
 
 extern struct zzb_zcl_power_config power_config;
+extern struct zzb_zcl_device_temp device_temp;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
