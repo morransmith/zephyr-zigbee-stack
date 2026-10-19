@@ -16,5 +16,6 @@ target_sources(app PRIVATE
   src/identify.c
   src/on_off.c
   src/report.c
+  src/scenes.c
   src/zcl.c
 )

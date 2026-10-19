@@ -41,6 +41,20 @@ struct zzb_zcl_report {
 	int64_t retry;
 };
 
+/* Entry of the scene table (ZCL Table 3-41); names are not stored */
+struct zzb_zcl_scene {
+	bool in_use;
+	uint8_t ep;
+	uint16_t group;
+	uint8_t id;
+	/* Seconds, and tenths of a second from Enhanced Add Scene */
+	uint16_t transition;
+	uint8_t transition_100ms;
+	/* Extension field sets in their ZCL encoding */
+	uint8_t data_len;
+	uint8_t data[CONFIG_ZZB_ZCL_SCENE_DATA_LEN];
+};
+
 struct zzb_zcl {
 	/* Decrements IdentifyTime every second while one is not 0 */
 	struct k_work_delayable identify_timer;
@@ -51,6 +65,7 @@ struct zzb_zcl {
 	struct k_work_delayable report_timer;
 	/* Transaction sequence number of the next frame ZCL originates */
 	uint8_t tsn;
+	struct zzb_zcl_scene scenes[CONFIG_ZZB_ZCL_SCENE_COUNT];
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -195,6 +210,9 @@ int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req 
 
 /* Read Reporting Configuration (ZCL 2.5.9); returns ZZB_ZCL_RESPONDED */
 int zzb_zcl_read_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);
+
+/* Removes the scenes of group on endpoint ep (ZCL 3.6.2.3.5) */
+void zzb_zcl_scenes_remove_group(struct zzb_node *node, uint8_t ep, uint16_t group);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);

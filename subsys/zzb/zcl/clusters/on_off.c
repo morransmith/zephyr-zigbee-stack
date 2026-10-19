@@ -26,8 +26,8 @@
 #define UPDATE_MS 100
 
 static const struct zzb_zcl_attr attrs[] = {
-	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_BOOL, ZZB_ZCL_REPORT | ZZB_ZCL_NV,
-		     struct zzb_zcl_on_off, on_off),
+	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_BOOL,
+		     ZZB_ZCL_REPORT | ZZB_ZCL_NV | ZZB_ZCL_SCENE, struct zzb_zcl_on_off, on_off),
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, ZZB_ZCL_BOOL, 0, struct zzb_zcl_on_off,
 		     global_scene_control),
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_TIME, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE, struct zzb_zcl_on_off,

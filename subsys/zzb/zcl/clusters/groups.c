@@ -130,9 +130,24 @@ static int remove_group(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, ui
 		status = ZZB_ZCL_INVALID_VALUE;
 	} else if (zzb_apsme_remove_group(node, group, cmd->ep)) {
 		status = ZZB_ZCL_NOT_FOUND;
+	} else {
+		zzb_zcl_scenes_remove_group(node, cmd->ep, group);
 	}
 
 	return respond(node, cmd, status, group);
+}
+
+/* ZCL 3.6.2.3.6: the scenes of every group go too; scenes without a group stay */
+static void remove_all_groups(struct zzb_node *node, uint8_t ep)
+{
+	uint16_t groups[CONFIG_ZZB_APS_GROUP_COUNT];
+	int count = zzb_aps_groups_of(node, ep, groups, ARRAY_SIZE(groups));
+
+	for (int i = 0; i < count; i++) {
+		zzb_zcl_scenes_remove_group(node, ep, groups[i]);
+	}
+
+	zzb_apsme_remove_all_groups(node, ep);
 }
 
 static bool identifying(struct zzb_node *node, uint8_t ep)
@@ -152,9 +167,9 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 		return get_group_membership(node, cmd);
 	}
 
-	/* ZCL 3.6.2.3.6: Remove All Groups always succeeds */
+	/* Remove All Groups always succeeds */
 	if (cmd->id == CMD_REMOVE_ALL_GROUPS) {
-		zzb_apsme_remove_all_groups(node, cmd->ep);
+		remove_all_groups(node, cmd->ep);
 		return ZZB_ZCL_SUCCESS;
 	}
 

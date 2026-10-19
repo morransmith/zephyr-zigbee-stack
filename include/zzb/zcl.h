@@ -43,6 +43,8 @@ enum zzb_zcl_type {
 #define ZZB_ZCL_CONST  BIT(2)
 /** The attribute is saved in the settings at every change. */
 #define ZZB_ZCL_NV     BIT(3)
+/** The attribute is in the scene extension field set of its cluster, in the order of the table. */
+#define ZZB_ZCL_SCENE  BIT(4)
 
 /**
  * An attribute. A character string is stored as a const char pointer, an octet string as a const

@@ -12,6 +12,7 @@
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/scenes.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
@@ -56,9 +57,10 @@ struct test_values {
 extern struct test_values values1;
 extern struct test_values values2;
 
-/* The Basic, Identify, Groups and On/Off servers on endpoint 2 */
+/* The Basic, Identify, Groups, Scenes and On/Off servers on endpoint 2 */
 extern struct zzb_zcl_basic basic;
 extern struct zzb_zcl_identify identify;
+extern struct zzb_zcl_scenes scenes;
 extern struct zzb_zcl_on_off on_off;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */

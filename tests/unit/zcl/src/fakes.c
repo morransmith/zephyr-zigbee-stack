@@ -22,6 +22,7 @@ struct test_values values2;
 static const uint8_t product_code[] = {0x03, 0x00, 'Z', 'Z'};
 
 struct zzb_zcl_identify identify;
+struct zzb_zcl_scenes scenes;
 struct zzb_zcl_on_off on_off;
 
 struct zzb_zcl_basic basic = {
@@ -208,6 +209,7 @@ static const struct zzb_zcl_cluster ep2_clusters[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
 	ZZB_ZCL_GROUPS_SERVER(),
+	ZZB_ZCL_SCENES_SERVER(&scenes),
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 };
 

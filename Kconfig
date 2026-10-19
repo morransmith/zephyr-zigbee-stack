@@ -133,6 +133,22 @@ config ZZB_ZCL_REPORT_COUNT
 	  Attributes whose reports Configure Reporting has set up, on all
 	  endpoints of a node.
 
+config ZZB_ZCL_SCENE_COUNT
+	int "Scene table entries"
+	range 1 255
+	default 16
+	help
+	  Scenes of all endpoints of a node. 16 is the default capacity of
+	  ZCL 3.7.2.3.2.
+
+config ZZB_ZCL_SCENE_DATA_LEN
+	int "Bytes of extension field sets per scene"
+	range 4 128
+	default 16
+	help
+	  The extension field sets of a scene, each with the cluster ID, the
+	  length and the values. The set of an On/Off server takes 4 bytes.
+
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
 	range 0 0x07fff800
