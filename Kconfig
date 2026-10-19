@@ -52,6 +52,12 @@ config ZZB_NWK
 	  Zigbee network layer. The application enables a settings backend for the
 	  frame counter. Tests that fake NWK turn it off.
 
+config ZZB_APS
+	bool "APS sublayer"
+	default ZZB_NWK
+	help
+	  Zigbee application support sublayer. Tests that fake APS turn it off.
+
 config ZZB_FRAME_COUNTER_JUMP
 	int "Outgoing frame counter jump at boot"
 	default 1024
