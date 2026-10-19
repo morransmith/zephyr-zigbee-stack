@@ -1,11 +1,20 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/printk.h>
 
 #include "common/node.h"
+#include "storage/settings.h"
 #include "zcl/zcl.h"
+
+/* Room for zcl/254/ffff/ffff */
+#define KEY_LEN 20
+
+/* Version and the longest value of a non-volatile attribute */
+#define RECORD_MAX_LEN 3
 
 const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, uint16_t id)
 {
@@ -122,9 +131,74 @@ bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 	return changed;
 }
 
+/* Section 15; a failed save is ignored, the next change writes the record again */
+static void save(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+		 const struct zzb_zcl_attr *attr)
+{
+	uint8_t rec[RECORD_MAX_LEN] = {1};
+	char key[KEY_LEN];
+	int len = zzb_zcl_attr_encode(cl, attr, rec + 1, sizeof(rec) - 1);
+
+	if (!(attr->flags & ZZB_ZCL_NV) || len < 0) {
+		return;
+	}
+
+	snprintk(key, sizeof(key), "zcl/%u/%04x/%04x", ep, cl->id, attr->id);
+	zzb_settings_save(node, key, rec, 1 + len);
+}
+
+/* The non-volatile attribute id of a cluster on endpoint ep, and its cluster in *cl */
+static const struct zzb_zcl_attr *find_nv(const struct zzb_node *node, unsigned long ep,
+					  unsigned long cluster, unsigned long id,
+					  const struct zzb_zcl_cluster **cl)
+{
+	const struct zzb_endpoint *e = ep <= UINT8_MAX ? zzb_node_endpoint(node, ep) : NULL;
+
+	for (int i = 0; e != NULL && i < e->cluster_count; i++) {
+		const struct zzb_zcl_attr *attr = zzb_zcl_attr_find(&e->clusters[i], id);
+
+		if (e->clusters[i].id == cluster && attr != NULL && (attr->flags & ZZB_ZCL_NV)) {
+			*cl = &e->clusters[i];
+			return attr;
+		}
+	}
+
+	return NULL;
+}
+
+int zzb_zcl_attr_load(struct zzb_node *node, const char *key, size_t len, settings_read_cb read_cb,
+		      void *cb_arg)
+{
+	const struct zzb_zcl_cluster *cl;
+	const struct zzb_zcl_attr *attr;
+	uint8_t rec[RECORD_MAX_LEN];
+	unsigned long ep, cluster, id;
+	char *end;
+	int err;
+
+	/* <ep>/<cluster>/<attr> */
+	ep = strtoul(key, &end, 10);
+	cluster = *end == '/' ? strtoul(end + 1, &end, 16) : ULONG_MAX;
+	id = *end == '/' ? strtoul(end + 1, &end, 16) : ULONG_MAX;
+	attr = find_nv(node, ep, cluster, id, &cl);
+	if (attr == NULL) {
+		return 0;
+	}
+
+	err = zzb_settings_read(len, read_cb, cb_arg, rec, 1 + ZZB_ZCL_STORAGE_SIZE(attr->type));
+	if (err) {
+		return err;
+	}
+
+	zzb_zcl_attr_write(cl, attr, attr->type == ZZB_ZCL_UINT16 ? sys_get_le16(rec + 1) : rec[1]);
+	return 0;
+}
+
 void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 		     uint16_t attr)
 {
+	save(node, ep, cl, zzb_zcl_attr_find(cl, attr));
+
 	if (cl->def->changed != NULL) {
 		cl->def->changed(node, ep, cl->values, attr);
 	}

@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <zephyr/net_buf.h>
+#include <zephyr/settings/settings.h>
 #include <zzb/zcl.h>
 
 #include "aps/aps.h"
@@ -71,7 +72,14 @@ uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zc
 bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
 			uint16_t value);
 
-/* Calls the changed hook of cl and zcl_cb for attr */
+/*
+ * Loads the record zcl/<key> of a non-volatile attribute; -EINVAL for an unknown version or
+ * length. A record of an attribute that the device definition does not have is ignored.
+ */
+int zzb_zcl_attr_load(struct zzb_node *node, const char *key, size_t len, settings_read_cb read_cb,
+		      void *cb_arg);
+
+/* Saves a non-volatile attribute, then calls the changed hook of cl and zcl_cb for attr */
 void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 		     uint16_t attr);
 

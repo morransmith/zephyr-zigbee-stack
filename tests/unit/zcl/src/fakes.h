@@ -28,7 +28,7 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
 /* An On/Off client without a definition on endpoints 1 and 3 */
 #define ON_OFF 0x0006
 
-/* Values of the test cluster, attributes 0x0000 to 0x0007 in this order */
+/* Values of the test cluster, attributes 0x0000 to 0x0007 in this order; 0x0002 is saved */
 struct test_values {
 	bool b;
 	uint8_t u8;
@@ -104,6 +104,9 @@ void receive_ind(const struct zzb_apsde_ind *ind, const uint8_t *asdu, size_t le
 
 /* Passes a ZCL frame of cluster from the requester to endpoint 1 as unicast, with profile 0x0104 */
 void receive(uint16_t cluster, const uint8_t *asdu, size_t len);
+
+/* Loads the settings records of the node again, on the stack thread */
+int reboot(void);
 
 /* Checks that frame i is a ZCL frame of cluster from endpoint ep to the requester with the ASDU */
 void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_t len);

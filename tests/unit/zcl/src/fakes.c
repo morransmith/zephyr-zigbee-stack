@@ -5,7 +5,9 @@
 #include <zephyr/ztest.h>
 #include <zzb/zzb.h>
 
+#include "common/queue.h"
 #include "fakes.h"
+#include "storage/settings.h"
 #include "zcl/zcl.h"
 
 DEFINE_FFF_GLOBALS;
@@ -57,7 +59,7 @@ static void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, u
 static const struct zzb_zcl_attr test_attrs[] = {
 	ZZB_ZCL_ATTR(0x0000, ZZB_ZCL_BOOL, ZZB_ZCL_WRITE, struct test_values, b),
 	ZZB_ZCL_ATTR(0x0001, ZZB_ZCL_UINT8, ZZB_ZCL_WRITE, struct test_values, u8),
-	ZZB_ZCL_ATTR(0x0002, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE, struct test_values, u16),
+	ZZB_ZCL_ATTR(0x0002, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u16),
 	ZZB_ZCL_ATTR(0x0003, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE, struct test_values, e8),
 	ZZB_ZCL_ATTR(0x0004, ZZB_ZCL_MAP8, ZZB_ZCL_WRITE, struct test_values, map8),
 	ZZB_ZCL_ATTR(0x0005, ZZB_ZCL_STRING, 0, struct test_values, str),
@@ -213,4 +215,24 @@ void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_
 	zassert_equal(copy->handle, ZZB_ZCL_HANDLE);
 	zassert_equal(copy->len, len);
 	zassert_mem_equal(copy->data, asdu, len);
+}
+
+struct reboot_call {
+	struct k_work work;
+	int err;
+};
+
+static void reboot_handler(struct k_work *work)
+{
+	struct reboot_call *call = CONTAINER_OF(work, struct reboot_call, work);
+
+	call->err = zzb_settings_load(test_node());
+}
+
+int reboot(void)
+{
+	struct reboot_call call = {0};
+
+	zzb_call_sync(&call.work, reboot_handler);
+	return call.err;
 }

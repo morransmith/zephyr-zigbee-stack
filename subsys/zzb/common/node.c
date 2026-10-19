@@ -111,7 +111,8 @@ static void init_handler(struct k_work *work)
 		zzb_zdo_init(node);
 	}
 
-	if (IS_ENABLED(CONFIG_ZZB_NWK) || IS_ENABLED(CONFIG_ZZB_APS)) {
+	if (IS_ENABLED(CONFIG_ZZB_NWK) || IS_ENABLED(CONFIG_ZZB_APS) ||
+	    IS_ENABLED(CONFIG_ZZB_ZCL)) {
 		req->err = zzb_settings_load(node);
 		if (req->err) {
 			return;

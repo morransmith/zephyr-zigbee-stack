@@ -107,10 +107,12 @@ config ZZB_BDB
 config ZZB_ZCL
 	bool "ZCL"
 	default ZZB_BDB
+	select SETTINGS
 	help
 	  Zigbee Cluster Library: the foundation commands and the Basic,
-	  Identify and On/Off servers on the application endpoints. Tests that
-	  fake ZCL turn it off.
+	  Identify and On/Off servers on the application endpoints. The
+	  application enables a settings backend for the non-volatile
+	  attributes. Tests that fake ZCL turn it off.
 
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
