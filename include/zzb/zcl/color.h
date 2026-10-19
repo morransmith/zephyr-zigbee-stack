@@ -118,6 +118,8 @@ struct zzb_zcl_color {
 	 * record and the reset of the node take it.
 	 */
 	uint16_t start_up_default;
+	/** Internal: the transition of CurrentX and CurrentY or of ColorTemperatureMireds. */
+	struct zzb_zcl_transition transition;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_color_def;

@@ -73,6 +73,24 @@ static void set_u16(uint8_t ep, uint16_t attr, uint16_t value)
 	zassert_ok(zzb_zcl_attr_set(test_node(), ep, ZZB_ZCL_COLOR, attr, &value));
 }
 
+static bool timer_armed(void)
+{
+	return k_work_delayable_busy_get(&test_node()->zcl.color_timer) != 0;
+}
+
+/* The number of zcl_cb calls for attribute attr of cluster on ep */
+static int notified(uint8_t ep, uint16_t cluster, uint16_t attr)
+{
+	int n = 0;
+
+	for (int i = 0; i < zcl_cb_calls.count; i++) {
+		n += zcl_cb_calls.ep[i] == ep && zcl_cb_calls.cluster[i] == cluster &&
+		     zcl_cb_calls.attr[i] == attr;
+	}
+
+	return n;
+}
+
 /* ZCL 5.2.2.2.1: the defaults, the writable attributes saved, the others read-only */
 ZTEST(zzb_zcl_color, test_attributes)
 {
@@ -130,6 +148,60 @@ ZTEST(zzb_zcl_color, test_move_to_color)
 	command(40, ZZB_ZCL_COLOR_MOVE_TO_COLOR, (uint8_t[]){0x00, 0x10, 0x00, 0x10, 0x00}, 5,
 		ZZB_ZCL_MALFORMED_COMMAND);
 	zassert_equal(color40.current_x, 0xfeff);
+}
+
+/* Section 16: X and Y move together every 100 ms, and only the end is saved */
+ZTEST(zzb_zcl_color, test_transition)
+{
+	move_to_color(40, 0x1000, 0x2000, 0);
+	move_to_color(40, 0x3000, 0x1000, 10);
+	zassert_equal(color40.current_x, 0x1000);
+	zassert_equal(color40.current_y, 0x2000);
+	zassert_equal(color40.remaining_time, 10);
+	zassert_true(timer_armed());
+
+	k_sleep(K_MSEC(550));
+	zassert_between_inclusive(color40.current_x, 0x1e00, 0x2200);
+	zassert_between_inclusive(color40.current_y, 0x1700, 0x1900);
+	zassert_between_inclusive(color40.remaining_time, 4, 6);
+
+	/* The record holds the start values */
+	zassert_ok(reboot());
+	zassert_equal(color40.current_x, 0x1000);
+	zassert_equal(color40.current_y, 0x2000);
+	zassert_equal(color40.remaining_time, 0);
+	zassert_false(timer_armed());
+
+	reset_fakes();
+	move_to_color(40, 0x3000, 0x1000, 10);
+	k_sleep(K_MSEC(1200));
+	zassert_equal(color40.current_x, 0x3000);
+	zassert_equal(color40.current_y, 0x1000);
+	zassert_equal(color40.remaining_time, 0);
+	zassert_between_inclusive(notified(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_Y), 9, 11);
+	zassert_false(timer_armed());
+	zassert_ok(reboot());
+	zassert_equal(color40.current_x, 0x3000);
+	zassert_equal(color40.current_y, 0x1000);
+}
+
+/* Section 16: a new command replaces the transition, and the reset of the node stops it */
+ZTEST(zzb_zcl_color, test_transition_replaced)
+{
+	move_to_color(40, 0x3000, 0x1000, 10);
+	k_sleep(K_MSEC(250));
+	move_to_color(40, 0x2000, 0x2000, 0);
+	zassert_equal(color40.current_x, 0x2000);
+	zassert_equal(color40.current_y, 0x2000);
+	zassert_equal(color40.remaining_time, 0);
+	zassert_false(timer_armed());
+
+	move_to_color(40, 0x3000, 0x1000, 10);
+	k_sleep(K_MSEC(250));
+	reset_node();
+	zassert_equal(color40.current_x, 0x616b);
+	zassert_equal(color40.remaining_time, 0);
+	zassert_false(timer_armed());
 }
 
 /* ZCL 5.2.2.2.1.18: commands of a capability that the light lacks or the stack does not have */

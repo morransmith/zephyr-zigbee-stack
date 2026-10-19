@@ -1,8 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/color.h>
 
+#include "common/node.h"
+#include "common/timer.h"
 #include "zcl/zcl.h"
 
 /* ClusterRevision (ZCL 5.2.1.1) */
@@ -15,6 +18,9 @@
 #define DEFAULT_X           0x616b
 #define DEFAULT_Y           0x607d
 #define DEFAULT_TEMPERATURE 0x00fa
+
+/* Period of the steps of a transition, the unit of ZCL transition times */
+#define STEP_MS 100
 
 /* The WhitePoint and ColorPoint attributes are not implemented */
 static const struct zzb_zcl_attr attrs[] = {
@@ -88,6 +94,93 @@ static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value
 	zzb_zcl_set(node, ep, ZZB_ZCL_COLOR, attr, value);
 }
 
+/* The Color Control server on ep, or NULL */
+static const struct zzb_zcl_cluster *server(const struct zzb_endpoint *ep)
+{
+	return zzb_zcl_find_cluster(ep, ZZB_ZCL_COLOR, true);
+}
+
+/* The values of the server cl while it runs a transition, or NULL */
+static struct zzb_zcl_color *moving(const struct zzb_zcl_cluster *cl)
+{
+	struct zzb_zcl_color *v = cl != NULL ? cl->values : NULL;
+
+	return v != NULL && v->transition.count > 0 ? v : NULL;
+}
+
+/* Arms the timer while a transition runs */
+static void schedule(struct zzb_node *node)
+{
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		if (moving(server(&node->device->endpoints[i])) != NULL) {
+			zzb_timer_arm(&node->zcl.color_timer, K_MSEC(STEP_MS));
+			return;
+		}
+	}
+
+	k_work_cancel_delayable(&node->zcl.color_timer);
+}
+
+/* RemainingTime follows the transition (ZCL 5.2.2.2.1.3) */
+static void remaining(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_color *v)
+{
+	zzb_zcl_update(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_REMAINING_TIME,
+		       zzb_zcl_transition_remaining(&v->transition));
+}
+
+/* One step of the transitions of all servers of the node */
+static void tick(struct k_work *work)
+{
+	struct zzb_node *node =
+		CONTAINER_OF(k_work_delayable_from_work(work), struct zzb_node, zcl.color_timer);
+
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		const struct zzb_endpoint *ep = &node->device->endpoints[i];
+		const struct zzb_zcl_cluster *cl = server(ep);
+		struct zzb_zcl_color *v = moving(cl);
+
+		if (v == NULL) {
+			continue;
+		}
+
+		zzb_zcl_transition_step(node, ep->id, cl, &v->transition);
+		remaining(node, ep->id, v);
+	}
+
+	schedule(node);
+}
+
+/*
+ * Moves count attributes attrs to the values to over time_ds tenths of a second, at once for 0,
+ * and replaces a running transition
+ */
+static void move(struct zzb_node *node, uint8_t ep, struct zzb_zcl_color *v, const uint16_t *attrs,
+		 const uint16_t *to, size_t count, uint32_t time_ds)
+{
+	v->transition.count = 0;
+	if (time_ds > 0) {
+		zzb_zcl_transition_start(&v->transition, server(zzb_node_endpoint(node, ep)), attrs,
+					 to, count, time_ds);
+	} else {
+		for (size_t i = 0; i < count; i++) {
+			set(node, ep, attrs[i], to[i]);
+		}
+	}
+
+	remaining(node, ep, v);
+	schedule(node);
+}
+
+/* X and Y move together, on a straight line in the xy space (ZCL 5.2.2.3.11) */
+static void move_xy(struct zzb_node *node, uint8_t ep, struct zzb_zcl_color *v, uint16_t x,
+		    uint16_t y, uint32_t time_ds)
+{
+	const uint16_t attrs[] = {ZZB_ZCL_COLOR_CURRENT_X, ZZB_ZCL_COLOR_CURRENT_Y};
+	const uint16_t to[] = {MIN(x, XY_MAX), MIN(y, XY_MAX)};
+
+	move(node, ep, v, attrs, to, ARRAY_SIZE(attrs), time_ds);
+}
+
 /* ColorMode and EnhancedColorMode take mode, the first action of a command (ZCL 5.2.2.3.2) */
 static void set_mode(struct zzb_node *node, uint8_t ep, uint8_t mode)
 {
@@ -100,8 +193,8 @@ static int move_to_color(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 			 struct zzb_zcl_color *v)
 {
 	set_mode(node, cmd->ep, ZZB_ZCL_COLOR_MODE_XY);
-	set(node, cmd->ep, ZZB_ZCL_COLOR_CURRENT_X, MIN(sys_get_le16(cmd->payload), XY_MAX));
-	set(node, cmd->ep, ZZB_ZCL_COLOR_CURRENT_Y, MIN(sys_get_le16(cmd->payload + 2), XY_MAX));
+	move_xy(node, cmd->ep, v, sys_get_le16(cmd->payload), sys_get_le16(cmd->payload + 2),
+		sys_get_le16(cmd->payload + 4));
 	return ZZB_ZCL_SUCCESS;
 }
 
@@ -161,12 +254,16 @@ static void init(void *values)
 	v->enhanced_color_mode = v->color_mode;
 	v->options = 0;
 	v->start_up_color_temperature = v->start_up_default;
+	v->transition.count = 0;
 }
 
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	struct zzb_zcl_color *v = values;
 
+	v->transition.count = 0;
+	remaining(node, ep, v);
+	schedule(node);
 	set_mode(node, ep, default_mode(v));
 	set(node, ep, ZZB_ZCL_COLOR_CURRENT_X, DEFAULT_X);
 	set(node, ep, ZZB_ZCL_COLOR_CURRENT_Y, DEFAULT_Y);
@@ -182,3 +279,8 @@ const struct zzb_zcl_cluster_def zzb_zcl_color_def = {
 	.reset = reset,
 	.cmd = cmd,
 };
+
+void zzb_zcl_color_init(struct zzb_node *node)
+{
+	k_work_init_delayable(&node->zcl.color_timer, tick);
+}
