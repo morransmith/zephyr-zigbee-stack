@@ -18,9 +18,11 @@ struct zzb_node;
 #define ZZB_ZCL_HANDLE 0xfd
 
 /* Global command identifiers (ZCL Table 2-3) */
-#define ZZB_ZCL_READ_ATTRIBUTES     0x00
-#define ZZB_ZCL_READ_ATTRIBUTES_RSP 0x01
-#define ZZB_ZCL_DEFAULT_RSP         0x0b
+#define ZZB_ZCL_READ_ATTRIBUTES         0x00
+#define ZZB_ZCL_READ_ATTRIBUTES_RSP     0x01
+#define ZZB_ZCL_DEFAULT_RSP             0x0b
+#define ZZB_ZCL_DISCOVER_ATTRIBUTES     0x0c
+#define ZZB_ZCL_DISCOVER_ATTRIBUTES_RSP 0x0d
 
 /* The longest payload of a response, without the manufacturer code */
 #define ZZB_ZCL_MAX_PAYLOAD (ZZB_APS_MAX_ASDU - 3)

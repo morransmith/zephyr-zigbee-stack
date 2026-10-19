@@ -52,11 +52,54 @@ static int read_attributes(struct zzb_node *node, const struct zzb_zcl_req *req)
 	return ZZB_ZCL_RESPONDED;
 }
 
+/* Attribute information records of 3 octets after discovery complete */
+#define DISCOVER_MAX ((ZZB_ZCL_MAX_PAYLOAD - 1) / 3)
+
+/* ZCL 2.5.13.3 */
+static int discover_attributes(struct zzb_node *node, const struct zzb_zcl_req *req)
+{
+	const struct zzb_zcl_cluster_def *def = req->cluster->def;
+	uint8_t rsp[1 + 3 * DISCOVER_MAX] = {1};
+	size_t n = 1;
+	uint16_t start;
+	uint8_t max;
+
+	if (req->cmd.len < 3) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	start = sys_get_le16(req->cmd.payload);
+	max = MIN(req->cmd.payload[2], DISCOVER_MAX);
+
+	for (int i = 0; def != NULL && i < def->attr_count; i++) {
+		const struct zzb_zcl_attr *attr = &def->attrs[i];
+
+		if (attr->id < start) {
+			continue;
+		}
+
+		/* Discovery is not complete */
+		if (n == 1 + 3 * max) {
+			rsp[0] = 0;
+			break;
+		}
+
+		sys_put_le16(attr->id, rsp + n);
+		rsp[n + 2] = attr->type;
+		n += 3;
+	}
+
+	zzb_zcl_respond(node, req, ZZB_ZCL_FRAME_GLOBAL, ZZB_ZCL_DISCOVER_ATTRIBUTES_RSP, rsp, n);
+	return ZZB_ZCL_RESPONDED;
+}
+
 int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req)
 {
 	switch (req->hdr.cmd) {
 	case ZZB_ZCL_READ_ATTRIBUTES:
 		return read_attributes(node, req);
+	case ZZB_ZCL_DISCOVER_ATTRIBUTES:
+		return discover_attributes(node, req);
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}
