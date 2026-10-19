@@ -97,7 +97,8 @@ void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf, const struct
 {
 	struct zzb_zdo_req req;
 
-	if (ind->dst_ep != 0) {
+	/* A group frame has no destination endpoint */
+	if (ind->group || ind->dst_ep != 0) {
 		zzb_zcl_data_ind(node, buf, ind);
 		return;
 	}

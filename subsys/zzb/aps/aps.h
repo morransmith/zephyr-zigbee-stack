@@ -88,14 +88,17 @@ struct zzb_apsde_req {
 };
 
 struct zzb_apsde_ind {
-	/* The network destination of the frame */
+	/* The network destination of the frame, or the group address of a group frame */
 	uint16_t dst_addr;
+	/* Not valid in a group frame */
 	uint8_t dst_ep;
 	uint16_t src_addr;
 	uint8_t src_ep;
 	uint16_t profile;
 	uint16_t cluster;
 	enum zzb_aps_security_status security;
+	/* A group-addressed frame (delivery mode group) */
+	bool group;
 };
 
 /* Entry of the transmission table; its index is the NSDU handle */

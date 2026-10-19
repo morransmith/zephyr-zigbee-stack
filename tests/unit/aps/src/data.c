@@ -292,9 +292,43 @@ ZTEST(zzb_aps_data, test_indication)
 	zassert_equal(ind.profile, 0x0104);
 	zassert_equal(ind.cluster, 0x0006);
 	zassert_equal(ind.security, ZZB_APS_SECURED_NWK_KEY);
+	zassert_false(ind.group);
 	zassert_equal(data_ind.len, sizeof(asdu));
 	zassert_mem_equal(data_ind.data, asdu, sizeof(asdu));
 	zassert_equal(data_ind.meta.lqi, 200);
+}
+
+/* R22 2.2.8.4.2: one indication with the group address; ZCL serves the member endpoints */
+ZTEST(zzb_aps_data, test_group_indication)
+{
+	/* Delivery mode group, group 0x1234, then the APS counter */
+	uint8_t frame[] = {0x0c, 0x34, 0x12, 0x06, 0x00, 0x04, 0x01, 0x02, 0x57, 0x01, 0x42, 0x02};
+
+	zassert_ok(zzb_apsme_add_group(node, 0x1234, 1));
+	receive(frame, sizeof(frame), 0xfffd, true);
+	zassert_equal(zzb_apsde_data_ind_fake.call_count, 1);
+	zassert_true(ind.group);
+	zassert_equal(ind.dst_addr, 0x1234);
+	zassert_equal(ind.src_ep, 0x02);
+	zassert_equal(ind.cluster, 0x0006);
+	zassert_mem_equal(data_ind.data, asdu, sizeof(asdu));
+
+	/* A duplicate */
+	receive(frame, sizeof(frame), 0xfffd, true);
+	zassert_equal(zzb_apsde_data_ind_fake.call_count, 1);
+
+	/* A group without a member endpoint */
+	frame[1] = 0x35;
+	frame[8] = 0x58;
+	receive(frame, sizeof(frame), 0xfffd, true);
+	zassert_equal(zzb_apsde_data_ind_fake.call_count, 1);
+
+	/* A group shares no link key */
+	frame[0] |= ZZB_APS_SECURITY;
+	frame[1] = 0x34;
+	frame[8] = 0x59;
+	receive(frame, sizeof(frame), 0xfffd, true);
+	zassert_equal(zzb_apsde_data_ind_fake.call_count, 1);
 }
 
 ZTEST(zzb_aps_data, test_link_key_secured_indication)
