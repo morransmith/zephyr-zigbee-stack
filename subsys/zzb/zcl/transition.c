@@ -46,12 +46,18 @@ bool zzb_zcl_transition_step(struct zzb_node *node, uint8_t ep, const struct zzb
 		return false;
 	}
 
+	zzb_zcl_transition_stop(node, ep, cl->id, t);
+	return true;
+}
+
+void zzb_zcl_transition_stop(struct zzb_node *node, uint8_t ep, uint16_t cluster,
+			     struct zzb_zcl_transition *t)
+{
 	for (int i = 0; i < t->count; i++) {
-		zzb_zcl_save(node, ep, cl->id, t->attr[i]);
+		zzb_zcl_save(node, ep, cluster, t->attr[i]);
 	}
 
 	t->count = 0;
-	return true;
 }
 
 uint16_t zzb_zcl_transition_remaining(const struct zzb_zcl_transition *t)

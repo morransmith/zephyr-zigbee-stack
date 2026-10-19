@@ -161,6 +161,10 @@ void zzb_zcl_transition_start(struct zzb_zcl_transition *t, const struct zzb_zcl
 bool zzb_zcl_transition_step(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 			     struct zzb_zcl_transition *t);
 
+/* Stops t and saves its attributes of the server cluster on endpoint ep */
+void zzb_zcl_transition_stop(struct zzb_node *node, uint8_t ep, uint16_t cluster,
+			     struct zzb_zcl_transition *t);
+
 /* The time left of t in tenths of a second, rounded up; 0 when t does not run */
 uint16_t zzb_zcl_transition_remaining(const struct zzb_zcl_transition *t);
 

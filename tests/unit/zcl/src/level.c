@@ -222,4 +222,68 @@ ZTEST(zzb_zcl_level, test_transition_reported)
 	zassert_mem_equal(sent[1].data + 2, ((uint8_t[]){0x0a, 0x00, 0x00, 0x20, 200}), 5);
 }
 
+/* ZCL 3.10.2.3.2: Move goes to the limit at the rate */
+ZTEST(zzb_zcl_level, test_move)
+{
+	move_to_level(10, 154, 0);
+	send(10, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE, (uint8_t[]){0x00, 100}, 2);
+	zassert_equal(level10.remaining_time, 10);
+	k_sleep(K_MSEC(550));
+	zassert_between_inclusive(level10.current_level, 195, 209);
+	k_sleep(K_MSEC(600));
+	zassert_equal(level10.current_level, 254);
+	zassert_false(timer_armed());
+
+	/* Rate 0xff moves at once */
+	send(10, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE, (uint8_t[]){0x01, 0xff}, 2);
+	zassert_equal(level10.current_level, 1);
+
+	command(10, ZZB_ZCL_LEVEL_MOVE, (uint8_t[]){0x00, 0x00}, 2, ZZB_ZCL_INVALID_FIELD);
+	command(10, ZZB_ZCL_LEVEL_MOVE, (uint8_t[]){0x02, 0x10}, 2, ZZB_ZCL_INVALID_FIELD);
+	command(10, ZZB_ZCL_LEVEL_MOVE, (uint8_t[]){0x00}, 1, ZZB_ZCL_MALFORMED_COMMAND);
+	zassert_equal(level10.current_level, 1);
+}
+
+/* ZCL 3.10.2.3.3: a step cut at a limit takes the same part of the transition time */
+ZTEST(zzb_zcl_level, test_step)
+{
+	move_to_level(10, 100, 0);
+	send(10, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_STEP, (uint8_t[]){0x00, 50, 0x0a, 0x00}, 4);
+	zassert_equal(level10.remaining_time, 10);
+	k_sleep(K_MSEC(1100));
+	zassert_equal(level10.current_level, 150);
+
+	send(10, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_STEP, (uint8_t[]){0x00, 208, 0x0a, 0x00}, 4);
+	zassert_equal(level10.remaining_time, 5);
+	k_sleep(K_MSEC(600));
+	zassert_equal(level10.current_level, 254);
+
+	/* Transition time 0xffff steps at once */
+	send(10, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_STEP, (uint8_t[]){0x01, 4, 0xff, 0xff}, 4);
+	zassert_equal(level10.current_level, 250);
+
+	command(10, ZZB_ZCL_LEVEL_STEP, (uint8_t[]){0x02, 1, 0x00, 0x00}, 4, ZZB_ZCL_INVALID_FIELD);
+	command(10, ZZB_ZCL_LEVEL_STEP, (uint8_t[]){0x00, 1, 0x00}, 3, ZZB_ZCL_MALFORMED_COMMAND);
+	zassert_equal(level10.current_level, 250);
+}
+
+/* ZCL 3.10.2.3.4: Stop leaves the level, which is saved */
+ZTEST(zzb_zcl_level, test_stop)
+{
+	uint8_t level;
+
+	move_to_level(10, 100, 10);
+	k_sleep(K_MSEC(350));
+	send(10, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_STOP, NULL, 0);
+	level = level10.current_level;
+	zassert_between_inclusive(level, 190, 225);
+	zassert_equal(level10.remaining_time, 0);
+	zassert_false(timer_armed());
+
+	k_sleep(K_MSEC(200));
+	zassert_equal(level10.current_level, level);
+	zassert_ok(reboot());
+	zassert_equal(level10.current_level, level);
+}
+
 ZTEST_SUITE(zzb_zcl_level, NULL, setup, before, after, NULL);

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <stdlib.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/level.h>
@@ -17,6 +18,13 @@
 
 /* Period of the steps of a transition, the unit of ZCL transition times */
 #define STEP_MS 100
+
+/* Move mode and step mode (ZCL Table 3-60, 3-62) */
+#define MODE_UP   0x00
+#define MODE_DOWN 0x01
+
+/* The fields of Move to Level, Move, Step and Stop before OptionsMask, in octets (ZCL 3.10.2.3) */
+static const uint8_t fields_len[] = {3, 2, 4, 0};
 
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_LEVEL_CURRENT_LEVEL, ZZB_ZCL_UINT8, ZZB_ZCL_REPORT | ZZB_ZCL_NV,
@@ -134,25 +142,77 @@ static void move(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, uin
 static int move_to_level(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 			 struct zzb_zcl_level *v)
 {
-	uint16_t time;
+	uint16_t time = sys_get_le16(cmd->payload + 1);
 
-	if (cmd->len < 3) {
-		return ZZB_ZCL_MALFORMED_COMMAND;
-	}
-
-	time = sys_get_le16(cmd->payload + 1);
 	move(node, cmd->ep, v, CLAMP(cmd->payload[0], LEVEL_MIN, LEVEL_MAX),
 	     time == 0xffff ? v->on_off_transition_time : time);
 	return ZZB_ZCL_SUCCESS;
 }
 
+/* ZCL 3.10.2.3.2: rate 0xff moves at once, since DefaultMoveRate is not implemented */
+static int move_at_rate(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			struct zzb_zcl_level *v)
+{
+	uint8_t mode = cmd->payload[0];
+	uint8_t rate = cmd->payload[1];
+	uint8_t level = mode == MODE_UP ? LEVEL_MAX : LEVEL_MIN;
+
+	if (mode > MODE_DOWN || rate == 0) {
+		return ZZB_ZCL_INVALID_FIELD;
+	}
+
+	/* The rate is in levels per second */
+	move(node, cmd->ep, v, level, rate == 0xff ? 0 : 10 * abs(level - v->current_level) / rate);
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 3.10.2.3.3: transition time 0xffff steps at once */
+static int step(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_level *v)
+{
+	uint8_t mode = cmd->payload[0];
+	uint8_t size = cmd->payload[1];
+	uint16_t time = sys_get_le16(cmd->payload + 2);
+	uint8_t level =
+		CLAMP(v->current_level + (mode == MODE_UP ? size : -size), LEVEL_MIN, LEVEL_MAX);
+
+	if (mode > MODE_DOWN) {
+		return ZZB_ZCL_INVALID_FIELD;
+	}
+
+	/* A step cut at a limit takes the same part of the transition time */
+	move(node, cmd->ep, v, level,
+	     time == 0xffff || size == 0 ? 0 : time * abs(level - v->current_level) / size);
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 3.10.2.3.4: the level stays and is saved */
+static void stop(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
+{
+	zzb_zcl_transition_stop(node, ep, ZZB_ZCL_LEVEL, &v->transition);
+	remaining(node, ep, v);
+	schedule(node);
+}
+
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
+	if (cmd->id >= ARRAY_SIZE(fields_len)) {
+		return ZZB_ZCL_UNSUP_COMMAND;
+	}
+
+	if (cmd->len < fields_len[cmd->id]) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
 	switch (cmd->id) {
 	case ZZB_ZCL_LEVEL_MOVE_TO_LEVEL:
 		return move_to_level(node, cmd, values);
+	case ZZB_ZCL_LEVEL_MOVE:
+		return move_at_rate(node, cmd, values);
+	case ZZB_ZCL_LEVEL_STEP:
+		return step(node, cmd, values);
 	default:
-		return ZZB_ZCL_UNSUP_COMMAND;
+		stop(node, cmd->ep, values);
+		return ZZB_ZCL_SUCCESS;
 	}
 }
 
