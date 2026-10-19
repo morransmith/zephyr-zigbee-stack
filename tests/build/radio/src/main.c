@@ -5,15 +5,19 @@
 #include <zzb/zzb.h>
 
 /* Basic, Identify and On/Off servers of an On/Off Light (Home Automation profile) */
-static const uint16_t light_in[] = {0x0000, 0x0003, 0x0006};
+static const struct zzb_zcl_cluster light[] = {
+	{.id = 0x0000, .server = true},
+	{.id = 0x0003, .server = true},
+	{.id = 0x0006, .server = true},
+};
 
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
 		.profile = 0x0104,
 		.device_id = 0x0100,
-		.in_clusters = light_in,
-		.in_cluster_count = ARRAY_SIZE(light_in),
+		.clusters = light,
+		.cluster_count = ARRAY_SIZE(light),
 	},
 };
 

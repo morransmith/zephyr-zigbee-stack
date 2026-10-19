@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <zephyr/sys/util_macro.h>
 #include <zzb/bdb.h>
+#include <zzb/zcl.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,10 +23,8 @@ struct zzb_endpoint {
 	uint16_t profile;
 	uint16_t device_id;
 	uint8_t device_version;
-	const uint16_t *in_clusters;
-	uint8_t in_cluster_count;
-	const uint16_t *out_clusters;
-	uint8_t out_cluster_count;
+	const struct zzb_zcl_cluster *clusters;
+	uint8_t cluster_count;
 };
 
 /** Power sources of the power descriptor (R22 Table 2-36). */

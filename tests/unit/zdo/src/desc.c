@@ -69,8 +69,9 @@ ZTEST(zzb_zdo_desc, test_simple_desc)
 	/* Status, address, length, endpoint, profile, device, version, clusters */
 	static const uint8_t light[] = {0x23, 0x00, 0x78, 0x56, 0x0e, 0x01, 0x04, 0x01, 0x00, 0x01,
 					0x01, 0x03, 0x00, 0x00, 0x03, 0x00, 0x06, 0x00, 0x00};
-	static const uint8_t light_switch[] = {0x23, 0x00, 0x78, 0x56, 0x0a, 0x02, 0x04, 0x01,
-					       0x03, 0x01, 0x00, 0x00, 0x01, 0x06, 0x00};
+	static const uint8_t light_switch[] = {0x23, 0x00, 0x78, 0x56, 0x10, 0x02, 0x04,
+					       0x01, 0x03, 0x01, 0x00, 0x02, 0x00, 0x00,
+					       0x03, 0x00, 0x02, 0x03, 0x00, 0x06, 0x00};
 
 	receive(SIMPLE_DESC_REQ, NODE_ADDR, req, sizeof(req));
 	check_response(0, SIMPLE_DESC_REQ | 0x8000, light, sizeof(light));
@@ -147,6 +148,27 @@ ZTEST(zzb_zdo_desc, test_match_desc)
 	/* The cluster lists exceed the payload */
 	receive(MATCH_DESC_REQ, NODE_ADDR, req, sizeof(req) - 1);
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+}
+
+/* An input cluster matches only a server instance, an output cluster only a client instance */
+ZTEST(zzb_zdo_desc, test_match_desc_roles)
+{
+	/* No profile filter, input Identify, then output Identify, then output Basic */
+	static const uint8_t req[] = {0x28, NODE_ADDR_LE, 0xff, 0xff, 0x01, 0x03, 0x00, 0x00};
+	static const uint8_t servers[] = {0x28, 0x00, NODE_ADDR_LE, 0x02, 0x01, 0x02};
+	static const uint8_t client[] = {0x28, 0x00, NODE_ADDR_LE, 0x01, 0x02};
+	static const uint8_t none[] = {0x28, 0x00, NODE_ADDR_LE, 0x00};
+
+	receive(MATCH_DESC_REQ, NODE_ADDR, req, sizeof(req));
+	check_response(0, MATCH_DESC_REQ | 0x8000, servers, sizeof(servers));
+
+	receive(MATCH_DESC_REQ, NODE_ADDR,
+		(uint8_t[]){0x28, NODE_ADDR_LE, 0xff, 0xff, 0x00, 0x01, 0x03, 0x00}, sizeof(req));
+	check_response(1, MATCH_DESC_REQ | 0x8000, client, sizeof(client));
+
+	receive(MATCH_DESC_REQ, NODE_ADDR,
+		(uint8_t[]){0x28, NODE_ADDR_LE, 0xff, 0xff, 0x00, 0x01, 0x00, 0x00}, sizeof(req));
+	check_response(2, MATCH_DESC_REQ | 0x8000, none, sizeof(none));
 }
 
 /* R22 2.4.4.2.7 step 2 */

@@ -45,10 +45,19 @@ void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_L
 }
 
 /* Basic, Identify and On/Off servers of an On/Off Light */
-static const uint16_t light_in[] = {0x0000, 0x0003, 0x0006};
+static const struct zzb_zcl_cluster light[] = {
+	{.id = 0x0000, .server = true},
+	{.id = 0x0003, .server = true},
+	{.id = 0x0006, .server = true},
+};
 
-/* On/Off client of an On/Off Light Switch */
-static const uint16_t switch_out[] = {0x0006};
+/* Basic and Identify servers, Identify and On/Off clients of an On/Off Light Switch */
+static const struct zzb_zcl_cluster light_switch[] = {
+	{.id = 0x0000, .server = true},
+	{.id = 0x0003, .server = true},
+	{.id = 0x0003},
+	{.id = 0x0006},
+};
 
 static const struct zzb_endpoint endpoints[] = {
 	{
@@ -56,15 +65,15 @@ static const struct zzb_endpoint endpoints[] = {
 		.profile = 0x0104,
 		.device_id = 0x0100,
 		.device_version = 1,
-		.in_clusters = light_in,
-		.in_cluster_count = ARRAY_SIZE(light_in),
+		.clusters = light,
+		.cluster_count = ARRAY_SIZE(light),
 	},
 	{
 		.id = 2,
 		.profile = 0x0104,
 		.device_id = 0x0103,
-		.out_clusters = switch_out,
-		.out_cluster_count = ARRAY_SIZE(switch_out),
+		.clusters = light_switch,
+		.cluster_count = ARRAY_SIZE(light_switch),
 	},
 };
 
