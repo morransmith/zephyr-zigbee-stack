@@ -63,6 +63,7 @@ struct zzb_zcl_level {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_level_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_level_client_def;
 
 /** A Level Control for Lighting server with the values v, a pointer to struct zzb_zcl_level. */
 #define ZZB_ZCL_LEVEL_SERVER(v)                                                                    \
@@ -71,6 +72,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_level_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_level *)NULL),                                \
 		.def = &zzb_zcl_level_def,                                                         \
+	}
+
+/** A Level Control client, which dimmer switches and controllers have (DTL). */
+#define ZZB_ZCL_LEVEL_CLIENT()                                                                     \
+	{                                                                                          \
+		.id = ZZB_ZCL_LEVEL,                                                               \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_level_client_def,                                                  \
 	}
 
 #ifdef __cplusplus

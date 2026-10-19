@@ -64,8 +64,8 @@ ZTEST(zzb_zcl_client, test_client_revisions)
 		uint16_t cluster;
 		uint8_t revision;
 	} clients[] = {
-		{0x0004, 3}, {0x0005, 3}, {0x0006, 2}, {0x0009, 1},
-		{0x0400, 2}, {0x0401, 1}, {0x0406, 2},
+		{0x0004, 3}, {0x0005, 3}, {0x0006, 2}, {0x0008, 2},
+		{0x0009, 1}, {0x0400, 2}, {0x0401, 1}, {0x0406, 2},
 	};
 
 	ARRAY_FOR_EACH(clients, i) {
