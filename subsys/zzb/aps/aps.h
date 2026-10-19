@@ -223,6 +223,9 @@ void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf,
 void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
 				 enum zzb_aps_key_type type, const uint8_t *key, uint8_t seq);
 
+/* Defined by ZDO. APSME-SWITCH-KEY.indication from the trust center src_addr. */
+void zzb_apsme_switch_key_ind(struct zzb_node *node, uint64_t src_addr, uint8_t seq);
+
 /* Within APS */
 
 /* Whether a frame from src_addr with counter was received before (R22 2.2.8.4.2) */

@@ -245,4 +245,122 @@ ZTEST(zzb_aps_cmd, test_repeated_transport_key)
 	zassert_equal(zzb_apsme_transport_key_ind_fake.call_count, 1);
 }
 
+/* The trust center link key of BDB 10.2.5 step 8, under the key-load key of key A */
+static const struct tc_frame key_load = {
+	.link_key = zzb_aps_default_tc_link_key,
+	.key_id = ZZB_SEC_KEY_LOAD,
+	.flags = ZZB_APS_SECURITY,
+	.nwk_src = 0x0000,
+	.nwk_dst = CHILD_ADDR,
+	.nwk_security = true,
+};
+
+static struct zzb_aps_cmd tc_link_key_cmd(uint64_t dst)
+{
+	struct zzb_aps_cmd cmd = {
+		.id = ZZB_APS_CMD_TRANSPORT_KEY,
+		.transport_key.type = ZZB_APS_KEY_TC_LINK,
+		.transport_key.dst = dst,
+		.transport_key.src = TC_EUI64,
+	};
+
+	memcpy(cmd.transport_key.key, key_b, ZZB_SEC_KEY_LEN);
+	return cmd;
+}
+
+/* The node joined: the trust center is known and the network key is set */
+static void authorize(void)
+{
+	zassert_ok(zzb_apsme_set_tc_addr(node, TC_EUI64));
+	zzb_nwk_key_pending_fake.return_val = false;
+}
+
+ZTEST(zzb_aps_cmd, test_trust_center_link_key)
+{
+	struct zzb_aps_cmd cmd = tc_link_key_cmd(NODE_EUI64);
+
+	authorize();
+	receive_cmd(&cmd, &key_load);
+	zassert_equal(zzb_apsme_transport_key_ind_fake.call_count, 1);
+	zassert_equal(zzb_apsme_transport_key_ind_fake.arg1_val, TC_EUI64);
+	zassert_equal(zzb_apsme_transport_key_ind_fake.arg2_val, ZZB_APS_KEY_TC_LINK);
+	zassert_mem_equal(transported_key, key_b, ZZB_SEC_KEY_LEN);
+}
+
+ZTEST(zzb_aps_cmd, test_rejected_trust_center_link_keys)
+{
+	struct zzb_aps_cmd cmd = tc_link_key_cmd(NODE_EUI64);
+	struct tc_frame how = key_load;
+
+	/* Only a joined and authorized node takes it (R22 4.4.2.3) */
+	zassert_ok(zzb_apsme_set_tc_addr(node, TC_EUI64));
+	receive_cmd(&cmd, &key_load);
+
+	/* A link key comes under the key-load key (R22 4.4.1.1 step 1) */
+	zzb_nwk_key_pending_fake.return_val = false;
+	how.key_id = ZZB_SEC_KEY_TRANSPORT;
+	receive_cmd(&cmd, &how);
+
+	/* The all-zero destination belongs to a network key */
+	cmd = tc_link_key_cmd(0);
+	receive_cmd(&cmd, &key_load);
+
+	zassert_equal(zzb_apsme_transport_key_ind_fake.call_count, 0);
+}
+
+static const struct zzb_aps_cmd switch_key = {
+	.id = ZZB_APS_CMD_SWITCH_KEY,
+	.switch_key_seq = 1,
+};
+
+/* R22 4.4.1.3: without APS security the trust center is NWK address 0x0000 */
+ZTEST(zzb_aps_cmd, test_switch_key)
+{
+	struct tc_frame how = {
+		.nwk_src = 0x0000,
+		.nwk_dst = 0xfffd,
+		.nwk_security = true,
+	};
+
+	authorize();
+	receive_cmd(&switch_key, &how);
+	zassert_equal(zzb_apsme_switch_key_ind_fake.call_count, 1);
+	zassert_equal_ptr(zzb_apsme_switch_key_ind_fake.arg0_val, node);
+	zassert_equal(zzb_apsme_switch_key_ind_fake.arg1_val, TC_EUI64);
+	zassert_equal(zzb_apsme_switch_key_ind_fake.arg2_val, 1);
+
+	how.nwk_src = ROUTER_ADDR;
+	receive_cmd(&switch_key, &how);
+	zassert_equal(zzb_apsme_switch_key_ind_fake.call_count, 1);
+
+	/* With APS security the key identifies the trust center */
+	how.link_key = zzb_aps_default_tc_link_key;
+	how.key_id = ZZB_SEC_KEY_DATA;
+	how.flags = ZZB_APS_SECURITY;
+	receive_cmd(&switch_key, &how);
+	zassert_equal(zzb_apsme_switch_key_ind_fake.call_count, 2);
+}
+
+ZTEST(zzb_aps_cmd, test_rejected_switch_keys)
+{
+	struct tc_frame how = {
+		.link_key = zzb_aps_default_tc_link_key,
+		.key_id = ZZB_SEC_KEY_DATA,
+		.flags = ZZB_APS_SECURITY,
+		.nwk_src = 0x0000,
+		.nwk_dst = 0xfffd,
+	};
+
+	/* Without NWK security only a Transport Key is accepted */
+	authorize();
+	receive_cmd(&switch_key, &how);
+
+	/* While the network key is pending */
+	how.nwk_security = true;
+	zzb_nwk_key_pending_fake.return_val = true;
+	receive_cmd(&switch_key, &how);
+
+	zassert_equal(zzb_apsme_switch_key_ind_fake.call_count, 0);
+}
+
 ZTEST_SUITE(zzb_aps_cmd, NULL, setup, before, after, NULL);

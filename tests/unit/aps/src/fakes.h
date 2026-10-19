@@ -25,6 +25,7 @@ DECLARE_FAKE_VOID_FUNC(zzb_apsde_data_ind, struct zzb_node *, struct net_buf *,
 		       const struct zzb_apsde_ind *);
 DECLARE_FAKE_VOID_FUNC(zzb_apsme_transport_key_ind, struct zzb_node *, uint64_t,
 		       enum zzb_aps_key_type, const uint8_t *, uint8_t);
+DECLARE_FAKE_VOID_FUNC(zzb_apsme_switch_key_ind, struct zzb_node *, uint64_t, uint8_t);
 
 /* Copy of a frame passed to NLDE-DATA.request or APSDE-DATA.indication */
 struct frame_copy {
