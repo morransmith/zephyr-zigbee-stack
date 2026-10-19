@@ -173,6 +173,14 @@ config ZZB_ZDO_TRANSACTION_COUNT
 	  Requests of the ZDO client that wait for their response at the same
 	  time.
 
+config ZZB_BDB_FB_RESPONDENT_COUNT
+	int "Respondents of finding & binding for an initiator"
+	range 1 32
+	default 4
+	help
+	  Endpoints that answer Identify Query of finding & binding for an
+	  initiator (BDB 8.5). Further responses are ignored.
+
 config ZZB_FRAME_COUNTER_JUMP
 	int "Outgoing frame counter jump at boot"
 	default 1024

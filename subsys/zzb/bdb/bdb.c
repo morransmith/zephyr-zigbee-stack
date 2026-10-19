@@ -41,10 +41,12 @@ void zzb_bdb_init(struct zzb_node *node)
 {
 	/* Safe on the zeroed struct of a new node */
 	k_work_cancel_delayable(&node->bdb.timer);
+	k_work_cancel_delayable(&node->bdb.fb.timer);
 	node->bdb = (struct zzb_bdb){
 		.on_network = zzb_nlme_get_ext_pan_id(node) != 0,
 	};
 	k_work_init_delayable(&node->bdb.timer, timer_handler);
+	zzb_bdb_fb_init(node);
 }
 
 void zzb_bdb_schedule(struct zzb_node *node, k_timeout_t delay)
