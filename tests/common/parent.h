@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-#ifndef ZZB_TESTS_INTEGRATION_NWK_JOIN_PARENT_H_
-#define ZZB_TESTS_INTEGRATION_NWK_JOIN_PARENT_H_
+#ifndef ZZB_TESTS_COMMON_PARENT_H_
+#define ZZB_TESTS_COMMON_PARENT_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -68,4 +68,4 @@ void parent_send_aps_data(uint8_t counter);
 /* Sends network key 1 in a Transport Key, then a broadcast Switch Key, from the stack thread */
 void parent_send_nwk_key_update(void);
 
-#endif /* ZZB_TESTS_INTEGRATION_NWK_JOIN_PARENT_H_ */
+#endif /* ZZB_TESTS_COMMON_PARENT_H_ */
