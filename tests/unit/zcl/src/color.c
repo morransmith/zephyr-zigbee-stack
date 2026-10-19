@@ -63,6 +63,14 @@ static void move_to_color(uint8_t ep, uint16_t x, uint16_t y, uint16_t time)
 	send(ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TO_COLOR, payload, sizeof(payload));
 }
 
+/* Move to Color Temperature as ZHA sends it, without OptionsMask and OptionsOverride */
+static void move_to_temperature(uint8_t ep, uint16_t mireds, uint16_t time)
+{
+	const uint8_t payload[] = {mireds & 0xff, mireds >> 8, time & 0xff, time >> 8};
+
+	send(ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, payload, sizeof(payload));
+}
+
 static void set_u8(uint8_t ep, uint16_t attr, uint8_t value)
 {
 	zassert_ok(zzb_zcl_attr_set(test_node(), ep, ZZB_ZCL_COLOR, attr, &value));
@@ -247,6 +255,103 @@ ZTEST(zzb_zcl_color, test_step_color)
 
 	command(40, ZZB_ZCL_COLOR_STEP_COLOR, (uint8_t[]){0x00, 0x10, 0x00, 0xfe, 0x05}, 5,
 		ZZB_ZCL_MALFORMED_COMMAND);
+}
+
+/* ZCL 5.2.2.3.14: the target is limited to the physical range with SUCCESS (ZCL 5.2.2.3.1) */
+ZTEST(zzb_zcl_color, test_move_to_temperature)
+{
+	move_to_temperature(41, 300, 0);
+	zassert_equal(color41.color_temperature, 300);
+	check_zcl_cb(41, ZZB_ZCL_COLOR, (uint16_t[]){ZZB_ZCL_COLOR_TEMPERATURE}, 1);
+
+	command(41, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, (uint8_t[]){0x58, 0x02, 0x00, 0x00}, 4,
+		ZZB_ZCL_SUCCESS);
+	zassert_equal(color41.color_temperature, COLOR_TEMP_MAX);
+	command(41, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, (uint8_t[]){0x64, 0x00, 0x00, 0x00}, 4,
+		ZZB_ZCL_SUCCESS);
+	zassert_equal(color41.color_temperature, COLOR_TEMP_MIN);
+
+	move_to_temperature(41, 400, 5);
+	zassert_equal(color41.remaining_time, 5);
+	k_sleep(K_MSEC(600));
+	zassert_equal(color41.color_temperature, 400);
+	zassert_ok(reboot());
+	zassert_equal(color41.color_temperature, 400);
+
+	/* The command sets color temperature mode */
+	move_to_color(40, 0x5000, 0x5000, 0);
+	move_to_temperature(40, 300, 0);
+	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
+	zassert_equal(color40.enhanced_color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
+	zassert_equal(color40.color_temperature, 300);
+
+	command(41, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, (uint8_t[]){0x2c, 0x01, 0x00}, 3,
+		ZZB_ZCL_MALFORMED_COMMAND);
+}
+
+/* ZCL 5.2.2.3.21: a move at the rate in mireds per second ends at the limit of the command */
+ZTEST(zzb_zcl_color, test_move_temperature)
+{
+	/* Up from 250 to the maximum 300 at 100 mireds per second */
+	send(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TEMPERATURE,
+	     (uint8_t[]){0x01, 0x64, 0x00, 0x00, 0x00, 0x2c, 0x01}, 7);
+	zassert_equal(color41.remaining_time, 5);
+	k_sleep(K_MSEC(600));
+	zassert_equal(color41.color_temperature, 300);
+
+	/* A limit of 0 or beyond the physical range is the physical limit */
+	send(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TEMPERATURE,
+	     (uint8_t[]){0x03, 0xf4, 0x01, 0x00, 0x00, 0x00, 0x00}, 7);
+	k_sleep(K_MSEC(400));
+	zassert_equal(color41.color_temperature, COLOR_TEMP_MIN);
+	send(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TEMPERATURE,
+	     (uint8_t[]){0x01, 0xe8, 0x03, 0x00, 0x00, 0x58, 0x02}, 7);
+	k_sleep(K_MSEC(500));
+	zassert_equal(color41.color_temperature, COLOR_TEMP_MAX);
+
+	/* Stop mode stops the transition */
+	send(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TEMPERATURE,
+	     (uint8_t[]){0x03, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00}, 7);
+	k_sleep(K_MSEC(250));
+	send(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TEMPERATURE,
+	     (uint8_t[]){0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 7);
+	zassert_between_inclusive(color41.color_temperature, 470, 490);
+	zassert_equal(color41.remaining_time, 0);
+	zassert_false(timer_armed());
+
+	command(41, ZZB_ZCL_COLOR_MOVE_TEMPERATURE, (uint8_t[]){0x01, 0x00, 0x00, 0, 0, 0, 0}, 7,
+		ZZB_ZCL_INVALID_FIELD);
+	command(41, ZZB_ZCL_COLOR_MOVE_TEMPERATURE, (uint8_t[]){0x02, 0x10, 0x00, 0, 0, 0, 0}, 7,
+		ZZB_ZCL_INVALID_FIELD);
+	command(41, ZZB_ZCL_COLOR_MOVE_TEMPERATURE, (uint8_t[]){0x01, 0x10, 0x00, 0, 0, 0}, 6,
+		ZZB_ZCL_MALFORMED_COMMAND);
+}
+
+/* ZCL 5.2.2.3.22: a step cut at a limit takes the same part of the transition time */
+ZTEST(zzb_zcl_color, test_step_temperature)
+{
+	send(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_STEP_TEMPERATURE,
+	     (uint8_t[]){0x01, 0x32, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00}, 9);
+	zassert_equal(color41.remaining_time, 5);
+	k_sleep(K_MSEC(600));
+	zassert_equal(color41.color_temperature, 300);
+
+	/* 100 of 300 mireds to the maximum 400 */
+	send(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_STEP_TEMPERATURE,
+	     (uint8_t[]){0x01, 0x2c, 0x01, 0x0a, 0x00, 0x00, 0x00, 0x90, 0x01}, 9);
+	zassert_equal(color41.remaining_time, 3);
+	k_sleep(K_MSEC(400));
+	zassert_equal(color41.color_temperature, 400);
+
+	send(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_STEP_TEMPERATURE,
+	     (uint8_t[]){0x03, 0xe8, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 9);
+	zassert_equal(color41.color_temperature, COLOR_TEMP_MIN);
+
+	command(41, ZZB_ZCL_COLOR_STEP_TEMPERATURE, (uint8_t[]){0x00, 0x10, 0, 0, 0, 0, 0, 0, 0}, 9,
+		ZZB_ZCL_INVALID_FIELD);
+	command(41, ZZB_ZCL_COLOR_STEP_TEMPERATURE, (uint8_t[]){0x01, 0x10, 0, 0, 0, 0, 0, 0}, 8,
+		ZZB_ZCL_MALFORMED_COMMAND);
+	zassert_equal(color41.color_temperature, COLOR_TEMP_MIN);
 }
 
 /* ZCL 5.2.2.2.1.18: commands of a capability that the light lacks or the stack does not have */

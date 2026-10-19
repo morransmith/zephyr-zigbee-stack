@@ -23,6 +23,11 @@
 /* Period of the steps of a transition, the unit of ZCL transition times */
 #define STEP_MS 100
 
+/* Move mode and step mode of the color temperature commands (ZCL Tables 5.15, 5.17) */
+#define MODE_STOP 0x00
+#define MODE_UP   0x01
+#define MODE_DOWN 0x03
+
 /* The WhitePoint and ColorPoint attributes are not implemented */
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_COLOR_REMAINING_TIME, ZZB_ZCL_UINT16, 0, struct zzb_zcl_color,
@@ -182,6 +187,14 @@ static void move_xy(struct zzb_node *node, uint8_t ep, struct zzb_zcl_color *v, 
 	move(node, ep, v, attrs, to, ARRAY_SIZE(attrs), time_ds);
 }
 
+static void move_mireds(struct zzb_node *node, uint8_t ep, struct zzb_zcl_color *v, uint16_t mireds,
+			uint32_t time_ds)
+{
+	const uint16_t attr = ZZB_ZCL_COLOR_TEMPERATURE;
+
+	move(node, ep, v, &attr, &mireds, 1, time_ds);
+}
+
 /* The attributes stay and are saved, and RemainingTime becomes 0 (ZCL 5.2.2.3.20) */
 static void stop(struct zzb_node *node, uint8_t ep, struct zzb_zcl_color *v)
 {
@@ -195,6 +208,12 @@ static void set_mode(struct zzb_node *node, uint8_t ep, uint8_t mode)
 {
 	set(node, ep, ZZB_ZCL_COLOR_MODE, mode);
 	set(node, ep, ZZB_ZCL_COLOR_ENHANCED_MODE, mode);
+}
+
+/* Color temperature mode (ZCL 5.2.2.3.2) */
+static void temperature_mode(struct zzb_node *node, uint8_t ep, struct zzb_zcl_color *v)
+{
+	set_mode(node, ep, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
 }
 
 /* ZCL 5.2.2.3.11 */
@@ -251,6 +270,75 @@ static int step_color(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, stru
 	return ZZB_ZCL_SUCCESS;
 }
 
+/* ZCL 5.2.2.3.14: the target is limited to the physical range (ZCL 5.2.2.3.1) */
+static int move_to_temperature(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			       struct zzb_zcl_color *v)
+{
+	uint16_t mireds = CLAMP(sys_get_le16(cmd->payload), v->color_temp_physical_min,
+				v->color_temp_physical_max);
+
+	temperature_mode(node, cmd->ep, v);
+	move_mireds(node, cmd->ep, v, mireds, sys_get_le16(cmd->payload + 2));
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* The lower limit of a move or step: the Minimum Mireds field within the physical range */
+static uint16_t min_mireds(const struct zzb_zcl_color *v, uint16_t field)
+{
+	return MAX(field, v->color_temp_physical_min);
+}
+
+/* The upper limit: the Maximum Mireds field within the physical range, 0 for its maximum */
+static uint16_t max_mireds(const struct zzb_zcl_color *v, uint16_t field)
+{
+	return field == 0 ? v->color_temp_physical_max : MIN(field, v->color_temp_physical_max);
+}
+
+/* ZCL 5.2.2.3.21: the rate is in mireds per second, and stop mode stops the transition */
+static int move_temperature(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			    struct zzb_zcl_color *v)
+{
+	uint8_t mode = cmd->payload[0];
+	uint16_t rate = sys_get_le16(cmd->payload + 1);
+	uint16_t mireds = mode == MODE_UP ? max_mireds(v, sys_get_le16(cmd->payload + 5))
+					  : min_mireds(v, sys_get_le16(cmd->payload + 3));
+
+	if (mode == MODE_STOP) {
+		stop(node, cmd->ep, v);
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	if ((mode != MODE_UP && mode != MODE_DOWN) || rate == 0) {
+		return ZZB_ZCL_INVALID_FIELD;
+	}
+
+	temperature_mode(node, cmd->ep, v);
+	move_mireds(node, cmd->ep, v, mireds, 10 * abs(mireds - v->color_temperature) / rate);
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 5.2.2.3.22: a step cut at a limit takes the same part of the transition time */
+static int step_temperature(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			    struct zzb_zcl_color *v)
+{
+	uint8_t mode = cmd->payload[0];
+	uint16_t size = sys_get_le16(cmd->payload + 1);
+	uint32_t time = sys_get_le16(cmd->payload + 3);
+	uint16_t mireds;
+
+	if (mode != MODE_UP && mode != MODE_DOWN) {
+		return ZZB_ZCL_INVALID_FIELD;
+	}
+
+	temperature_mode(node, cmd->ep, v);
+	mireds = CLAMP(v->color_temperature + (mode == MODE_UP ? size : -size),
+		       min_mireds(v, sys_get_le16(cmd->payload + 5)),
+		       max_mireds(v, sys_get_le16(cmd->payload + 7)));
+	move_mireds(node, cmd->ep, v, mireds,
+		    size == 0 ? 0 : time * abs(mireds - v->color_temperature) / size);
+	return ZZB_ZCL_SUCCESS;
+}
+
 /* The commands with the length of their fields before OptionsMask and their capability */
 static const struct {
 	uint8_t id;
@@ -261,6 +349,9 @@ static const struct {
 	{ZZB_ZCL_COLOR_MOVE_TO_COLOR, 6, ZZB_ZCL_COLOR_CAP_XY, move_to_color},
 	{ZZB_ZCL_COLOR_MOVE_COLOR, 4, ZZB_ZCL_COLOR_CAP_XY, move_color},
 	{ZZB_ZCL_COLOR_STEP_COLOR, 6, ZZB_ZCL_COLOR_CAP_XY, step_color},
+	{ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, 4, ZZB_ZCL_COLOR_CAP_TEMPERATURE, move_to_temperature},
+	{ZZB_ZCL_COLOR_MOVE_TEMPERATURE, 7, ZZB_ZCL_COLOR_CAP_TEMPERATURE, move_temperature},
+	{ZZB_ZCL_COLOR_STEP_TEMPERATURE, 9, ZZB_ZCL_COLOR_CAP_TEMPERATURE, step_temperature},
 };
 
 /* A command of a capability that the light lacks is unsupported (ZCL 5.2.2.2.1.18) */
