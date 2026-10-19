@@ -22,6 +22,12 @@
 #define CMD_STORE_SCENE          0x04
 #define CMD_RECALL_SCENE         0x05
 #define CMD_GET_SCENE_MEMBERSHIP 0x06
+#define CMD_ENHANCED_ADD_SCENE   0x40
+#define CMD_ENHANCED_VIEW_SCENE  0x41
+#define CMD_COPY_SCENE           0x42
+
+/* Mode of Copy Scene */
+#define COPY_ALL_SCENES BIT(0)
 
 /* Capacity of Get Scene Membership Response that means at least one more */
 #define CAPACITY_MAX 0xfd
@@ -193,8 +199,8 @@ static bool copy_sets(const struct zzb_endpoint *ep, const uint8_t *p, size_t le
 }
 
 /* Adds or overwrites a scene with the sets at p; space is checked only for a new entry */
-static uint8_t add(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id,
-		   uint16_t transition, const uint8_t *p, size_t len)
+static uint8_t add(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id, uint16_t time,
+		   bool tenths, const uint8_t *p, size_t len)
 {
 	struct zzb_zcl_scene *s = entry_for(node, ep, group, id);
 	struct zzb_zcl_scene scene = {
@@ -202,7 +208,8 @@ static uint8_t add(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id
 		.ep = ep,
 		.group = group,
 		.id = id,
-		.transition = transition,
+		.transition = tenths ? time / 10 : time,
+		.transition_100ms = tenths ? time % 10 : 0,
 	};
 
 	if (s == NULL || !copy_sets(zzb_node_endpoint(node, ep), p, len, &scene)) {
@@ -214,8 +221,7 @@ static uint8_t add(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id
 	return ZZB_ZCL_SUCCESS;
 }
 
-/* Writes the sets of the current values of the server clusters on ep to s; false if they do not fit
- */
+/* Writes the sets of the current values of the server clusters on ep; false if they do not fit */
 static bool current_sets(const struct zzb_endpoint *ep, struct zzb_zcl_scene *s)
 {
 	s->data_len = 0;
@@ -299,7 +305,7 @@ static int respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t
 	return ZZB_ZCL_RESPONDED;
 }
 
-/* ZCL 3.7.2.4.2; the name is not stored */
+/* ZCL 3.7.2.4.2, 3.7.2.4.9; the name is not stored */
 static int add_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
 	const uint8_t *p = cmd->payload;
@@ -318,16 +324,21 @@ static int add_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	group = sys_get_le16(p);
 	status = check_group(node, cmd->ep, group);
 	if (status == ZZB_ZCL_SUCCESS) {
-		status = add(node, cmd->ep, group, p[2], sys_get_le16(p + 3), p + sets_off,
-			     cmd->len - sets_off);
+		status = add(node, cmd->ep, group, p[2], sys_get_le16(p + 3),
+			     cmd->id == CMD_ENHANCED_ADD_SCENE, p + sets_off, cmd->len - sets_off);
 	}
 
 	return respond(node, cmd, status, group, p[2]);
 }
 
-/* ZCL 3.7.2.4.3; the name of a scene is the empty string */
+/*
+ * ZCL 3.7.2.4.3, 3.7.2.4.10; the name of a scene is the empty string. Enhanced View Scene gives the
+ * transition time in tenths of a second.
+ */
 static int view_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
+	uint32_t tenths;
+
 	uint8_t rsp[7 + CONFIG_ZZB_ZCL_SCENE_DATA_LEN];
 	uint16_t group = sys_get_le16(cmd->payload);
 	uint8_t id = cmd->payload[2];
@@ -342,12 +353,14 @@ static int view_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 		return respond(node, cmd, rsp[0], group, id);
 	}
 
+	tenths = 10 * s->transition + s->transition_100ms;
 	sys_put_le16(group, rsp + 1);
 	rsp[3] = id;
-	sys_put_le16(s->transition, rsp + 4);
+	sys_put_le16(cmd->id == CMD_ENHANCED_VIEW_SCENE ? MIN(tenths, UINT16_MAX) : s->transition,
+		     rsp + 4);
 	rsp[6] = 0;
 	memcpy(rsp + 7, s->data, s->data_len);
-	zzb_zcl_cmd_respond(node, cmd, CMD_VIEW_SCENE, rsp, 7 + s->data_len);
+	zzb_zcl_cmd_respond(node, cmd, cmd->id, rsp, 7 + s->data_len);
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -436,6 +449,69 @@ static int recall_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	return ZZB_ZCL_SUCCESS;
 }
 
+/* Copies the scene from to the scene id of group; false when the table is full */
+static bool copy(struct zzb_node *node, const struct zzb_zcl_scene *from, uint16_t group,
+		 uint8_t id)
+{
+	struct zzb_zcl_scene *to = entry_for(node, from->ep, group, id);
+	struct zzb_zcl_scene scene = *from;
+
+	if (to == NULL) {
+		return false;
+	}
+
+	scene.group = group;
+	scene.id = id;
+	*to = scene;
+	return true;
+}
+
+/* A missing source gives INVALID_FIELD (ZCL Table 3-44) */
+static uint8_t copy_one(struct zzb_node *node, uint8_t ep, uint16_t from, uint8_t from_id,
+			uint16_t to, uint8_t to_id)
+{
+	const struct zzb_zcl_scene *s = find(node, ep, from, from_id);
+
+	if (s == NULL) {
+		return ZZB_ZCL_INVALID_FIELD;
+	}
+
+	return copy(node, s, to, to_id) ? ZZB_ZCL_SUCCESS : ZZB_ZCL_INSUFFICIENT_SPACE;
+}
+
+/* The scenes keep their IDs; those copied before the table fills stay (ZCL 3.7.2.5.9.4) */
+static uint8_t copy_all(struct zzb_node *node, uint8_t ep, uint16_t from, uint16_t to)
+{
+	ARRAY_FOR_EACH_PTR(node->zcl.scenes, s) {
+		if (s->in_use && s->ep == ep && s->group == from && !copy(node, s, to, s->id)) {
+			return ZZB_ZCL_INSUFFICIENT_SPACE;
+		}
+	}
+
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 3.7.2.4.11 */
+static int copy_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	const uint8_t *p = cmd->payload;
+	uint16_t from = sys_get_le16(p + 1);
+	uint16_t to = sys_get_le16(p + 4);
+	uint8_t status = check_group(node, cmd->ep, from);
+
+	if (status == ZZB_ZCL_SUCCESS) {
+		status = check_group(node, cmd->ep, to);
+	}
+
+	if (status == ZZB_ZCL_SUCCESS) {
+		status = (p[0] & COPY_ALL_SCENES) ? copy_all(node, cmd->ep, from, to)
+						  : copy_one(node, cmd->ep, from, p[3], to, p[6]);
+		count(node, cmd->ep);
+	}
+
+	return respond(node, cmd, status, from, p[3]);
+}
+
 void zzb_zcl_scenes_invalidate(struct zzb_node *node, uint8_t ep, bool notify)
 {
 	if (notify) {
@@ -519,6 +595,9 @@ static const struct {
 	{CMD_STORE_SCENE, 3, store_scene},
 	{CMD_RECALL_SCENE, 3, recall_scene},
 	{CMD_GET_SCENE_MEMBERSHIP, 2, get_scene_membership},
+	{CMD_ENHANCED_ADD_SCENE, 3, add_scene},
+	{CMD_ENHANCED_VIEW_SCENE, 3, view_scene},
+	{CMD_COPY_SCENE, 7, copy_scene},
 };
 
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
