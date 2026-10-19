@@ -140,6 +140,12 @@ void zzb_zdo_node_desc_conf(struct zzb_node *node, uint8_t status, uint16_t addr
 /* Broadcasts Device_annce (R22 2.4.3.1.11). Returns an error of zzb_zdo_send(). */
 int zzb_zdo_device_annce_req(struct zzb_node *node);
 
+/*
+ * Broadcasts Mgmt_Permit_Joining_req (R22 2.4.3.3.7) to the routers and the coordinator. Returns
+ * an error of zzb_zdo_send().
+ */
+int zzb_zdo_mgmt_permit_joining_req(struct zzb_node *node, uint8_t duration, bool tc_significance);
+
 void zzb_zdo_client_init(struct zzb_node *node);
 
 /* Ends the transaction of a received response */

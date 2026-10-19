@@ -127,6 +127,14 @@ int zzb_zdo_device_annce_req(struct zzb_node *node)
 			    sizeof(payload), ZZB_ZDO_HANDLE);
 }
 
+int zzb_zdo_mgmt_permit_joining_req(struct zzb_node *node, uint8_t duration, bool tc_significance)
+{
+	const uint8_t payload[] = {duration, tc_significance};
+
+	return zzb_zdo_send(node, 0xfffc, ZZB_ZDP_MGMT_PERMIT_JOINING_REQ, node->zdo.tsn++, payload,
+			    sizeof(payload), ZZB_ZDO_HANDLE);
+}
+
 void zzb_zdo_client(struct zzb_node *node, const struct zzb_zdo_req *rsp)
 {
 	struct zzb_zdo_transaction *t = find(node, rsp);

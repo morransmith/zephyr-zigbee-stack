@@ -8,6 +8,7 @@
 
 #define NODE_DESC_REQ 0x0002
 #define DEVICE_ANNCE  0x0013
+#define PERMIT_JOIN   0x0036
 #define TC_ADDR       0x0000
 
 static struct zzb_node *node;
@@ -140,6 +141,21 @@ ZTEST(zzb_zdo_client, test_device_annce)
 	zzb_apsde_data_req_fake.custom_fake = NULL;
 	zzb_apsde_data_req_fake.return_val = -ENOTCONN;
 	zassert_equal(zzb_zdo_device_annce_req(node), -ENOTCONN);
+}
+
+/* BDB 8.2 step 14: to all routers and the coordinator, without APS ACK */
+ZTEST(zzb_zdo_client, test_mgmt_permit_joining_req)
+{
+	uint8_t tsn = node->zdo.tsn;
+
+	zassert_ok(zzb_zdo_mgmt_permit_joining_req(node, 180, true));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.dst_addr, 0xfffc);
+	zassert_equal(sent[0].req.cluster, PERMIT_JOIN);
+	zassert_equal(sent[0].req.tx_options, 0);
+	zassert_equal(sent[0].len, 3);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){tsn, 180, 0x01}), 3);
+	zassert_equal(node->zdo.tsn, (uint8_t)(tsn + 1));
 }
 
 ZTEST_SUITE(zzb_zdo_client, NULL, setup, before, after, NULL);
