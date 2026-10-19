@@ -4,6 +4,7 @@
 #include <zephyr/kernel.h>
 #include <zzb/zzb.h>
 
+#include "aps/aps.h"
 #include "common/eui64.h"
 #include "common/node.h"
 #include "common/queue.h"
@@ -83,12 +84,28 @@ static void init_handler(struct k_work *work)
 
 	if (IS_ENABLED(CONFIG_ZZB_NWK)) {
 		zzb_nwk_init(node);
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_APS)) {
+		zzb_aps_init(node);
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_NWK) || IS_ENABLED(CONFIG_ZZB_APS)) {
 		req->err = zzb_settings_load(node);
 		if (req->err) {
 			return;
 		}
+	}
 
-		req->err = zzb_nwk_fc_start(node);
+	if (IS_ENABLED(CONFIG_ZZB_NWK)) {
+		req->err = zzb_fc_start(&node->nwk.fc);
+		if (req->err) {
+			return;
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_APS)) {
+		req->err = zzb_fc_start(&node->aps.fc);
 		if (req->err) {
 			return;
 		}

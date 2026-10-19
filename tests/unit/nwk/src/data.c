@@ -89,6 +89,22 @@ ZTEST(zzb_nwk_data, test_secured_unicast_reaches_the_parent)
 	zassert_equal(zzb_nwk_neighbor_find_short(parent, CHILD_SHORT)->lqi, 200);
 }
 
+/* With the 9-byte MAC header of a NWK frame the secured frame fills aMaxPHYPacketSize - FCS */
+ZTEST(zzb_nwk_data, test_longest_nsdu_fits_the_buffer)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	const size_t len = 125 - 9 - 8 - ZZB_NWK_AUX_LEN - ZZB_SEC_MIC_LEN;
+
+	zassert_not_null(buf);
+	net_buf_reserve(buf, ZZB_NLDE_HEADROOM);
+	zassert_true(net_buf_tailroom(buf) >= len + ZZB_SEC_MIC_LEN);
+	memset(net_buf_add(buf, len), 0x5a, len);
+	zzb_frame_meta(buf)->handle = HANDLE;
+
+	zassert_ok(zzb_nlde_data_req(child, buf, PARENT_SHORT, 0, true));
+	zassert_equal(sent[0].len, 125 - 9);
+}
+
 /* A neighbor is the next hop; the radius is the one requested */
 ZTEST(zzb_nwk_data, test_unicast_to_a_neighbor)
 {

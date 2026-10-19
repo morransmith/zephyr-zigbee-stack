@@ -9,6 +9,7 @@
 #include <zephyr/net_buf.h>
 #include <zephyr/settings/settings.h>
 
+#include "common/fc.h"
 #include "mac/mac.h"
 #include "nwk/frame.h"
 #include "sec/mmo.h"
@@ -18,8 +19,11 @@ struct zzb_node;
 /* Auxiliary header of a NWK frame: security control, frame counter, source address, key sequence */
 #define ZZB_NWK_AUX_LEN 14
 
-/* Headroom of NLDE-DATA.request: MAC header, NWK header of a data frame, auxiliary header */
-#define ZZB_NLDE_HEADROOM (ZZB_MAC_HDR_MAX_LEN + 8 + ZZB_NWK_AUX_LEN)
+/*
+ * Headroom of NLDE-DATA.request: MAC header of a NWK frame, NWK header of a data frame, auxiliary
+ * header
+ */
+#define ZZB_NLDE_HEADROOM (ZZB_MAC_DATA_HDR_LEN + 8 + ZZB_NWK_AUX_LEN)
 
 /* MSDU handles from 0xf0 belong to NWK command frames: 0xf0 | command identifier */
 #define ZZB_NWK_CMD_HANDLE 0xf0
@@ -35,6 +39,12 @@ struct zzb_node;
 /* nwkParentInformation (R22 Table 3-55) */
 #define ZZB_NWK_PARENT_POLL_KEEPALIVE       BIT(0)
 #define ZZB_NWK_PARENT_ED_TIMEOUT_KEEPALIVE BIT(1)
+
+/* Broadcast addresses (R22 Table 3-69) */
+static inline bool zzb_nwk_is_broadcast(uint16_t addr)
+{
+	return addr == 0xffff || addr == 0xfffd || addr == 0xfffc || addr == 0xfffb;
+}
 
 /* NWK layer status values (R22 Table 3-73) */
 enum zzb_nwk_status {
@@ -132,17 +142,9 @@ enum zzb_nwk_join_method {
 	ZZB_NWK_JOIN_REJOIN = 0x02,
 };
 
-/* Outgoing NWK frame counter, global to the node, and its saved watermark */
-struct zzb_nwk_fc {
-	uint32_t value;
-	uint32_t watermark;
-	bool saving;
-	struct k_work save;
-};
-
 struct zzb_nwk {
 	struct zzb_nib nib;
-	struct zzb_nwk_fc fc;
+	struct zzb_fc fc;
 	struct zzb_nwk_neighbor neighbors[CONFIG_ZZB_NEIGHBOR_COUNT];
 	struct zzb_nwk_network networks[CONFIG_ZZB_NWK_NETWORK_COUNT];
 	size_t network_count;
@@ -189,6 +191,15 @@ void zzb_nlme_set_ext_pan_id(struct zzb_node *node, uint64_t ext_pan_id);
 void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_LEN], uint8_t seq);
 
 /*
+ * NLME-SET of nwkActiveKeySeqNumber: the key with sequence number seq becomes active. Returns
+ * -ENOENT without such a key.
+ */
+int zzb_nlme_set_active_key(struct zzb_node *node, uint8_t seq);
+
+/* Whether the network key is pending: joined and unauthorized (R22 4.4.1.2 step 2) */
+bool zzb_nwk_key_pending(const struct zzb_node *node);
+
+/*
  * Saves the records nwk/net and nwk/keys while the node is on a network and its key is not
  * pending. Errors are ignored; the next save writes the whole records again.
  */
@@ -200,20 +211,6 @@ void zzb_nwk_delete(struct zzb_node *node);
 /* Load the records nwk/net and nwk/keys; -EINVAL for an unknown version or length */
 int zzb_nwk_net_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
 int zzb_nwk_keys_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
-
-void zzb_nwk_fc_init(struct zzb_node *node);
-
-/* Loads the watermark from the record fc/nwk */
-int zzb_nwk_fc_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
-
-/* Starts the counter at the loaded watermark and saves the next watermark */
-int zzb_nwk_fc_start(struct zzb_node *node);
-
-/*
- * Sets fc to the next outgoing frame counter. Returns -EBUSY while the counter is at a watermark
- * that is not saved yet, or -EOVERFLOW once the counter is 2^32-1.
- */
-int zzb_nwk_fc_next(struct zzb_node *node, uint32_t *fc);
 
 /*
  * NLDE-DATA.request. buf holds the NSDU after ZZB_NLDE_HEADROOM bytes of headroom, and its
@@ -237,7 +234,7 @@ void zzb_nlde_data_ind(struct zzb_node *node, struct net_buf *buf, uint16_t dst_
  * Secures a frame in place (R22 4.3.1.1). buf holds the NWK header of hdr_len bytes with
  * ZZB_NWK_SECURITY set, then the payload, and has ZZB_NWK_AUX_LEN bytes of headroom and
  * ZZB_SEC_MIC_LEN bytes of tailroom. Returns -ENOENT without an active key, -EMSGSIZE without
- * the headroom or tailroom, or an error of zzb_nwk_fc_next().
+ * the headroom or tailroom, or an error of zzb_fc_next().
  */
 int zzb_nwk_secure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len);
 
@@ -323,9 +320,12 @@ struct zzb_nwk_neighbor *zzb_nwk_neighbor_parent(struct zzb_node *node);
 
 /* Within NWK */
 
+/* The slot of the valid network key with sequence number seq, or -ENOENT */
+int zzb_nwk_key_slot(const struct zzb_nib *nib, uint8_t seq);
+
 /*
  * Completes hdr with the source addresses, the sequence number and the end device initiator bit
- * and sends it with the payload in buf to the neighbor mac_dst. buf has ZZB_MAC_HDR_MAX_LEN bytes
+ * and sends it with the payload in buf to the neighbor mac_dst. buf has ZZB_MAC_DATA_HDR_LEN bytes
  * of headroom for the MAC header, then room for the NWK and auxiliary headers. On error buf stays
  * with the caller.
  */

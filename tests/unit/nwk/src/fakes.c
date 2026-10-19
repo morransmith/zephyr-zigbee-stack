@@ -135,7 +135,7 @@ static void join(struct zzb_node *node, uint16_t short_addr, struct zzb_node *pe
 		 uint16_t peer_short, enum zzb_nwk_relationship relationship)
 {
 	zzb_nwk_init(node);
-	zassert_ok(zzb_nwk_fc_start(node));
+	zassert_ok(zzb_fc_start(&node->nwk.fc));
 	zzb_nlme_set_pan_id(node, PAN_ID);
 	zzb_nlme_set_short_addr(node, short_addr);
 	zzb_nlme_set_ext_pan_id(node, EXT_PAN_ID);

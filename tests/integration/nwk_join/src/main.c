@@ -6,21 +6,21 @@
 #include <zephyr/ztest.h>
 #include <zzb/zzb.h>
 
+#include "aps/aps.h"
+#include "child.h"
 #include "common/node.h"
 #include "fake_radio.h"
 #include "nwk/nwk.h"
 #include "parent.h"
 
-#define PARENT_ADDR  0x0000
-#define PARENT_EUI64 0x00124b0000000001ULL
-#define CHILD_ADDR   0x1234
 #define ROUTER_ADDR  0x2222
 #define ROUTER_EUI64 0x00124b0000000002ULL
 
 /* Receiver on when idle, allocate address */
 #define CAPABILITY (ZZB_NWK_CAP_RX_ON_IDLE | ZZB_NWK_CAP_ALLOC_ADDR)
 
-static struct zzb_node *child;
+struct zzb_node *child;
+struct child_log child_log;
 
 /* NLME callbacks, which ZDO defines from milestone 10 */
 static struct {
@@ -73,18 +73,59 @@ void zzb_nlme_leave_ind(struct zzb_node *node, uint64_t ext_addr, bool rejoin)
 	nlme.leave_ind_rejoin = rejoin;
 }
 
-/* NLDE callbacks, which APS defines from milestone 9 */
-void zzb_nlde_data_ind(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr,
-		       uint16_t src_addr, bool security_use)
+/* APS callbacks, which ZDO defines from milestone 10 */
+void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
+				 enum zzb_aps_key_type type, const uint8_t *key, uint8_t seq)
 {
+	child_log.transport_keys++;
+	if (type == ZZB_APS_KEY_TC_LINK) {
+		/* BDB 10.2.5 step 9 */
+		zassert_ok(zzb_apsme_set_link_key(node, src_addr, key, ZZB_APS_KEY_UNVERIFIED,
+						  ZZB_APS_LINK_KEY_UNIQUE));
+		return;
+	}
+
+	zassert_ok(zzb_apsme_set_tc_addr(node, src_addr));
+	zzb_nlme_set_nwk_key(node, key, seq);
+}
+
+void zzb_apsme_switch_key_ind(struct zzb_node *node, uint64_t src_addr, uint8_t seq)
+{
+	zassert_ok(zzb_nlme_set_active_key(node, seq));
+}
+
+void zzb_apsme_confirm_key_ind(struct zzb_node *node, uint8_t status, uint64_t src_addr,
+			       enum zzb_aps_key_type type)
+{
+	child_log.confirm_keys++;
+	child_log.confirm_status = status;
+}
+
+void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind)
+{
+	child_log.data_inds++;
 	net_buf_unref(buf);
 }
 
-void zzb_nlde_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_status status)
+void zzb_apsde_data_conf(struct zzb_node *node, uint8_t handle, uint8_t status)
 {
+	child_log.data_confs++;
+	child_log.data_status = status;
 }
 
-/* Discovery on two channels, association, then the network key that APS would deliver */
+/* The trust center sends the network key; the child sets it and the trust center address */
+static void receive_network_key(void)
+{
+	int count = child_log.transport_keys;
+
+	parent_send_transport_key();
+	k_sleep(K_MSEC(10));
+	zassert_equal(child_log.transport_keys, count + 1);
+	zassert_false(child->nwk.key_pending);
+	zassert_equal(child->aps.aib.tc_addr, PARENT_EUI64);
+}
+
+/* Discovery on two channels, association, then the network key from the trust center */
 static void join(void)
 {
 	zassert_ok(zzb_nlme_network_discovery_req(child, BIT(11) | BIT(CHANNEL), 0));
@@ -110,27 +151,42 @@ static void join(void)
 	zassert_equal(child->nwk.nib.short_addr, CHILD_ADDR);
 	zassert_equal(zzb_nwk_neighbor_parent(child)->ext_addr, PARENT_EUI64);
 
-	zzb_nlme_set_nwk_key(child, nwk_key, 0);
-	k_sleep(K_MSEC(10));
+	receive_network_key();
 }
 
-static void *setup(void)
+void child_init(void)
 {
 	const struct zzb_node_config cfg = {
 		.radio = fake_radios[1],
 	};
 
+	if (child != NULL) {
+		return;
+	}
+
 	fake_radio_reset();
 	zassert_ok(zzb_node_init(&cfg, &child));
+}
+
+void child_join(void)
+{
+	memset(&nlme, 0, sizeof(nlme));
+	memset(&child_log, 0, sizeof(child_log));
+	parent_start(PARENT_ADDR, PARENT_EUI64, CHILD_ADDR, ZZB_NWK_PARENT_POLL_KEEPALIVE);
+	zassert_ok(zzb_nlme_reset_req(child));
+	zzb_aps_reset(child);
+	join();
+}
+
+static void *setup(void)
+{
+	child_init();
 	return NULL;
 }
 
 static void before(void *fixture)
 {
-	memset(&nlme, 0, sizeof(nlme));
-	parent_start(PARENT_ADDR, PARENT_EUI64, CHILD_ADDR, ZZB_NWK_PARENT_POLL_KEEPALIVE);
-	zassert_ok(zzb_nlme_reset_req(child));
-	join();
+	child_join();
 }
 
 /* R22 3.6.10.2: the request follows the network key */
@@ -200,8 +256,7 @@ ZTEST(zzb_nwk_join, test_trust_center_rejoin)
 	zassert_true(child->nwk.key_pending);
 	zassert_equal(parent_log.ed_timeout_reqs, 1);
 
-	zzb_nlme_set_nwk_key(child, nwk_key, 0);
-	k_sleep(K_MSEC(10));
+	receive_network_key();
 	zassert_equal(parent_log.ed_timeout_reqs, 2);
 }
 

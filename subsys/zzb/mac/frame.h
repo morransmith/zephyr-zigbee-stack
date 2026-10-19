@@ -11,6 +11,9 @@
 /* Frame Control, Sequence Number, two PAN IDs and two extended addresses */
 #define ZZB_MAC_HDR_MAX_LEN 23
 
+/* Frame Control, Sequence Number, a PAN ID and two short addresses with PAN ID compression */
+#define ZZB_MAC_DATA_HDR_LEN 9
+
 enum zzb_mac_frame_type {
 	ZZB_MAC_FRAME_BEACON = 0,
 	ZZB_MAC_FRAME_DATA = 1,

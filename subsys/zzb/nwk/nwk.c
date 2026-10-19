@@ -27,15 +27,9 @@ void zzb_nwk_init(struct zzb_node *node)
 		.short_addr = 0xffff,
 		.seq = sys_rand8_get(),
 	};
-	zzb_nwk_fc_init(node);
+	zzb_fc_init(&node->nwk.fc, node, "fc/nwk");
 	zzb_nwk_ed_timeout_init(node);
 	zzb_nwk_rejoin_init(node);
-}
-
-/* R22 Table 3-69 */
-static bool is_broadcast(uint16_t addr)
-{
-	return addr == 0xffff || addr == 0xfffd || addr == 0xfffc || addr == 0xfffb;
 }
 
 int zzb_nwk_send(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_hdr *hdr,
@@ -56,7 +50,7 @@ int zzb_nwk_send(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_hdr 
 
 	hdr_len = zzb_nwk_hdr_len(hdr);
 	if (net_buf_headroom(buf) <
-	    ZZB_MAC_HDR_MAX_LEN + hdr_len + (secure ? ZZB_NWK_AUX_LEN : 0)) {
+	    ZZB_MAC_DATA_HDR_LEN + hdr_len + (secure ? ZZB_NWK_AUX_LEN : 0)) {
 		return -EMSGSIZE;
 	}
 
@@ -94,7 +88,7 @@ int zzb_nwk_send_cmd(struct zzb_node *node, struct zzb_nwk_hdr *hdr, const struc
 		return -ENOBUFS;
 	}
 
-	net_buf_reserve(buf, ZZB_MAC_HDR_MAX_LEN + CMD_HDR_MAX_LEN + ZZB_NWK_AUX_LEN);
+	net_buf_reserve(buf, ZZB_MAC_DATA_HDR_LEN + CMD_HDR_MAX_LEN + ZZB_NWK_AUX_LEN);
 	net_buf_add(buf, zzb_nwk_cmd_write(cmd, net_buf_tail(buf)));
 	zzb_frame_meta(buf)->handle = ZZB_NWK_CMD_HANDLE | cmd->id;
 	hdr->type = ZZB_NWK_FRAME_CMD;
@@ -110,7 +104,7 @@ int zzb_nwk_send_cmd(struct zzb_node *node, struct zzb_nwk_hdr *hdr, const struc
 int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr, uint8_t radius,
 		      bool secure)
 {
-	bool broadcast = is_broadcast(dst_addr);
+	bool broadcast = zzb_nwk_is_broadcast(dst_addr);
 	struct zzb_nwk_neighbor *next_hop = NULL;
 	struct zzb_nwk_hdr hdr;
 

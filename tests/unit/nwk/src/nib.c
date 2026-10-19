@@ -185,6 +185,21 @@ ZTEST(zzb_nwk_nib, test_records_survive_a_reboot)
 	zassert_true(k_work_delayable_is_pending(&node->nwk.keepalive));
 }
 
+/* NLME-SET of nwkActiveKeySeqNumber after Switch Key (R22 4.6.3.4.2) */
+ZTEST(zzb_nwk_nib, test_active_key)
+{
+	uint8_t rec[64];
+
+	join();
+	zassert_equal(zzb_nlme_set_active_key(node, 3), -ENOENT);
+	zassert_equal(nib->active_key, 0);
+
+	zassert_ok(zzb_nlme_set_active_key(node, 2));
+	zassert_equal(nib->active_key, 1);
+	zassert_equal(load_record("nwk/keys", rec, sizeof(rec)), 39);
+	zassert_equal(rec[1], 1);
+}
+
 /* Records exist only on a network without a pending key */
 ZTEST(zzb_nwk_nib, test_records_are_written_on_a_network)
 {
