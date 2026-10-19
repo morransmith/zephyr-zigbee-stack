@@ -422,6 +422,14 @@ static void rx_aps(uint8_t *frame, size_t len, uint16_t dst)
 
 		if (hdr.profile == 0x0000 && hdr.dst_ep == 0) {
 			rx_zdo(hdr.cluster, frame + off, len - off, dst);
+		} else {
+			zassert_true(len - off <= sizeof(parent_log.zcl));
+			parent_log.zcl_frames++;
+			parent_log.zcl_cluster = hdr.cluster;
+			parent_log.zcl_src_ep = hdr.src_ep;
+			parent_log.zcl_dst_ep = hdr.dst_ep;
+			memcpy(parent_log.zcl, frame + off, len - off);
+			parent_log.zcl_len = len - off;
 		}
 		break;
 	case ZZB_APS_FRAME_CMD:
@@ -652,6 +660,9 @@ void parent_withhold_aps_acks(int count)
 
 struct data_call {
 	struct k_work work;
+	uint16_t cluster;
+	const uint8_t *asdu;
+	size_t len;
 	uint8_t counter;
 };
 
@@ -662,7 +673,7 @@ static void aps_data_handler(struct k_work *work)
 		.type = ZZB_APS_FRAME_DATA,
 		.flags = ZZB_APS_ACK_REQ,
 		.dst_ep = 0x01,
-		.cluster = 0x0006,
+		.cluster = call->cluster,
 		.profile = 0x0104,
 		.src_ep = 0x01,
 		.counter = call->counter,
@@ -670,13 +681,28 @@ static void aps_data_handler(struct k_work *work)
 	uint8_t payload[ZZB_BUF_SIZE];
 
 	send_nwk(ZZB_NWK_FRAME_DATA, ZZB_NWK_SECURITY, parent.child_addr, payload,
-		 write_aps(payload, hdr, asdu, sizeof(asdu), NULL, ZZB_SEC_KEY_DATA));
+		 write_aps(payload, hdr, call->asdu, call->len, NULL, ZZB_SEC_KEY_DATA));
 }
 
 void parent_send_aps_data(uint8_t counter)
 {
 	struct data_call call = {
+		.cluster = 0x0006,
+		.asdu = asdu,
+		.len = sizeof(asdu),
 		.counter = counter,
+	};
+
+	zzb_call_sync(&call.work, aps_data_handler);
+}
+
+void parent_send_zcl(uint16_t cluster, const uint8_t *asdu, size_t len)
+{
+	struct data_call call = {
+		.cluster = cluster,
+		.asdu = asdu,
+		.len = len,
+		.counter = parent.aps_counter++,
 	};
 
 	zzb_call_sync(&call.work, aps_data_handler);

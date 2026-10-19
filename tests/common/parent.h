@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "aps/frame.h"
+#include "common/buf.h"
 #include "nwk/frame.h"
 #include "sec/mmo.h"
 
@@ -47,6 +48,13 @@ struct parent_log {
 	int mgmt_leave_rsps;
 	uint16_t zdo_cluster;
 	uint16_t zdo_dst;
+	/* Frames of application profiles, and the cluster, endpoints and ASDU of the last one */
+	int zcl_frames;
+	uint16_t zcl_cluster;
+	uint8_t zcl_src_ep;
+	uint8_t zcl_dst_ep;
+	uint8_t zcl[ZZB_BUF_SIZE];
+	size_t zcl_len;
 };
 
 extern struct parent_log parent_log;
@@ -89,6 +97,12 @@ void parent_withhold_aps_acks(int count);
 
 /* Sends an APS data frame with ACK request and counter, from the stack thread */
 void parent_send_aps_data(uint8_t counter);
+
+/*
+ * Sends a ZCL frame of cluster from endpoint 1 to endpoint 1 of the child with profile 0x0104 and
+ * an ACK request, from the stack thread
+ */
+void parent_send_zcl(uint16_t cluster, const uint8_t *asdu, size_t len);
 
 /* Sends network key 1 in a Transport Key, then a broadcast Switch Key, from the stack thread */
 void parent_send_nwk_key_update(void);
