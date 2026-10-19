@@ -6,14 +6,6 @@
 #include "nwk/nwk.h"
 #include "zdo/zdo.h"
 
-void zzb_nlme_leave_conf(struct zzb_node *node, uint8_t status)
-{
-}
-
-void zzb_nlme_leave_ind(struct zzb_node *node, uint64_t ext_addr, bool rejoin)
-{
-}
-
 void zzb_apsme_confirm_key_ind(struct zzb_node *node, uint8_t status, uint64_t src_addr,
 			       enum zzb_aps_key_type type)
 {

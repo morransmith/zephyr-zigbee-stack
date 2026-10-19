@@ -60,6 +60,18 @@ int zzb_bdb_start(struct zzb_node *node);
  */
 int zzb_bdb_steering(struct zzb_node *node);
 
+/**
+ * @brief Reset the node to its factory settings (BDB 9.5).
+ *
+ * A node on a network leaves it first. The node clears its network, keys and bindings, keeps its
+ * outgoing frame counters and reports ZZB_BDB_EVENT_LEFT, which may come before the call returns.
+ * The reset cancels the pause between rejoin attempts.
+ *
+ * @retval 0 on success.
+ * @retval -EBUSY the network layer runs a procedure.
+ */
+int zzb_bdb_reset(struct zzb_node *node);
+
 #ifdef __cplusplus
 }
 #endif

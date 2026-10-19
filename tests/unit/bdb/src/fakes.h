@@ -17,7 +17,9 @@ DECLARE_FAKE_VALUE_FUNC(uint8_t, zzb_nlme_get_capability, const struct zzb_node 
 DECLARE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_network_discovery_req, struct zzb_node *, uint32_t, uint8_t);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_reset_req, struct zzb_node *);
+DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_leave_req, struct zzb_node *, bool);
 DECLARE_FAKE_VOID_FUNC(zzb_aps_reset, struct zzb_node *);
+DECLARE_FAKE_VOID_FUNC(zzb_zdo_init, struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_device_annce_req, struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_mgmt_permit_joining_req, struct zzb_node *, uint8_t, bool);
 

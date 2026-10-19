@@ -41,6 +41,8 @@ enum zzb_bdb_state {
 	ZZB_BDB_STEER_DISCOVERY,
 	ZZB_BDB_STEER_JOIN,
 	ZZB_BDB_STEER_KEY,
+	/* NLME-LEAVE.confirm */
+	ZZB_BDB_LEAVE,
 };
 
 struct zzb_bdb {
@@ -62,6 +64,9 @@ struct zzb_bdb {
 	uint64_t ext_pan_id;
 	uint64_t failed[CONFIG_ZZB_NWK_NETWORK_COUNT];
 	size_t failed_count;
+	/* Leave: the rejoin flag, and the status of the event after the reset */
+	bool leave_rejoin;
+	enum zzb_bdb_status leave_status;
 	struct k_work_delayable timer;
 };
 
@@ -98,5 +103,8 @@ void zzb_bdb_steering_discovery_conf(struct zzb_node *node, uint8_t status,
 				     const struct zzb_nwk_network *networks, size_t count);
 void zzb_bdb_steering_join_conf(struct zzb_node *node, uint8_t status);
 void zzb_bdb_steering_key_ind(struct zzb_node *node);
+
+/* BDB 9.5 */
+int zzb_bdb_factory_reset(struct zzb_node *node);
 
 #endif /* ZZB_SUBSYS_BDB_BDB_H_ */

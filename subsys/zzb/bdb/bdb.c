@@ -116,3 +116,8 @@ int zzb_bdb_steering(struct zzb_node *node)
 {
 	return call(node, zzb_bdb_steer);
 }
+
+int zzb_bdb_reset(struct zzb_node *node)
+{
+	return call(node, zzb_bdb_factory_reset);
+}
