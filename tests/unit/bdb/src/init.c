@@ -211,6 +211,19 @@ ZTEST(zzb_bdb_init, test_address_conflict_starts_a_rejoin)
 	check_rejoin(0, 0, 0, true);
 }
 
+/* R22 3.6.1.9.2: NWK has set the address from an unsolicited rejoin response */
+ZTEST(zzb_bdb_init, test_address_update_announces_the_device)
+{
+	zzb_nlme_nwk_status_ind(node, ZZB_NWK_CODE_ADDR_UPDATE, NODE_ADDR + 1);
+	zassert_equal(zzb_zdo_device_annce_req_fake.call_count, 0);
+
+	zzb_nlme_nwk_status_ind(node, ZZB_NWK_CODE_ADDR_UPDATE, NODE_ADDR);
+	zassert_equal(zzb_zdo_device_annce_req_fake.call_count, 1);
+	run_stack();
+	zassert_equal(zzb_nlme_join_req_fake.call_count, 0);
+	zassert_equal(events.count, 0);
+}
+
 ZTEST(zzb_bdb_init, test_parent_link_failure_off_a_network)
 {
 	reboot(false);

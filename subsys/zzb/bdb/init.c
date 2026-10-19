@@ -144,8 +144,15 @@ void zzb_bdb_nwk_key_ind(struct zzb_node *node)
 
 void zzb_nlme_nwk_status_ind(struct zzb_node *node, uint8_t code, uint16_t addr)
 {
+	bool own = addr == zzb_nlme_get_short_addr(node);
 	bool rejoin = code == ZZB_NWK_CODE_PARENT_LINK_FAILURE ||
-		      (code == ZZB_NWK_CODE_ADDR_CONFLICT && addr == zzb_nlme_get_short_addr(node));
+		      (code == ZZB_NWK_CODE_ADDR_CONFLICT && own);
+
+	/* R22 3.6.1.9.2 */
+	if (code == ZZB_NWK_CODE_ADDR_UPDATE && own) {
+		zzb_zdo_device_annce_req(node);
+		return;
+	}
 
 	if (rejoin && node->bdb.on_network && node->bdb.state == ZZB_BDB_IDLE) {
 		zzb_bdb_rejoin_start(node, ZZB_BDB_EVENT_REJOIN);
