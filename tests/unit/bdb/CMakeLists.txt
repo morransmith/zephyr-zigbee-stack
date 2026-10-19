@@ -11,4 +11,5 @@ target_sources(app PRIVATE
   src/init.c
   src/reset.c
   src/steering.c
+  src/tclk.c
 )

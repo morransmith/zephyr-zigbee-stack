@@ -43,6 +43,10 @@ enum zzb_bdb_state {
 	ZZB_BDB_STEER_KEY,
 	/* NLME-LEAVE.confirm */
 	ZZB_BDB_LEAVE,
+	/* The trust center link key exchange: Node_Desc_rsp, the new key, Confirm Key */
+	ZZB_BDB_TCLK_NODE_DESC,
+	ZZB_BDB_TCLK_REQUEST_KEY,
+	ZZB_BDB_TCLK_VERIFY_KEY,
 };
 
 struct zzb_bdb {
@@ -67,6 +71,8 @@ struct zzb_bdb {
 	/* Leave: the rejoin flag, and the status of the event after the reset */
 	bool leave_rejoin;
 	enum zzb_bdb_status leave_status;
+	/* bdbTCLinkKeyExchangeAttempts */
+	uint8_t attempts;
 	struct k_work_delayable timer;
 };
 
@@ -104,11 +110,25 @@ void zzb_bdb_steering_discovery_conf(struct zzb_node *node, uint8_t status,
 void zzb_bdb_steering_join_conf(struct zzb_node *node, uint8_t status);
 void zzb_bdb_steering_key_ind(struct zzb_node *node);
 
+/* BDB 8.2 steps 14 to 16, after the trust center link key exchange */
+void zzb_bdb_steering_done(struct zzb_node *node);
+
 /* BDB 9.5 */
 int zzb_bdb_factory_reset(struct zzb_node *node);
 
 /* BDB 9.4: called by ZDO after the response to Mgmt_Leave_req with its rejoin flag */
 void zzb_bdb_leave(struct zzb_node *node, bool rejoin);
+
+/* Leaves without rejoin; the reset that follows reports event with status */
+void zzb_bdb_leave_and_reset(struct zzb_node *node, enum zzb_bdb_event event,
+			     enum zzb_bdb_status status);
 void zzb_bdb_leave_timer(struct zzb_node *node);
+
+/* BDB 10.2.5 */
+void zzb_bdb_tclk_start(struct zzb_node *node);
+void zzb_bdb_tclk_timer(struct zzb_node *node);
+
+/* Called by ZDO for a Transport Key with a trust center link key of ZZB_SEC_KEY_LEN bytes */
+void zzb_bdb_tc_link_key_ind(struct zzb_node *node, uint64_t src_addr, const uint8_t *key);
 
 #endif /* ZZB_SUBSYS_BDB_BDB_H_ */

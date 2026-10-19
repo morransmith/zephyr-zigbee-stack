@@ -22,6 +22,11 @@ const uint8_t zzb_aps_default_tc_link_key[ZZB_SEC_KEY_LEN] = {
 	0x6c, 0x69, 0x61, 0x6e, 0x63, 0x65, 0x30, 0x39,
 };
 
+uint64_t zzb_apsme_get_tc_addr(const struct zzb_node *node)
+{
+	return node->aps.aib.tc_addr;
+}
+
 struct zzb_aps_key_pair *zzb_aps_key_pair_find(struct zzb_node *node, uint64_t addr)
 {
 	ARRAY_FOR_EACH_PTR(node->aps.aib.keys, pair) {

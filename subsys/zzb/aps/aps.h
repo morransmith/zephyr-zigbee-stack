@@ -226,6 +226,9 @@ int zzb_apsme_set_tc_addr(struct zzb_node *node, uint64_t addr);
 int zzb_apsme_set_link_key(struct zzb_node *node, uint64_t addr, const uint8_t key[ZZB_SEC_KEY_LEN],
 			   enum zzb_aps_key_attr attr, enum zzb_aps_link_key_type type);
 
+/* APSME-GET of apsTrustCenterAddress */
+uint64_t zzb_apsme_get_tc_addr(const struct zzb_node *node);
+
 struct zzb_aps_key_pair *zzb_aps_key_pair_find(struct zzb_node *node, uint64_t addr);
 
 /*

@@ -117,7 +117,7 @@ static void join_next(struct zzb_node *node)
  * BDB 8.1 steps 3 and 5, 8.2 steps 14 and 16. Step 4 and 8.2 step 15 do not apply to an end
  * device, which has no permit joining of its own.
  */
-static void open_network(struct zzb_node *node)
+void zzb_bdb_steering_done(struct zzb_node *node)
 {
 	zzb_zdo_mgmt_permit_joining_req(node, MIN_COMMISSIONING_TIME_S, true);
 	zzb_bdb_report(node, ZZB_BDB_EVENT_STEERING, ZZB_BDB_SUCCESS);
@@ -130,7 +130,7 @@ int zzb_bdb_steer(struct zzb_node *node)
 	}
 
 	if (node->bdb.on_network) {
-		open_network(node);
+		zzb_bdb_steering_done(node);
 		return 0;
 	}
 
@@ -203,10 +203,13 @@ void zzb_bdb_steering_join_conf(struct zzb_node *node, uint8_t status)
 	zzb_bdb_schedule(node, K_MSEC(ZZB_BDB_KEY_WAIT_MS));
 }
 
-/* Step 11 */
+/*
+ * Step 11. apsTrustCenterAddress is known: APS drops a network key from 0xffffffffffffffff, and
+ * ZDO sets the trust center address before the key.
+ */
 void zzb_bdb_steering_key_ind(struct zzb_node *node)
 {
 	node->bdb.on_network = true;
 	zzb_zdo_device_annce_req(node);
-	open_network(node);
+	zzb_bdb_tclk_start(node);
 }

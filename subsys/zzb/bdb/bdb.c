@@ -27,6 +27,11 @@ static void timer_handler(struct k_work *work)
 	case ZZB_BDB_LEAVE:
 		zzb_bdb_leave_timer(node);
 		break;
+	case ZZB_BDB_TCLK_NODE_DESC:
+	case ZZB_BDB_TCLK_REQUEST_KEY:
+	case ZZB_BDB_TCLK_VERIFY_KEY:
+		zzb_bdb_tclk_timer(node);
+		break;
 	default:
 		break;
 	}

@@ -94,11 +94,15 @@ ZTEST(zzb_zdo, test_network_key)
 }
 
 /* BDB decides about a trust center link key (BDB 10.2.6) */
-ZTEST(zzb_zdo, test_trust_center_link_key_is_dropped)
+ZTEST(zzb_zdo, test_trust_center_link_key_goes_to_bdb)
 {
 	zzb_apsme_transport_key_ind(test_node(), TC_EUI64, ZZB_APS_KEY_TC_LINK, key, 0);
+	zassert_equal(zzb_bdb_tc_link_key_ind_fake.call_count, 1);
+	zassert_equal(zzb_bdb_tc_link_key_ind_fake.arg1_val, TC_EUI64);
+	zassert_equal_ptr(zzb_bdb_tc_link_key_ind_fake.arg2_val, key);
 	zassert_equal(zzb_apsme_set_tc_addr_fake.call_count, 0);
 	zassert_equal(set_nwk_key.count, 0);
+	zassert_equal(zzb_bdb_nwk_key_ind_fake.call_count, 0);
 }
 
 ZTEST(zzb_zdo, test_switch_key)

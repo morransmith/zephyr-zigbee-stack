@@ -65,6 +65,11 @@ void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
 				 enum zzb_aps_key_type type, const uint8_t *key, uint8_t seq)
 {
 	/* BDB decides about a trust center link key (BDB 10.2.6) */
+	if (type == ZZB_APS_KEY_TC_LINK) {
+		zzb_bdb_tc_link_key_ind(node, src_addr, key);
+		return;
+	}
+
 	if (type != ZZB_APS_KEY_NWK) {
 		return;
 	}

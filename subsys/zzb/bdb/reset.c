@@ -40,16 +40,17 @@ static void left(struct zzb_node *node)
 	reset_node(node, bdb->event, bdb->leave_status);
 }
 
-/* The leave of the BDB procedure replaces the procedure in progress */
-static void start_leave(struct zzb_node *node, bool rejoin)
+/* The leave replaces the procedure in progress */
+static void start_leave(struct zzb_node *node, bool rejoin, enum zzb_bdb_event event,
+			enum zzb_bdb_status status)
 {
 	struct zzb_bdb *bdb = &node->bdb;
 
 	k_work_cancel_delayable(&bdb->timer);
 	bdb->state = ZZB_BDB_LEAVE;
-	bdb->event = ZZB_BDB_EVENT_LEFT;
+	bdb->event = event;
 	bdb->leave_rejoin = rejoin;
-	bdb->leave_status = ZZB_BDB_SUCCESS;
+	bdb->leave_status = status;
 }
 
 int zzb_bdb_factory_reset(struct zzb_node *node)
@@ -65,7 +66,7 @@ int zzb_bdb_factory_reset(struct zzb_node *node)
 		return reset_node(node, ZZB_BDB_EVENT_LEFT, ZZB_BDB_SUCCESS);
 	}
 
-	start_leave(node, false);
+	start_leave(node, false, ZZB_BDB_EVENT_LEFT, ZZB_BDB_SUCCESS);
 	return 0;
 }
 
@@ -85,7 +86,14 @@ static void leave(struct zzb_node *node)
 
 void zzb_bdb_leave(struct zzb_node *node, bool rejoin)
 {
-	start_leave(node, rejoin);
+	start_leave(node, rejoin, ZZB_BDB_EVENT_LEFT, ZZB_BDB_SUCCESS);
+	leave(node);
+}
+
+void zzb_bdb_leave_and_reset(struct zzb_node *node, enum zzb_bdb_event event,
+			     enum zzb_bdb_status status)
+{
+	start_leave(node, false, event, status);
 	leave(node);
 }
 

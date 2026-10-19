@@ -9,6 +9,7 @@
 #include "fakes.h"
 #include "mac/mac.h"
 #include "nwk/nwk.h"
+#include "zdo/zdo.h"
 
 /* bdbPrimaryChannelSet and bdbSecondaryChannelSet */
 #define PRIMARY   0x02108800
@@ -74,6 +75,14 @@ static void discovered(size_t count)
 	zzb_nlme_network_discovery_conf(node, ZZB_MAC_STATUS_SUCCESS, networks, count);
 }
 
+/* The network key, then Node_Desc_rsp of a trust center of revision 20, which ends step 12 */
+static void receive_key(void)
+{
+	zzb_bdb_nwk_key_ind(node);
+	zassert_equal(zzb_zdo_node_desc_req_fake.call_count, 1);
+	zzb_zdo_node_desc_conf(node, ZZB_ZDP_SUCCESS, 0x0000, 0x0000);
+}
+
 /* BDB 8.2 steps 2 to 16 */
 ZTEST(zzb_bdb_steering, test_steering_joins_an_open_network)
 {
@@ -87,7 +96,7 @@ ZTEST(zzb_bdb_steering, test_steering_joins_an_open_network)
 	zzb_nlme_join_conf(node, ZZB_MAC_STATUS_SUCCESS);
 	zassert_equal(events.count, 0);
 
-	zzb_bdb_nwk_key_ind(node);
+	receive_key();
 	zassert_equal(zzb_zdo_device_annce_req_fake.call_count, 1);
 	check_permit_joining(1);
 	check_event(1, ZZB_BDB_SUCCESS);
@@ -112,7 +121,7 @@ ZTEST(zzb_bdb_steering, test_failed_join_tries_the_next_network)
 	zzb_nlme_join_conf(node, ZZB_MAC_STATUS_NO_ACK);
 	check_join(1, EXT_PAN_ID);
 	zzb_nlme_join_conf(node, ZZB_MAC_STATUS_SUCCESS);
-	zzb_bdb_nwk_key_ind(node);
+	receive_key();
 	check_event(1, ZZB_BDB_SUCCESS);
 }
 
@@ -159,7 +168,7 @@ ZTEST(zzb_bdb_steering, test_network_key_does_not_arrive)
 	discovered(2);
 	check_join(1, EXT_PAN_ID);
 	zzb_nlme_join_conf(node, ZZB_MAC_STATUS_SUCCESS);
-	zzb_bdb_nwk_key_ind(node);
+	receive_key();
 	check_event(1, ZZB_BDB_SUCCESS);
 }
 
