@@ -61,6 +61,14 @@ config ZZB_APS
 	  backend for the link keys and the frame counter. Tests that fake APS turn
 	  it off.
 
+config ZZB_APS_TX_COUNT
+	int "APS transmissions in progress"
+	range 1 32
+	default 4
+	help
+	  Entries of the APS transmission table. Each APSDE-DATA.request takes
+	  one until its confirm.
+
 config ZZB_APS_KEY_PAIR_COUNT
 	int "Key-pair table entries"
 	default 1

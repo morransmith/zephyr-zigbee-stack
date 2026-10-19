@@ -45,7 +45,7 @@ int zzb_aps_secure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len,
 		.ext_nonce = ext_nonce,
 		.src_addr = node->eui64,
 	};
-	size_t aux_len = ext_nonce ? ZZB_APS_AUX_MAX_LEN : ZZB_APS_AUX_MAX_LEN - 8;
+	size_t aux_len = zzb_aps_aux_len(ext_nonce);
 	psa_key_id_t id;
 	int err;
 

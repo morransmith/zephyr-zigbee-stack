@@ -32,12 +32,6 @@ void zzb_nwk_init(struct zzb_node *node)
 	zzb_nwk_rejoin_init(node);
 }
 
-/* R22 Table 3-69 */
-static bool is_broadcast(uint16_t addr)
-{
-	return addr == 0xffff || addr == 0xfffd || addr == 0xfffc || addr == 0xfffb;
-}
-
 int zzb_nwk_send(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_hdr *hdr,
 		 uint16_t mac_dst, bool ack)
 {
@@ -110,7 +104,7 @@ int zzb_nwk_send_cmd(struct zzb_node *node, struct zzb_nwk_hdr *hdr, const struc
 int zzb_nlde_data_req(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr, uint8_t radius,
 		      bool secure)
 {
-	bool broadcast = is_broadcast(dst_addr);
+	bool broadcast = zzb_nwk_is_broadcast(dst_addr);
 	struct zzb_nwk_neighbor *next_hop = NULL;
 	struct zzb_nwk_hdr hdr;
 

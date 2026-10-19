@@ -40,6 +40,12 @@ struct zzb_node;
 #define ZZB_NWK_PARENT_POLL_KEEPALIVE       BIT(0)
 #define ZZB_NWK_PARENT_ED_TIMEOUT_KEEPALIVE BIT(1)
 
+/* Broadcast addresses (R22 Table 3-69) */
+static inline bool zzb_nwk_is_broadcast(uint16_t addr)
+{
+	return addr == 0xffff || addr == 0xfffd || addr == 0xfffc || addr == 0xfffb;
+}
+
 /* NWK layer status values (R22 Table 3-73) */
 enum zzb_nwk_status {
 	ZZB_NWK_STATUS_SUCCESS = 0x00,
