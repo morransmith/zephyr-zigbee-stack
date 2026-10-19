@@ -2,6 +2,7 @@
 
 #include <zephyr/ztest.h>
 #include <zzb/zcl/illuminance.h>
+#include <zzb/zcl/occupancy.h>
 
 #include "fakes.h"
 
@@ -53,8 +54,8 @@ ZTEST(zzb_zcl_sensors, test_illuminance_target_level)
 }
 
 /*
- * ZCL 4.2.2.5, 4.3.2.7: MeasuredValue (minimum interval 30 s, maximum 900 s, change 1) and
- * LevelStatus (0 s, 900 s) are reportable
+ * ZCL 4.2.2.5, 4.3.2.7: MeasuredValue (minimum interval 30 s, maximum 900 s, change 1),
+ * LevelStatus and Occupancy (0 s, 900 s) are reportable
  */
 ZTEST(zzb_zcl_sensors, test_reportable)
 {
@@ -64,11 +65,57 @@ ZTEST(zzb_zcl_sensors, test_reportable)
 	static const uint8_t status[] = {0x00, 0x43, 0x06, 0x00, 0x00, 0x00,
 					 0x30, 0x00, 0x00, 0x84, 0x03};
 	static const uint8_t status_rsp[] = {0x18, 0x43, 0x07, 0x00};
+	static const uint8_t occupied[] = {0x00, 0x44, 0x06, 0x00, 0x00, 0x00,
+					   0x18, 0x00, 0x00, 0x84, 0x03};
+	static const uint8_t occupied_rsp[] = {0x18, 0x44, 0x07, 0x00};
 
 	receive_ep(SENSOR_EP, ZZB_ZCL_ILLUMINANCE, measured, sizeof(measured));
 	check_frame(0, SENSOR_EP, ZZB_ZCL_ILLUMINANCE, measured_rsp, sizeof(measured_rsp));
 	receive_ep(SENSOR_EP, ZZB_ZCL_ILLUMINANCE_LEVEL, status, sizeof(status));
 	check_frame(1, SENSOR_EP, ZZB_ZCL_ILLUMINANCE_LEVEL, status_rsp, sizeof(status_rsp));
+	receive_ep(SENSOR_EP, ZZB_ZCL_OCCUPANCY, occupied, sizeof(occupied));
+	check_frame(2, SENSOR_EP, ZZB_ZCL_OCCUPANCY, occupied_rsp, sizeof(occupied_rsp));
+}
+
+/*
+ * ZCL 4.8.2.2.2 to 4.8.2.2.4: a threshold outside 0x01 to 0xfe gives INVALID_VALUE. The records are
+ * the PIR threshold 0x00, the ultrasonic threshold 0xff and the physical contact threshold 0xfe.
+ */
+ZTEST(zzb_zcl_sensors, test_occupancy_thresholds)
+{
+	static const uint8_t req[] = {0x00, 0x45, 0x02, 0x12, 0x00, 0x20, 0x00, 0x22,
+				      0x00, 0x20, 0xff, 0x32, 0x00, 0x20, 0xfe};
+	static const uint8_t rsp[] = {0x18, 0x45, 0x04, 0x87, 0x12, 0x00, 0x87, 0x22, 0x00};
+
+	receive_ep(SENSOR_EP, ZZB_ZCL_OCCUPANCY, req, sizeof(req));
+	check_frame(0, SENSOR_EP, ZZB_ZCL_OCCUPANCY, rsp, sizeof(rsp));
+	zassert_equal(occupancy.pir_unoccupied_to_occupied_threshold, 0x01);
+	zassert_equal(occupancy.ultrasonic_unoccupied_to_occupied_threshold, 0x01);
+	zassert_equal(occupancy.physical_contact_unoccupied_to_occupied_threshold, 0xfe);
+}
+
+/*
+ * The delays and thresholds are saved, and the reset restores their defaults. The records are the
+ * PIR occupied to unoccupied delay 300 s and the PIR threshold 3.
+ */
+ZTEST(zzb_zcl_sensors, test_occupancy_settings)
+{
+	static const uint8_t req[] = {0x00, 0x46, 0x02, 0x10, 0x00, 0x21,
+				      0x2c, 0x01, 0x12, 0x00, 0x20, 0x03};
+	static const uint8_t rsp[] = {0x18, 0x46, 0x04, 0x00};
+	static const uint16_t reset_attrs[] = {0x0010, 0x0012};
+
+	receive_ep(SENSOR_EP, ZZB_ZCL_OCCUPANCY, req, sizeof(req));
+	check_frame(0, SENSOR_EP, ZZB_ZCL_OCCUPANCY, rsp, sizeof(rsp));
+	zassert_ok(reboot());
+	zassert_equal(occupancy.pir_occupied_to_unoccupied_delay, 300);
+	zassert_equal(occupancy.pir_unoccupied_to_occupied_threshold, 3);
+
+	reset_fakes();
+	reset_node();
+	zassert_equal(occupancy.pir_occupied_to_unoccupied_delay, 0);
+	zassert_equal(occupancy.pir_unoccupied_to_occupied_threshold, 1);
+	check_zcl_cb(SENSOR_EP, ZZB_ZCL_OCCUPANCY, reset_attrs, ARRAY_SIZE(reset_attrs));
 }
 
 ZTEST_SUITE(zzb_zcl_sensors, NULL, setup, before, after, NULL);

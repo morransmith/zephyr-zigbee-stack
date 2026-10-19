@@ -52,6 +52,9 @@ struct zzb_zcl_ballast ballast = {
 };
 struct zzb_zcl_illuminance illuminance;
 struct zzb_zcl_illuminance_level illuminance_level;
+struct zzb_zcl_occupancy occupancy = {
+	.occupancy_sensor_type_bitmap = 0x01,
+};
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -298,6 +301,7 @@ static const struct zzb_zcl_cluster ep30_clusters[] = {
 	ZZB_ZCL_BALLAST_SERVER(&ballast),
 	ZZB_ZCL_ILLUMINANCE_SERVER(&illuminance),
 	ZZB_ZCL_ILLUMINANCE_LEVEL_SERVER(&illuminance_level),
+	ZZB_ZCL_OCCUPANCY_SERVER(&occupancy),
 };
 
 static const struct zzb_endpoint endpoints[] = {

@@ -71,6 +71,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/groups.c
   zcl/clusters/identify.c
   zcl/clusters/illuminance.c
+  zcl/clusters/occupancy.c
   zcl/clusters/on_off.c
   zcl/clusters/power_config.c
   zcl/clusters/scenes.c
