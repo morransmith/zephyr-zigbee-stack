@@ -3,6 +3,7 @@
 #include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/color.h>
+#include <zzb/zcl/on_off.h>
 
 #include "common/node.h"
 #include "fakes.h"
@@ -14,11 +15,26 @@ static void *setup(void)
 	return NULL;
 }
 
-/* Each test starts with the defaults, without records */
+static void set_on_off(uint8_t ep, bool on)
+{
+	zassert_ok(zzb_zcl_attr_set(test_node(), ep, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_ON_OFF, &on));
+}
+
+/* Starts again from the records, as zzb_node_init() does, and turns the lights on */
+static void restart(void)
+{
+	zassert_ok(reboot());
+	set_on_off(40, true);
+	set_on_off(41, true);
+}
+
+/* Each test starts with the defaults, without records, and the lights on */
 static void before(void *fixture)
 {
 	zassert_ok(reboot());
 	reset_node();
+	set_on_off(40, true);
+	set_on_off(41, true);
 	reset_fakes();
 }
 
@@ -125,7 +141,7 @@ ZTEST(zzb_zcl_color, test_attributes)
 	receive_ep(41, ZZB_ZCL_COLOR, write, sizeof(write));
 	check_frame(1, 41, ZZB_ZCL_COLOR, write_rsp, sizeof(write_rsp));
 
-	zassert_ok(reboot());
+	restart();
 	receive_ep(41, ZZB_ZCL_COLOR, reread, sizeof(reread));
 	check_frame(2, 41, ZZB_ZCL_COLOR, reread_rsp, sizeof(reread_rsp));
 }
@@ -143,7 +159,7 @@ ZTEST(zzb_zcl_color, test_move_to_color)
 	zassert_equal(color40.enhanced_color_mode, ZZB_ZCL_COLOR_MODE_XY);
 	check_zcl_cb(40, ZZB_ZCL_COLOR, attrs, ARRAY_SIZE(attrs));
 
-	zassert_ok(reboot());
+	restart();
 	zassert_equal(color40.current_x, 0x2000);
 	zassert_equal(color40.current_y, 0x3000);
 	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_XY);
@@ -174,7 +190,7 @@ ZTEST(zzb_zcl_color, test_transition)
 	zassert_between_inclusive(color40.remaining_time, 4, 6);
 
 	/* The record holds the start values */
-	zassert_ok(reboot());
+	restart();
 	zassert_equal(color40.current_x, 0x1000);
 	zassert_equal(color40.current_y, 0x2000);
 	zassert_equal(color40.remaining_time, 0);
@@ -188,7 +204,7 @@ ZTEST(zzb_zcl_color, test_transition)
 	zassert_equal(color40.remaining_time, 0);
 	zassert_between_inclusive(notified(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_Y), 9, 11);
 	zassert_false(timer_armed());
-	zassert_ok(reboot());
+	restart();
 	zassert_equal(color40.current_x, 0x3000);
 	zassert_equal(color40.current_y, 0x1000);
 }
@@ -224,7 +240,7 @@ ZTEST(zzb_zcl_color, test_move_color)
 	zassert_equal(color40.current_x, 0xfeff);
 	zassert_equal(color40.current_y, 0x8000 - 0x1eff / 2);
 	zassert_false(timer_armed());
-	zassert_ok(reboot());
+	restart();
 	zassert_equal(color40.current_x, 0xfeff);
 	zassert_equal(color40.current_y, 0x8000 - 0x1eff / 2);
 
@@ -235,7 +251,7 @@ ZTEST(zzb_zcl_color, test_move_color)
 	zassert_between_inclusive(color40.current_x, 0xa000, 0xc000);
 	zassert_equal(color40.remaining_time, 0);
 	zassert_false(timer_armed());
-	zassert_ok(reboot());
+	restart();
 	zassert_between_inclusive(color40.current_x, 0xa000, 0xc000);
 
 	command(40, ZZB_ZCL_COLOR_MOVE_COLOR, (uint8_t[]){0x00, 0x20, 0x00}, 3,
@@ -275,7 +291,7 @@ ZTEST(zzb_zcl_color, test_move_to_temperature)
 	zassert_equal(color41.remaining_time, 5);
 	k_sleep(K_MSEC(600));
 	zassert_equal(color41.color_temperature, 400);
-	zassert_ok(reboot());
+	restart();
 	zassert_equal(color41.color_temperature, 400);
 
 	/* The command sets color temperature mode */
@@ -385,7 +401,7 @@ ZTEST(zzb_zcl_color, test_temperature_xy)
 
 	/* X and Y are not saved; the start hook computes them from the saved temperature */
 	reset_fakes();
-	zassert_ok(reboot());
+	restart();
 	zassert_equal(color40.current_x, 0x86e3);
 	zassert_equal(color40.current_y, 0x69cc);
 	zassert_equal(zcl_cb_calls.count, 0);
@@ -423,6 +439,61 @@ ZTEST(zzb_zcl_color, test_temperature_from_xy)
 	move_to_color(40, 0x2b85, 0xb333, 0);
 	move_to_temperature(40, 300, 10);
 	zassert_equal(color40.color_temperature, COLOR_TEMP_MIN);
+}
+
+/* ZCL 5.2.2.3.20: the values stay and are saved, with either capability */
+ZTEST(zzb_zcl_color, test_stop_move_step)
+{
+	uint16_t x;
+
+	move_to_color(40, 0x2000, 0x2000, 10);
+	k_sleep(K_MSEC(350));
+	send(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_STOP_MOVE_STEP, NULL, 0);
+	x = color40.current_x;
+	zassert_between_inclusive(x, 0x4000, 0x5000);
+	zassert_equal(color40.remaining_time, 0);
+	zassert_false(timer_armed());
+	k_sleep(K_MSEC(200));
+	zassert_equal(color40.current_x, x);
+	restart();
+	zassert_equal(color40.current_x, x);
+
+	move_to_temperature(41, 450, 10);
+	k_sleep(K_MSEC(350));
+	send(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_STOP_MOVE_STEP, NULL, 0);
+	zassert_between_inclusive(color41.color_temperature, 300, 330);
+	restart();
+	zassert_between_inclusive(color41.color_temperature, 300, 330);
+}
+
+/* ZCL 5.2.2.2.1.10: while off, every command runs only with ExecuteIfOff */
+ZTEST(zzb_zcl_color, test_execute_if_off)
+{
+	set_on_off(40, false);
+	move_to_color(40, 0x2000, 0x2000, 0);
+	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
+
+	/* OptionsMask selects the bits of OptionsOverride (ZCL 5.2.2.3.3) */
+	send(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TO_COLOR,
+	     (uint8_t[]){0x00, 0x20, 0x00, 0x20, 0x0a, 0x00, 0x01, 0x01}, 8);
+	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_XY);
+	zassert_equal(color40.remaining_time, 10);
+	send(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_STOP_MOVE_STEP, NULL, 0);
+	zassert_equal(color40.remaining_time, 10);
+
+	set_u8(40, ZZB_ZCL_COLOR_OPTIONS, 0x01);
+	send(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_STOP_MOVE_STEP, NULL, 0);
+	zassert_equal(color40.remaining_time, 0);
+	move_to_temperature(40, 300, 0);
+	zassert_equal(color40.color_temperature, 300);
+	send(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE,
+	     (uint8_t[]){0x90, 0x01, 0x00, 0x00, 0x01, 0x00}, 6);
+	zassert_equal(color40.color_temperature, 300);
+
+	set_u8(40, ZZB_ZCL_COLOR_OPTIONS, 0x00);
+	set_on_off(40, true);
+	move_to_temperature(40, 400, 0);
+	zassert_equal(color40.color_temperature, 400);
 }
 
 /* ZCL 5.2.2.2.1.18: commands of a capability that the light lacks or the stack does not have */
@@ -464,7 +535,7 @@ ZTEST(zzb_zcl_color, test_reset)
 				  ZZB_ZCL_COLOR_OPTIONS, ZZB_ZCL_COLOR_START_UP_TEMPERATURE},
 		     6);
 
-	zassert_ok(reboot());
+	restart();
 	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
 	zassert_equal(color40.current_x, 0x616a);
 }

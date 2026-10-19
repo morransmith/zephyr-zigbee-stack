@@ -4,6 +4,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/color.h>
+#include <zzb/zcl/on_off.h>
 
 #include "common/node.h"
 #include "common/timer.h"
@@ -27,6 +28,9 @@
 #define MODE_STOP 0x00
 #define MODE_UP   0x01
 #define MODE_DOWN 0x03
+
+/* Bits of Options (ZCL Table 5.6) */
+#define EXECUTE_IF_OFF BIT(0)
 
 /* The WhitePoint and ColorPoint attributes are not implemented */
 static const struct zzb_zcl_attr attrs[] = {
@@ -165,6 +169,15 @@ static void follow(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_color
 static const struct zzb_zcl_cluster *server(const struct zzb_endpoint *ep)
 {
 	return zzb_zcl_find_cluster(ep, ZZB_ZCL_COLOR, true);
+}
+
+/* The values of the On/Off server on ep, or NULL */
+static const struct zzb_zcl_on_off *on_off_server(struct zzb_node *node, uint8_t ep)
+{
+	const struct zzb_zcl_cluster *cl =
+		zzb_zcl_find_cluster(zzb_node_endpoint(node, ep), ZZB_ZCL_ON_OFF, true);
+
+	return cl != NULL ? cl->values : NULL;
 }
 
 /* The values of the server cl while it runs a transition, or NULL */
@@ -411,6 +424,14 @@ static int step_temperature(struct zzb_node *node, const struct zzb_zcl_cmd *cmd
 	return ZZB_ZCL_SUCCESS;
 }
 
+/* ZCL 5.2.2.3.20 */
+static int stop_move_step(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			  struct zzb_zcl_color *v)
+{
+	stop(node, cmd->ep, v);
+	return ZZB_ZCL_SUCCESS;
+}
+
 /* The commands with the length of their fields before OptionsMask and their capability */
 static const struct {
 	uint8_t id;
@@ -424,7 +445,28 @@ static const struct {
 	{ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, 4, ZZB_ZCL_COLOR_CAP_TEMPERATURE, move_to_temperature},
 	{ZZB_ZCL_COLOR_MOVE_TEMPERATURE, 7, ZZB_ZCL_COLOR_CAP_TEMPERATURE, move_temperature},
 	{ZZB_ZCL_COLOR_STEP_TEMPERATURE, 9, ZZB_ZCL_COLOR_CAP_TEMPERATURE, step_temperature},
+	{ZZB_ZCL_COLOR_STOP_MOVE_STEP, 0, ZZB_ZCL_COLOR_CAP_XY | ZZB_ZCL_COLOR_CAP_TEMPERATURE,
+	 stop_move_step},
 };
+
+/*
+ * ZCL 5.2.2.2.1.10: while the On/Off server on the endpoint is off, a command runs only with
+ * ExecuteIfOff in its options, in which OptionsMask after the len octets of the other fields
+ * selects the bits of OptionsOverride (ZCL 5.2.2.3.3)
+ */
+static bool executes(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+		     const struct zzb_zcl_color *v, size_t len)
+{
+	const struct zzb_zcl_on_off *on_off = on_off_server(node, cmd->ep);
+	const uint8_t *p = cmd->payload + len;
+	uint8_t options = v->options;
+
+	if (cmd->len >= len + 2) {
+		options = (options & ~p[0]) | (p[1] & p[0]);
+	}
+
+	return on_off == NULL || on_off->on_off || (options & EXECUTE_IF_OFF);
+}
 
 /* A command of a capability that the light lacks is unsupported (ZCL 5.2.2.2.1.18) */
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
@@ -439,6 +481,10 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 
 		if (cmd->len < commands[i].len) {
 			return ZZB_ZCL_MALFORMED_COMMAND;
+		}
+
+		if (!executes(node, cmd, v, commands[i].len)) {
+			return ZZB_ZCL_SUCCESS;
 		}
 
 		return commands[i].fn(node, cmd, v);
