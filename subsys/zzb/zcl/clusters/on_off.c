@@ -12,14 +12,6 @@
 /* ClusterRevision (ZCL 3.8.1.1) */
 #define REVISION 2
 
-/* Commands received (ZCL Table 3-47) */
-#define CMD_OFF                         0x00
-#define CMD_ON                          0x01
-#define CMD_TOGGLE                      0x02
-#define CMD_OFF_WITH_EFFECT             0x40
-#define CMD_ON_WITH_RECALL_GLOBAL_SCENE 0x41
-#define CMD_ON_WITH_TIMED_OFF           0x42
-
 /* On/Off Control of On With Timed Off */
 #define ACCEPT_ONLY_WHEN_ON BIT(0)
 
@@ -224,19 +216,19 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	struct zzb_zcl_on_off *v = values;
 
 	/* Level Control applies Off, On and Toggle when they move its level (ZCL Table 3-55) */
-	if (cmd->id <= CMD_TOGGLE && zzb_zcl_level_on_off(node, cmd->ep, cmd->id) == 0) {
+	if (cmd->id <= ZZB_ZCL_ON_OFF_TOGGLE && zzb_zcl_level_on_off(node, cmd->ep, cmd->id) == 0) {
 		return ZZB_ZCL_SUCCESS;
 	}
 
 	switch (cmd->id) {
-	case CMD_OFF:
+	case ZZB_ZCL_ON_OFF_OFF:
 		off(node, cmd->ep);
 		return ZZB_ZCL_SUCCESS;
-	case CMD_ON:
+	case ZZB_ZCL_ON_OFF_ON:
 		on(node, cmd->ep, v);
 		return ZZB_ZCL_SUCCESS;
 	/* ZCL 3.8.2.3.3 */
-	case CMD_TOGGLE:
+	case ZZB_ZCL_ON_OFF_TOGGLE:
 		if (v->on_off) {
 			off(node, cmd->ep);
 		} else {
@@ -244,12 +236,12 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 		}
 
 		return ZZB_ZCL_SUCCESS;
-	case CMD_OFF_WITH_EFFECT:
+	case ZZB_ZCL_ON_OFF_OFF_WITH_EFFECT:
 		return off_with_effect(node, cmd, v);
-	case CMD_ON_WITH_RECALL_GLOBAL_SCENE:
+	case ZZB_ZCL_ON_OFF_ON_WITH_RECALL_GLOBAL_SCENE:
 		on_with_recall_global_scene(node, cmd->ep, v);
 		return ZZB_ZCL_SUCCESS;
-	case CMD_ON_WITH_TIMED_OFF:
+	case ZZB_ZCL_ON_OFF_ON_WITH_TIMED_OFF:
 		return on_with_timed_off(node, cmd, v);
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;

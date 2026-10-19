@@ -13,12 +13,6 @@
 /* ClusterRevision (ZCL 3.5.1.1) */
 #define REVISION 2
 
-/* Commands received (ZCL Table 3-32) and generated (ZCL Table 3-35) */
-#define CMD_IDENTIFY           0x00
-#define CMD_IDENTIFY_QUERY     0x01
-#define CMD_TRIGGER_EFFECT     0x40
-#define CMD_IDENTIFY_QUERY_RSP 0x00
-
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_IDENTIFY_TIME, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE, struct zzb_zcl_identify,
 		     identify_time),
@@ -102,7 +96,7 @@ static int identify_query(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	}
 
 	sys_put_le16(v->identify_time, rsp);
-	zzb_zcl_cmd_respond(node, cmd, CMD_IDENTIFY_QUERY_RSP, rsp, sizeof(rsp));
+	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_IDENTIFY_QUERY_RSP, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -110,7 +104,7 @@ static int identify_query(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
 	switch (cmd->id) {
-	case CMD_IDENTIFY:
+	case ZZB_ZCL_IDENTIFY_IDENTIFY:
 		if (cmd->len < 2) {
 			return ZZB_ZCL_MALFORMED_COMMAND;
 		}
@@ -118,9 +112,9 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 		zzb_zcl_set(node, cmd->ep, ZZB_ZCL_IDENTIFY, ZZB_ZCL_IDENTIFY_TIME,
 			    sys_get_le16(cmd->payload));
 		return ZZB_ZCL_SUCCESS;
-	case CMD_IDENTIFY_QUERY:
+	case ZZB_ZCL_IDENTIFY_QUERY:
 		return identify_query(node, cmd, values);
-	case CMD_TRIGGER_EFFECT:
+	case ZZB_ZCL_IDENTIFY_TRIGGER_EFFECT:
 		if (cmd->len < 2) {
 			return ZZB_ZCL_MALFORMED_COMMAND;
 		}
@@ -160,7 +154,7 @@ static const struct zzb_zcl_attr client_attrs[] = {
 /* ZCL 3.5.2.4.1: the response goes to finding & binding for an initiator (BDB 8.5 step 4) */
 static int client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
-	if (cmd->id != CMD_IDENTIFY_QUERY_RSP) {
+	if (cmd->id != ZZB_ZCL_IDENTIFY_QUERY_RSP) {
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}
 

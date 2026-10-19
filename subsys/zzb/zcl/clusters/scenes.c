@@ -16,18 +16,6 @@
 /* ClusterRevision (ZCL 3.7.1.1) */
 #define REVISION 3
 
-/* Commands received (ZCL Table 3-42); each response has the identifier of its command */
-#define CMD_ADD_SCENE            0x00
-#define CMD_VIEW_SCENE           0x01
-#define CMD_REMOVE_SCENE         0x02
-#define CMD_REMOVE_ALL_SCENES    0x03
-#define CMD_STORE_SCENE          0x04
-#define CMD_RECALL_SCENE         0x05
-#define CMD_GET_SCENE_MEMBERSHIP 0x06
-#define CMD_ENHANCED_ADD_SCENE   0x40
-#define CMD_ENHANCED_VIEW_SCENE  0x41
-#define CMD_COPY_SCENE           0x42
-
 /* Mode of Copy Scene */
 #define COPY_ALL_SCENES BIT(0)
 
@@ -352,7 +340,8 @@ static int add_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	status = check_group(node, cmd->ep, group);
 	if (status == ZZB_ZCL_SUCCESS) {
 		status = add(node, cmd->ep, group, p[2], sys_get_le16(p + 3),
-			     cmd->id == CMD_ENHANCED_ADD_SCENE, p + sets_off, cmd->len - sets_off);
+			     cmd->id == ZZB_ZCL_SCENES_ENHANCED_ADD_SCENE, p + sets_off,
+			     cmd->len - sets_off);
 	}
 
 	return respond(node, cmd, status, group, p[2]);
@@ -383,7 +372,8 @@ static int view_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	tenths = 10 * s->transition + s->transition_100ms;
 	sys_put_le16(group, rsp + 1);
 	rsp[3] = id;
-	sys_put_le16(cmd->id == CMD_ENHANCED_VIEW_SCENE ? MIN(tenths, UINT16_MAX) : s->transition,
+	sys_put_le16(cmd->id == ZZB_ZCL_SCENES_ENHANCED_VIEW_SCENE ? MIN(tenths, UINT16_MAX)
+								   : s->transition,
 		     rsp + 4);
 	rsp[6] = 0;
 	memcpy(rsp + 7, s->data, s->data_len);
@@ -590,7 +580,7 @@ static int remove_all(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	}
 
 	sys_put_le16(group, rsp + 1);
-	zzb_zcl_cmd_respond(node, cmd, CMD_REMOVE_ALL_SCENES, rsp, sizeof(rsp));
+	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_SCENES_REMOVE_ALL_SCENES, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -620,7 +610,7 @@ static int get_scene_membership(struct zzb_node *node, const struct zzb_zcl_cmd 
 		return ZZB_ZCL_SUCCESS;
 	}
 
-	zzb_zcl_cmd_respond(node, cmd, CMD_GET_SCENE_MEMBERSHIP, rsp,
+	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_SCENES_GET_SCENE_MEMBERSHIP, rsp,
 			    rsp[0] == ZZB_ZCL_SUCCESS ? n : 4);
 	return ZZB_ZCL_RESPONDED;
 }
@@ -631,16 +621,16 @@ static const struct {
 	uint8_t len;
 	int (*fn)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 } commands[] = {
-	{CMD_ADD_SCENE, 3, add_scene},
-	{CMD_VIEW_SCENE, 3, view_scene},
-	{CMD_REMOVE_SCENE, 3, remove_one},
-	{CMD_REMOVE_ALL_SCENES, 2, remove_all},
-	{CMD_STORE_SCENE, 3, store_scene},
-	{CMD_RECALL_SCENE, 3, recall_scene},
-	{CMD_GET_SCENE_MEMBERSHIP, 2, get_scene_membership},
-	{CMD_ENHANCED_ADD_SCENE, 3, add_scene},
-	{CMD_ENHANCED_VIEW_SCENE, 3, view_scene},
-	{CMD_COPY_SCENE, 7, copy_scene},
+	{ZZB_ZCL_SCENES_ADD_SCENE, 3, add_scene},
+	{ZZB_ZCL_SCENES_VIEW_SCENE, 3, view_scene},
+	{ZZB_ZCL_SCENES_REMOVE_SCENE, 3, remove_one},
+	{ZZB_ZCL_SCENES_REMOVE_ALL_SCENES, 2, remove_all},
+	{ZZB_ZCL_SCENES_STORE_SCENE, 3, store_scene},
+	{ZZB_ZCL_SCENES_RECALL_SCENE, 3, recall_scene},
+	{ZZB_ZCL_SCENES_GET_SCENE_MEMBERSHIP, 2, get_scene_membership},
+	{ZZB_ZCL_SCENES_ENHANCED_ADD_SCENE, 3, add_scene},
+	{ZZB_ZCL_SCENES_ENHANCED_VIEW_SCENE, 3, view_scene},
+	{ZZB_ZCL_SCENES_COPY_SCENE, 7, copy_scene},
 };
 
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)

@@ -11,14 +11,6 @@
 /* ClusterRevision (ZCL 3.6.1.1) */
 #define REVISION 3
 
-/* Commands received (ZCL Table 3-37); each response has the identifier of its command */
-#define CMD_ADD_GROUP                0x00
-#define CMD_VIEW_GROUP               0x01
-#define CMD_GET_GROUP_MEMBERSHIP     0x02
-#define CMD_REMOVE_GROUP             0x03
-#define CMD_REMOVE_ALL_GROUPS        0x04
-#define CMD_ADD_GROUP_IF_IDENTIFYING 0x05
-
 /* Capacity, group count, then the group list */
 #define MEMBERSHIP_LIST_MAX ((ZZB_ZCL_MAX_PAYLOAD - 2) / 2)
 
@@ -77,7 +69,7 @@ static int view_group(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint
 	}
 
 	sys_put_le16(group, rsp + 1);
-	zzb_zcl_cmd_respond(node, cmd, CMD_VIEW_GROUP, rsp, sizeof(rsp));
+	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_GROUPS_VIEW_GROUP, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -117,7 +109,7 @@ static int get_group_membership(struct zzb_node *node, const struct zzb_zcl_cmd 
 		sys_put_le16(groups[i], rsp + 2 + 2 * i);
 	}
 
-	zzb_zcl_cmd_respond(node, cmd, CMD_GET_GROUP_MEMBERSHIP, rsp, 2 + 2 * n);
+	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_GROUPS_GET_GROUP_MEMBERSHIP, rsp, 2 + 2 * n);
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -163,17 +155,17 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 {
 	uint16_t group;
 
-	if (cmd->id == CMD_GET_GROUP_MEMBERSHIP) {
+	if (cmd->id == ZZB_ZCL_GROUPS_GET_GROUP_MEMBERSHIP) {
 		return get_group_membership(node, cmd);
 	}
 
 	/* Remove All Groups always succeeds */
-	if (cmd->id == CMD_REMOVE_ALL_GROUPS) {
+	if (cmd->id == ZZB_ZCL_GROUPS_REMOVE_ALL_GROUPS) {
 		remove_all_groups(node, cmd->ep);
 		return ZZB_ZCL_SUCCESS;
 	}
 
-	if (cmd->id > CMD_ADD_GROUP_IF_IDENTIFYING) {
+	if (cmd->id > ZZB_ZCL_GROUPS_ADD_GROUP_IF_IDENTIFYING) {
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}
 
@@ -183,11 +175,11 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 
 	group = sys_get_le16(cmd->payload);
 	switch (cmd->id) {
-	case CMD_ADD_GROUP:
+	case ZZB_ZCL_GROUPS_ADD_GROUP:
 		return respond(node, cmd, add(node, cmd->ep, group), group);
-	case CMD_VIEW_GROUP:
+	case ZZB_ZCL_GROUPS_VIEW_GROUP:
 		return view_group(node, cmd, group);
-	case CMD_REMOVE_GROUP:
+	case ZZB_ZCL_GROUPS_REMOVE_GROUP:
 		return remove_group(node, cmd, group);
 	default:
 		/* ZCL 3.6.2.3.7: errors go in the Default Response */

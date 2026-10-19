@@ -12,6 +12,14 @@ extern "C" {
 /** Groups cluster (ZCL 3.6). */
 #define ZZB_ZCL_GROUPS 0x0004
 
+/** Commands received (ZCL Table 3-37); each response has the identifier of its command. */
+#define ZZB_ZCL_GROUPS_ADD_GROUP                0x00
+#define ZZB_ZCL_GROUPS_VIEW_GROUP               0x01
+#define ZZB_ZCL_GROUPS_GET_GROUP_MEMBERSHIP     0x02
+#define ZZB_ZCL_GROUPS_REMOVE_GROUP             0x03
+#define ZZB_ZCL_GROUPS_REMOVE_ALL_GROUPS        0x04
+#define ZZB_ZCL_GROUPS_ADD_GROUP_IF_IDENTIFYING 0x05
+
 extern const struct zzb_zcl_cluster_def zzb_zcl_groups_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_groups_client_def;
 
