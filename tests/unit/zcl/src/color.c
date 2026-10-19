@@ -32,6 +32,7 @@ static void restart(void)
 /* Each test starts with the defaults, without records, and the lights on */
 static void before(void *fixture)
 {
+	color41.start_up_default = 0xffff;
 	zassert_ok(reboot());
 	reset_node();
 	set_on_off(40, true);
@@ -562,6 +563,49 @@ ZTEST(zzb_zcl_color, test_scene_recall_temperature)
 	k_sleep(K_MSEC(600));
 	zassert_equal(color41.color_temperature, COLOR_TEMP_MAX);
 	zassert_equal(color41.current_x, 0x616b);
+}
+
+/*
+ * ZCL Table 5.9: StartUpColorTemperatureMireds sets the color temperature and its mode at the
+ * start, without zcl_cb. X and Y follow by Kim et al. (2002): 200 mireds (5000 K) x 0.344992
+ * y 0.351587, computed in double precision.
+ */
+ZTEST(zzb_zcl_color, test_start_up)
+{
+	set_u16(41, ZZB_ZCL_COLOR_START_UP_TEMPERATURE, 300);
+	move_to_temperature(41, 400, 0);
+	reset_fakes();
+	restart();
+	zassert_equal(color41.color_temperature, 300);
+	zassert_equal(zcl_cb_calls.count, 0);
+
+	/* Within the physical range */
+	set_u16(41, ZZB_ZCL_COLOR_START_UP_TEMPERATURE, 600);
+	restart();
+	zassert_equal(color41.color_temperature, COLOR_TEMP_MAX);
+
+	/* 0xffff keeps the saved temperature */
+	set_u16(41, ZZB_ZCL_COLOR_START_UP_TEMPERATURE, 0xffff);
+	move_to_temperature(41, 350, 0);
+	restart();
+	zassert_equal(color41.color_temperature, 350);
+
+	/* From XY mode */
+	move_to_color(40, 0x2000, 0x3000, 0);
+	set_u16(40, ZZB_ZCL_COLOR_START_UP_TEMPERATURE, 200);
+	restart();
+	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
+	zassert_equal(color40.enhanced_color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
+	zassert_equal(color40.color_temperature, 200);
+	zassert_equal(color40.current_x, 0x5851);
+	zassert_equal(color40.current_y, 0x5a02);
+
+	/* Without records StartUpColorTemperatureMireds is the default of the application */
+	color41.start_up_default = 0x0100;
+	reset_node();
+	restart();
+	zassert_equal(color41.start_up_color_temperature, 0x0100);
+	zassert_equal(color41.color_temperature, 0x0100);
 }
 
 /* ZCL 5.2.2.2.1.18: commands of a capability that the light lacks or the stack does not have */

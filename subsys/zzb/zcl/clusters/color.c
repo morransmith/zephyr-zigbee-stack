@@ -581,19 +581,35 @@ static void recall(struct zzb_node *node, uint8_t ep, void *values, const uint32
 		    transition_ds);
 }
 
-/* CurrentX and CurrentY in line with the loaded ColorTemperatureMireds, without zcl_cb */
+/*
+ * ZCL Table 5.9: with the color temperature capability, a StartUpColorTemperatureMireds other than
+ * 0xffff sets ColorTemperatureMireds within the physical range and its mode. CurrentX and
+ * CurrentY follow the loaded or set temperature. Nothing calls zcl_cb.
+ */
 static void start(struct zzb_node *node, uint8_t ep, void *values)
 {
 	const struct zzb_zcl_color *v = values;
+	uint16_t mireds = v->color_temperature;
 	uint16_t x, y;
 
-	if (!follows(v)) {
-		return;
+	if ((v->color_capabilities & ZZB_ZCL_COLOR_CAP_TEMPERATURE) &&
+	    v->start_up_color_temperature != 0xffff) {
+		mireds = CLAMP(v->start_up_color_temperature, v->color_temp_physical_min,
+			       v->color_temp_physical_max);
+		zzb_zcl_store(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MODE,
+			      ZZB_ZCL_COLOR_MODE_TEMPERATURE);
+		zzb_zcl_store(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_ENHANCED_MODE,
+			      ZZB_ZCL_COLOR_MODE_TEMPERATURE);
 	}
 
-	temperature_xy(v->color_temperature, &x, &y);
-	zzb_zcl_store(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_X, x);
-	zzb_zcl_store(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_Y, y);
+	/* X and Y first, so that the changed hook of the temperature finds them in line */
+	if (follows(v)) {
+		temperature_xy(mireds, &x, &y);
+		zzb_zcl_store(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_X, x);
+		zzb_zcl_store(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_Y, y);
+	}
+
+	zzb_zcl_store(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_TEMPERATURE, mireds);
 }
 
 static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
