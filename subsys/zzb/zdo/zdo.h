@@ -40,13 +40,27 @@ enum zzb_zdp_status {
 	ZZB_ZDP_INVALID_EP = 0x82,
 	ZZB_ZDP_NOT_ACTIVE = 0x83,
 	ZZB_ZDP_NOT_SUPPORTED = 0x84,
+	ZZB_ZDP_TIMEOUT = 0x85,
 	ZZB_ZDP_NO_ENTRY = 0x88,
 	ZZB_ZDP_TABLE_FULL = 0x8c,
 };
 
+/* Wait of the ZDO client for a response: bdbcTCLinkKeyExchangeTimeout (BDB 10.2.5) */
+#define ZZB_ZDO_RSP_TIMEOUT_MS 5000
+
 /* ASDU handles of ZDO frames: Mgmt_Leave_rsp, whose confirm starts the leave, and the others */
 #define ZZB_ZDO_LEAVE_HANDLE 0xfe
 #define ZZB_ZDO_HANDLE       0xff
+
+/* A request of the ZDO client waiting for its response */
+struct zzb_zdo_transaction {
+	bool in_use;
+	uint8_t tsn;
+	uint16_t cluster;
+	uint16_t dst;
+	/* k_uptime_get() at the end of the wait */
+	int64_t deadline;
+};
 
 struct zzb_zdo {
 	/* Transaction sequence number of the next frame ZDO originates */
@@ -59,6 +73,9 @@ struct zzb_zdo {
 	struct k_work_delayable channel_timer;
 	uint8_t channel;
 	uint8_t update_id;
+	struct zzb_zdo_transaction transactions[CONFIG_ZZB_ZDO_TRANSACTION_COUNT];
+	/* Ends the waits of the transactions */
+	struct k_work_delayable client_timer;
 };
 
 /* A received request */
@@ -103,6 +120,25 @@ void zzb_zdo_serve_mgmt_leave(struct zzb_node *node, const struct zzb_zdo_req *r
 void zzb_zdo_serve_mgmt_nwk_update(struct zzb_node *node, const struct zzb_zdo_req *req);
 
 void zzb_zdo_mgmt_init(struct zzb_node *node);
+
+/*
+ * Node_Desc_req to the network address addr for addr (R22 2.4.3.1.3). Returns -ENOBUFS when the
+ * transaction table is full or no buffer is free, or an error of APSDE-DATA.request; otherwise
+ * one zzb_zdo_node_desc_conf() follows.
+ */
+int zzb_zdo_node_desc_req(struct zzb_node *node, uint16_t addr);
+
+/*
+ * Defined by BDB. status is the status of Node_Desc_rsp or ZZB_ZDP_TIMEOUT; server_mask is valid
+ * with SUCCESS.
+ */
+void zzb_zdo_node_desc_conf(struct zzb_node *node, uint8_t status, uint16_t addr,
+			    uint16_t server_mask);
+
+void zzb_zdo_client_init(struct zzb_node *node);
+
+/* Ends the transaction of a received response */
+void zzb_zdo_client(struct zzb_node *node, const struct zzb_zdo_req *rsp);
 
 /* Leaves the network after the confirm of Mgmt_Leave_rsp */
 void zzb_zdo_leave(struct zzb_node *node);

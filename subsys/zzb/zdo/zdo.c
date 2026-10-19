@@ -14,10 +14,12 @@ void zzb_zdo_init(struct zzb_node *node)
 {
 	/* Safe on the zeroed struct of a new node */
 	k_work_cancel_delayable(&node->zdo.channel_timer);
+	k_work_cancel_delayable(&node->zdo.client_timer);
 	node->zdo = (struct zzb_zdo){
 		.tsn = sys_rand8_get(),
 	};
 	zzb_zdo_mgmt_init(node);
+	zzb_zdo_client_init(node);
 }
 
 int zzb_zdo_send(struct zzb_node *node, uint16_t dst, uint16_t cluster, uint8_t tsn,
@@ -88,8 +90,7 @@ void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf, const struct
 	struct zzb_zdo_req req;
 
 	/* Application endpoints wait for ZCL */
-	if (ind->dst_ep != 0 || ind->profile != 0x0000 || buf->len == 0 ||
-	    (ind->cluster & ZZB_ZDP_RSP)) {
+	if (ind->dst_ep != 0 || ind->profile != 0x0000 || buf->len == 0) {
 		net_buf_unref(buf);
 		return;
 	}
@@ -102,6 +103,12 @@ void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf, const struct
 		.payload = buf->data + 1,
 		.len = buf->len - 1,
 	};
-	zzb_zdo_server(node, &req);
+
+	if (req.cluster & ZZB_ZDP_RSP) {
+		zzb_zdo_client(node, &req);
+	} else {
+		zzb_zdo_server(node, &req);
+	}
+
 	net_buf_unref(buf);
 }

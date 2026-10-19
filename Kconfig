@@ -96,6 +96,14 @@ config ZZB_ZDO
 	  Zigbee device object: the ZDO server, the ZDO client and the processing
 	  of the APS key indications. Tests that fake ZDO turn it off.
 
+config ZZB_ZDO_TRANSACTION_COUNT
+	int "ZDO client transactions"
+	range 1 32
+	default 4
+	help
+	  Requests of the ZDO client that wait for their response at the same
+	  time.
+
 config ZZB_FRAME_COUNTER_JUMP
 	int "Outgoing frame counter jump at boot"
 	default 1024
