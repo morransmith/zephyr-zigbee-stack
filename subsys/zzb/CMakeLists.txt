@@ -72,6 +72,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/groups.c
   zcl/clusters/identify.c
   zcl/clusters/illuminance.c
+  zcl/clusters/level.c
   zcl/clusters/occupancy.c
   zcl/clusters/on_off.c
   zcl/clusters/power_config.c
@@ -79,6 +80,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/foundation.c
   zcl/frame.c
   zcl/report.c
+  zcl/transition.c
   zcl/zcl.c
 )
 zephyr_library_sources_ifdef(CONFIG_IEEE802154_RAW_MODE radio/port.c radio/raw.c)

@@ -223,6 +223,11 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 {
 	struct zzb_zcl_on_off *v = values;
 
+	/* Level Control applies Off, On and Toggle when they move its level (ZCL Table 3-55) */
+	if (cmd->id <= CMD_TOGGLE && zzb_zcl_level_on_off(node, cmd->ep, cmd->id) == 0) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
 	switch (cmd->id) {
 	case CMD_OFF:
 		off(node, cmd->ep);
@@ -350,6 +355,21 @@ const struct zzb_zcl_cluster_def zzb_zcl_on_off_client_def = {
 	.attr_count = ARRAY_SIZE(client_attrs),
 	.cmd = zzb_zcl_client_cmd,
 };
+
+void zzb_zcl_on_off_switch(struct zzb_node *node, uint8_t ep, bool on_off)
+{
+	const struct zzb_zcl_on_off *v = server(zzb_node_endpoint(node, ep));
+
+	if (v == NULL) {
+		return;
+	}
+
+	if (on_off) {
+		on(node, ep, v);
+	} else {
+		off(node, ep);
+	}
+}
 
 void zzb_zcl_on_off_init(struct zzb_node *node)
 {

@@ -15,6 +15,7 @@
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
+#include <zzb/zcl/level.h>
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/power_config.h>
@@ -105,6 +106,17 @@ extern struct recall_calls recall_calls;
 
 /* Endpoint 5 has the client definitions of the stack, except Identify */
 #define CLIENT_EP 5
+
+/* The Level Control server on endpoint 10, without other clusters */
+extern struct zzb_zcl_level level10;
+
+/*
+ * The Scenes, On/Off and Level Control servers on endpoint 11. Both Level Control servers have the
+ * factory StartUpCurrentLevel 0xff.
+ */
+extern struct zzb_zcl_scenes scenes11;
+extern struct zzb_zcl_on_off on_off11;
+extern struct zzb_zcl_level level11;
 
 /* The Alarms servers on endpoints 20 and 21, which share the alarm table */
 extern struct zzb_zcl_alarms alarms20;

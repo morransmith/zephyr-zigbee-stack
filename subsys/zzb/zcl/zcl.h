@@ -73,6 +73,8 @@ struct zzb_zcl {
 	struct zzb_zcl_report reports[CONFIG_ZZB_ZCL_REPORT_COUNT];
 	/* Sends the reports when they are due */
 	struct k_work_delayable report_timer;
+	/* Steps the transitions of Level Control every 100 ms while one runs */
+	struct k_work_delayable level_timer;
 	/* Transaction sequence number of the next frame ZCL originates */
 	uint8_t tsn;
 	struct zzb_zcl_scene scenes[CONFIG_ZZB_ZCL_SCENE_COUNT];
@@ -153,6 +155,39 @@ void zzb_zcl_init(struct zzb_node *node);
 void zzb_zcl_store(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
 		   uint32_t value);
 
+/*
+ * Writes value to attribute attr of the server cluster on endpoint ep and reports a change through
+ * the changed hook, the reporting check and zcl_cb, without saving it and without SceneValid
+ */
+void zzb_zcl_update(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
+		    uint32_t value);
+
+/* Saves the non-volatile attribute attr of the server cluster on endpoint ep */
+void zzb_zcl_save(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr);
+
+/*
+ * Starts t on count attributes attrs of cl, at most two, from their values to the values to over
+ * time_ds tenths of a second, which is above 0. A running transition is replaced.
+ */
+void zzb_zcl_transition_start(struct zzb_zcl_transition *t, const struct zzb_zcl_cluster *cl,
+			      const uint16_t *attrs, const uint16_t *to, size_t count,
+			      uint32_t time_ds);
+
+/*
+ * Writes the values of t at the current time to cl on endpoint ep through zzb_zcl_update(). At the
+ * end it saves the end values, stops t and returns true. A value that differs from the value t
+ * wrote last, because the application has set it, stops t without a write.
+ */
+bool zzb_zcl_transition_step(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+			     struct zzb_zcl_transition *t);
+
+/* Stops t and saves its attributes of the server cluster on endpoint ep */
+void zzb_zcl_transition_stop(struct zzb_node *node, uint8_t ep, uint16_t cluster,
+			     struct zzb_zcl_transition *t);
+
+/* The time left of t in tenths of a second, rounded up, at most 0xffff; 0 when t does not run */
+uint16_t zzb_zcl_transition_remaining(const struct zzb_zcl_transition *t);
+
 /* Calls the start hooks after the records are loaded */
 void zzb_zcl_start(struct zzb_node *node);
 
@@ -163,7 +198,22 @@ void zzb_zcl_identify_init(struct zzb_node *node);
  * -ENOENT without the server.
  */
 int zzb_zcl_identify(struct zzb_node *node, uint8_t ep, uint16_t time);
+void zzb_zcl_level_init(struct zzb_node *node);
 void zzb_zcl_on_off_init(struct zzb_node *node);
+
+/*
+ * Applies Off, On or Toggle, the command cmd of the On/Off server on endpoint ep, to the level of
+ * the Level Control server on ep (ZCL Table 3-55), which also sets OnOff. Returns -ENOENT without
+ * the server and -EALREADY when the level does not change; the On/Off server then applies the
+ * command itself.
+ */
+int zzb_zcl_level_on_off(struct zzb_node *node, uint8_t ep, uint8_t cmd);
+
+/*
+ * Sets OnOff of the On/Off server on endpoint ep, if there is one, with the rules of On or Off for
+ * GlobalSceneControl, OnTime and OffWaitTime; for Level Control (ZCL 3.8.2.1.1, 3.10.2.1.3)
+ */
+void zzb_zcl_on_off_switch(struct zzb_node *node, uint8_t ep, bool on_off);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*

@@ -30,6 +30,10 @@ struct zzb_zcl_on_off on_off3;
 struct test_values values4;
 struct zzb_zcl_scenes scenes4;
 struct recall_calls recall_calls;
+struct zzb_zcl_level level10 = {.start_up_default = 0xff};
+struct zzb_zcl_scenes scenes11;
+struct zzb_zcl_on_off on_off11;
+struct zzb_zcl_level level11 = {.start_up_default = 0xff};
 struct zzb_zcl_alarms alarms20;
 struct zzb_zcl_alarms alarms21;
 struct test_values values20;
@@ -306,6 +310,16 @@ static const struct zzb_zcl_cluster ep4_clusters[] = {
 	{.id = SCENE_CLUSTER, .server = true, .values = &values4, .def = &scene_test_def},
 };
 
+static const struct zzb_zcl_cluster ep10_clusters[] = {
+	ZZB_ZCL_LEVEL_SERVER(&level10),
+};
+
+static const struct zzb_zcl_cluster ep11_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes11),
+	ZZB_ZCL_ON_OFF_SERVER(&on_off11),
+	ZZB_ZCL_LEVEL_SERVER(&level11),
+};
+
 static void alarm_reset(struct zzb_node *node, uint8_t ep, void *values, uint8_t code)
 {
 	alarm_reset_calls = (struct alarm_reset_calls){
@@ -373,6 +387,20 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0840,
 		.clusters = ep5_clusters,
 		.cluster_count = ARRAY_SIZE(ep5_clusters),
+	},
+	{
+		.id = 10,
+		.profile = 0x0104,
+		.device_id = 0x0101,
+		.clusters = ep10_clusters,
+		.cluster_count = ARRAY_SIZE(ep10_clusters),
+	},
+	{
+		.id = 11,
+		.profile = 0x0104,
+		.device_id = 0x0101,
+		.clusters = ep11_clusters,
+		.cluster_count = ARRAY_SIZE(ep11_clusters),
 	},
 	{
 		.id = 20,
