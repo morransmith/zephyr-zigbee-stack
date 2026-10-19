@@ -201,6 +201,12 @@ void zzb_zcl_identify_init(struct zzb_node *node);
  */
 int zzb_zcl_identify(struct zzb_node *node, uint8_t ep, uint16_t time);
 void zzb_zcl_color_init(struct zzb_node *node);
+
+/*
+ * Sets ColorTemperatureMireds of the Color Control server on endpoint ep, if there is one, for
+ * CurrentLevel level in color temperature mode, through zzb_zcl_update() (ZCL 5.2.2.1.1)
+ */
+void zzb_zcl_color_level(struct zzb_node *node, uint8_t ep, uint8_t level);
 void zzb_zcl_level_init(struct zzb_node *node);
 void zzb_zcl_on_off_init(struct zzb_node *node);
 

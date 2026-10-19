@@ -21,6 +21,10 @@
 #define DEFAULT_Y           0x607d
 #define DEFAULT_TEMPERATURE 0x00fa
 
+/* The range of CurrentLevel of Level Control (ZCL 3.19.2.2.1) */
+#define LEVEL_MIN 1
+#define LEVEL_MAX 254
+
 /* Period of the steps of a transition, the unit of ZCL transition times */
 #define STEP_MS 100
 
@@ -651,6 +655,33 @@ const struct zzb_zcl_cluster_def zzb_zcl_color_def = {
 	.changed = changed,
 	.recall = recall,
 };
+
+/*
+ * The color temperature of a level: 254 gives CoupleColorTempToLevelMinMireds and 1
+ * ColorTempPhysicalMaxMireds, linear between
+ */
+static uint16_t coupled_mireds(const struct zzb_zcl_color *v, uint8_t level)
+{
+	int max = v->color_temp_physical_max;
+	int steps = CLAMP(level, LEVEL_MIN, LEVEL_MAX) - LEVEL_MIN;
+
+	return max - (max - v->couple_color_temp_min) * steps / (LEVEL_MAX - LEVEL_MIN);
+}
+
+void zzb_zcl_color_level(struct zzb_node *node, uint8_t ep, uint8_t level)
+{
+	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
+	const struct zzb_zcl_cluster *cl = e != NULL ? server(e) : NULL;
+	const struct zzb_zcl_color *v = cl != NULL ? cl->values : NULL;
+
+	if (v == NULL || !(v->color_capabilities & ZZB_ZCL_COLOR_CAP_TEMPERATURE) ||
+	    v->color_mode != ZZB_ZCL_COLOR_MODE_TEMPERATURE) {
+		return;
+	}
+
+	zzb_zcl_update(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_TEMPERATURE,
+		       coupled_mireds(v, level));
+}
 
 void zzb_zcl_color_init(struct zzb_node *node)
 {

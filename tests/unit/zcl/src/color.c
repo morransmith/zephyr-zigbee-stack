@@ -3,6 +3,7 @@
 #include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/color.h>
+#include <zzb/zcl/level.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/scenes.h>
 
@@ -606,6 +607,54 @@ ZTEST(zzb_zcl_color, test_start_up)
 	restart();
 	zassert_equal(color41.start_up_color_temperature, 0x0100);
 	zassert_equal(color41.color_temperature, 0x0100);
+}
+
+static void move_to_level(uint8_t ep, uint8_t level, uint16_t time)
+{
+	const uint8_t payload[] = {level, time & 0xff, time >> 8};
+
+	send(ep, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL, payload, sizeof(payload));
+}
+
+static void set_level_options(uint8_t ep, uint8_t options)
+{
+	zassert_ok(
+		zzb_zcl_attr_set(test_node(), ep, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_OPTIONS, &options));
+}
+
+/*
+ * ZCL 5.2.2.1.1: with CoupleColorTempToLevel, level 254 gives CoupleColorTempToLevelMinMireds,
+ * 1 ColorTempPhysicalMaxMireds and the levels between a linear value
+ */
+ZTEST(zzb_zcl_color, test_couple_to_level)
+{
+	set_level_options(41, 0x02);
+	move_to_level(41, 1, 0);
+	zassert_equal(color41.color_temperature, COLOR_TEMP_MAX);
+	move_to_level(41, 128, 0);
+	zassert_equal(color41.color_temperature,
+		      COLOR_TEMP_MAX - (COLOR_TEMP_MAX - COLOR_COUPLE_MIN) * 127 / 253);
+
+	/* Also during a transition of the level */
+	reset_fakes();
+	move_to_level(41, 254, 5);
+	k_sleep(K_MSEC(600));
+	zassert_equal(color41.color_temperature, COLOR_COUPLE_MIN);
+	zassert_between_inclusive(notified(41, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_TEMPERATURE), 4, 6);
+
+	/* Not without the bit, and not in XY mode */
+	set_level_options(41, 0x00);
+	move_to_level(41, 1, 0);
+	zassert_equal(color41.color_temperature, COLOR_COUPLE_MIN);
+	set_level_options(40, 0x02);
+	move_to_color(40, 0x2000, 0x3000, 0);
+	move_to_level(40, 1, 0);
+	zassert_equal(color40.color_temperature, 0x00fa);
+
+	/* An endpoint without Color Control */
+	set_level_options(10, 0x02);
+	move_to_level(10, 100, 0);
+	zassert_equal(level10.current_level, 100);
 }
 
 /* ZCL 5.2.2.2.1.18: commands of a capability that the light lacks or the stack does not have */
