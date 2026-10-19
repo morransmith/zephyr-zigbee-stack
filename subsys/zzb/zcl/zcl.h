@@ -32,7 +32,7 @@ struct zzb_zcl_report {
 	/* Reportable change of an analog attribute */
 	uint16_t change;
 	/* The value of the last report */
-	uint16_t last;
+	uint32_t last;
 	/* k_uptime_get() at the last report */
 	int64_t sent;
 	/* A change waits for the minimum interval */
@@ -131,7 +131,7 @@ void zzb_zcl_init(struct zzb_node *node);
  * changed hook, without zcl_cb
  */
 void zzb_zcl_store(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
-		   uint16_t value);
+		   uint32_t value);
 
 /* Calls the start hooks after the records are loaded */
 void zzb_zcl_start(struct zzb_node *node);
@@ -169,8 +169,8 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);
 /* The attribute id of cl, or NULL */
 const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, uint16_t id);
 
-/* The value of an attribute of an integer type of at most 16 bits */
-uint16_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr);
+/* The value of an attribute of an integer type, with the bits of its ZCL value */
+uint32_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr);
 
 /* Writes the value of attr of cl in its ZCL encoding; returns its length or -ENOSPC */
 int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
@@ -181,11 +181,11 @@ int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
  * the status and, with ZZB_ZCL_SUCCESS, the value in *value.
  */
 uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
-			   uint8_t type, const uint8_t *p, uint16_t *value);
+			   uint8_t type, const uint8_t *p, uint32_t *value);
 
 /* Writes value to the field of attr of cl; returns whether the value changed */
 bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
-			uint16_t value);
+			uint32_t value);
 
 /*
  * Loads the record zcl/<key> of a non-volatile attribute; -EINVAL for an unknown version or
@@ -203,7 +203,7 @@ void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_clu
 
 /* Writes value to attribute attr of the server cluster on endpoint ep and reports a change */
 void zzb_zcl_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
-		 uint16_t value);
+		 uint32_t value);
 
 /*
  * Restores the defaults of the attributes through the reset hooks, which report each change, and

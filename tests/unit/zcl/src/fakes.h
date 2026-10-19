@@ -42,8 +42,9 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, u
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
- * Values of the test cluster, attributes 0x0000 to 0x0007 in this order; 0x0000 to 0x0002 are
- * reportable, 0x0002 is saved. The reset sets 0x0001 and 0x0002 to 0.
+ * Values of the test cluster, attributes 0x0000 to 0x000b in this order; 0x0000 to 0x0002 and
+ * 0x0008 are reportable, 0x0002 and 0x0008 to 0x000a are saved, 0x000b is read-only. The reset sets
+ * 0x0001 and 0x0002 to 0.
  */
 struct test_values {
 	bool b;
@@ -54,6 +55,10 @@ struct test_values {
 	const char *str;
 	const uint8_t *octstr;
 	const char *null_str;
+	int16_t i16;
+	uint32_t u24;
+	uint32_t map32;
+	uint16_t map16;
 };
 
 /* ClusterRevision of the test cluster */

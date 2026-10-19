@@ -12,8 +12,11 @@ static void *setup(void)
 	return NULL;
 }
 
-/* The record of the saved attribute of the test cluster */
-#define RECORD "zzb/0/zcl/1/0f00/0002"
+/* The records of the saved attributes of the test cluster */
+#define RECORD       "zzb/0/zcl/1/0f00/0002"
+#define RECORD_I16   "zzb/0/zcl/1/0f00/0008"
+#define RECORD_U24   "zzb/0/zcl/1/0f00/0009"
+#define RECORD_MAP32 "zzb/0/zcl/1/0f00/000a"
 
 /* Every test starts without the record, since ztest orders tests by name */
 static void before(void *fixture)
@@ -21,6 +24,9 @@ static void before(void *fixture)
 	reset_fakes();
 	values1 = (struct test_values){0};
 	zassert_ok(settings_delete(RECORD));
+	zassert_ok(settings_delete(RECORD_I16));
+	zassert_ok(settings_delete(RECORD_U24));
+	zassert_ok(settings_delete(RECORD_MAP32));
 }
 
 static void after(void *fixture)
@@ -39,6 +45,30 @@ ZTEST(zzb_zcl_attr, test_saved_attribute)
 	zassert_ok(reboot());
 	zassert_equal(values1.u16, 0x5678);
 	zassert_equal(values1.u8, 0);
+}
+
+/* Section 16: wide values are written, saved in the length of their type and loaded */
+ZTEST(zzb_zcl_attr, test_wide_types)
+{
+	static const uint8_t req[] = {0x00, 0x62, 0x02, 0x08, 0x00, 0x29, 0xfe,
+				      0xff, 0x09, 0x00, 0x22, 0x56, 0x34, 0x12,
+				      0x0a, 0x00, 0x1b, 0xef, 0xcd, 0xab, 0x89};
+	static const uint8_t rsp[] = {0x18, 0x62, 0x04, 0x00};
+	uint8_t rec[5];
+
+	receive(TEST_CLUSTER, req, sizeof(req));
+	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
+	zassert_equal(values1.i16, -2);
+	zassert_equal(values1.u24, 0x123456);
+	zassert_equal(values1.map32, 0x89abcdef);
+	zassert_equal(settings_load_one(RECORD_U24, rec, sizeof(rec)), 4);
+	zassert_mem_equal(rec, ((uint8_t[]){0x01, 0x56, 0x34, 0x12}), 4);
+
+	values1 = (struct test_values){0};
+	zassert_ok(reboot());
+	zassert_equal(values1.i16, -2);
+	zassert_equal(values1.u24, 0x123456);
+	zassert_equal(values1.map32, 0x89abcdef);
 }
 
 /* Section 15: a record with an unknown version or length fails the boot */
@@ -119,6 +149,7 @@ ZTEST(zzb_zcl_attr, test_attr_set_errors)
 	uint8_t big = TEST_E8_MAX + 1;
 	uint8_t two = 2;
 	uint16_t u16 = 1;
+	uint32_t u24 = 0x1000000;
 
 	zassert_equal(zzb_zcl_attr_set(node, 9, TEST_CLUSTER, 0x0002, &u16), -ENOENT);
 	zassert_equal(zzb_zcl_attr_set(node, 1, 0x0300, 0x0002, &u16), -ENOENT);
@@ -130,6 +161,7 @@ ZTEST(zzb_zcl_attr, test_attr_set_errors)
 	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0005, &u16), -EINVAL);
 	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0000, &two), -EINVAL);
 	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0003, &big), -EINVAL);
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0009, &u24), -EINVAL);
 	zassert_equal(hook_calls.count, 0);
 }
 

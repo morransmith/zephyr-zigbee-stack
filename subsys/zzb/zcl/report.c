@@ -22,8 +22,8 @@
 #define RECEIVED_RECORD_LEN 5
 /* A record of Read Reporting Configuration: direction and attribute ID */
 #define READ_RECORD_LEN     3
-/* Status, direction, attribute ID, data type, intervals and a reportable change of 16 bits */
-#define READ_RSP_RECORD_MAX 11
+/* Status, direction, attribute ID, data type, intervals and a reportable change of 4 octets */
+#define READ_RSP_RECORD_MAX 13
 
 #define CONFIG_RECORDS_MAX (ZZB_ZCL_MAX_PAYLOAD / RECEIVED_RECORD_LEN)
 
@@ -77,9 +77,8 @@ static int parse_record(const uint8_t *p, size_t len, struct config_record *r)
 			return -EINVAL;
 		}
 
-		/* A reportable attribute of the stack has at most 16 bits */
-		r->change =
-			change_len == 1 ? p[SENT_RECORD_LEN] : sys_get_le16(p + SENT_RECORD_LEN);
+		/* The reportable change of the stack has 16 bits (section 16) */
+		r->change = zzb_zcl_value_get(r->type, p + SENT_RECORD_LEN);
 	}
 
 	return SENT_RECORD_LEN + change_len;
@@ -325,8 +324,8 @@ static size_t read_record(struct zzb_node *node, const struct zzb_zcl_req *req, 
 	sys_put_le16(entry->min, p + 5);
 	sys_put_le16(entry->max, p + 7);
 	if (zzb_zcl_type_analog(attr->type)) {
-		sys_put_le16(entry->change, p + 9);
-		len += ZZB_ZCL_STORAGE_SIZE(attr->type);
+		zzb_zcl_value_put(attr->type, entry->change, p + 9);
+		len += zzb_zcl_type_len(attr->type);
 	}
 
 	return len;
@@ -355,12 +354,22 @@ int zzb_zcl_read_reporting(struct zzb_node *node, const struct zzb_zcl_req *req)
 	return ZZB_ZCL_RESPONDED;
 }
 
+/* The number that the bits of a value of type stand for */
+static int64_t number(uint8_t type, uint32_t value)
+{
+	if (type == ZZB_ZCL_INT16) {
+		return (int16_t)value;
+	}
+
+	return value;
+}
+
 void zzb_zcl_report_check(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 			  uint16_t attr)
 {
 	struct zzb_zcl_report *r = cl->server ? find(node, ep, cl->id, attr) : NULL;
 	const struct zzb_zcl_attr *a;
-	uint16_t value;
+	uint32_t value;
 
 	if (r == NULL) {
 		return;
@@ -370,7 +379,8 @@ void zzb_zcl_report_check(struct zzb_node *node, uint8_t ep, const struct zzb_zc
 	a = zzb_zcl_attr_find(cl, attr);
 	value = zzb_zcl_attr_value(cl, a);
 	if (value == r->last ||
-	    (zzb_zcl_type_analog(a->type) && abs((int)value - r->last) < r->change)) {
+	    (zzb_zcl_type_analog(a->type) &&
+	     llabs(number(a->type, value) - number(a->type, r->last)) < r->change)) {
 		return;
 	}
 

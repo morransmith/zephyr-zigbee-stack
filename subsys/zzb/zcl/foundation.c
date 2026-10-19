@@ -57,7 +57,7 @@ struct write_record {
 	uint16_t id;
 	const struct zzb_zcl_attr *attr;
 	uint8_t status;
-	uint16_t value;
+	uint32_t value;
 };
 
 /* Every record has an attribute ID and a data type */

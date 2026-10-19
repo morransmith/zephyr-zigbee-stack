@@ -274,6 +274,20 @@ ZTEST(zzb_zcl_report, test_analog_change)
 	check_report(1, (uint8_t[]){0x02, 0x00, 0x21, 0x00, 0x00}, 5);
 }
 
+/* The reportable change of an int16 is measured with its sign */
+ZTEST(zzb_zcl_report, test_signed_change)
+{
+	values1.i16 = -2;
+	configure(0x0008, ZZB_ZCL_INT16, 0, 0, 5);
+	set(0x0008, 2);
+	k_sleep(K_MSEC(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	set(0x0008, 3);
+	k_sleep(K_MSEC(10));
+	check_report(0, (uint8_t[]){0x08, 0x00, 0x29, 0x03, 0x00}, 5);
+}
+
 /* A change within the minimum interval after the last report waits for its end */
 ZTEST(zzb_zcl_report, test_minimum_interval)
 {

@@ -138,7 +138,7 @@ static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *
 	return cmd_status;
 }
 
-static uint8_t test_check(const struct zzb_zcl_attr *attr, uint16_t value)
+static uint8_t test_check(const struct zzb_zcl_attr *attr, uint32_t value)
 {
 	return attr->id == 0x0003 && value > TEST_E8_MAX ? ZZB_ZCL_INVALID_VALUE : ZZB_ZCL_SUCCESS;
 }
@@ -190,6 +190,11 @@ static const struct zzb_zcl_attr test_attrs[] = {
 	ZZB_ZCL_ATTR(0x0005, ZZB_ZCL_STRING, 0, struct test_values, str),
 	ZZB_ZCL_ATTR(0x0006, ZZB_ZCL_OCTSTR, 0, struct test_values, octstr),
 	ZZB_ZCL_ATTR(0x0007, ZZB_ZCL_STRING, 0, struct test_values, null_str),
+	ZZB_ZCL_ATTR(0x0008, ZZB_ZCL_INT16, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT | ZZB_ZCL_NV,
+		     struct test_values, i16),
+	ZZB_ZCL_ATTR(0x0009, ZZB_ZCL_UINT24, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u24),
+	ZZB_ZCL_ATTR(0x000a, ZZB_ZCL_MAP32, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, map32),
+	ZZB_ZCL_ATTR(0x000b, ZZB_ZCL_MAP16, 0, struct test_values, map16),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, TEST_REVISION),
 };
 

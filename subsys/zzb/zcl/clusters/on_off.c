@@ -247,7 +247,7 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 }
 
 /* ZCL Table 3-46 */
-static uint8_t check(const struct zzb_zcl_attr *attr, uint16_t value)
+static uint8_t check(const struct zzb_zcl_attr *attr, uint32_t value)
 {
 	if (attr->id != ZZB_ZCL_ON_OFF_START_UP) {
 		return ZZB_ZCL_SUCCESS;

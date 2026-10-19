@@ -60,7 +60,7 @@ static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
 };
 
-static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint16_t value)
+static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value)
 {
 	zzb_zcl_set(node, ep, ZZB_ZCL_SCENES, attr, value);
 }
@@ -190,11 +190,11 @@ static size_t cut(const struct zzb_zcl_cluster *cl, size_t len)
 			continue;
 		}
 
-		if (n + ZZB_ZCL_STORAGE_SIZE(attr->type) > len) {
+		if (n + zzb_zcl_type_len(attr->type) > len) {
 			break;
 		}
 
-		n += ZZB_ZCL_STORAGE_SIZE(attr->type);
+		n += zzb_zcl_type_len(attr->type);
 	}
 
 	return n;
@@ -277,8 +277,7 @@ static bool current_sets(const struct zzb_endpoint *ep, struct zzb_zcl_scene *s)
 			const struct zzb_zcl_attr *attr = &cl->def->attrs[j];
 
 			if (attr->flags & ZZB_ZCL_SCENE) {
-				p += zzb_zcl_attr_encode(cl, attr, p,
-							 ZZB_ZCL_STORAGE_SIZE(attr->type));
+				p += zzb_zcl_attr_encode(cl, attr, p, zzb_zcl_type_len(attr->type));
 			}
 		}
 
@@ -294,7 +293,7 @@ static void recall_set(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_c
 {
 	for (int i = 0; i < cl->def->attr_count; i++) {
 		const struct zzb_zcl_attr *attr = &cl->def->attrs[i];
-		size_t size = ZZB_ZCL_STORAGE_SIZE(attr->type);
+		size_t size = zzb_zcl_type_len(attr->type);
 
 		if (!(attr->flags & ZZB_ZCL_SCENE)) {
 			continue;
@@ -304,7 +303,7 @@ static void recall_set(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_c
 			break;
 		}
 
-		zzb_zcl_set(node, ep, cl->id, attr->id, size == 2 ? sys_get_le16(p) : p[0]);
+		zzb_zcl_set(node, ep, cl->id, attr->id, zzb_zcl_value_get(attr->type, p));
 		p += size;
 		len -= size;
 	}
