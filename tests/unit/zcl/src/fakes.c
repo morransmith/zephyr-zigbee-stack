@@ -45,6 +45,11 @@ struct zzb_zcl_power_config power_config = {
 struct zzb_zcl_device_temp device_temp = {
 	.current_temperature = INT16_MIN,
 };
+struct zzb_zcl_ballast ballast = {
+	.physical_min_level = PHYSICAL_MIN,
+	.physical_max_level = PHYSICAL_MAX,
+	.lamp_quantity = 1,
+};
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -288,6 +293,7 @@ static const struct zzb_zcl_cluster ep4_clusters[] = {
 static const struct zzb_zcl_cluster ep30_clusters[] = {
 	ZZB_ZCL_POWER_CONFIG_SERVER(&power_config),
 	ZZB_ZCL_DEVICE_TEMP_SERVER(&device_temp),
+	ZZB_ZCL_BALLAST_SERVER(&ballast),
 };
 
 static const struct zzb_endpoint endpoints[] = {

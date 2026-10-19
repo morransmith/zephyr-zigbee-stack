@@ -8,6 +8,7 @@
 #include <zephyr/fff.h>
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
+#include <zzb/zcl/ballast.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/groups.h>
@@ -104,6 +105,12 @@ extern struct recall_calls recall_calls;
 
 extern struct zzb_zcl_power_config power_config;
 extern struct zzb_zcl_device_temp device_temp;
+
+/* The physical levels of the ballast on endpoint 30 */
+#define PHYSICAL_MIN 0x10
+#define PHYSICAL_MAX 0xe0
+
+extern struct zzb_zcl_ballast ballast;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
