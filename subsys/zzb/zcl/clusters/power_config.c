@@ -17,6 +17,16 @@
 #define MAINS_LOW  0x00
 #define MAINS_HIGH 0x01
 
+/* An unknown battery value, or a battery threshold without alarm (ZCL 3.3.2.2.4) */
+#define NO_VALUE 0xff
+
+/*
+ * Alarm code of the minimum thresholds of battery source 1; thresholds 1 to 3 follow. Bits 0 to 3
+ * of BatteryAlarmMask and BatteryAlarmState belong to them (ZCL Tables 3-24 to 3-26).
+ */
+#define BATTERY_MIN    0x10
+#define BATTERY_ALARMS 4
+
 /* The mains and the first battery source */
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE, ZZB_ZCL_UINT16, 0,
@@ -186,23 +196,91 @@ static void mains_tick(struct k_work *work)
 	mains_schedule(node);
 }
 
+static bool below(uint8_t value, uint8_t threshold)
+{
+	return value != NO_VALUE && threshold != NO_VALUE && value < threshold;
+}
+
+/* The battery alarms whose conditions hold, as bits of BatteryAlarmState */
+static uint8_t battery_conditions(const struct zzb_zcl_power_config *v)
+{
+	const uint8_t voltage[BATTERY_ALARMS] = {
+		v->battery_voltage_min_threshold,
+		v->battery_voltage_threshold1,
+		v->battery_voltage_threshold2,
+		v->battery_voltage_threshold3,
+	};
+	const uint8_t percentage[BATTERY_ALARMS] = {
+		v->battery_percentage_min_threshold,
+		v->battery_percentage_threshold1,
+		v->battery_percentage_threshold2,
+		v->battery_percentage_threshold3,
+	};
+	/* The thresholds are in percent, BatteryPercentageRemaining in half percent */
+	uint8_t percent = v->battery_percentage_remaining == NO_VALUE
+				  ? NO_VALUE
+				  : v->battery_percentage_remaining / 2;
+	uint8_t conditions = 0;
+
+	ARRAY_FOR_EACH(voltage, n) {
+		if (below(v->battery_voltage, voltage[n]) || below(percent, percentage[n])) {
+			conditions |= BIT(n);
+		}
+	}
+
+	return conditions;
+}
+
+/*
+ * Sets bits 0 to 3 of BatteryAlarmState by the conditions of the battery alarms and raises the
+ * alarms whose conditions start
+ */
+static void battery_update(struct zzb_node *node, uint8_t ep, struct zzb_zcl_power_config *v,
+			   bool notify)
+{
+	uint8_t conditions = battery_conditions(v);
+	uint8_t started = conditions & ~v->battery_active;
+	uint32_t state = (v->battery_alarm_state & ~BIT_MASK(BATTERY_ALARMS)) | conditions;
+
+	/* Before the write, whose changed hook comes back here */
+	v->battery_active = conditions;
+	if (notify) {
+		zzb_zcl_set(node, ep, ZZB_ZCL_POWER_CONFIG,
+			    ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE, state);
+	} else {
+		zzb_zcl_store(node, ep, ZZB_ZCL_POWER_CONFIG,
+			      ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE, state);
+	}
+
+	for (int n = 0; n < BATTERY_ALARMS; n++) {
+		if (started & BIT(n)) {
+			zzb_zcl_alarm_raise(node, ep, ZZB_ZCL_POWER_CONFIG, BATTERY_MIN + n,
+					    v->battery_alarm_mask & BIT(n), notify);
+		}
+	}
+}
+
 /* A measurement that only the application sets; the alarms it raises come without zcl_cb */
 static bool measurement(uint16_t attr)
 {
-	return attr == ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE;
+	return attr == ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE ||
+	       attr == ZZB_ZCL_POWER_CONFIG_BATTERY_VOLTAGE ||
+	       attr == ZZB_ZCL_POWER_CONFIG_BATTERY_PERCENTAGE_REMAINING;
 }
 
 static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
 {
 	mains_update(node, ep, values, !measurement(attr));
 	mains_schedule(node);
+	battery_update(node, ep, values, !measurement(attr));
 }
 
-/* A condition at boot starts its dwell now */
+/* A condition at boot starts its dwell now; BatteryAlarmState is not saved */
 static void start(struct zzb_node *node, uint8_t ep, void *values)
 {
 	mains_update(node, ep, values, false);
 	mains_schedule(node);
+	battery_update(node, ep, values, false);
 }
 
 /* Raises again the alarms of code whose conditions last, all of them for 0xff (ZCL 3.11.2.4.1) */
@@ -214,6 +292,13 @@ static void alarm_reset(struct zzb_node *node, uint8_t ep, void *values, uint8_t
 		if ((code == c || code == 0xff) && (v->mains_raised & BIT(c))) {
 			zzb_zcl_alarm_raise(node, ep, ZZB_ZCL_POWER_CONFIG, c,
 					    v->mains_alarm_mask & BIT(c), true);
+		}
+	}
+
+	for (int n = 0; n < BATTERY_ALARMS; n++) {
+		if ((code == BATTERY_MIN + n || code == 0xff) && (v->battery_active & BIT(n))) {
+			zzb_zcl_alarm_raise(node, ep, ZZB_ZCL_POWER_CONFIG, BATTERY_MIN + n,
+					    v->battery_alarm_mask & BIT(n), true);
 		}
 	}
 }
@@ -237,6 +322,7 @@ static void init(void *values)
 	v->battery_percentage_threshold2 = 0;
 	v->battery_percentage_threshold3 = 0;
 	v->battery_alarm_state = 0;
+	v->battery_active = 0;
 	v->mains_active = 0;
 	v->mains_raised = 0;
 }

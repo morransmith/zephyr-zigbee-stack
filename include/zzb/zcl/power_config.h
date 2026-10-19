@@ -75,8 +75,13 @@ struct zzb_zcl_power_config {
 	uint8_t battery_percentage_threshold1;
 	uint8_t battery_percentage_threshold2;
 	uint8_t battery_percentage_threshold3;
-	/** ZCL Table 3-26. */
+	/**
+	 * ZCL Table 3-26. Bits 0 to 3 follow the battery alarms; the application may set the other
+	 * bits with zzb_zcl_attr_set() and keeps bits 0 to 3 as they are.
+	 */
 	uint32_t battery_alarm_state;
+	/** Internal: bit n while the condition of battery alarm 0x10 + n lasts. */
+	uint8_t battery_active;
 	/** Internal: bit n while the condition of mains voltage alarm n lasts. */
 	uint8_t mains_active;
 	/** Internal: bit n once mains voltage alarm n is raised during its condition. */
