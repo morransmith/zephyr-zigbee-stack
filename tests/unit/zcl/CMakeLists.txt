@@ -15,6 +15,7 @@ target_sources(app PRIVATE
   src/groups.c
   src/identify.c
   src/on_off.c
+  src/power_config.c
   src/report.c
   src/scenes.c
   src/zcl.c

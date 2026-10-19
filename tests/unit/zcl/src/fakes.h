@@ -12,6 +12,7 @@
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/power_config.h>
 #include <zzb/zcl/scenes.h>
 
 #include "aps/aps.h"
@@ -96,6 +97,11 @@ struct recall_calls {
 };
 
 extern struct recall_calls recall_calls;
+
+/* Endpoint 30 has the servers of the power, temperature, ballast and sensing clusters */
+#define SENSOR_EP 30
+
+extern struct zzb_zcl_power_config power_config;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
@@ -191,5 +197,8 @@ void reset_node(void);
 
 /* Checks that frame i is a ZCL frame of cluster from endpoint ep to the requester with the ASDU */
 void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_t len);
+
+/* Checks that zcl_cb reported these attributes of cluster on endpoint ep in order, and no other */
+void check_zcl_cb(uint8_t ep, uint16_t cluster, const uint16_t *attrs, int count);
 
 #endif /* ZZB_TESTS_UNIT_ZCL_FAKES_H_ */
