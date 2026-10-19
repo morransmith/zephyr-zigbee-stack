@@ -114,7 +114,7 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		.cmd.len = len,
 		.hdr = *hdr,
 		.profile = ep->profile,
-		.unicast = !zzb_nwk_is_broadcast(ind->dst_addr),
+		.unicast = !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
 		.cluster = find_cluster(ep, ind->cluster, !(hdr->flags & ZZB_ZCL_TO_CLIENT)),
 	};
 
@@ -126,15 +126,38 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 	default_rsp(node, &req, process(node, &req));
 }
 
-void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind)
+static void dispatch(struct zzb_node *node, const struct zzb_apsde_ind *ind, const uint8_t *frame,
+		     size_t len)
 {
-	const struct zzb_endpoint *ep = zzb_node_endpoint(node, ind->dst_ep);
+	const struct zzb_endpoint *ep;
 	struct zzb_zcl_hdr hdr;
-	int hdr_len = zzb_zcl_hdr_parse(buf->data, buf->len, &hdr);
+	int hdr_len = zzb_zcl_hdr_parse(frame, len, &hdr);
 
-	if (hdr_len >= 0 && ep != NULL && accepts(ep, ind->profile)) {
-		receive(node, ep, ind, &hdr, buf->data + hdr_len, buf->len - hdr_len);
+	if (hdr_len < 0) {
+		return;
 	}
 
+	/* ZCL 2.3.2.1 */
+	if (ind->dst_ep == 0xff) {
+		for (size_t i = 0; i < node->device->endpoint_count; i++) {
+			ep = &node->device->endpoints[i];
+			if (accepts(ep, ind->profile) &&
+			    find_cluster(ep, ind->cluster, !(hdr.flags & ZZB_ZCL_TO_CLIENT))) {
+				receive(node, ep, ind, &hdr, frame + hdr_len, len - hdr_len);
+			}
+		}
+
+		return;
+	}
+
+	ep = zzb_node_endpoint(node, ind->dst_ep);
+	if (ep != NULL && accepts(ep, ind->profile)) {
+		receive(node, ep, ind, &hdr, frame + hdr_len, len - hdr_len);
+	}
+}
+
+void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind)
+{
+	dispatch(node, ind, buf->data, buf->len);
 	net_buf_unref(buf);
 }

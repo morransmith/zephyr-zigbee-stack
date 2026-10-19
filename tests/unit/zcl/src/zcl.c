@@ -164,4 +164,29 @@ ZTEST(zzb_zcl, test_wildcard_profile)
 	check_frame(0, 2, TEST_CLUSTER, rsp, sizeof(rsp));
 }
 
+/* ZCL 2.3.2.1: endpoints with the cluster get the frame, and no Default Response follows */
+ZTEST(zzb_zcl, test_broadcast_endpoint)
+{
+	const struct zzb_apsde_ind ind = {
+		.dst_addr = NODE_ADDR,
+		.dst_ep = 0xff,
+		.src_addr = REQUESTER_ADDR,
+		.src_ep = REQUESTER_EP,
+		.profile = 0x0104,
+		.cluster = TEST_CLUSTER,
+	};
+	struct zzb_apsde_ind no_cluster = ind;
+
+	cmd_status = 0x85;
+	receive_ind(&ind, (uint8_t[]){0x01, 0x38, 0x02}, 3);
+	zassert_equal(cmd_calls.count, 2);
+	zassert_equal(cmd_calls.cmd.ep, 2);
+	zassert_equal_ptr(cmd_calls.values, &values2);
+
+	no_cluster.cluster = 0x0300;
+	receive_ind(&no_cluster, (uint8_t[]){0x01, 0x39, 0x02}, 3);
+	zassert_equal(cmd_calls.count, 2);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
 ZTEST_SUITE(zzb_zcl, NULL, setup, before, after, NULL);
