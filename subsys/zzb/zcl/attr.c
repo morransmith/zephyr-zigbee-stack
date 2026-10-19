@@ -4,6 +4,7 @@
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
 
+#include "common/node.h"
 #include "zcl/zcl.h"
 
 const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, uint16_t id)
@@ -82,5 +83,53 @@ int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 
 		p[0] = integer(cl, attr);
 		return 1;
+	}
+}
+
+uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
+			   uint8_t type, const uint8_t *p, uint16_t *value)
+{
+	if (type != attr->type) {
+		return ZZB_ZCL_INVALID_DATA_TYPE;
+	}
+
+	/* Strings are stored as pointers */
+	if (!(attr->flags & ZZB_ZCL_WRITE) || (attr->flags & ZZB_ZCL_CONST) ||
+	    ZZB_ZCL_IS_STRING(type)) {
+		return ZZB_ZCL_READ_ONLY;
+	}
+
+	*value = type == ZZB_ZCL_UINT16 ? sys_get_le16(p) : p[0];
+	if (type == ZZB_ZCL_BOOL && *value > 1) {
+		return ZZB_ZCL_INVALID_VALUE;
+	}
+
+	return cl->def->check != NULL ? cl->def->check(attr, *value) : ZZB_ZCL_SUCCESS;
+}
+
+bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
+			uint16_t value)
+{
+	uint8_t *f = (uint8_t *)cl->values + attr->offset;
+	bool changed = integer(cl, attr) != value;
+
+	if (attr->type == ZZB_ZCL_UINT16) {
+		*(uint16_t *)f = value;
+	} else {
+		*f = value;
+	}
+
+	return changed;
+}
+
+void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+		     uint16_t attr)
+{
+	if (cl->def->changed != NULL) {
+		cl->def->changed(node, ep, cl->values, attr);
+	}
+
+	if (node->zcl_cb != NULL) {
+		node->zcl_cb(node, ep, cl->id, attr);
 	}
 }

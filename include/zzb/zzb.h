@@ -58,6 +58,8 @@ struct zzb_node_config {
 	const struct zzb_device *device;
 	/** BDB event callback, or NULL. */
 	zzb_bdb_cb_t bdb_cb;
+	/** Callback for attribute values changed by the stack, or NULL. */
+	zzb_zcl_cb_t zcl_cb;
 };
 
 /**

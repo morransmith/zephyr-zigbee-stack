@@ -20,6 +20,8 @@ struct zzb_node;
 /* Global command identifiers (ZCL Table 2-3) */
 #define ZZB_ZCL_READ_ATTRIBUTES         0x00
 #define ZZB_ZCL_READ_ATTRIBUTES_RSP     0x01
+#define ZZB_ZCL_WRITE_ATTRIBUTES        0x02
+#define ZZB_ZCL_WRITE_ATTRIBUTES_RSP    0x04
 #define ZZB_ZCL_DEFAULT_RSP             0x0b
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES     0x0c
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES_RSP 0x0d
@@ -55,6 +57,21 @@ const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, u
 /* Writes the value of attr of cl in its ZCL encoding; returns its length or -ENOSPC */
 int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
 			uint8_t *p, size_t len);
+
+/*
+ * Checks 2 to 6 of ZCL 2.5.3.3 for a remote write of the value of type at p to attr of cl. Returns
+ * the status and, with ZZB_ZCL_SUCCESS, the value in *value.
+ */
+uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
+			   uint8_t type, const uint8_t *p, uint16_t *value);
+
+/* Writes value to the field of attr of cl; returns whether the value changed */
+bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
+			uint16_t value);
+
+/* Calls the changed hook of cl and zcl_cb for attr */
+void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+		     uint16_t attr);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);

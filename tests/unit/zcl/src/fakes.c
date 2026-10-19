@@ -17,6 +17,8 @@ struct test_values values1;
 struct test_values values2;
 struct cmd_calls cmd_calls;
 int cmd_status;
+struct changed_calls hook_calls;
+struct zcl_cb_calls zcl_cb_calls;
 struct frame_copy sent[8];
 
 static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
@@ -29,8 +31,31 @@ static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *
 	return cmd_status;
 }
 
+static uint8_t test_check(const struct zzb_zcl_attr *attr, uint16_t value)
+{
+	return attr->id == 0x0003 && value > TEST_E8_MAX ? ZZB_ZCL_INVALID_VALUE : ZZB_ZCL_SUCCESS;
+}
+
+static void test_changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
+{
+	zassert_true(hook_calls.count < ARRAY_SIZE(hook_calls.attr));
+	zassert_equal_ptr(values, ep == 1 ? &values1 : &values2);
+	hook_calls.ep[hook_calls.count] = ep;
+	hook_calls.attr[hook_calls.count++] = attr;
+}
+
+static void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
+{
+	int i = zcl_cb_calls.count++;
+
+	zassert_true(i < ARRAY_SIZE(zcl_cb_calls.attr));
+	zcl_cb_calls.ep[i] = ep;
+	zcl_cb_calls.cluster[i] = cluster;
+	zcl_cb_calls.attr[i] = attr;
+}
+
 static const struct zzb_zcl_attr test_attrs[] = {
-	ZZB_ZCL_ATTR(0x0000, ZZB_ZCL_BOOL, 0, struct test_values, b),
+	ZZB_ZCL_ATTR(0x0000, ZZB_ZCL_BOOL, ZZB_ZCL_WRITE, struct test_values, b),
 	ZZB_ZCL_ATTR(0x0001, ZZB_ZCL_UINT8, ZZB_ZCL_WRITE, struct test_values, u8),
 	ZZB_ZCL_ATTR(0x0002, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE, struct test_values, u16),
 	ZZB_ZCL_ATTR(0x0003, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE, struct test_values, e8),
@@ -45,6 +70,8 @@ static const struct zzb_zcl_cluster_def test_def = {
 	.attrs = test_attrs,
 	.attr_count = ARRAY_SIZE(test_attrs),
 	.cmd = test_cmd,
+	.check = test_check,
+	.changed = test_changed,
 };
 
 static const struct zzb_zcl_cluster ep1_clusters[] = {
@@ -111,6 +138,7 @@ struct zzb_node *test_node(void)
 	const struct zzb_node_config cfg = {
 		.eui64 = NODE_EUI64,
 		.device = &device,
+		.zcl_cb = record_zcl_cb,
 	};
 
 	if (node == NULL) {
@@ -128,6 +156,8 @@ void reset_fakes(void)
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
 	cmd_calls = (struct cmd_calls){0};
 	cmd_status = ZZB_ZCL_SUCCESS;
+	hook_calls = (struct changed_calls){0};
+	zcl_cb_calls = (struct zcl_cb_calls){0};
 }
 
 void check_no_buffer_leak(void)

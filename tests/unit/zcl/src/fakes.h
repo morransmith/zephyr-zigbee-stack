@@ -59,6 +59,27 @@ extern struct cmd_calls cmd_calls;
 /* The value the cmd hook returns, ZZB_ZCL_SUCCESS after reset_fakes() */
 extern int cmd_status;
 
+/* The check hook of the test cluster rejects a value of attribute 0x0003 above this */
+#define TEST_E8_MAX 0x10
+
+/* Calls of the changed hook of the test cluster and of zcl_cb, in order */
+struct changed_calls {
+	int count;
+	uint8_t ep[8];
+	uint16_t attr[8];
+};
+
+extern struct changed_calls hook_calls;
+
+struct zcl_cb_calls {
+	int count;
+	uint8_t ep[8];
+	uint16_t cluster[8];
+	uint16_t attr[8];
+};
+
+extern struct zcl_cb_calls zcl_cb_calls;
+
 /* Copy of a frame passed to APSDE-DATA.request */
 struct frame_copy {
 	struct zzb_apsde_req req;

@@ -19,6 +19,7 @@ struct zzb_node {
 	uint64_t eui64;
 	const struct zzb_device *device;
 	zzb_bdb_cb_t bdb_cb;
+	zzb_zcl_cb_t zcl_cb;
 	struct zzb_radio_port port;
 	struct zzb_mac mac;
 	struct zzb_nwk nwk;

@@ -88,7 +88,10 @@ enum zzb_zcl_status {
 	ZZB_ZCL_UNSUP_COMMAND = 0x81,
 	ZZB_ZCL_INVALID_FIELD = 0x85,
 	ZZB_ZCL_UNSUPPORTED_ATTRIBUTE = 0x86,
+	ZZB_ZCL_INVALID_VALUE = 0x87,
+	ZZB_ZCL_READ_ONLY = 0x88,
 	ZZB_ZCL_INSUFFICIENT_SPACE = 0x89,
+	ZZB_ZCL_INVALID_DATA_TYPE = 0x8d,
 	ZZB_ZCL_UNSUPPORTED_CLUSTER = 0xc3,
 };
 
@@ -119,6 +122,13 @@ struct zzb_zcl_cluster_def {
 	 * the Default Response or ZZB_ZCL_RESPONDED.
 	 */
 	int (*cmd)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values);
+	/**
+	 * Checks a remote write of value to attr, or NULL. Returns ZZB_ZCL_SUCCESS or
+	 * ZZB_ZCL_INVALID_VALUE.
+	 */
+	uint8_t (*check)(const struct zzb_zcl_attr *attr, uint16_t value);
+	/** Called on the stack thread after every change of the value of attr, or NULL. */
+	void (*changed)(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr);
 };
 
 /** A cluster on an endpoint. */
@@ -131,6 +141,13 @@ struct zzb_zcl_cluster {
 	/** Attributes and commands, or NULL for a cluster without them. */
 	const struct zzb_zcl_cluster_def *def;
 };
+
+/**
+ * Called on the stack thread when a remote command, a write, a timer of the stack or the reset of
+ * the node gives attribute attr of a cluster on endpoint ep a new value. The new value is in the
+ * value struct of the cluster.
+ */
+typedef void (*zzb_zcl_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr);
 
 #ifdef __cplusplus
 }

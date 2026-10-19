@@ -52,6 +52,84 @@ static int read_attributes(struct zzb_node *node, const struct zzb_zcl_req *req)
 	return ZZB_ZCL_RESPONDED;
 }
 
+/* A record of Write Attributes after the checks */
+struct write_record {
+	uint16_t id;
+	const struct zzb_zcl_attr *attr;
+	uint8_t status;
+	uint16_t value;
+};
+
+/* Every record has an attribute ID and a data type */
+#define WRITE_RECORDS_MAX (ZZB_ZCL_MAX_PAYLOAD / 3)
+
+/*
+ * Parses the records of a Write Attributes command and runs the checks of ZCL 2.5.3.3. Returns the
+ * record count, or -EINVAL for a record that cannot be parsed.
+ */
+static int check_writes(const struct zzb_zcl_req *req, struct write_record *records)
+{
+	const uint8_t *p = req->cmd.payload;
+	size_t left = req->cmd.len;
+	int count = 0;
+
+	while (left > 0) {
+		struct write_record *r = &records[count];
+		int len = left >= 3 ? zzb_zcl_value_len(p[2], p + 3, left - 3) : -EINVAL;
+
+		if (len < 0 || count == WRITE_RECORDS_MAX) {
+			return -EINVAL;
+		}
+
+		r->id = sys_get_le16(p);
+		r->attr = zzb_zcl_attr_find(req->cluster, r->id);
+		r->status = r->attr != NULL ? zzb_zcl_attr_check(req->cluster, r->attr, p[2], p + 3,
+								 &r->value)
+					    : ZZB_ZCL_UNSUPPORTED_ATTRIBUTE;
+		count++;
+		p += 3 + len;
+		left -= 3 + len;
+	}
+
+	return count;
+}
+
+/* ZCL 2.5.3.3 */
+static int write_attributes(struct zzb_node *node, const struct zzb_zcl_req *req)
+{
+	struct write_record records[WRITE_RECORDS_MAX];
+	int count = check_writes(req, records);
+	bool changed[WRITE_RECORDS_MAX];
+	uint8_t rsp[1 + 3 * WRITE_RECORDS_MAX] = {ZZB_ZCL_SUCCESS};
+	size_t n = 0;
+
+	if (count < 0) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	for (int i = 0; i < count; i++) {
+		changed[i] = records[i].status == ZZB_ZCL_SUCCESS &&
+			     zzb_zcl_attr_write(req->cluster, records[i].attr, records[i].value);
+		if (records[i].status != ZZB_ZCL_SUCCESS) {
+			rsp[n] = records[i].status;
+			sys_put_le16(records[i].id, rsp + n + 1);
+			n += 3;
+		}
+	}
+
+	/* ZCL 2.5.5.1.2: one SUCCESS record without an ID when every attribute is written */
+	zzb_zcl_respond(node, req, ZZB_ZCL_FRAME_GLOBAL, ZZB_ZCL_WRITE_ATTRIBUTES_RSP, rsp,
+			MAX(n, 1));
+
+	for (int i = 0; i < count; i++) {
+		if (changed[i]) {
+			zzb_zcl_changed(node, req->cmd.ep, req->cluster, records[i].id);
+		}
+	}
+
+	return ZZB_ZCL_RESPONDED;
+}
+
 /* Attribute information records of 3 octets after discovery complete */
 #define DISCOVER_MAX ((ZZB_ZCL_MAX_PAYLOAD - 1) / 3)
 
@@ -98,6 +176,8 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req)
 	switch (req->hdr.cmd) {
 	case ZZB_ZCL_READ_ATTRIBUTES:
 		return read_attributes(node, req);
+	case ZZB_ZCL_WRITE_ATTRIBUTES:
+		return write_attributes(node, req);
 	case ZZB_ZCL_DISCOVER_ATTRIBUTES:
 		return discover_attributes(node, req);
 	default:

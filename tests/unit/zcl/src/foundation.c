@@ -148,4 +148,87 @@ ZTEST(zzb_zcl_foundation, test_discover_malformed)
 	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
 }
 
+static void check_notified(int i, uint16_t attr)
+{
+	zassert_true(hook_calls.count > i);
+	zassert_equal(hook_calls.ep[i], 1);
+	zassert_equal(hook_calls.attr[i], attr);
+	zassert_true(zcl_cb_calls.count > i);
+	zassert_equal(zcl_cb_calls.ep[i], 1);
+	zassert_equal(zcl_cb_calls.cluster[i], TEST_CLUSTER);
+	zassert_equal(zcl_cb_calls.attr[i], attr);
+}
+
+/* ZCL 2.5.5: one SUCCESS record when every attribute is written */
+ZTEST(zzb_zcl_foundation, test_write_attributes)
+{
+	static const uint8_t req[] = {0x00, 0x50, 0x02, 0x01, 0x00, 0x20,
+				      0x34, 0x02, 0x00, 0x21, 0x34, 0x12};
+	static const uint8_t rsp[] = {0x18, 0x50, 0x04, 0x00};
+
+	receive(TEST_CLUSTER, req, sizeof(req));
+	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
+	zassert_equal(values1.u8, 0x34);
+	zassert_equal(values1.u16, 0x1234);
+	zassert_equal(hook_calls.count, 2);
+	zassert_equal(zcl_cb_calls.count, 2);
+	check_notified(0, 0x0001);
+	check_notified(1, 0x0002);
+}
+
+/* ZCL 2.5.3.3: the checks in order, a status record of status and ID per failed attribute */
+ZTEST(zzb_zcl_foundation, test_write_checks)
+{
+	/*
+	 * Records: an unsupported attribute, the uint8 written as uint16, the string and the
+	 * constant, which are read-only, the bool and the enum8 out of range, then the map8
+	 */
+	static const uint8_t req[] = {0x00, 0x51, 0x02, 0x00, 0x01, 0x20, 0x00, 0x01, 0x00,
+				      0x21, 0x00, 0x00, 0x05, 0x00, 0x42, 0x01, 'a',  0xfd,
+				      0xff, 0x21, 0x02, 0x00, 0x00, 0x00, 0x10, 0x02, 0x03,
+				      0x00, 0x30, 0x11, 0x04, 0x00, 0x18, 0x0f};
+	static const uint8_t rsp[] = {0x18, 0x51, 0x04, 0x86, 0x00, 0x01, 0x8d,
+				      0x01, 0x00, 0x88, 0x05, 0x00, 0x88, 0xfd,
+				      0xff, 0x87, 0x00, 0x00, 0x87, 0x03, 0x00};
+
+	receive(TEST_CLUSTER, req, sizeof(req));
+	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
+	zassert_true(values1.b);
+	zassert_equal(values1.e8, 0x02);
+	zassert_equal(values1.map8, 0x0f);
+	zassert_equal(zcl_cb_calls.count, 1);
+	check_notified(0, 0x0004);
+}
+
+/* The application is notified only of a new value */
+ZTEST(zzb_zcl_foundation, test_write_same_value)
+{
+	static const uint8_t req[] = {0x00, 0x52, 0x02, 0x01, 0x00, 0x20, 0x12};
+	static const uint8_t rsp[] = {0x18, 0x52, 0x04, 0x00};
+
+	receive(TEST_CLUSTER, req, sizeof(req));
+	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
+	zassert_equal(hook_calls.count, 0);
+	zassert_equal(zcl_cb_calls.count, 0);
+}
+
+/* A record that cannot be parsed fails the command before anything is written */
+ZTEST(zzb_zcl_foundation, test_write_malformed)
+{
+	static const uint8_t truncated[] = {0x00, 0x53, 0x02, 0x01, 0x00, 0x20,
+					    0x34, 0x02, 0x00, 0x21, 0x34};
+	static const uint8_t array[] = {0x00, 0x54, 0x02, 0x01, 0x00, 0x20, 0x34,
+					0x02, 0x00, 0x48, 0x20, 0x00, 0x00};
+	static const uint8_t short_record[] = {0x00, 0x55, 0x02, 0x01, 0x00, 0x20, 0x34, 0x02};
+
+	receive(TEST_CLUSTER, truncated, sizeof(truncated));
+	check_frame(0, 1, TEST_CLUSTER, (uint8_t[]){0x18, 0x53, 0x0b, 0x02, 0x80}, 5);
+	receive(TEST_CLUSTER, array, sizeof(array));
+	check_frame(1, 1, TEST_CLUSTER, (uint8_t[]){0x18, 0x54, 0x0b, 0x02, 0x80}, 5);
+	receive(TEST_CLUSTER, short_record, sizeof(short_record));
+	check_frame(2, 1, TEST_CLUSTER, (uint8_t[]){0x18, 0x55, 0x0b, 0x02, 0x80}, 5);
+	zassert_equal(values1.u8, 0x12);
+	zassert_equal(zcl_cb_calls.count, 0);
+}
+
 ZTEST_SUITE(zzb_zcl_foundation, NULL, setup, before, after, NULL);
