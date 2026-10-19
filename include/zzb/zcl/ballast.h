@@ -3,6 +3,7 @@
 #ifndef ZZB_INCLUDE_ZZB_ZCL_BALLAST_H_
 #define ZZB_INCLUDE_ZZB_ZCL_BALLAST_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <zzb/zcl.h>
 
@@ -48,11 +49,13 @@ struct zzb_zcl_ballast {
 	uint8_t ballast_factor_adjustment;
 	/** Hours, 0xffffff unknown. */
 	uint32_t lamp_rated_hours;
-	/** Hours, counted by the application with zzb_zcl_attr_set(). */
+	/** Hours, counted by the application with zzb_zcl_attr_set(), 0xffffff unknown. */
 	uint32_t lamp_burn_hours;
 	uint8_t lamp_alarm_mode;
 	/** Hours, 0xffffff disables the alarm. */
 	uint32_t lamp_burn_hours_trip_point;
+	/** Internal: the condition of the lamp burn hours alarm lasts. */
+	bool burn_hours_alarm;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_ballast_def;
