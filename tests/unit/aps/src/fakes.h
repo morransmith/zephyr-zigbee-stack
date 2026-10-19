@@ -7,7 +7,10 @@
 #include <zephyr/fff.h>
 
 #include "aps/aps.h"
+#include "nwk/nwk.h"
 #include "sec/mmo.h"
+
+DECLARE_FAKE_VALUE_FUNC(bool, zzb_nwk_key_pending, const struct zzb_node *);
 
 /* Destination and source of the zigbee-rs Transport Key in tests/unit/sec (see NOTICE) */
 #define NODE_EUI64 0xa4c1389c383001e5ULL

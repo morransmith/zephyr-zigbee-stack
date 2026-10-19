@@ -33,6 +33,6 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
 if(CONFIG_ZZB_NWK OR CONFIG_ZZB_APS)
   zephyr_library_sources(common/fc.c storage/settings.c)
 endif()
-zephyr_library_sources_ifdef(CONFIG_ZZB_APS aps/aps.c aps/frame.c aps/keys.c)
+zephyr_library_sources_ifdef(CONFIG_ZZB_APS aps/aps.c aps/frame.c aps/keys.c aps/security.c)
 zephyr_library_sources_ifdef(CONFIG_IEEE802154_RAW_MODE radio/port.c radio/raw.c)
 zephyr_library_sources_ifdef(CONFIG_NET_L2_CUSTOM_IEEE802154 radio/port.c radio/custom_l2.c)

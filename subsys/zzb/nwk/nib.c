@@ -73,6 +73,11 @@ void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_L
 	zzb_nwk_save(node);
 }
 
+bool zzb_nwk_key_pending(const struct zzb_node *node)
+{
+	return node->nwk.key_pending;
+}
+
 static void save_net(struct zzb_node *node)
 {
 	const struct zzb_nib *nib = &node->nwk.nib;

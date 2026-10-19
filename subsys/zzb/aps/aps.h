@@ -6,13 +6,18 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <zephyr/net_buf.h>
 #include <zephyr/settings/settings.h>
 
 #include "aps/frame.h"
 #include "common/fc.h"
+#include "sec/aux_hdr.h"
 #include "sec/mmo.h"
 
 struct zzb_node;
+
+/* Auxiliary header of an APS frame with the extended nonce */
+#define ZZB_APS_AUX_MAX_LEN 13
 
 /* apsTrustCenterAddress until the trust center is known (BDB 10.2.2) */
 #define ZZB_APS_TC_UNKNOWN UINT64_MAX
@@ -81,6 +86,34 @@ int zzb_apsme_set_link_key(struct zzb_node *node, uint64_t addr, const uint8_t k
 struct zzb_aps_key_pair *zzb_aps_key_pair_find(struct zzb_node *node, uint64_t addr);
 
 /* Within APS */
+
+/* The key that removed the APS security of a frame */
+struct zzb_aps_sec {
+	enum zzb_sec_key_id key_id;
+	uint64_t src_addr;
+	/* NULL for the default trust center link key while the network key is pending */
+	struct zzb_aps_key_pair *pair;
+};
+
+/*
+ * Secures a frame in place (R22 4.4.1.1). buf holds the APS header of hdr_len bytes with
+ * ZZB_APS_SECURITY set, then the payload, and has room for the auxiliary header before and the
+ * MIC after. key_id ZZB_SEC_KEY_DATA uses link_key itself, ZZB_SEC_KEY_TRANSPORT and
+ * ZZB_SEC_KEY_LOAD the keys derived from it (R22 4.5.3). Returns -EMSGSIZE without the room, or
+ * an error of zzb_fc_next().
+ */
+int zzb_aps_secure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len,
+		   const uint8_t link_key[ZZB_SEC_KEY_LEN], enum zzb_sec_key_id key_id,
+		   bool ext_nonce);
+
+/*
+ * Verifies and decrypts a frame in place (R22 4.4.1.2), then removes the auxiliary header and the
+ * MIC. nwk_src is the NWK source of the frame. Returns -EINVAL for a malformed auxiliary header or
+ * the network key identifier, -ENOENT if no key is known for the sender, -EALREADY for a stale
+ * frame counter, or -EBADMSG if the MIC does not match.
+ */
+int zzb_aps_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len, uint16_t nwk_src,
+		     struct zzb_aps_sec *sec);
 
 /* Deletes the records aps/tc and aps/key/<i> */
 void zzb_aps_delete(struct zzb_node *node);

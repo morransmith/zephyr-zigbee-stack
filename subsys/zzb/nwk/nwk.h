@@ -184,6 +184,9 @@ void zzb_nlme_set_ext_pan_id(struct zzb_node *node, uint64_t ext_pan_id);
  */
 void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_LEN], uint8_t seq);
 
+/* Whether the network key is pending: joined and unauthorized (R22 4.4.1.2 step 2) */
+bool zzb_nwk_key_pending(const struct zzb_node *node);
+
 /*
  * Saves the records nwk/net and nwk/keys while the node is on a network and its key is not
  * pending. Errors are ignored; the next save writes the whole records again.
