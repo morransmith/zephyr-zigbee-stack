@@ -87,6 +87,24 @@ ZTEST(zzb_nwk_status, test_unsecured_or_other_commands_are_dropped)
 	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
 }
 
+/* R22 Table 3-51 defines both codes for the local device */
+ZTEST(zzb_nwk_status, test_local_status_codes_are_dropped)
+{
+	const struct zzb_nwk_hdr hdr = cmd_hdr(CHILD_SHORT, ZZB_NWK_SECURITY);
+	struct zzb_nwk_cmd cmd = {
+		.id = ZZB_NWK_CMD_NWK_STATUS,
+		.nwk_status = {.code = ZZB_NWK_CODE_PARENT_LINK_FAILURE,
+			       .has_addr = true,
+			       .addr = PARENT_SHORT},
+	};
+
+	receive_cmd(child, parent, &hdr, &cmd);
+	cmd.nwk_status.code = ZZB_NWK_CODE_ADDR_UPDATE;
+	cmd.nwk_status.addr = CHILD_SHORT;
+	receive_cmd(child, parent, &hdr, &cmd);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+}
+
 #define OTHER_EUI64 0x0102030405060708ULL
 
 static void receive_data(uint64_t dst_ext)

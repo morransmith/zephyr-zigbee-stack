@@ -75,6 +75,12 @@ void zzb_nwk_status_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 		       const struct zzb_nwk_cmd *cmd)
 {
 	uint16_t addr = cmd->nwk_status.has_addr ? cmd->nwk_status.addr : hdr->src;
+	uint8_t code = cmd->nwk_status.code;
 
-	zzb_nlme_nwk_status_ind(node, cmd->nwk_status.code, addr);
+	/* R22 Table 3-51: both concern the local device */
+	if (code == ZZB_NWK_CODE_PARENT_LINK_FAILURE || code == ZZB_NWK_CODE_ADDR_UPDATE) {
+		return;
+	}
+
+	zzb_nlme_nwk_status_ind(node, code, addr);
 }
