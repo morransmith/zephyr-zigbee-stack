@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <stdint.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/scenes.h>
@@ -18,6 +19,8 @@
 #define CMD_VIEW_SCENE           0x01
 #define CMD_REMOVE_SCENE         0x02
 #define CMD_REMOVE_ALL_SCENES    0x03
+#define CMD_STORE_SCENE          0x04
+#define CMD_RECALL_SCENE         0x05
 #define CMD_GET_SCENE_MEMBERSHIP 0x06
 
 /* Capacity of Get Scene Membership Response that means at least one more */
@@ -211,6 +214,75 @@ static uint8_t add(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id
 	return ZZB_ZCL_SUCCESS;
 }
 
+/* Writes the sets of the current values of the server clusters on ep to s; false if they do not fit
+ */
+static bool current_sets(const struct zzb_endpoint *ep, struct zzb_zcl_scene *s)
+{
+	s->data_len = 0;
+	for (int i = 0; i < ep->cluster_count; i++) {
+		const struct zzb_zcl_cluster *cl = &ep->clusters[i];
+		size_t len = cl->server ? cut(cl, SIZE_MAX) : 0;
+		uint8_t *p = s->data + s->data_len + SET_HDR_LEN;
+
+		if (len == 0) {
+			continue;
+		}
+
+		if (s->data_len + SET_HDR_LEN + len > sizeof(s->data)) {
+			return false;
+		}
+
+		sys_put_le16(cl->id, s->data + s->data_len);
+		s->data[s->data_len + 2] = len;
+		for (int j = 0; j < cl->def->attr_count; j++) {
+			const struct zzb_zcl_attr *attr = &cl->def->attrs[j];
+
+			if (attr->flags & ZZB_ZCL_SCENE) {
+				p += zzb_zcl_attr_encode(cl, attr, p,
+							 ZZB_ZCL_STORAGE_SIZE(attr->type));
+			}
+		}
+
+		s->data_len += SET_HDR_LEN + len;
+	}
+
+	return true;
+}
+
+/* Writes the values of a set of cl, which may lack trailing attributes */
+static void recall_set(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+		       const uint8_t *p, size_t len)
+{
+	for (int i = 0; i < cl->def->attr_count; i++) {
+		const struct zzb_zcl_attr *attr = &cl->def->attrs[i];
+		size_t size = ZZB_ZCL_STORAGE_SIZE(attr->type);
+
+		if (!(attr->flags & ZZB_ZCL_SCENE)) {
+			continue;
+		}
+
+		if (size > len) {
+			break;
+		}
+
+		zzb_zcl_set(node, ep, cl->id, attr->id, size == 2 ? sys_get_le16(p) : p[0]);
+		p += size;
+		len -= size;
+	}
+
+	if (cl->def->recalled != NULL) {
+		cl->def->recalled(node, ep, cl->values);
+	}
+}
+
+/* The scene becomes the current one (ZCL 3.7.2.2.1) */
+static void make_current(struct zzb_node *node, const struct zzb_zcl_scene *s)
+{
+	set(node, s->ep, ZZB_ZCL_SCENES_CURRENT_SCENE, s->id);
+	set(node, s->ep, ZZB_ZCL_SCENES_CURRENT_GROUP, s->group);
+	set(node, s->ep, ZZB_ZCL_SCENES_SCENE_VALID, true);
+}
+
 /* Sends the response with status, the group and the scene ID to a unicast (ZCL 3.7.2.4.1) */
 static int respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t status,
 		   uint16_t group, uint8_t id)
@@ -299,6 +371,80 @@ static int remove_one(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	return respond(node, cmd, status, group, id);
 }
 
+/* ZCL 3.7.2.4.6: a new entry has transition time 0; an existing one keeps it */
+static int store_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	uint16_t group = sys_get_le16(cmd->payload);
+	uint8_t id = cmd->payload[2];
+	struct zzb_zcl_scene *s = entry_for(node, cmd->ep, group, id);
+	struct zzb_zcl_scene scene = {
+		.in_use = true,
+		.ep = cmd->ep,
+		.group = group,
+		.id = id,
+	};
+	uint8_t status = check_group(node, cmd->ep, group);
+
+	if (status == ZZB_ZCL_SUCCESS &&
+	    (s == NULL || !current_sets(zzb_node_endpoint(node, cmd->ep), &scene))) {
+		status = ZZB_ZCL_INSUFFICIENT_SPACE;
+	}
+
+	if (status == ZZB_ZCL_SUCCESS) {
+		if (s->in_use) {
+			scene.transition = s->transition;
+			scene.transition_100ms = s->transition_100ms;
+		}
+
+		*s = scene;
+		count(node, cmd->ep);
+		make_current(node, s);
+	}
+
+	return respond(node, cmd, status, group, id);
+}
+
+/*
+ * ZCL 3.7.2.4.7: a cluster without a set keeps its state. OnOff switches at once, so the transition
+ * time field is not read. The status goes in the Default Response.
+ */
+static int recall_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	const struct zzb_endpoint *ep = zzb_node_endpoint(node, cmd->ep);
+	uint16_t group = sys_get_le16(cmd->payload);
+	const struct zzb_zcl_scene *s = find(node, cmd->ep, group, cmd->payload[2]);
+	uint8_t status = check_group(node, cmd->ep, group);
+	const uint8_t *p;
+
+	if (status != ZZB_ZCL_SUCCESS) {
+		return status;
+	}
+
+	if (s == NULL) {
+		return ZZB_ZCL_NOT_FOUND;
+	}
+
+	for (p = s->data; p < s->data + s->data_len; p += SET_HDR_LEN + p[2]) {
+		const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(ep, sys_get_le16(p), true);
+
+		if (cl != NULL && cl->def != NULL) {
+			recall_set(node, cmd->ep, cl, p + SET_HDR_LEN, p[2]);
+		}
+	}
+
+	make_current(node, s);
+	return ZZB_ZCL_SUCCESS;
+}
+
+void zzb_zcl_scenes_invalidate(struct zzb_node *node, uint8_t ep, bool notify)
+{
+	if (notify) {
+		set(node, ep, ZZB_ZCL_SCENES_SCENE_VALID, false);
+	} else {
+		zzb_zcl_store(node, ep, ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_SCENE_VALID, false);
+	}
+}
+
 void zzb_zcl_scenes_remove_group(struct zzb_node *node, uint8_t ep, uint16_t group)
 {
 	ARRAY_FOR_EACH_PTR(node->zcl.scenes, s) {
@@ -370,6 +516,8 @@ static const struct {
 	{CMD_VIEW_SCENE, 3, view_scene},
 	{CMD_REMOVE_SCENE, 3, remove_one},
 	{CMD_REMOVE_ALL_SCENES, 2, remove_all},
+	{CMD_STORE_SCENE, 3, store_scene},
+	{CMD_RECALL_SCENE, 3, recall_scene},
 	{CMD_GET_SCENE_MEMBERSHIP, 2, get_scene_membership},
 };
 

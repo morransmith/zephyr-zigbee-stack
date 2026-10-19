@@ -143,6 +143,11 @@ struct zzb_zcl_cluster_def {
 	uint8_t (*check)(const struct zzb_zcl_attr *attr, uint16_t value);
 	/** Called on the stack thread after every change of the value of attr, or NULL. */
 	void (*changed)(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr);
+	/**
+	 * Called on the stack thread after a scene recall has written the attributes of the
+	 * extension field set of the cluster, or NULL.
+	 */
+	void (*recalled)(struct zzb_node *node, uint8_t ep, void *values);
 };
 
 /** A cluster on an endpoint. */

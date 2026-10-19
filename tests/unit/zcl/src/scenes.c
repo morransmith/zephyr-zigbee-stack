@@ -12,6 +12,8 @@
 #define VIEW_SCENE           0x01
 #define REMOVE_SCENE         0x02
 #define REMOVE_ALL_SCENES    0x03
+#define STORE_SCENE          0x04
+#define RECALL_SCENE         0x05
 #define GET_SCENE_MEMBERSHIP 0x06
 
 static void *setup(void)
@@ -221,6 +223,98 @@ ZTEST(zzb_zcl_scenes, test_groups_remove_scenes)
 	zassert_equal(scenes.scene_count, 2);
 	receive_ep(2, ZZB_ZCL_GROUPS, (uint8_t[]){0x01, 0x85, 0x04}, 3);
 	zassert_equal(scenes.scene_count, 1);
+}
+
+/* ZCL 3.7.2.4.6: the current state; an existing entry keeps its transition time */
+ZTEST(zzb_zcl_scenes, test_store)
+{
+	on_off.on_off = true;
+	command(STORE_SCENE, (uint8_t[]){0x01, 0x00, 0x02}, 3, (uint8_t[]){0x00, 0x01, 0x00, 0x02},
+		4);
+	command(VIEW_SCENE, (uint8_t[]){0x01, 0x00, 0x02}, 3,
+		(uint8_t[]){0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x06, 0x00, 0x01, 0x01}, 11);
+	zassert_equal(scenes.current_scene, 2);
+	zassert_equal(scenes.current_group, 0x0001);
+	zassert_true(scenes.scene_valid);
+
+	add_scene(0x0001, 3);
+	on_off.on_off = false;
+	command(STORE_SCENE, (uint8_t[]){0x01, 0x00, 0x03}, 3, (uint8_t[]){0x00, 0x01, 0x00, 0x03},
+		4);
+	command(VIEW_SCENE, (uint8_t[]){0x01, 0x00, 0x03}, 3,
+		(uint8_t[]){0x00, 0x01, 0x00, 0x03, 0x03, 0x00, 0x00, 0x06, 0x00, 0x01, 0x00}, 11);
+}
+
+ZTEST(zzb_zcl_scenes, test_store_errors)
+{
+	command(STORE_SCENE, (uint8_t[]){0x02, 0x00, 0x03}, 3, (uint8_t[]){0x85, 0x02, 0x00, 0x03},
+		4);
+	for (int i = 0; i < CONFIG_ZZB_ZCL_SCENE_COUNT; i++) {
+		add_scene(0x0001, i);
+	}
+
+	command(STORE_SCENE, (uint8_t[]){0x01, 0x00, 0x09}, 3, (uint8_t[]){0x89, 0x01, 0x00, 0x09},
+		4);
+}
+
+/*
+ * ZCL 3.7.2.4.7: the attributes of the scene, then the current scene; GlobalSceneControl follows
+ * OnOff TRUE (ZCL 3.8.2.2.2). The transition time field is accepted.
+ */
+ZTEST(zzb_zcl_scenes, test_recall)
+{
+	add_scene(0x0001, 1);
+	on_off.global_scene_control = false;
+	zcl_cb_calls.count = 0;
+	command_status(RECALL_SCENE, (uint8_t[]){0x01, 0x00, 0x01, 0x0a, 0x00}, 5, ZZB_ZCL_SUCCESS);
+	zassert_true(on_off.on_off);
+	zassert_true(on_off.global_scene_control);
+	zassert_equal(scenes.current_scene, 1);
+	zassert_equal(scenes.current_group, 0x0001);
+	zassert_true(scenes.scene_valid);
+	zassert_equal(zcl_cb_calls.attr[0], ZZB_ZCL_ON_OFF_ON_OFF);
+	zassert_equal(zcl_cb_calls.attr[1], ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL);
+
+	command_status(RECALL_SCENE, (uint8_t[]){0x01, 0x00, 0x09}, 3, ZZB_ZCL_NOT_FOUND);
+	command_status(RECALL_SCENE, (uint8_t[]){0x02, 0x00, 0x01}, 3, ZZB_ZCL_INVALID_FIELD);
+	command_status(RECALL_SCENE, (uint8_t[]){0x01, 0x00}, 2, ZZB_ZCL_MALFORMED_COMMAND);
+}
+
+/* ZCL 3.7.2.4.7: a cluster without a set keeps its state */
+ZTEST(zzb_zcl_scenes, test_recall_without_a_set)
+{
+	command(ADD_SCENE, (uint8_t[]){0x01, 0x00, 0x01, 0x00, 0x00, 0x00}, 6,
+		(uint8_t[]){0x00, 0x01, 0x00, 0x01}, 4);
+	on_off.on_off = true;
+	command_status(RECALL_SCENE, (uint8_t[]){0x01, 0x00, 0x01}, 3, ZZB_ZCL_SUCCESS);
+	zassert_true(on_off.on_off);
+	zassert_true(scenes.scene_valid);
+}
+
+/*
+ * ZCL 3.7.2.2.1.4: a change of an attribute of a scene clears SceneValid, with zcl_cb for a remote
+ * command and without for zzb_zcl_attr_set()
+ */
+ZTEST(zzb_zcl_scenes, test_scene_valid)
+{
+	bool on = true;
+
+	command(STORE_SCENE, (uint8_t[]){0x01, 0x00, 0x02}, 3, (uint8_t[]){0x00, 0x01, 0x00, 0x02},
+		4);
+	zcl_cb_calls.count = 0;
+	receive_ep(2, ZZB_ZCL_ON_OFF, (uint8_t[]){0x11, 0x86, 0x01}, 3);
+	zassert_false(scenes.scene_valid);
+	zassert_equal(zcl_cb_calls.cluster[0], ZZB_ZCL_SCENES);
+	zassert_equal(zcl_cb_calls.attr[0], ZZB_ZCL_SCENES_SCENE_VALID);
+	zassert_equal(zcl_cb_calls.attr[1], ZZB_ZCL_ON_OFF_ON_OFF);
+
+	command(STORE_SCENE, (uint8_t[]){0x01, 0x00, 0x02}, 3, (uint8_t[]){0x00, 0x01, 0x00, 0x02},
+		4);
+	on = false;
+	zcl_cb_calls.count = 0;
+	zassert_ok(zzb_zcl_attr_set(test_node(), 2, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_ON_OFF, &on));
+	zassert_false(scenes.scene_valid);
+	zassert_equal(zcl_cb_calls.count, 0);
 }
 
 /* The reset of the node clears the table */

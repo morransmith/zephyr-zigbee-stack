@@ -211,6 +211,12 @@ int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req 
 /* Read Reporting Configuration (ZCL 2.5.9); returns ZZB_ZCL_RESPONDED */
 int zzb_zcl_read_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);
 
+/*
+ * Sets SceneValid of the Scenes server on endpoint ep FALSE after a change of an attribute of a
+ * scene (ZCL 3.7.2.2.1.4), with zcl_cb when notify is set
+ */
+void zzb_zcl_scenes_invalidate(struct zzb_node *node, uint8_t ep, bool notify);
+
 /* Removes the scenes of group on endpoint ep (ZCL 3.6.2.3.5) */
 void zzb_zcl_scenes_remove_group(struct zzb_node *node, uint8_t ep, uint16_t group);
 

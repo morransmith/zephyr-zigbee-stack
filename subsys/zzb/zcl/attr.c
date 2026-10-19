@@ -227,9 +227,12 @@ int zzb_zcl_attr_load(struct zzb_node *node, const char *key, size_t len, settin
 	return 0;
 }
 
-/* Saves a non-volatile attribute and calls the changed hook */
+/*
+ * Saves a non-volatile attribute and calls the changed hook. notify tells whether zcl_cb reports
+ * the change, which the change of SceneValid follows.
+ */
 static void apply(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
-		  const struct zzb_zcl_attr *attr)
+		  const struct zzb_zcl_attr *attr, bool notify)
 {
 	save(node, ep, cl, attr);
 
@@ -238,12 +241,15 @@ static void apply(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluste
 	}
 
 	zzb_zcl_report_check(node, ep, cl, attr->id);
+	if (attr->flags & ZZB_ZCL_SCENE) {
+		zzb_zcl_scenes_invalidate(node, ep, notify);
+	}
 }
 
 void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 		     uint16_t attr)
 {
-	apply(node, ep, cl, zzb_zcl_attr_find(cl, attr));
+	apply(node, ep, cl, zzb_zcl_attr_find(cl, attr), true);
 
 	if (node->zcl_cb != NULL) {
 		node->zcl_cb(node, ep, cl->id, attr);
@@ -263,7 +269,7 @@ static void store(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t 
 		return;
 	}
 
-	apply(node, ep, cl, attr);
+	apply(node, ep, cl, attr, notify);
 	if (notify && node->zcl_cb != NULL) {
 		node->zcl_cb(node, ep, cluster, id);
 	}
@@ -312,7 +318,7 @@ static int set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t id,
 	}
 
 	if (zzb_zcl_attr_write(cl, attr, v)) {
-		apply(node, ep, cl, attr);
+		apply(node, ep, cl, attr, false);
 	}
 
 	return 0;

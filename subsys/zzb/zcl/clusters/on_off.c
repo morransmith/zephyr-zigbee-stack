@@ -257,6 +257,16 @@ static void init(void *values)
 	v->timed = false;
 }
 
+/* ZCL 3.8.2.2.2: a recalled scene that turns the endpoint on is like an On command */
+static void recalled(struct zzb_node *node, uint8_t ep, void *values)
+{
+	const struct zzb_zcl_on_off *v = values;
+
+	if (v->on_off) {
+		set(node, ep, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, true);
+	}
+}
+
 /* ZCL 3.8.2.2.5; reserved values keep the loaded OnOff */
 static void start(struct zzb_node *node, uint8_t ep, void *values)
 {
@@ -297,6 +307,7 @@ const struct zzb_zcl_cluster_def zzb_zcl_on_off_def = {
 	.cmd = cmd,
 	.check = check,
 	.changed = changed,
+	.recalled = recalled,
 };
 
 void zzb_zcl_on_off_init(struct zzb_node *node)
