@@ -777,6 +777,11 @@ void parent_send_nwk_key_update(void)
 	zzb_call_sync(&work, nwk_key_update_handler);
 }
 
+void parent_set_link_key(const uint8_t *key)
+{
+	parent.link_key = key;
+}
+
 void parent_set_stack_revision(uint8_t revision)
 {
 	parent.stack_revision = revision;

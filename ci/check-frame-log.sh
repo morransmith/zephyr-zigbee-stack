@@ -9,12 +9,13 @@
 set -eu
 
 # The network keys 0 and 1 of the integration tests, the default trust center link key
-# "ZigBeeAlliance09" and trust center link key B; tshark derives the key-transport and key-load
-# keys itself
+# "ZigBeeAlliance09", trust center link key B and the key of the install code of BDB 10.1; tshark
+# derives the key-transport and key-load keys itself
 keys="00:01:02:03:04:05:06:07:08:09:0a:0b:0c:0d:0e:0f
 10:11:12:13:14:15:16:17:18:19:1a:1b:1c:1d:1e:1f
 5a:69:67:42:65:65:41:6c:6c:69:61:6e:63:65:30:39
-20:21:22:23:24:25:26:27:28:29:2a:2b:2c:2d:2e:2f"
+20:21:22:23:24:25:26:27:28:29:2a:2b:2c:2d:2e:2f
+66:b6:90:09:81:e1:ee:3c:a4:20:6b:6b:86:1c:02:bb"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

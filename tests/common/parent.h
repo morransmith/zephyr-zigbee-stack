@@ -77,6 +77,9 @@ void parent_send_leave_request(bool rejoin);
  */
 void parent_send_transport_key(void);
 
+/* Sets the trust center link key of the child, which parent_start() sets to ZigBeeAlliance09 */
+void parent_set_link_key(const uint8_t *key);
+
 /* Sets the stack compliance revision of Node_Desc_rsp */
 void parent_set_stack_revision(uint8_t revision);
 

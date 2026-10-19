@@ -25,6 +25,17 @@
 #define PARENT_EUI64 0x00124b0000000001ULL
 #define CHILD_ADDR   0x1234
 
+/* The install code of BDB 10.1.1 and its key, which is also in ci/check-frame-log.sh */
+static const uint8_t install_code[] = {
+	0x83, 0xfe, 0xd3, 0x40, 0x7a, 0x93, 0x97, 0x23, 0xa5,
+	0xc6, 0x39, 0xb2, 0x69, 0x16, 0xd5, 0x05, 0xc3, 0xb5,
+};
+
+static const uint8_t install_code_key[ZZB_SEC_KEY_LEN] = {
+	0x66, 0xb6, 0x90, 0x09, 0x81, 0xe1, 0xee, 0x3c,
+	0xa4, 0x20, 0x6b, 0x6b, 0x86, 0x1c, 0x02, 0xbb,
+};
+
 /* The zzb node on fake radio 1 */
 static struct zzb_node *child;
 
@@ -154,6 +165,8 @@ static void *setup(void)
 		.device = &device,
 		.bdb_cb = record_event,
 		.zcl_cb = record_change,
+		.install_code = install_code,
+		.install_code_len = sizeof(install_code),
 	};
 
 	fake_radio_reset();
@@ -209,6 +222,27 @@ ZTEST(zzb_bdb_integration, test_steering_with_an_r20_trust_center)
 	pair = zzb_aps_key_pair_find(child, PARENT_EUI64);
 	zassert_not_null(pair);
 	zassert_mem_equal(pair->key, zzb_aps_default_tc_link_key, ZZB_SEC_KEY_LEN);
+	zassert_equal(pair->type, ZZB_APS_LINK_KEY_GLOBAL);
+	zassert_equal(pair->attr, ZZB_APS_KEY_PROVISIONAL);
+}
+
+/*
+ * BDB 10.1: the network key under the key of the install code. Without the key exchange of an R20
+ * trust center the entry keeps that key.
+ */
+ZTEST(zzb_bdb_integration, test_steering_with_an_install_code)
+{
+	const struct zzb_aps_key_pair *pair;
+
+	parent_set_link_key(install_code_key);
+	parent_set_stack_revision(0);
+	steer();
+	check_event(ZZB_BDB_EVENT_STEERING, ZZB_BDB_SUCCESS);
+
+	pair = zzb_aps_key_pair_find(child, PARENT_EUI64);
+	zassert_not_null(pair);
+	zassert_mem_equal(pair->key, install_code_key, ZZB_SEC_KEY_LEN);
+	zassert_equal(pair->type, ZZB_APS_LINK_KEY_UNIQUE);
 	zassert_equal(pair->attr, ZZB_APS_KEY_PROVISIONAL);
 }
 
