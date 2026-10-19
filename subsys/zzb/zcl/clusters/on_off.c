@@ -27,8 +27,8 @@
 #define UPDATE_MS 100
 
 static const struct zzb_zcl_attr attrs[] = {
-	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_BOOL,
-		     ZZB_ZCL_REPORT | ZZB_ZCL_NV | ZZB_ZCL_SCENE, struct zzb_zcl_on_off, on_off),
+	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_BOOL, ZZB_ZCL_REPORT | ZZB_ZCL_NV,
+		     struct zzb_zcl_on_off, on_off),
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, ZZB_ZCL_BOOL, 0, struct zzb_zcl_on_off,
 		     global_scene_control),
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_TIME, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE, struct zzb_zcl_on_off,
@@ -38,6 +38,11 @@ static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_START_UP, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE | ZZB_ZCL_NV,
 		     struct zzb_zcl_on_off, start_up_on_off),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+/* ZCL 3.8.2.4 */
+static const struct zzb_zcl_scene_attr scene_attrs[] = {
+	{ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_BOOL},
 };
 
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint16_t value)
@@ -171,7 +176,7 @@ static void on_with_recall_global_scene(struct zzb_node *node, uint8_t ep,
 	}
 
 	if (scene_table(node, ep)) {
-		zzb_zcl_scene_recall(node, ep, 0, 0);
+		zzb_zcl_scene_recall(node, ep, 0, 0, 0xffff);
 	} else {
 		set(node, ep, ZZB_ZCL_ON_OFF_ON_OFF, v->global_scene);
 	}
@@ -277,12 +282,16 @@ static void init(void *values)
 	v->timed = false;
 }
 
-/* ZCL 3.8.2.2.2: a recalled scene that turns the endpoint on is like an On command */
-static void recalled(struct zzb_node *node, uint8_t ep, void *values)
+/* OnOff switches at once; a recalled scene that turns the endpoint on is like On (ZCL 3.8.2.2.2) */
+static void recall(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set_values,
+		   size_t count, uint32_t transition_ds)
 {
-	const struct zzb_zcl_on_off *v = values;
+	if (count == 0) {
+		return;
+	}
 
-	if (v->on_off) {
+	set(node, ep, ZZB_ZCL_ON_OFF_ON_OFF, set_values[0] != 0);
+	if (set_values[0] != 0) {
 		set(node, ep, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, true);
 	}
 }
@@ -321,13 +330,15 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 const struct zzb_zcl_cluster_def zzb_zcl_on_off_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
+	.scene_attrs = scene_attrs,
+	.scene_attr_count = ARRAY_SIZE(scene_attrs),
 	.init = init,
 	.start = start,
 	.reset = reset,
 	.cmd = cmd,
 	.check = check,
 	.changed = changed,
-	.recalled = recalled,
+	.recall = recall,
 };
 
 void zzb_zcl_on_off_init(struct zzb_node *node)

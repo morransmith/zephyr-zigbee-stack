@@ -27,6 +27,9 @@ struct zzb_zcl_identify identify;
 struct zzb_zcl_scenes scenes;
 struct zzb_zcl_on_off on_off;
 struct zzb_zcl_on_off on_off3;
+struct test_values values4;
+struct zzb_zcl_scenes scenes4;
+struct recall_calls recall_calls;
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -209,6 +212,39 @@ static const struct zzb_zcl_cluster_def test_def = {
 	.changed = test_changed,
 };
 
+static void scene_recall(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set,
+			 size_t count, uint32_t transition_ds)
+{
+	zassert_true(count <= ARRAY_SIZE(recall_calls.set));
+	recall_calls.count++;
+	recall_calls.ep = ep;
+	memcpy(recall_calls.set, set, count * sizeof(set[0]));
+	recall_calls.set_count = count;
+	recall_calls.transition_ds = transition_ds;
+}
+
+static const struct zzb_zcl_attr scene_test_attrs[] = {
+	ZZB_ZCL_ATTR(0x0000, ZZB_ZCL_BOOL, ZZB_ZCL_WRITE, struct test_values, b),
+	ZZB_ZCL_ATTR(0x0001, ZZB_ZCL_UINT8, ZZB_ZCL_WRITE, struct test_values, u8),
+	ZZB_ZCL_ATTR(0x0002, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE, struct test_values, u16),
+	ZZB_ZCL_ATTR(0x0003, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE, struct test_values, e8),
+};
+
+static const struct zzb_zcl_scene_attr scene_test_set[] = {
+	{0x0002, ZZB_ZCL_UINT16},
+	{0x0000, ZZB_ZCL_BOOL},
+	{0x0100, ZZB_ZCL_UINT8},
+	{0x0001, ZZB_ZCL_UINT8},
+};
+
+static const struct zzb_zcl_cluster_def scene_test_def = {
+	.attrs = scene_test_attrs,
+	.attr_count = ARRAY_SIZE(scene_test_attrs),
+	.scene_attrs = scene_test_set,
+	.scene_attr_count = ARRAY_SIZE(scene_test_set),
+	.recall = scene_recall,
+};
+
 static const struct zzb_zcl_cluster ep1_clusters[] = {
 	{.id = TEST_CLUSTER, .server = true, .values = &values1, .def = &test_def},
 	{.id = ON_OFF},
@@ -227,6 +263,11 @@ static const struct zzb_zcl_cluster ep2_clusters[] = {
 static const struct zzb_zcl_cluster ep3_clusters[] = {
 	{.id = ON_OFF},
 	ZZB_ZCL_ON_OFF_SERVER(&on_off3),
+};
+
+static const struct zzb_zcl_cluster ep4_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes4),
+	{.id = SCENE_CLUSTER, .server = true, .values = &values4, .def = &scene_test_def},
 };
 
 static const struct zzb_endpoint endpoints[] = {
@@ -250,6 +291,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0103,
 		.clusters = ep3_clusters,
 		.cluster_count = ARRAY_SIZE(ep3_clusters),
+	},
+	{
+		.id = 4,
+		.profile = 0x0104,
+		.device_id = 0xfff0,
+		.clusters = ep4_clusters,
+		.cluster_count = ARRAY_SIZE(ep4_clusters),
 	},
 };
 
@@ -305,6 +353,7 @@ void reset_fakes(void)
 	hook_calls = (struct changed_calls){0};
 	zcl_cb_calls = (struct zcl_cb_calls){0};
 	effect_calls = (struct effect_calls){0};
+	recall_calls = (struct recall_calls){0};
 	memset(memberships, 0, sizeof(memberships));
 }
 

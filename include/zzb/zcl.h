@@ -54,8 +54,6 @@ enum zzb_zcl_type {
 #define ZZB_ZCL_CONST  BIT(2)
 /** The attribute is saved in the settings at every change. */
 #define ZZB_ZCL_NV     BIT(3)
-/** The attribute is in the scene extension field set of its cluster, in the order of the table. */
-#define ZZB_ZCL_SCENE  BIT(4)
 
 /**
  * An attribute. A character string is stored as a const char pointer, an octet string as a const
@@ -131,11 +129,26 @@ struct zzb_zcl_cmd {
 	bool unicast;
 };
 
+/** An attribute of the scene extension field set of a cluster (ZCL 3.7.2.4.2). */
+struct zzb_zcl_scene_attr {
+	uint16_t id;
+	uint8_t type;
+};
+
+/** The longest scene extension field set of a cluster, in attributes. */
+#define ZZB_ZCL_SCENE_ATTRS_MAX 8
+
 /** The attributes and commands of a cluster. */
 struct zzb_zcl_cluster_def {
 	/** Attributes in ascending order of ID. */
 	const struct zzb_zcl_attr *attrs;
 	uint8_t attr_count;
+	/**
+	 * The attributes of the scene extension field set in its order, at most
+	 * ZZB_ZCL_SCENE_ATTRS_MAX, or NULL. An attribute that attrs does not have is stored as 0.
+	 */
+	const struct zzb_zcl_scene_attr *scene_attrs;
+	uint8_t scene_attr_count;
 	/** Sets the defaults before the settings records are loaded, or NULL. */
 	void (*init)(void *values);
 	/** Runs after the settings records are loaded, on the stack thread, or NULL. */
@@ -155,10 +168,12 @@ struct zzb_zcl_cluster_def {
 	/** Called on the stack thread after every change of the value of attr, or NULL. */
 	void (*changed)(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr);
 	/**
-	 * Called on the stack thread after a scene recall has written the attributes of the
-	 * extension field set of the cluster, or NULL.
+	 * Applies the extension field set of a recalled scene on the stack thread, or NULL: count
+	 * values in the order of scene_attrs, fewer when the set lacks trailing attributes, and the
+	 * transition time in tenths of a second.
 	 */
-	void (*recalled)(struct zzb_node *node, uint8_t ep, void *values);
+	void (*recall)(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set,
+		       size_t count, uint32_t transition_ds);
 };
 
 /** A cluster on an endpoint. */

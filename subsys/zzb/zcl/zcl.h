@@ -248,10 +248,12 @@ void zzb_zcl_scenes_delete(struct zzb_node *node);
 uint8_t zzb_zcl_scene_store(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id);
 
 /*
- * Recalls scene id of group on endpoint ep (ZCL 3.7.2.4.7) and makes it the current scene.
- * Returns ZZB_ZCL_SUCCESS or ZZB_ZCL_NOT_FOUND.
+ * Recalls scene id of group on endpoint ep (ZCL 3.7.2.4.7) and makes it the current scene. A
+ * transition time of 0xffff takes the time of the scene. Returns ZZB_ZCL_SUCCESS or
+ * ZZB_ZCL_NOT_FOUND.
  */
-uint8_t zzb_zcl_scene_recall(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id);
+uint8_t zzb_zcl_scene_recall(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id,
+			     uint16_t transition_ds);
 
 /* Removes the scenes of group on endpoint ep (ZCL 3.6.2.3.5) */
 void zzb_zcl_scenes_remove_group(struct zzb_node *node, uint8_t ep, uint16_t group);

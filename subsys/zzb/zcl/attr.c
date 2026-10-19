@@ -236,6 +236,18 @@ int zzb_zcl_attr_load(struct zzb_node *node, const char *key, size_t len, settin
 	return 0;
 }
 
+/* Whether attribute id is in the scene extension field set of cl */
+static bool in_scene(const struct zzb_zcl_cluster *cl, uint16_t id)
+{
+	for (int i = 0; i < cl->def->scene_attr_count; i++) {
+		if (cl->def->scene_attrs[i].id == id) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 /*
  * Saves a non-volatile attribute and calls the changed hook. notify tells whether zcl_cb reports
  * the change, which the change of SceneValid follows.
@@ -250,7 +262,7 @@ static void apply(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluste
 	}
 
 	zzb_zcl_report_check(node, ep, cl, attr->id);
-	if (attr->flags & ZZB_ZCL_SCENE) {
+	if (in_scene(cl, attr->id)) {
 		zzb_zcl_scenes_invalidate(node, ep, notify);
 	}
 }

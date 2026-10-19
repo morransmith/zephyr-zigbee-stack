@@ -178,23 +178,19 @@ static const uint8_t *find_set(const uint8_t *p, size_t len, uint16_t cluster, s
 	return NULL;
 }
 
-/* The length of the leading attributes with the scene flag of cl that len octets hold */
+/* The length of the leading attributes of the scene extension field set of cl that len holds */
 static size_t cut(const struct zzb_zcl_cluster *cl, size_t len)
 {
 	size_t n = 0;
 
-	for (int i = 0; cl->def != NULL && i < cl->def->attr_count; i++) {
-		const struct zzb_zcl_attr *attr = &cl->def->attrs[i];
+	for (int i = 0; cl->def != NULL && i < cl->def->scene_attr_count; i++) {
+		int size = zzb_zcl_type_len(cl->def->scene_attrs[i].type);
 
-		if (!(attr->flags & ZZB_ZCL_SCENE)) {
-			continue;
-		}
-
-		if (n + zzb_zcl_type_len(attr->type) > len) {
+		if (n + size > len) {
 			break;
 		}
 
-		n += zzb_zcl_type_len(attr->type);
+		n += size;
 	}
 
 	return n;
@@ -273,12 +269,13 @@ static bool current_sets(const struct zzb_endpoint *ep, struct zzb_zcl_scene *s)
 
 		sys_put_le16(cl->id, s->data + s->data_len);
 		s->data[s->data_len + 2] = len;
-		for (int j = 0; j < cl->def->attr_count; j++) {
-			const struct zzb_zcl_attr *attr = &cl->def->attrs[j];
+		for (int j = 0; j < cl->def->scene_attr_count; j++) {
+			uint8_t type = cl->def->scene_attrs[j].type;
+			const struct zzb_zcl_attr *attr =
+				zzb_zcl_attr_find(cl, cl->def->scene_attrs[j].id);
 
-			if (attr->flags & ZZB_ZCL_SCENE) {
-				p += zzb_zcl_attr_encode(cl, attr, p, zzb_zcl_type_len(attr->type));
-			}
+			zzb_zcl_value_put(type, attr != NULL ? zzb_zcl_attr_value(cl, attr) : 0, p);
+			p += zzb_zcl_type_len(type);
 		}
 
 		s->data_len += SET_HDR_LEN + len;
@@ -287,29 +284,27 @@ static bool current_sets(const struct zzb_endpoint *ep, struct zzb_zcl_scene *s)
 	return true;
 }
 
-/* Writes the values of a set of cl, which may lack trailing attributes */
+/* Passes the values of a set of cl, which may lack trailing attributes, to its recall hook */
 static void recall_set(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
-		       const uint8_t *p, size_t len)
+		       const uint8_t *p, size_t len, uint32_t transition_ds)
 {
-	for (int i = 0; i < cl->def->attr_count; i++) {
-		const struct zzb_zcl_attr *attr = &cl->def->attrs[i];
-		size_t size = zzb_zcl_type_len(attr->type);
+	uint32_t set[ZZB_ZCL_SCENE_ATTRS_MAX];
+	size_t count = 0;
 
-		if (!(attr->flags & ZZB_ZCL_SCENE)) {
-			continue;
-		}
+	for (int i = 0; i < MIN(cl->def->scene_attr_count, ARRAY_SIZE(set)); i++) {
+		uint8_t type = cl->def->scene_attrs[i].type;
 
-		if (size > len) {
+		if (zzb_zcl_type_len(type) > len) {
 			break;
 		}
 
-		zzb_zcl_set(node, ep, cl->id, attr->id, zzb_zcl_value_get(attr->type, p));
-		p += size;
-		len -= size;
+		set[count++] = zzb_zcl_value_get(type, p);
+		p += zzb_zcl_type_len(type);
+		len -= zzb_zcl_type_len(type);
 	}
 
-	if (cl->def->recalled != NULL) {
-		cl->def->recalled(node, ep, cl->values);
+	if (cl->def->recall != NULL) {
+		cl->def->recall(node, ep, cl->values, set, count, transition_ds);
 	}
 }
 
@@ -455,21 +450,27 @@ static int store_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 }
 
 /* ZCL 3.7.2.4.7: a cluster without a set keeps its state */
-uint8_t zzb_zcl_scene_recall(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id)
+uint8_t zzb_zcl_scene_recall(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id,
+			     uint16_t transition_ds)
 {
 	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
 	const struct zzb_zcl_scene *s = find(node, ep, group, id);
+	uint32_t time = transition_ds;
 	const uint8_t *p;
 
 	if (s == NULL) {
 		return ZZB_ZCL_NOT_FOUND;
 	}
 
+	if (transition_ds == 0xffff) {
+		time = 10 * s->transition + s->transition_100ms;
+	}
+
 	for (p = s->data; p < s->data + s->data_len; p += SET_HDR_LEN + p[2]) {
 		const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(e, sys_get_le16(p), true);
 
 		if (cl != NULL && cl->def != NULL) {
-			recall_set(node, ep, cl, p + SET_HDR_LEN, p[2]);
+			recall_set(node, ep, cl, p + SET_HDR_LEN, p[2], time);
 		}
 	}
 
@@ -477,10 +478,7 @@ uint8_t zzb_zcl_scene_recall(struct zzb_node *node, uint8_t ep, uint16_t group, 
 	return ZZB_ZCL_SUCCESS;
 }
 
-/*
- * OnOff switches at once, so the transition time field is not read. The status goes in the Default
- * Response.
- */
+/* The status goes in the Default Response; the transition time field is optional */
 static int recall_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
 	uint16_t group = sys_get_le16(cmd->payload);
@@ -490,7 +488,8 @@ static int recall_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 		return status;
 	}
 
-	return zzb_zcl_scene_recall(node, cmd->ep, group, cmd->payload[2]);
+	return zzb_zcl_scene_recall(node, cmd->ep, group, cmd->payload[2],
+				    cmd->len >= 5 ? sys_get_le16(cmd->payload + 3) : 0xffff);
 }
 
 /* Copies the scene from to the scene id of group; false when the table is full */

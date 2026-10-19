@@ -76,6 +76,27 @@ extern struct zzb_zcl_on_off on_off;
 /* The On/Off server on endpoint 3, which has no Scenes server */
 extern struct zzb_zcl_on_off on_off3;
 
+/*
+ * A cluster of the test on endpoint 4, with a Scenes server: attributes 0x0000 to 0x0003 of struct
+ * test_values. Its scene extension field set is 0x0002 (uint16), 0x0000 (bool), 0x0100 (uint8),
+ * which the cluster does not have, and 0x0001 (uint8).
+ */
+#define SCENE_CLUSTER 0x0f01
+
+extern struct test_values values4;
+extern struct zzb_zcl_scenes scenes4;
+
+/* Calls of the recall hook of the scene test cluster, with the arguments of the last one */
+struct recall_calls {
+	int count;
+	uint8_t ep;
+	uint32_t set[8];
+	size_t set_count;
+	uint32_t transition_ds;
+};
+
+extern struct recall_calls recall_calls;
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
