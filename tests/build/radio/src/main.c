@@ -3,11 +3,13 @@
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/scenes.h>
 #include <zzb/zzb.h>
 
-/* Basic, Identify and On/Off servers of an On/Off Light (Home Automation profile) */
+/* Basic, Identify, Groups, Scenes and On/Off servers of a Home Automation On/Off Light */
 #if defined(CONFIG_ZZB_ZCL)
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
@@ -19,6 +21,8 @@ static struct zzb_zcl_basic basic = {
 
 static struct zzb_zcl_identify identify;
 
+static struct zzb_zcl_scenes scenes;
+
 static struct zzb_zcl_on_off on_off = {
 	.start_up_default = ZZB_ZCL_START_UP_PREVIOUS,
 };
@@ -26,6 +30,8 @@ static struct zzb_zcl_on_off on_off = {
 static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
+	ZZB_ZCL_GROUPS_SERVER(),
+	ZZB_ZCL_SCENES_SERVER(&scenes),
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 };
 #else
@@ -33,6 +39,8 @@ static const struct zzb_zcl_cluster light[] = {
 static const struct zzb_zcl_cluster light[] = {
 	{.id = ZZB_ZCL_BASIC, .server = true},
 	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_GROUPS, .server = true},
+	{.id = ZZB_ZCL_SCENES, .server = true},
 	{.id = ZZB_ZCL_ON_OFF, .server = true},
 };
 #endif
