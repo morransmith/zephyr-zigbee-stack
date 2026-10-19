@@ -30,6 +30,7 @@ struct tc_frame {
 	uint16_t nwk_src;
 	uint16_t nwk_dst;
 	bool nwk_security;
+	bool no_ext_nonce;
 };
 
 /* The network key Transport Key of a trust center that the parent relays */
@@ -49,13 +50,15 @@ static void receive_cmd(const struct zzb_aps_cmd *cmd, const struct tc_frame *ho
 		.counter = tc_counter++,
 	};
 	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	int err;
 
 	zassert_not_null(buf);
 	net_buf_reserve(buf, ZZB_APS_AUX_MAX_LEN);
 	zzb_aps_hdr_write(&hdr, net_buf_add(buf, 2));
 	net_buf_add(buf, zzb_aps_cmd_write(cmd, net_buf_tail(buf)));
 	if (how->flags & ZZB_APS_SECURITY) {
-		zassert_ok(zzb_aps_secure(tc, buf, 2, how->link_key, how->key_id, true));
+		err = zzb_aps_secure(tc, buf, 2, how->link_key, how->key_id, !how->no_ext_nonce);
+		zassert_ok(err);
 	}
 
 	zzb_nlde_data_ind(node, buf, how->nwk_dst, how->nwk_src, how->nwk_security);
@@ -172,6 +175,24 @@ ZTEST(zzb_aps_cmd, test_transport_key_through_a_router)
 	cmd = nwk_key_cmd(0, TC_EUI64);
 	receive_cmd(&cmd, &transport);
 	check_transport_key_ind(2, TC_EUI64);
+}
+
+/* Z-Stack Home 1.2: the parent sends the key without the extended nonce */
+ZTEST(zzb_aps_cmd, test_transport_key_without_extended_nonce)
+{
+	struct zzb_aps_cmd cmd = nwk_key_cmd(NODE_EUI64, TC_EUI64);
+	struct zzb_nwk_neighbor parent = {
+		.in_use = true,
+		.ext_addr = TC_EUI64,
+		.relationship = ZZB_NWK_REL_PARENT,
+	};
+	struct tc_frame how = transport;
+
+	how.nwk_src = 0x0000;
+	how.no_ext_nonce = true;
+	zzb_nwk_neighbor_find_short_fake.return_val = &parent;
+	receive_cmd(&cmd, &how);
+	check_transport_key_ind(1, TC_EUI64);
 }
 
 /* BDB 10.2.2: once the trust center is known, other sources are dropped */

@@ -77,20 +77,49 @@ int zzb_aps_secure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len,
 }
 
 /*
+ * The sender: without the extended nonce the trust center at 0x0000 (R22 4.6.2.2) or a neighbor,
+ * since nwkAddressMap does not exist yet
+ */
+static int sender(struct zzb_node *node, const struct zzb_sec_aux_hdr *aux, uint16_t nwk_src,
+		  uint64_t *addr)
+{
+	struct zzb_nwk_neighbor *nb;
+
+	if (aux->ext_nonce) {
+		*addr = aux->src_addr;
+		return 0;
+	}
+
+	if (nwk_src == 0x0000 && node->aps.aib.tc_addr != ZZB_APS_TC_UNKNOWN) {
+		*addr = node->aps.aib.tc_addr;
+		return 0;
+	}
+
+	nb = zzb_nwk_neighbor_find_short(node, nwk_src);
+	if (nb == NULL || nb->ext_addr == 0) {
+		return -ENOENT;
+	}
+
+	*addr = nb->ext_addr;
+	return 0;
+}
+
+/*
  * The entry of the sender, or no entry and the default key while the network key is pending
- * (R22 4.4.1.2 step 2). Without the extended nonce only the trust center at 0x0000 is known.
+ * (R22 4.4.1.2 step 2)
  */
 static int find_key(struct zzb_node *node, const struct zzb_sec_aux_hdr *aux, uint16_t nwk_src,
 		    struct zzb_aps_sec *sec)
 {
-	if (!aux->ext_nonce && nwk_src != 0x0000) {
-		return -ENOENT;
+	int err = sender(node, aux, nwk_src, &sec->src_addr);
+
+	if (err) {
+		return err;
 	}
 
 	sec->key_id = aux->key_id;
-	sec->src_addr = aux->ext_nonce ? aux->src_addr : node->aps.aib.tc_addr;
 	sec->pair = zzb_aps_key_pair_find(node, sec->src_addr);
-	if (sec->pair == NULL && !(aux->ext_nonce && zzb_nwk_key_pending(node))) {
+	if (sec->pair == NULL && !zzb_nwk_key_pending(node)) {
 		return -ENOENT;
 	}
 

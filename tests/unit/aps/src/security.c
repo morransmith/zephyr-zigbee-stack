@@ -167,6 +167,34 @@ ZTEST(zzb_aps_security, test_without_extended_nonce)
 	net_buf_unref(buf);
 }
 
+/*
+ * Z-Stack Home 1.2 sends the Transport Key without the extended nonce; the parent is the sender,
+ * known from the association
+ */
+ZTEST(zzb_aps_security, test_transport_key_without_extended_nonce)
+{
+	struct zzb_nwk_neighbor parent = {
+		.in_use = true,
+		.ext_addr = TC_EUI64,
+		.short_addr = 0x0000,
+		.relationship = ZZB_NWK_REL_PARENT,
+	};
+	struct net_buf *buf;
+	struct zzb_aps_sec sec;
+
+	zzb_nwk_key_pending_fake.return_val = true;
+	buf = secured_cmd(zzb_aps_default_tc_link_key, ZZB_SEC_KEY_TRANSPORT, false);
+	zassert_equal(zzb_aps_unsecure(node, buf, sizeof(cmd_hdr), 0x0000, &sec), -ENOENT);
+
+	zzb_nwk_neighbor_find_short_fake.return_val = &parent;
+	zassert_ok(zzb_aps_unsecure(node, buf, sizeof(cmd_hdr), 0x0000, &sec));
+	zassert_equal(zzb_nwk_neighbor_find_short_fake.arg1_val, 0x0000);
+	check_plaintext(buf);
+	zassert_equal(sec.src_addr, TC_EUI64);
+	zassert_is_null(sec.pair);
+	net_buf_unref(buf);
+}
+
 ZTEST(zzb_aps_security, test_rejected_frames)
 {
 	struct net_buf *buf;
