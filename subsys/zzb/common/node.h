@@ -12,6 +12,7 @@
 #include "mac/mac.h"
 #include "nwk/nwk.h"
 #include "radio/port.h"
+#include "zcl/zcl.h"
 #include "zdo/zdo.h"
 
 struct zzb_node {
@@ -26,6 +27,7 @@ struct zzb_node {
 	struct zzb_aps aps;
 	struct zzb_zdo zdo;
 	struct zzb_bdb bdb;
+	struct zzb_zcl zcl;
 };
 
 /* Index of the node in the pool */

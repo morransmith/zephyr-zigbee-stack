@@ -9,6 +9,7 @@
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/identify.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
@@ -53,8 +54,9 @@ struct test_values {
 extern struct test_values values1;
 extern struct test_values values2;
 
-/* The Basic server on endpoint 2 */
+/* The Basic and Identify servers on endpoint 2 */
 extern struct zzb_zcl_basic basic;
+extern struct zzb_zcl_identify identify;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
@@ -118,7 +120,7 @@ void receive_ep(uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_t len);
 /* receive_ep() to endpoint 1 */
 void receive(uint16_t cluster, const uint8_t *asdu, size_t len);
 
-/* Loads the settings records of the node again, on the stack thread */
+/* Initializes ZCL and loads the settings records of the node again, on the stack thread */
 int reboot(void);
 
 /* Resets the ZCL attributes as the reset of the node does, on the stack thread */

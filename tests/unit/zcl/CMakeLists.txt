@@ -12,5 +12,6 @@ target_sources(app PRIVATE
   src/fakes.c
   src/foundation.c
   src/frame.c
+  src/identify.c
   src/zcl.c
 )

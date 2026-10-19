@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <zephyr/kernel.h>
 #include <zephyr/net_buf.h>
 #include <zephyr/settings/settings.h>
 #include <zzb/zcl.h>
@@ -18,6 +19,11 @@ struct zzb_node;
 
 /* ASDU handle of ZCL frames; their confirm is ignored */
 #define ZZB_ZCL_HANDLE 0xfd
+
+struct zzb_zcl {
+	/* Decrements IdentifyTime every second while one is not 0 */
+	struct k_work_delayable identify_timer;
+};
 
 /* Global command identifiers (ZCL Table 2-3) */
 #define ZZB_ZCL_READ_ATTRIBUTES         0x00
@@ -55,6 +61,11 @@ void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 /* The server or client instance of cluster id on ep, or NULL */
 const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep, uint16_t id,
 						   bool server);
+
+/* Cancels the timers and sets the defaults of the attributes before the records are loaded */
+void zzb_zcl_init(struct zzb_node *node);
+
+void zzb_zcl_identify_init(struct zzb_node *node);
 
 /* Processes a global command; returns the status of the Default Response or ZZB_ZCL_RESPONDED */
 int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);

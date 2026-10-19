@@ -12,6 +12,7 @@
 #include "mac/mac.h"
 #include "nwk/nwk.h"
 #include "storage/settings.h"
+#include "zcl/zcl.h"
 
 static struct zzb_node nodes[CONFIG_ZZB_NODE_COUNT];
 
@@ -109,6 +110,10 @@ static void init_handler(struct k_work *work)
 
 	if (IS_ENABLED(CONFIG_ZZB_ZDO)) {
 		zzb_zdo_init(node);
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_ZCL)) {
+		zzb_zcl_init(node);
 	}
 
 	if (IS_ENABLED(CONFIG_ZZB_NWK) || IS_ENABLED(CONFIG_ZZB_APS) ||

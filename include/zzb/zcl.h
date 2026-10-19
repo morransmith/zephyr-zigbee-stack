@@ -119,6 +119,8 @@ struct zzb_zcl_cluster_def {
 	/** Attributes in ascending order of ID. */
 	const struct zzb_zcl_attr *attrs;
 	uint8_t attr_count;
+	/** Sets the defaults before the settings records are loaded, or NULL. */
+	void (*init)(void *values);
 	/** Restores the defaults at the reset of the node, on the stack thread, or NULL. */
 	void (*reset)(struct zzb_node *node, uint8_t ep, void *values);
 	/**

@@ -176,6 +176,26 @@ void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct z
 	net_buf_unref(buf);
 }
 
+void zzb_zcl_init(struct zzb_node *node)
+{
+	/* Safe on the zeroed struct of a new node */
+	k_work_cancel_delayable(&node->zcl.identify_timer);
+	node->zcl = (struct zzb_zcl){0};
+	zzb_zcl_identify_init(node);
+
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		const struct zzb_endpoint *ep = &node->device->endpoints[i];
+
+		for (int j = 0; j < ep->cluster_count; j++) {
+			const struct zzb_zcl_cluster *cl = &ep->clusters[j];
+
+			if (cl->def != NULL && cl->def->init != NULL) {
+				cl->def->init(cl->values);
+			}
+		}
+	}
+}
+
 void zzb_zcl_reset(struct zzb_node *node)
 {
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {

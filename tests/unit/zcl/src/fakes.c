@@ -20,6 +20,8 @@ struct test_values values2;
 
 static const uint8_t product_code[] = {0x03, 0x00, 'Z', 'Z'};
 
+struct zzb_zcl_identify identify;
+
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
 	.stack_version = 2,
@@ -108,6 +110,7 @@ static const struct zzb_zcl_cluster ep1_clusters[] = {
 static const struct zzb_zcl_cluster ep2_clusters[] = {
 	{.id = TEST_CLUSTER, .server = true, .values = &values2, .def = &test_def},
 	ZZB_ZCL_BASIC_SERVER(&basic),
+	ZZB_ZCL_IDENTIFY_SERVER(&identify),
 };
 
 static const struct zzb_zcl_cluster ep3_clusters[] = {
@@ -256,6 +259,7 @@ static void reboot_handler(struct k_work *work)
 {
 	struct reboot_call *call = CONTAINER_OF(work, struct reboot_call, work);
 
+	zzb_zcl_init(test_node());
 	call->err = zzb_settings_load(test_node());
 }
 

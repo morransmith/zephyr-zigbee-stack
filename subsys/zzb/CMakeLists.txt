@@ -57,6 +57,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_BDB bdb/bdb.c bdb/init.c bdb/reset.c bdb
 zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/attr.c
   zcl/clusters/basic.c
+  zcl/clusters/identify.c
   zcl/foundation.c
   zcl/frame.c
   zcl/zcl.c
