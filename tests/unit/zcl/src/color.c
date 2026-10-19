@@ -207,7 +207,7 @@ ZTEST(zzb_zcl_color, test_transition_replaced)
 	move_to_color(40, 0x3000, 0x1000, 10);
 	k_sleep(K_MSEC(250));
 	reset_node();
-	zassert_equal(color40.current_x, 0x616b);
+	zassert_equal(color40.color_temperature, 0x00fa);
 	zassert_equal(color40.remaining_time, 0);
 	zassert_false(timer_armed());
 }
@@ -354,6 +354,77 @@ ZTEST(zzb_zcl_color, test_step_temperature)
 	zassert_equal(color41.color_temperature, COLOR_TEMP_MIN);
 }
 
+/*
+ * Section 16: with the XY capability, X and Y follow the color temperature in its mode. The
+ * expected values are x and y of Kim et al. (2002) times 65536, computed in double precision:
+ * 250 mireds (4000 K) x 0.380528 y 0.376734, 370 mireds (2702.7 K) x 0.459094 y 0.410611 and
+ * 500 mireds (2000 K) x 0.526903 y 0.413265.
+ */
+ZTEST(zzb_zcl_color, test_temperature_xy)
+{
+	/* Without records the start hook computes them from the default 250 mireds */
+	zassert_equal(color40.current_x, 0x616a);
+	zassert_equal(color40.current_y, 0x6072);
+
+	/* The changed hook writes them before zcl_cb reports the temperature */
+	move_to_temperature(40, 370, 0);
+	zassert_equal(color40.current_x, 0x7587);
+	zassert_equal(color40.current_y, 0x691e);
+	check_zcl_cb(40, ZZB_ZCL_COLOR,
+		     (uint16_t[]){ZZB_ZCL_COLOR_CURRENT_X, ZZB_ZCL_COLOR_CURRENT_Y,
+				  ZZB_ZCL_COLOR_TEMPERATURE},
+		     3);
+
+	/* Also during a transition */
+	reset_fakes();
+	move_to_temperature(40, 500, 10);
+	k_sleep(K_MSEC(1100));
+	zassert_equal(color40.current_x, 0x86e3);
+	zassert_equal(color40.current_y, 0x69cc);
+	zassert_between_inclusive(notified(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_X), 9, 11);
+
+	/* X and Y are not saved; the start hook computes them from the saved temperature */
+	reset_fakes();
+	zassert_ok(reboot());
+	zassert_equal(color40.current_x, 0x86e3);
+	zassert_equal(color40.current_y, 0x69cc);
+	zassert_equal(zcl_cb_calls.count, 0);
+
+	/* Without the XY capability they stay */
+	move_to_temperature(41, 400, 0);
+	zassert_equal(color41.current_x, 0x616b);
+	zassert_equal(color41.current_y, 0x607d);
+}
+
+/*
+ * ZCL 5.2.2.3.2: from XY mode the color temperature starts at the temperature of x and y by the
+ * formula of McCamy (1992), within the physical range. Computed in double precision: x 0.312698
+ * y 0.328995 give 6505.2 K (153.7 mireds), x 0.600006 y 0.350006 548.9 mireds and x 0.169998
+ * y 0.699997 124.5 mireds. X and Y follow by Kim et al.: 154 mireds x 0.313595 y 0.323761,
+ * 400 mireds x 0.476459 y 0.413716.
+ */
+ZTEST(zzb_zcl_color, test_temperature_from_xy)
+{
+	move_to_color(40, 0x500d, 0x5439, 0);
+	move_to_temperature(40, 400, 10);
+	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
+	zassert_equal(color40.color_temperature, 154);
+	zassert_equal(color40.current_x, 0x5048);
+	zassert_equal(color40.current_y, 0x52e2);
+	k_sleep(K_MSEC(1100));
+	zassert_equal(color40.color_temperature, 400);
+	zassert_equal(color40.current_x, 0x79f9);
+	zassert_equal(color40.current_y, 0x69e9);
+
+	reset_fakes();
+	move_to_color(40, 0x999a, 0x599a, 0);
+	move_to_temperature(40, 300, 10);
+	zassert_equal(color40.color_temperature, COLOR_TEMP_MAX);
+	move_to_color(40, 0x2b85, 0xb333, 0);
+	move_to_temperature(40, 300, 10);
+	zassert_equal(color40.color_temperature, COLOR_TEMP_MIN);
+}
+
 /* ZCL 5.2.2.2.1.18: commands of a capability that the light lacks or the stack does not have */
 ZTEST(zzb_zcl_color, test_unsupported)
 {
@@ -382,8 +453,8 @@ ZTEST(zzb_zcl_color, test_reset)
 	reset_node();
 	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
 	zassert_equal(color40.enhanced_color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
-	zassert_equal(color40.current_x, 0x616b);
-	zassert_equal(color40.current_y, 0x607d);
+	zassert_equal(color40.current_x, 0x616a);
+	zassert_equal(color40.current_y, 0x6072);
 	zassert_equal(color40.color_temperature, 0x00fa);
 	zassert_equal(color40.options, 0);
 	zassert_equal(color40.start_up_color_temperature, 0xffff);
@@ -395,7 +466,7 @@ ZTEST(zzb_zcl_color, test_reset)
 
 	zassert_ok(reboot());
 	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
-	zassert_equal(color40.current_x, 0x616b);
+	zassert_equal(color40.current_x, 0x616a);
 }
 
 ZTEST_SUITE(zzb_zcl_color, NULL, setup, before, after, NULL);

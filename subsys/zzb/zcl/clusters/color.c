@@ -95,9 +95,70 @@ static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
 };
 
+/*
+ * CurrentX and CurrentY of the point at mireds on the Planckian locus, by the cubic spline of Kim
+ * et al. (2002) for 1667 K to 25000 K
+ */
+static void temperature_xy(uint16_t mireds, uint16_t *cx, uint16_t *cy)
+{
+	float t = CLAMP(1e6f / MAX(mireds, 1), 1667.0f, 25000.0f);
+	float u = 1.0f / t;
+	float x, y;
+
+	if (t <= 4000.0f) {
+		x = ((-0.2661239e9f * u - 0.2343589e6f) * u + 0.8776956e3f) * u + 0.179910f;
+	} else {
+		x = ((-3.0258469e9f * u + 2.1070379e6f) * u + 0.2226347e3f) * u + 0.240390f;
+	}
+
+	if (t <= 2222.0f) {
+		y = ((-1.1063814f * x - 1.34811020f) * x + 2.18555832f) * x - 0.20219683f;
+	} else if (t <= 4000.0f) {
+		y = ((-0.9549476f * x - 1.37418593f) * x + 2.09137015f) * x - 0.16748867f;
+	} else {
+		y = ((3.0817580f * x - 5.87338670f) * x + 3.75112997f) * x - 0.37001483f;
+	}
+
+	*cx = x * 65536.0f + 0.5f;
+	*cy = y * 65536.0f + 0.5f;
+}
+
+/*
+ * The color temperature in mireds of CurrentX and CurrentY by the formula of McCamy (1992), within
+ * min to max. y is never 0.1858 exactly, so n is finite.
+ */
+static uint16_t xy_temperature(uint16_t cx, uint16_t cy, uint16_t min, uint16_t max)
+{
+	float n = (cx / 65536.0f - 0.3320f) / (0.1858f - cy / 65536.0f);
+	float kelvins = ((449.0f * n + 3525.0f) * n + 6823.3f) * n + 5520.33f;
+
+	return CLAMP(1e6f / kelvins + 0.5f, min, max);
+}
+
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value)
 {
 	zzb_zcl_set(node, ep, ZZB_ZCL_COLOR, attr, value);
+}
+
+/* With the XY capability, CurrentX and CurrentY follow ColorTemperatureMireds in its mode */
+static bool follows(const struct zzb_zcl_color *v)
+{
+	return (v->color_capabilities & ZZB_ZCL_COLOR_CAP_XY) &&
+	       v->color_mode == ZZB_ZCL_COLOR_MODE_TEMPERATURE;
+}
+
+/* CurrentX and CurrentY follow without being saved; the start hook computes them again */
+static void follow(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_color *v)
+{
+	uint16_t x, y;
+
+	if (!follows(v)) {
+		return;
+	}
+
+	temperature_xy(v->color_temperature, &x, &y);
+	zzb_zcl_update(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_X, x);
+	zzb_zcl_update(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_Y, y);
 }
 
 /* The Color Control server on ep, or NULL */
@@ -210,10 +271,21 @@ static void set_mode(struct zzb_node *node, uint8_t ep, uint8_t mode)
 	set(node, ep, ZZB_ZCL_COLOR_ENHANCED_MODE, mode);
 }
 
-/* Color temperature mode (ZCL 5.2.2.3.2) */
+/*
+ * Color temperature mode. From XY mode the temperature starts at that of the current x and y
+ * within the physical range (ZCL 5.2.2.3.2).
+ */
 static void temperature_mode(struct zzb_node *node, uint8_t ep, struct zzb_zcl_color *v)
 {
+	if (v->color_mode == ZZB_ZCL_COLOR_MODE_TEMPERATURE) {
+		return;
+	}
+
 	set_mode(node, ep, ZZB_ZCL_COLOR_MODE_TEMPERATURE);
+	set(node, ep, ZZB_ZCL_COLOR_TEMPERATURE,
+	    xy_temperature(v->current_x, v->current_y, v->color_temp_physical_min,
+			   v->color_temp_physical_max));
+	follow(node, ep, v);
 }
 
 /* ZCL 5.2.2.3.11 */
@@ -403,6 +475,28 @@ static void init(void *values)
 	v->transition.count = 0;
 }
 
+/* CurrentX and CurrentY in line with the loaded ColorTemperatureMireds, without zcl_cb */
+static void start(struct zzb_node *node, uint8_t ep, void *values)
+{
+	const struct zzb_zcl_color *v = values;
+	uint16_t x, y;
+
+	if (!follows(v)) {
+		return;
+	}
+
+	temperature_xy(v->color_temperature, &x, &y);
+	zzb_zcl_store(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_X, x);
+	zzb_zcl_store(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_CURRENT_Y, y);
+}
+
+static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
+{
+	if (attr == ZZB_ZCL_COLOR_TEMPERATURE) {
+		follow(node, ep, values);
+	}
+}
+
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	struct zzb_zcl_color *v = values;
@@ -411,9 +505,14 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 	remaining(node, ep, v);
 	schedule(node);
 	set_mode(node, ep, default_mode(v));
-	set(node, ep, ZZB_ZCL_COLOR_CURRENT_X, DEFAULT_X);
-	set(node, ep, ZZB_ZCL_COLOR_CURRENT_Y, DEFAULT_Y);
 	set(node, ep, ZZB_ZCL_COLOR_TEMPERATURE, default_temperature(v));
+	if (follows(v)) {
+		follow(node, ep, v);
+	} else {
+		set(node, ep, ZZB_ZCL_COLOR_CURRENT_X, DEFAULT_X);
+		set(node, ep, ZZB_ZCL_COLOR_CURRENT_Y, DEFAULT_Y);
+	}
+
 	set(node, ep, ZZB_ZCL_COLOR_OPTIONS, 0);
 	set(node, ep, ZZB_ZCL_COLOR_START_UP_TEMPERATURE, v->start_up_default);
 }
@@ -422,8 +521,10 @@ const struct zzb_zcl_cluster_def zzb_zcl_color_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
 	.init = init,
+	.start = start,
 	.reset = reset,
 	.cmd = cmd,
+	.changed = changed,
 };
 
 void zzb_zcl_color_init(struct zzb_node *node)
