@@ -10,11 +10,14 @@
 
 void zzb_aps_init(struct zzb_node *node)
 {
+	/* Safe on the zeroed struct of a new node */
+	k_work_cancel_delayable(&node->aps.timer);
 	node->aps = (struct zzb_aps){
 		.aib.tc_addr = ZZB_APS_TC_UNKNOWN,
 		.counter = sys_rand8_get(),
 	};
 	zzb_fc_init(&node->aps.fc, node, "fc/aps");
+	zzb_aps_tx_init(node);
 }
 
 void zzb_aps_reset(struct zzb_node *node)
@@ -88,6 +91,10 @@ void zzb_nlde_data_ind(struct zzb_node *node, struct net_buf *buf, uint16_t dst_
 	struct zzb_aps_hdr hdr;
 	struct zzb_aps_sec sec;
 	int hdr_len = rx_frame(node, buf, src_addr, security_use, &hdr, &sec);
+
+	if (hdr_len >= 0 && hdr.type == ZZB_APS_FRAME_ACK) {
+		zzb_aps_ack_rx(node, &hdr, src_addr);
+	}
 
 	if (hdr_len < 0 || hdr.type != ZZB_APS_FRAME_DATA) {
 		net_buf_unref(buf);

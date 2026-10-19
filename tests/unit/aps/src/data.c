@@ -461,6 +461,184 @@ ZTEST(zzb_aps_data, test_ack_error_drops_the_ack)
 	zassert_equal(zzb_nlde_data_req_fake.call_count, 1);
 }
 
+static const struct zzb_apsde_req acked_req = {
+	.dst_mode = ZZB_APS_ADDR_SHORT,
+	.dst_addr = 0x0000,
+	.dst_ep = 0x02,
+	.profile = 0x0104,
+	.cluster = 0x0006,
+	.src_ep = 0x01,
+	.tx_options = ZZB_APS_TX_ACK,
+};
+
+/* The ACK of the trust center for counter */
+static void receive_ack(uint8_t counter)
+{
+	const uint8_t frame[] = {0x02, 0x01, 0x06, 0x00, 0x04, 0x01, 0x02, counter};
+
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+}
+
+static uint8_t sent_counter(int i)
+{
+	struct zzb_aps_hdr hdr;
+
+	zassert_true(zzb_aps_hdr_parse(sent[i].data, sent[i].len, &hdr) > 0);
+	return hdr.counter;
+}
+
+ZTEST(zzb_aps_data, test_acknowledged_transmission)
+{
+	struct zzb_aps_hdr hdr;
+
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &acked_req));
+	check_sent_hdr(0, &hdr);
+	zassert_equal(hdr.flags, ZZB_APS_ACK_REQ);
+
+	zzb_nlde_data_conf(node, sent[0].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 0);
+
+	receive_ack(hdr.counter);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+	zassert_equal(zzb_apsde_data_conf_fake.arg1_val, HANDLE);
+	zassert_equal(zzb_apsde_data_conf_fake.arg2_val, ZZB_APS_STATUS_SUCCESS);
+
+	/* The ACK wait ends without a retransmission */
+	k_sleep(K_MSEC(2000));
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 1);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+}
+
+/* The ACK is accepted before NLDE-DATA.confirm; the entry waits for that confirm */
+ZTEST(zzb_aps_data, test_ack_before_the_confirm)
+{
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &acked_req));
+	receive_ack(sent_counter(0));
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+	zassert_equal(zzb_apsde_data_conf_fake.arg2_val, ZZB_APS_STATUS_SUCCESS);
+
+	zzb_nlde_data_conf(node, sent[0].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &on_off_req));
+	zassert_equal(sent[1].meta.handle, sent[0].meta.handle);
+}
+
+/* R22 2.2.8.4.4: the same APS counter, a higher frame counter */
+ZTEST(zzb_aps_data, test_retransmission_with_a_new_frame_counter)
+{
+	struct zzb_apsde_req req = acked_req;
+	struct zzb_sec_aux_hdr aux[2];
+
+	zassert_ok(zzb_apsme_set_tc_addr(node, TC_EUI64));
+	req.tx_options |= ZZB_APS_TX_SECURITY;
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &req));
+	zzb_nlde_data_conf(node, sent[0].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+
+	k_sleep(K_MSEC(1550));
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 1);
+	k_sleep(K_MSEC(100));
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 2);
+	zassert_equal(sent[1].meta.handle, sent[0].meta.handle);
+	zassert_equal(sent_counter(1), sent_counter(0));
+
+	ARRAY_FOR_EACH(aux, i) {
+		zassert_equal(zzb_sec_aux_hdr_parse(sent[i].data + 8, sent[i].len - 8, &aux[i]), 5);
+	}
+	zassert_true(aux[1].frame_counter > aux[0].frame_counter);
+
+	zzb_nlde_data_conf(node, sent[1].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	receive_ack(sent_counter(1));
+	zassert_equal(zzb_apsde_data_conf_fake.arg2_val, ZZB_APS_STATUS_SUCCESS);
+}
+
+ZTEST(zzb_aps_data, test_no_ack_after_the_retries)
+{
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &acked_req));
+	for (int i = 0; i <= 3; i++) {
+		zassert_equal(zzb_nlde_data_req_fake.call_count, i + 1);
+		zzb_nlde_data_conf(node, sent[i].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+		k_sleep(K_MSEC(1650));
+	}
+
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 4);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+	zassert_equal(zzb_apsde_data_conf_fake.arg1_val, HANDLE);
+	zassert_equal(zzb_apsde_data_conf_fake.arg2_val, ZZB_APS_STATUS_NO_ACK);
+}
+
+/* R22 2.2.4.1.1: the status of a failed NLDE-DATA.confirm comes before NO_ACK */
+ZTEST(zzb_aps_data, test_failed_confirm_retries_at_once)
+{
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &acked_req));
+	zzb_nlde_data_conf(node, sent[0].meta.handle, ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 2);
+
+	for (int i = 1; i <= 3; i++) {
+		zzb_nlde_data_conf(node, sent[i].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+		k_sleep(K_MSEC(1650));
+	}
+
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+	zassert_equal(zzb_apsde_data_conf_fake.arg2_val, ZZB_MAC_STATUS_NO_ACK);
+}
+
+static int nlde_data_req_busy(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr,
+			      uint8_t radius, bool secure)
+{
+	return -EBUSY;
+}
+
+/* A copy that cannot be sent counts as an attempt; the next one follows the ACK wait */
+ZTEST(zzb_aps_data, test_send_error_retries_after_the_wait)
+{
+	int (*take)(struct zzb_node *, struct net_buf *, uint16_t, uint8_t, bool) =
+		zzb_nlde_data_req_fake.custom_fake;
+
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &acked_req));
+	zzb_nlde_data_req_fake.custom_fake = nlde_data_req_busy;
+	zzb_nlde_data_conf(node, sent[0].meta.handle, ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE);
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 2);
+
+	zzb_nlde_data_req_fake.custom_fake = take;
+	k_sleep(K_MSEC(1550));
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 2);
+	k_sleep(K_MSEC(100));
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 3);
+
+	/* The fake copies the frame of call n to sent[n - 1] */
+	zzb_nlde_data_conf(node, sent[2].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	receive_ack(sent_counter(2));
+	zassert_equal(zzb_apsde_data_conf_fake.arg2_val, ZZB_APS_STATUS_SUCCESS);
+}
+
+/* R22 2.2.8.4.4: counter, cluster, source endpoint and source must match */
+ZTEST(zzb_aps_data, test_unmatched_acks)
+{
+	uint8_t counter;
+	uint8_t frame[] = {0x02, 0x01, 0x06, 0x00, 0x04, 0x01, 0x02, 0x00};
+	struct net_buf *buf;
+
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &acked_req));
+	zzb_nlde_data_conf(node, sent[0].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	counter = sent_counter(0);
+
+	receive_ack(counter + 1);
+	frame[7] = counter;
+	frame[2] = 0x08;
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	frame[2] = 0x06;
+	frame[6] = 0x03;
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	frame[6] = 0x02;
+	buf = zzb_buf_alloc(K_NO_WAIT);
+	net_buf_add_mem(buf, frame, sizeof(frame));
+	zzb_nlde_data_ind(node, buf, CHILD_ADDR, 0x2222, true);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 0);
+
+	receive_ack(counter);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+}
+
 ZTEST(zzb_aps_data, test_dropped_frames)
 {
 	static const uint8_t data[] = {0x00, 0x01, 0x06, 0x00, 0x04, 0x01, 0x02, 0x57, 0x01};

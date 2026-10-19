@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <zephyr/kernel.h>
 #include <zephyr/net_buf.h>
 #include <zephyr/settings/settings.h>
 
@@ -96,6 +97,26 @@ struct zzb_aps_tx {
 	bool in_use;
 	/* ASDU handle of the request */
 	uint8_t handle;
+	/* The confirm was issued; the entry waits for NLDE-DATA.confirm */
+	bool done;
+	bool nlde_pending;
+	/* Plaintext of an acknowledged frame, NULL for an unacknowledged one */
+	struct net_buf *frame;
+	uint8_t hdr_len;
+	/* Key of the APS security of the frame, NULL without */
+	struct zzb_aps_key_pair *pair;
+	bool ext_nonce;
+	/* What the ACK must match (R22 2.2.8.4.4) */
+	uint16_t dst;
+	uint16_t cluster;
+	uint8_t dst_ep;
+	uint8_t counter;
+	uint8_t radius;
+	uint8_t retries;
+	/* Status of the last failed NLDE-DATA.confirm, NO_ACK while none failed */
+	uint8_t status;
+	/* k_uptime_get() at the end of the ACK wait, 0 without a wait */
+	int64_t deadline;
 };
 
 /* Entry of the duplicate rejection table; free once it has expired */
@@ -143,6 +164,8 @@ struct zzb_aps {
 	/* APS counter of the next frame */
 	uint8_t counter;
 	struct zzb_aps_tx tx[CONFIG_ZZB_APS_TX_COUNT];
+	/* Ends the ACK waits */
+	struct k_work_delayable timer;
 	struct zzb_aps_dup dups[CONFIG_ZZB_APS_DUP_COUNT];
 	/* Outgoing APS frame counter, kept by zzb_aps_reset() */
 	struct zzb_fc fc;
@@ -178,8 +201,8 @@ struct zzb_aps_key_pair *zzb_aps_key_pair_find(struct zzb_node *node, uint64_t a
 
 /*
  * APSDE-DATA.request. buf holds the ASDU after the headroom of its headers, at most
- * ZZB_APSDE_HEADROOM, and its metadata the ASDU handle. Returns -ENOTSUP for binding, an
- * acknowledged transmission or fragmentation, -EINVAL for an acknowledged broadcast or group
+ * ZZB_APSDE_HEADROOM, and its metadata the ASDU handle. Returns -ENOTSUP for binding or
+ * fragmentation, -EINVAL for an acknowledged broadcast or group
  * frame, -ENOENT for an IEEE address without a network address or APS security without a
  * provisional or verified key, -ENOBUFS when the transmission table is full, -EMSGSIZE without
  * the headroom, or an error of NLDE-DATA.request.
@@ -218,6 +241,11 @@ struct net_buf *zzb_aps_ack_build(struct zzb_node *node, const struct zzb_aps_hd
 
 /* Sends a frame APS built on its own to dst with NWK security; an error drops it */
 void zzb_aps_send_own(struct zzb_node *node, struct net_buf *buf, uint16_t dst);
+
+void zzb_aps_tx_init(struct zzb_node *node);
+
+/* Ends the transmission that a received ACK with hdr from src_addr acknowledges */
+void zzb_aps_ack_rx(struct zzb_node *node, const struct zzb_aps_hdr *hdr, uint16_t src_addr);
 
 /*
  * Secures a frame in place (R22 4.4.1.1). buf holds the APS header of hdr_len bytes with
