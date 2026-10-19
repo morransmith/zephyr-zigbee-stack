@@ -97,11 +97,16 @@ struct zzb_aps_tx {
 	bool in_use;
 	/* ASDU handle of the request */
 	uint8_t handle;
+	/* Index of the first entry of the request; a request to bound destinations takes several */
+	uint8_t first;
+	/* The destination has its final status; the entry waits for the rest of the request */
+	bool ended;
 	/* The confirm was issued; the entry waits for NLDE-DATA.confirm */
 	bool done;
 	bool nlde_pending;
-	/* Plaintext of an acknowledged frame, NULL for an unacknowledged one */
+	/* Plaintext copied for every attempt; NULL for an unacknowledged frame sent as it is */
 	struct net_buf *frame;
+	bool ack;
 	uint8_t hdr_len;
 	/* Key of the APS security of the frame, NULL without */
 	struct zzb_aps_key_pair *pair;
@@ -113,7 +118,10 @@ struct zzb_aps_tx {
 	uint8_t counter;
 	uint8_t radius;
 	uint8_t retries;
-	/* Status of the last failed NLDE-DATA.confirm, NO_ACK while none failed */
+	/*
+	 * Status of the last failed NLDE-DATA.confirm, NO_ACK while none failed; the final status
+	 * once ended
+	 */
 	uint8_t status;
 	/* k_uptime_get() at the end of the ACK wait, 0 without a wait */
 	int64_t deadline;
@@ -240,11 +248,12 @@ int zzb_apsme_verify_key_req(struct zzb_node *node, uint64_t dst_addr, enum zzb_
 
 /*
  * APSDE-DATA.request. buf holds the ASDU after the headroom of its headers, at most
- * ZZB_APSDE_HEADROOM, and its metadata the ASDU handle. Returns -ENOTSUP for binding or
- * fragmentation, -EINVAL for an acknowledged broadcast or group
- * frame, -ENOENT for an IEEE address without a network address or APS security without a
- * provisional or verified key, -ENOBUFS when the transmission table is full, -EMSGSIZE without
- * the headroom, or an error of NLDE-DATA.request.
+ * ZZB_APSDE_HEADROOM, and its metadata the ASDU handle. Binding sends a frame to every bound
+ * destination that resolves, and one confirm follows. Returns -ENOTSUP for fragmentation or
+ * binding with APS security, -EINVAL for an acknowledged broadcast or group frame, -ENOENT for an
+ * IEEE address without a network address, binding without such a destination, or APS security
+ * without a provisional or verified key, -ENOBUFS when the transmission table or the buffers do
+ * not suffice, -EMSGSIZE without the headroom, or an error of NLDE-DATA.request.
  */
 int zzb_apsde_data_req(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_req *req);
 

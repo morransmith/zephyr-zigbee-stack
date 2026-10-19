@@ -188,10 +188,6 @@ ZTEST(zzb_aps_data, test_rejected_requests)
 	struct zzb_apsde_req req = on_off_req;
 	struct net_buf *buf = asdu_buf();
 
-	req.dst_mode = ZZB_APS_ADDR_BINDING;
-	zassert_equal(zzb_apsde_data_req(node, buf, &req), -ENOTSUP);
-
-	req = on_off_req;
 	req.tx_options = ZZB_APS_TX_FRAGMENT;
 	zassert_equal(zzb_apsde_data_req(node, buf, &req), -ENOTSUP);
 
@@ -637,6 +633,119 @@ ZTEST(zzb_aps_data, test_unmatched_acks)
 
 	receive_ack(counter);
 	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+}
+
+static const struct zzb_apsde_req bound_req = {
+	.dst_mode = ZZB_APS_ADDR_BINDING,
+	.profile = 0x0104,
+	.cluster = 0x0006,
+	.src_ep = 0x01,
+	.tx_options = ZZB_APS_TX_ACK,
+};
+
+static void bind(enum zzb_aps_addr_mode mode, uint16_t group, uint64_t ext)
+{
+	const struct zzb_aps_binding binding = {
+		.src_ep = 0x01,
+		.cluster = 0x0006,
+		.dst_mode = mode,
+		.dst_addr = group,
+		.dst_ext = ext,
+		.dst_ep = 0x02,
+	};
+
+	zassert_ok(zzb_apsme_bind_req(node, &binding));
+}
+
+static void check_tx_free(void)
+{
+	ARRAY_FOR_EACH_PTR(node->aps.tx, tx) {
+		zassert_false(tx->in_use);
+	}
+}
+
+/* R22 2.2.4.1.1: a frame per bound destination, one confirm */
+ZTEST(zzb_aps_data, test_bound_destinations)
+{
+	struct zzb_aps_hdr hdr[2];
+
+	zassert_ok(zzb_apsme_set_tc_addr(node, TC_EUI64));
+	bind(ZZB_APS_ADDR_GROUP, 0x0002, 0);
+	/* Neither the trust center nor a neighbor */
+	bind(ZZB_APS_ADDR_EXT, 0, 0x00124b0000000099ULL);
+	bind(ZZB_APS_ADDR_EXT, 0, TC_EUI64);
+
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &bound_req));
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 2);
+
+	check_sent_hdr(0, &hdr[0]);
+	zassert_equal(zzb_nlde_data_req_fake.arg2_history[0], 0xfffd);
+	zassert_equal(hdr[0].delivery, ZZB_APS_DELIVERY_GROUP);
+	zassert_equal(hdr[0].group, 0x0002);
+	zassert_equal(hdr[0].flags, 0);
+
+	check_sent_hdr(1, &hdr[1]);
+	zassert_equal(zzb_nlde_data_req_fake.arg2_history[1], 0x0000);
+	zassert_equal(hdr[1].delivery, ZZB_APS_DELIVERY_UNICAST);
+	zassert_equal(hdr[1].dst_ep, 0x02);
+	zassert_equal(hdr[1].flags, ZZB_APS_ACK_REQ);
+	/* A device bound twice would drop a second frame with the same counter (R22 2.2.8.4.2) */
+	zassert_not_equal(hdr[0].counter, hdr[1].counter);
+
+	zzb_nlde_data_conf(node, sent[0].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	zzb_nlde_data_conf(node, sent[1].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 0);
+
+	receive_ack(hdr[1].counter);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+	zassert_equal(zzb_apsde_data_conf_fake.arg1_val, HANDLE);
+	zassert_equal(zzb_apsde_data_conf_fake.arg2_val, ZZB_APS_STATUS_SUCCESS);
+	check_tx_free();
+}
+
+/* The confirm carries the status of the first failed destination in binding order */
+ZTEST(zzb_aps_data, test_bound_confirm_status)
+{
+	bind(ZZB_APS_ADDR_GROUP, 0x0002, 0);
+	bind(ZZB_APS_ADDR_GROUP, 0x0003, 0);
+
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &bound_req));
+	zzb_nlde_data_conf(node, sent[1].meta.handle, ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 0);
+
+	zzb_nlde_data_conf(node, sent[0].meta.handle, ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE);
+	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
+	zassert_equal(zzb_apsde_data_conf_fake.arg2_val, ZZB_MAC_STATUS_CHANNEL_ACCESS_FAILURE);
+	check_tx_free();
+}
+
+ZTEST(zzb_aps_data, test_bound_rejected_requests)
+{
+	struct zzb_apsde_req req = bound_req;
+	struct net_buf *buf = asdu_buf();
+
+	/* R22 NO_BOUND_DEVICE */
+	zassert_equal(zzb_apsde_data_req(node, buf, &req), -ENOENT);
+
+	for (int i = 0; i <= CONFIG_ZZB_APS_TX_COUNT; i++) {
+		bind(ZZB_APS_ADDR_GROUP, i, 0);
+	}
+	zassert_equal(zzb_apsde_data_req(node, buf, &req), -ENOBUFS);
+
+	req.tx_options |= ZZB_APS_TX_SECURITY;
+	zassert_equal(zzb_apsde_data_req(node, buf, &req), -ENOTSUP);
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 0);
+
+	/* An error of the first destination is returned, and nothing is sent */
+	zzb_aps_reset(node);
+	bind(ZZB_APS_ADDR_GROUP, 0x0002, 0);
+	bind(ZZB_APS_ADDR_GROUP, 0x0003, 0);
+	zzb_nlde_data_req_fake.custom_fake = NULL;
+	zzb_nlde_data_req_fake.return_val = -ENOTCONN;
+	zassert_equal(zzb_apsde_data_req(node, buf, &bound_req), -ENOTCONN);
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 1);
+	net_buf_unref(buf);
+	check_tx_free();
 }
 
 ZTEST(zzb_aps_data, test_dropped_frames)
