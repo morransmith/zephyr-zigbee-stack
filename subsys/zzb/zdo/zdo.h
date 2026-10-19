@@ -13,9 +13,17 @@ struct zzb_node;
 /* The cluster of a response is the cluster of its request with bit 15 set (R22 2.4.4.1) */
 #define ZZB_ZDP_RSP BIT(15)
 
+/* ZDP clusters (R22 Tables 2-44, 2-68, 2-80) */
+enum zzb_zdp_cluster {
+	ZZB_ZDP_NWK_ADDR_REQ = 0x0000,
+	ZZB_ZDP_IEEE_ADDR_REQ = 0x0001,
+};
+
 /* ZDP status values (R22 Table 2-145) */
 enum zzb_zdp_status {
 	ZZB_ZDP_SUCCESS = 0x00,
+	ZZB_ZDP_INV_REQUESTTYPE = 0x80,
+	ZZB_ZDP_DEVICE_NOT_FOUND = 0x81,
 	ZZB_ZDP_NOT_SUPPORTED = 0x84,
 };
 
