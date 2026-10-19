@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
-#include <string.h>
 #include <zephyr/net_buf.h>
 #include <zephyr/random/random.h>
 
@@ -241,6 +240,9 @@ void zzb_zcl_init(struct zzb_node *node)
 
 void zzb_zcl_start(struct zzb_node *node)
 {
+	/* Before the start hooks, so that a change of StartUpOnOff is reported */
+	zzb_zcl_report_start(node);
+
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];
 
@@ -268,8 +270,7 @@ void zzb_zcl_reset(struct zzb_node *node)
 		}
 	}
 
-	/* The reset hooks may have armed the timer */
-	memset(node->zcl.reports, 0, sizeof(node->zcl.reports));
-	k_work_cancel_delayable(&node->zcl.report_timer);
+	/* After the reset hooks, which may have armed the reporting timer */
+	zzb_zcl_report_reset(node);
 	zzb_zcl_attr_delete(node);
 }

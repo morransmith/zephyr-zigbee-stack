@@ -5,9 +5,11 @@
 #include <string.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/printk.h>
 
 #include "common/node.h"
 #include "common/queue.h"
+#include "storage/settings.h"
 #include "zcl/zcl.h"
 
 /* Direction of an attribute reporting configuration record (ZCL 2.5.7.1.2) */
@@ -27,6 +29,11 @@
 
 /* A report that APSDE-DATA refuses off a network or during a rejoin is sent again after this */
 #define RETRY_MS 5000
+
+#define RECORD_VERSION 1
+#define RECORD_LEN     12
+/* Room for zcl/rep/<i> with any int i */
+#define NAME_LEN       20
 
 /* An attribute reporting configuration record (ZCL 2.5.7.1) */
 struct config_record {
@@ -169,6 +176,35 @@ static void schedule(struct zzb_node *node)
 				    K_MSEC(MAX(next - k_uptime_get(), 0)));
 }
 
+static void record_name(char name[NAME_LEN], int index)
+{
+	snprintk(name, NAME_LEN, "zcl/rep/%d", index);
+}
+
+/* A failed save is ignored; the next configuration writes the record again */
+static void save(struct zzb_node *node, const struct zzb_zcl_report *r)
+{
+	uint8_t rec[RECORD_LEN] = {RECORD_VERSION, r->ep};
+	char name[NAME_LEN];
+
+	sys_put_le16(r->cluster, rec + 2);
+	sys_put_le16(r->attr, rec + 4);
+	sys_put_le16(r->min, rec + 6);
+	sys_put_le16(r->max, rec + 8);
+	sys_put_le16(r->change, rec + 10);
+	record_name(name, r - node->zcl.reports);
+	zzb_settings_save(node, name, rec, sizeof(rec));
+}
+
+static void remove_entry(struct zzb_node *node, struct zzb_zcl_report *r)
+{
+	char name[NAME_LEN];
+
+	r->in_use = false;
+	record_name(name, r - node->zcl.reports);
+	zzb_settings_delete(node, name);
+}
+
 static struct zzb_zcl_report *free_entry(struct zzb_node *node)
 {
 	ARRAY_FOR_EACH_PTR(node->zcl.reports, r) {
@@ -189,7 +225,7 @@ static uint8_t configure(struct zzb_node *node, const struct zzb_zcl_req *req,
 	/* ZCL 2.5.7.1.6; the stack has no default configuration to revert to */
 	if (r->max == 0xffff || (r->max == 0 && r->min == 0xffff)) {
 		if (entry != NULL) {
-			entry->in_use = false;
+			remove_entry(node, entry);
 			schedule(node);
 		}
 
@@ -216,6 +252,7 @@ static uint8_t configure(struct zzb_node *node, const struct zzb_zcl_req *req,
 		.last = zzb_zcl_attr_value(req->cluster, zzb_zcl_attr_find(req->cluster, r->id)),
 		.sent = k_uptime_get(),
 	};
+	save(node, entry);
 	schedule(node);
 	return ZZB_ZCL_SUCCESS;
 }
@@ -428,4 +465,76 @@ static void tick(struct k_work *work)
 void zzb_zcl_report_init(struct zzb_node *node)
 {
 	k_work_init_delayable(&node->zcl.report_timer, tick);
+}
+
+/* The attribute of r, when the device definition has it as a reportable attribute of a server */
+static const struct zzb_zcl_attr *attr_of(struct zzb_node *node, const struct zzb_zcl_report *r,
+					  const struct zzb_zcl_cluster **cl)
+{
+	const struct zzb_endpoint *ep = zzb_node_endpoint(node, r->ep);
+	const struct zzb_zcl_attr *attr;
+
+	*cl = ep != NULL ? zzb_zcl_find_cluster(ep, r->cluster, true) : NULL;
+	attr = *cl != NULL ? zzb_zcl_attr_find(*cl, r->attr) : NULL;
+	return reportable(attr, DIRECTION_SENT) == ZZB_ZCL_SUCCESS ? attr : NULL;
+}
+
+int zzb_zcl_report_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			void *cb_arg)
+{
+	struct zzb_zcl_report r;
+	const struct zzb_zcl_cluster *cl;
+	uint8_t rec[RECORD_LEN];
+	int err;
+
+	if (index < 0 || index >= ARRAY_SIZE(node->zcl.reports)) {
+		return 0;
+	}
+
+	err = zzb_settings_read(len, read_cb, cb_arg, rec, sizeof(rec));
+	if (err) {
+		return err;
+	}
+
+	r = (struct zzb_zcl_report){
+		.in_use = true,
+		.ep = rec[1],
+		.cluster = sys_get_le16(rec + 2),
+		.attr = sys_get_le16(rec + 4),
+		.min = sys_get_le16(rec + 6),
+		.max = sys_get_le16(rec + 8),
+		.change = sys_get_le16(rec + 10),
+	};
+	if (attr_of(node, &r, &cl) != NULL) {
+		node->zcl.reports[index] = r;
+	}
+
+	return 0;
+}
+
+void zzb_zcl_report_start(struct zzb_node *node)
+{
+	const struct zzb_zcl_cluster *cl;
+	int64_t now = k_uptime_get();
+
+	ARRAY_FOR_EACH_PTR(node->zcl.reports, r) {
+		if (r->in_use) {
+			r->last = zzb_zcl_attr_value(cl, attr_of(node, r, &cl));
+			r->sent = now;
+		}
+	}
+
+	schedule(node);
+}
+
+void zzb_zcl_report_reset(struct zzb_node *node)
+{
+	char name[NAME_LEN];
+
+	memset(node->zcl.reports, 0, sizeof(node->zcl.reports));
+	k_work_cancel_delayable(&node->zcl.report_timer);
+	for (int i = 0; i < ARRAY_SIZE(node->zcl.reports); i++) {
+		record_name(name, i);
+		zzb_settings_delete(node, name);
+	}
 }

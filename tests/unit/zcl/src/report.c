@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <zephyr/settings/settings.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
+#include <zzb/zcl/on_off.h>
 
 #include "common/node.h"
 #include "fakes.h"
@@ -358,6 +360,77 @@ ZTEST(zzb_zcl_report, test_reset)
 	receive(TEST_CLUSTER, req, sizeof(req));
 	reset_node();
 	zassert_equal(entries(), 0);
+}
+
+/* ZCL 2.3.5: the configuration survives a reboot, and the reboot sends no report */
+ZTEST(zzb_zcl_report, test_saved_configuration)
+{
+	const struct zzb_zcl_report *r;
+
+	configure(0x0000, ZZB_ZCL_BOOL, 1, 10, 0);
+	configure(0x0002, ZZB_ZCL_UINT16, 0, 300, 16);
+	zassert_ok(reboot());
+	k_sleep(K_MSEC(100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	r = entry(0x0000);
+	zassert_not_null(r);
+	zassert_equal(r->min, 1);
+	zassert_equal(r->max, 10);
+	r = entry(0x0002);
+	zassert_not_null(r);
+	zassert_equal(r->max, 300);
+	zassert_equal(r->change, 16);
+
+	/* A removed configuration stays removed */
+	configure(0x0000, ZZB_ZCL_BOOL, 0, 0xffff, 0);
+	zassert_ok(reboot());
+	zassert_is_null(entry(0x0000));
+	zassert_not_null(entry(0x0002));
+
+	reset_node();
+	zassert_ok(reboot());
+	zassert_equal(entries(), 0);
+}
+
+/* A change of OnOff by StartUpOnOff at boot is reported: ZHA does not read OnOff again */
+ZTEST(zzb_zcl_report, test_start_up_change_is_reported)
+{
+	static const uint8_t req[] = {0x00, 0x61, 0x06, 0x00, 0x00, 0x00,
+				      0x10, 0x00, 0x00, 0x84, 0x03};
+	uint8_t start_up = ZZB_ZCL_START_UP_TOGGLE;
+
+	receive_ep(2, ZZB_ZCL_ON_OFF, req, sizeof(req));
+	zassert_ok(zzb_zcl_attr_set(test_node(), 2, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_START_UP,
+				    &start_up));
+	reset_fakes();
+	zassert_ok(reboot());
+	k_sleep(K_MSEC(10));
+
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(sent[0].req.src_ep, 2);
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_ON_OFF);
+	zassert_mem_equal(sent[0].data + 2, ((uint8_t[]){0x0a, 0x00, 0x00, 0x10, 0x01}), 5);
+}
+
+ZTEST(zzb_zcl_report, test_bad_records)
+{
+	uint8_t rec[12] = {2, 1, 0x00, 0x0f, 0x00, 0x00, 0x01, 0x00, 0x0a, 0x00, 0x00, 0x00};
+
+	zassert_ok(settings_save_one("zzb/0/zcl/rep/0", rec, sizeof(rec)));
+	zassert_equal(reboot(), -EINVAL);
+
+	rec[0] = 1;
+	zassert_ok(settings_save_one("zzb/0/zcl/rep/0", rec, sizeof(rec) - 1));
+	zassert_equal(reboot(), -EINVAL);
+
+	/* A record of an endpoint that the device definition does not have is ignored */
+	rec[1] = 9;
+	zassert_ok(settings_save_one("zzb/0/zcl/rep/0", rec, sizeof(rec)));
+	zassert_ok(reboot());
+	zassert_equal(entries(), 0);
+	zassert_ok(settings_delete("zzb/0/zcl/rep/0"));
 }
 
 ZTEST_SUITE(zzb_zcl_report, NULL, setup, before, after, NULL);

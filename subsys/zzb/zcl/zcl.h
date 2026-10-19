@@ -119,6 +119,19 @@ void zzb_zcl_identify_init(struct zzb_node *node);
 void zzb_zcl_on_off_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
+/*
+ * Loads the record zcl/rep/<index>; -EINVAL for an unknown version or length. A record of an
+ * attribute that the device definition does not have as reportable is ignored.
+ */
+int zzb_zcl_report_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			void *cb_arg);
+
+/* Takes the current values as the values of the last reports after the records are loaded */
+void zzb_zcl_report_start(struct zzb_node *node);
+
+/* Clears the reporting table, stops its timer and deletes the records */
+void zzb_zcl_report_reset(struct zzb_node *node);
+
 /* Marks a report due when the new value of attribute attr of cl on endpoint ep needs one */
 void zzb_zcl_report_check(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 			  uint16_t attr);
