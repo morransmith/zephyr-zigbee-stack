@@ -77,6 +77,12 @@ struct zzb_zcl_power_config {
 	uint8_t battery_percentage_threshold3;
 	/** ZCL Table 3-26. */
 	uint32_t battery_alarm_state;
+	/** Internal: bit n while the condition of mains voltage alarm n lasts. */
+	uint8_t mains_active;
+	/** Internal: bit n once mains voltage alarm n is raised during its condition. */
+	uint8_t mains_raised;
+	/** Internal: k_uptime_get() at the start of the condition of mains voltage alarm n. */
+	int64_t mains_since[2];
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_power_config_def;

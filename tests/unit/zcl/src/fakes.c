@@ -6,6 +6,7 @@
 #include <zephyr/ztest.h>
 #include <zzb/zzb.h>
 
+#include "common/node.h"
 #include "common/queue.h"
 #include "fakes.h"
 #include "storage/settings.h"
@@ -49,6 +50,7 @@ struct zzb_zcl_power_config power_config = {
 struct zzb_zcl_device_temp device_temp = {
 	.current_temperature = INT16_MIN,
 };
+struct zzb_zcl_alarms alarms30;
 struct zzb_zcl_ballast ballast = {
 	.physical_min_level = PHYSICAL_MIN,
 	.physical_max_level = PHYSICAL_MAX,
@@ -325,6 +327,7 @@ static const struct zzb_zcl_cluster ep21_clusters[] = {
 static const struct zzb_zcl_cluster ep30_clusters[] = {
 	ZZB_ZCL_POWER_CONFIG_SERVER(&power_config),
 	ZZB_ZCL_DEVICE_TEMP_SERVER(&device_temp),
+	ZZB_ZCL_ALARMS_SERVER(&alarms30),
 	ZZB_ZCL_BALLAST_SERVER(&ballast),
 	ZZB_ZCL_ILLUMINANCE_SERVER(&illuminance),
 	ZZB_ZCL_ILLUMINANCE_LEVEL_SERVER(&illuminance_level),
@@ -514,6 +517,45 @@ void check_zcl_cb(uint8_t ep, uint16_t cluster, const uint16_t *attrs, int count
 	}
 
 	zassert_equal(n, count);
+}
+
+void check_alarm(int i, uint8_t ep, uint16_t cluster, uint8_t code)
+{
+	const struct frame_copy *copy = &sent[i];
+	const uint8_t payload[] = {ZZB_ZCL_ALARMS_ALARM, code, cluster & 0xff, cluster >> 8};
+
+	zassert_true(zzb_apsde_data_req_fake.call_count > i);
+	zassert_equal(copy->req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(copy->req.src_ep, ep);
+	zassert_equal(copy->req.cluster, ZZB_ZCL_ALARMS);
+	zassert_equal(copy->len, 2 + sizeof(payload));
+	zassert_equal(copy->data[0], 0x19);
+	zassert_mem_equal(copy->data + 2, payload, sizeof(payload));
+}
+
+int alarm_entries(uint8_t ep, uint16_t cluster, uint8_t code)
+{
+	int n = 0;
+
+	ARRAY_FOR_EACH_PTR(test_node()->zcl.alarms, a) {
+		n += a->in_use && a->ep == ep && a->cluster == cluster && a->code == code;
+	}
+
+	return n;
+}
+
+void reset_alarm(uint8_t ep, uint16_t cluster, uint8_t code)
+{
+	const uint8_t req[] = {0x11, 0x70, 0x00, code, cluster & 0xff, cluster >> 8};
+
+	receive_ep(ep, ZZB_ZCL_ALARMS, req, sizeof(req));
+}
+
+void reset_all_alarms(uint8_t ep)
+{
+	const uint8_t req[] = {0x11, 0x71, 0x01};
+
+	receive_ep(ep, ZZB_ZCL_ALARMS, req, sizeof(req));
 }
 
 struct reboot_call {

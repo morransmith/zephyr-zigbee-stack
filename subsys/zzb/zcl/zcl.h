@@ -77,6 +77,8 @@ struct zzb_zcl {
 	uint8_t tsn;
 	struct zzb_zcl_scene scenes[CONFIG_ZZB_ZCL_SCENE_COUNT];
 	struct zzb_zcl_alarm alarms[CONFIG_ZZB_ZCL_ALARM_COUNT];
+	/* Raises the mains voltage alarms when their dwell has passed */
+	struct k_work_delayable mains_alarm_timer;
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -164,6 +166,7 @@ void zzb_zcl_identify_init(struct zzb_node *node);
  */
 int zzb_zcl_identify(struct zzb_node *node, uint8_t ep, uint16_t time);
 void zzb_zcl_on_off_init(struct zzb_node *node);
+void zzb_zcl_power_config_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*
