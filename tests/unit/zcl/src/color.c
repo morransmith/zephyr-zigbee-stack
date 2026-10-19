@@ -4,6 +4,7 @@
 #include <zephyr/ztest.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/scenes.h>
 
 #include "common/node.h"
 #include "fakes.h"
@@ -494,6 +495,73 @@ ZTEST(zzb_zcl_color, test_execute_if_off)
 	set_on_off(40, true);
 	move_to_temperature(40, 400, 0);
 	zassert_equal(color40.color_temperature, 400);
+}
+
+/*
+ * ZCL 5.2.2.5: Store Scene of the Extended Color Light keeps the sets of On/Off, Level Control and
+ * Color Control in 24 bytes; the attributes of hue, saturation and color loop are 0
+ */
+ZTEST(zzb_zcl_color, test_scene_store)
+{
+	static const uint8_t view_rsp[] = {0x19, 0x90, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+					   0x00, 0x06, 0x00, 0x01, 0x01, 0x08, 0x00, 0x01, 0xfe,
+					   0x00, 0x03, 0x0d, 0x00, 0x20, 0x00, 0x30, 0x00, 0x00,
+					   0x00, 0x00, 0x00, 0x00, 0x00, 0xfa, 0x00};
+
+	move_to_color(40, 0x2000, 0x3000, 0);
+	zassert_equal(zzb_zcl_scene_store(test_node(), 40, 0x0000, 1), ZZB_ZCL_SUCCESS);
+	receive_ep(40, ZZB_ZCL_SCENES, (uint8_t[]){0x01, 0x90, 0x01, 0x00, 0x00, 0x01}, 6);
+	check_frame(0, 40, ZZB_ZCL_SCENES, view_rsp, sizeof(view_rsp));
+}
+
+/* Section 16: a recalled scene moves X and Y in XY mode over its transition time */
+ZTEST(zzb_zcl_color, test_scene_recall_xy)
+{
+	move_to_color(40, 0x2000, 0x3000, 0);
+	zassert_equal(zzb_zcl_scene_store(test_node(), 40, 0x0000, 1), ZZB_ZCL_SUCCESS);
+
+	/* The transition of a command sets SceneValid FALSE once, at its start */
+	reset_fakes();
+	move_to_color(40, 0x4000, 0x1000, 5);
+	zassert_false(scenes40.scene_valid);
+	k_sleep(K_MSEC(600));
+	zassert_equal(color40.current_x, 0x4000);
+	zassert_equal(notified(40, ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_SCENE_VALID), 1);
+
+	/* The transition of a recall leaves it TRUE */
+	reset_fakes();
+	send(40, ZZB_ZCL_SCENES, 0x05, (uint8_t[]){0x00, 0x00, 0x01, 0x05, 0x00}, 5);
+	zassert_true(scenes40.scene_valid);
+	zassert_equal(color40.remaining_time, 5);
+	k_sleep(K_MSEC(600));
+	zassert_equal(color40.current_x, 0x2000);
+	zassert_equal(color40.current_y, 0x3000);
+	zassert_true(scenes40.scene_valid);
+	zassert_equal(notified(40, ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_SCENE_VALID), 1);
+
+	/* The color temperature is stored as XY, and the recall sets XY mode */
+	move_to_temperature(40, 370, 0);
+	zassert_equal(zzb_zcl_scene_store(test_node(), 40, 0x0000, 2), ZZB_ZCL_SUCCESS);
+	move_to_temperature(40, 500, 0);
+	zassert_equal(zzb_zcl_scene_recall(test_node(), 40, 0x0000, 2, 0), ZZB_ZCL_SUCCESS);
+	zassert_equal(color40.color_mode, ZZB_ZCL_COLOR_MODE_XY);
+	zassert_equal(color40.current_x, 0x7587);
+	zassert_equal(color40.current_y, 0x691e);
+}
+
+/* Section 16: without the XY capability a recall moves the color temperature in its range */
+ZTEST(zzb_zcl_color, test_scene_recall_temperature)
+{
+	const uint32_t set[] = {0x2000, 0x3000, 0, 0, 0, 0, 0, 600};
+
+	zzb_zcl_color_def.recall(test_node(), 41, &color41, set, 2, 0);
+	zassert_equal(color41.color_temperature, 0x00fa);
+
+	zzb_zcl_color_def.recall(test_node(), 41, &color41, set, ARRAY_SIZE(set), 5);
+	zassert_equal(color41.remaining_time, 5);
+	k_sleep(K_MSEC(600));
+	zassert_equal(color41.color_temperature, COLOR_TEMP_MAX);
+	zassert_equal(color41.current_x, 0x616b);
 }
 
 /* ZCL 5.2.2.2.1.18: commands of a capability that the light lacks or the stack does not have */

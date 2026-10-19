@@ -32,6 +32,13 @@
 /* Bits of Options (ZCL Table 5.6) */
 #define EXECUTE_IF_OFF BIT(0)
 
+/* Attributes of the scene extension field set that the server does not have (ZCL Table 5.3) */
+#define CURRENT_SATURATION   0x0001
+#define ENHANCED_CURRENT_HUE 0x4000
+#define COLOR_LOOP_ACTIVE    0x4002
+#define COLOR_LOOP_DIRECTION 0x4003
+#define COLOR_LOOP_TIME      0x4004
+
 /* The WhitePoint and ColorPoint attributes are not implemented */
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_COLOR_REMAINING_TIME, ZZB_ZCL_UINT16, 0, struct zzb_zcl_color,
@@ -97,6 +104,14 @@ static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_COLOR_START_UP_TEMPERATURE, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE | ZZB_ZCL_NV,
 		     struct zzb_zcl_color, start_up_color_temperature),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+/* ZCL 5.2.2.5, in this order; the attributes that the server does not have are stored as 0 */
+static const struct zzb_zcl_scene_attr scene_attrs[] = {
+	{ZZB_ZCL_COLOR_CURRENT_X, ZZB_ZCL_UINT16}, {ZZB_ZCL_COLOR_CURRENT_Y, ZZB_ZCL_UINT16},
+	{ENHANCED_CURRENT_HUE, ZZB_ZCL_UINT16},    {CURRENT_SATURATION, ZZB_ZCL_UINT8},
+	{COLOR_LOOP_ACTIVE, ZZB_ZCL_UINT8},        {COLOR_LOOP_DIRECTION, ZZB_ZCL_UINT8},
+	{COLOR_LOOP_TIME, ZZB_ZCL_UINT16},         {ZZB_ZCL_COLOR_TEMPERATURE, ZZB_ZCL_UINT16},
 };
 
 /*
@@ -468,10 +483,22 @@ static bool executes(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	return on_off == NULL || on_off->on_off || (options & EXECUTE_IF_OFF);
 }
 
+/* The steps of a transition do not change SceneValid, so a command sets it FALSE at the start */
+static void invalidate(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_transition *t)
+{
+	for (int i = 0; i < t->count; i++) {
+		if (t->from[i] != t->to[i]) {
+			zzb_zcl_scenes_invalidate(node, ep, true);
+			return;
+		}
+	}
+}
+
 /* A command of a capability that the light lacks is unsupported (ZCL 5.2.2.2.1.18) */
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
 	struct zzb_zcl_color *v = values;
+	int status;
 
 	ARRAY_FOR_EACH(commands, i) {
 		if (commands[i].id != cmd->id ||
@@ -487,7 +514,13 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 			return ZZB_ZCL_SUCCESS;
 		}
 
-		return commands[i].fn(node, cmd, v);
+		/* A command that succeeds replaces or stops the transition */
+		status = commands[i].fn(node, cmd, v);
+		if (status == ZZB_ZCL_SUCCESS) {
+			invalidate(node, cmd->ep, &v->transition);
+		}
+
+		return status;
 	}
 
 	return ZZB_ZCL_UNSUP_COMMAND;
@@ -519,6 +552,33 @@ static void init(void *values)
 	v->options = 0;
 	v->start_up_color_temperature = v->start_up_default;
 	v->transition.count = 0;
+}
+
+/*
+ * ZCL 5.2.2.5: with the XY capability X and Y, which hold the color temperature, move in XY mode;
+ * otherwise ColorTemperatureMireds within the physical range
+ */
+static void recall(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set_values,
+		   size_t count, uint32_t transition_ds)
+{
+	struct zzb_zcl_color *v = values;
+
+	if ((v->color_capabilities & ZZB_ZCL_COLOR_CAP_XY) && count >= 2) {
+		set_mode(node, ep, ZZB_ZCL_COLOR_MODE_XY);
+		move_xy(node, ep, v, set_values[0], set_values[1], transition_ds);
+		return;
+	}
+
+	if (count < ARRAY_SIZE(scene_attrs)) {
+		return;
+	}
+
+	/* ColorTemperatureMireds is the last attribute of the set */
+	temperature_mode(node, ep, v);
+	move_mireds(node, ep, v,
+		    CLAMP(set_values[ARRAY_SIZE(scene_attrs) - 1], v->color_temp_physical_min,
+			  v->color_temp_physical_max),
+		    transition_ds);
 }
 
 /* CurrentX and CurrentY in line with the loaded ColorTemperatureMireds, without zcl_cb */
@@ -566,11 +626,14 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 const struct zzb_zcl_cluster_def zzb_zcl_color_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
+	.scene_attrs = scene_attrs,
+	.scene_attr_count = ARRAY_SIZE(scene_attrs),
 	.init = init,
 	.start = start,
 	.reset = reset,
 	.cmd = cmd,
 	.changed = changed,
+	.recall = recall,
 };
 
 void zzb_zcl_color_init(struct zzb_node *node)
