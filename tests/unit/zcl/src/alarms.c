@@ -8,6 +8,7 @@
 
 #include "common/node.h"
 #include "fakes.h"
+#include "zcl/zcl.h"
 
 static void *setup(void)
 {
@@ -63,9 +64,10 @@ static void get_no_alarm(uint8_t ep)
 	get_alarm_rsp(ep, (uint8_t[]){ZZB_ZCL_NOT_FOUND}, 1);
 }
 
+/* Enters alarm code of cluster 0x0001 into the table without sending Alarm or calling zcl_cb */
 static void alarm(uint8_t ep, uint8_t code)
 {
-	zassert_ok(zzb_zcl_alarm(test_node(), ep, 0x0001, code));
+	zzb_zcl_alarm_raise(test_node(), ep, 0x0001, code, false, false);
 }
 
 /* ZCL 3.11.2.2.1: AlarmCount is a uint16; ClusterRevision 1 */
@@ -154,6 +156,38 @@ ZTEST(zzb_zcl_alarms, test_reset_alarm_log)
 	zassert_equal(zcl_cb_calls.count, 1);
 	get_no_alarm(20);
 	get_alarm(21, 0x20);
+}
+
+/* ZCL 3.11.2.5.1: an alarm of the application goes as Alarm to the bound destinations */
+ZTEST(zzb_zcl_alarms, test_alarm_command)
+{
+	uint8_t tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_alarm(test_node(), 20, 0x0001, 0x3a));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(sent[0].req.src_ep, 20);
+	zassert_equal(sent[0].req.profile, 0x0104);
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_ALARMS);
+	zassert_equal(sent[0].req.tx_options, ZZB_APS_TX_ACK);
+	zassert_equal(sent[0].len, 6);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x19, tsn, 0x00, 0x3a, 0x01, 0x00}), 6);
+	zassert_equal(alarms20.alarm_count, 1);
+
+	/* Without a binding the alarm stays in the table */
+	zzb_apsde_data_req_fake.custom_fake = NULL;
+	zzb_apsde_data_req_fake.return_val = -ENOENT;
+	zassert_ok(zzb_zcl_alarm(test_node(), 20, 0x0001, 0x3b));
+	zassert_equal(alarms20.alarm_count, 2);
+}
+
+/* ZCL 3.11.1: an alarm that its mask disables enters the table without Alarm */
+ZTEST(zzb_zcl_alarms, test_masked_alarm)
+{
+	zzb_zcl_alarm_raise(test_node(), 20, 0x0001, 0x10, false, true);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	zassert_equal(alarms20.alarm_count, 1);
+	zassert_equal(zcl_cb_calls.count, 1);
 }
 
 ZTEST(zzb_zcl_alarms, test_alarm_without_server)

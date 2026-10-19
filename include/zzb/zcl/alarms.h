@@ -49,7 +49,8 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_alarms_def;
  * @brief Raise an alarm of the application.
  *
  * Runs on the stack thread. The alarm with code of cluster enters the alarm table for the Alarms
- * server on the endpoint. zcl_cb is not called for the change of AlarmCount.
+ * server on the endpoint and always goes as Alarm to the bound destinations of the Alarms cluster;
+ * a failed send is not repeated. zcl_cb is not called for the change of AlarmCount.
  *
  * @retval 0 on success.
  * @retval -ENOENT the endpoint has no Alarms server.

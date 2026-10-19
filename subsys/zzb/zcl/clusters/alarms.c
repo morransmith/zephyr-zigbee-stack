@@ -125,6 +125,17 @@ static uint32_t next_seq(struct zzb_node *node)
 	return seq + 1;
 }
 
+/* ZCL 3.11.2.5.1; a failed send is not repeated, and Get Alarm reads the alarm from the table */
+static void send_alarm(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t code)
+{
+	uint8_t payload[3] = {code};
+
+	sys_put_le16(cluster, payload + 1);
+	zzb_zcl_send_bindings(node, zzb_node_endpoint(node, ep), ZZB_ZCL_ALARMS,
+			      ZZB_ZCL_FRAME_CLUSTER, true, ZZB_ZCL_ALARMS_ALARM, payload,
+			      sizeof(payload));
+}
+
 void zzb_zcl_alarm_raise(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t code,
 			 bool send, bool notify)
 {
@@ -149,6 +160,9 @@ void zzb_zcl_alarm_raise(struct zzb_node *node, uint8_t ep, uint16_t cluster, ui
 	save(node, entry);
 	count(node, replaced, notify);
 	count(node, ep, notify);
+	if (send) {
+		send_alarm(node, ep, cluster, code);
+	}
 }
 
 /* ZCL 3.11.2.4.3; the response also answers a broadcast */

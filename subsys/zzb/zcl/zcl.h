@@ -280,7 +280,8 @@ void zzb_zcl_scenes_remove_group(struct zzb_node *node, uint8_t ep, uint16_t gro
 
 /*
  * Enters the alarm code of cluster into the alarm table when endpoint ep has an Alarms server
- * (ZCL 3.11.2.3), with zcl_cb for AlarmCount when notify is set
+ * (ZCL 3.11.2.3), with zcl_cb for AlarmCount when notify is set, and sends it as Alarm to the bound
+ * destinations of the Alarms cluster when send is set
  */
 void zzb_zcl_alarm_raise(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t code,
 			 bool send, bool notify);
