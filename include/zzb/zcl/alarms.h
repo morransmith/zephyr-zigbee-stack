@@ -35,6 +35,7 @@ struct zzb_zcl_alarms {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_alarms_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_alarms_client_def;
 
 /** An Alarms server with the values v, a pointer to struct zzb_zcl_alarms. */
 #define ZZB_ZCL_ALARMS_SERVER(v)                                                                   \
@@ -56,6 +57,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_alarms_def;
  * @retval -ENOENT the endpoint has no Alarms server.
  */
 int zzb_zcl_alarm(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t code);
+
+/** An Alarms client; it accepts Alarm and Get Alarm Response. */
+#define ZZB_ZCL_ALARMS_CLIENT()                                                                    \
+	{                                                                                          \
+		.id = ZZB_ZCL_ALARMS,                                                              \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_alarms_client_def,                                                 \
+	}
 
 #ifdef __cplusplus
 }

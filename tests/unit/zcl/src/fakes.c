@@ -294,6 +294,13 @@ static const struct zzb_zcl_cluster ep3_clusters[] = {
 	ZZB_ZCL_ON_OFF_SERVER(&on_off3),
 };
 
+static const struct zzb_zcl_cluster ep5_clusters[] = {
+	ZZB_ZCL_GROUPS_CLIENT(),      ZZB_ZCL_SCENES_CLIENT(),
+	ZZB_ZCL_ON_OFF_CLIENT(),      ZZB_ZCL_ALARMS_CLIENT(),
+	ZZB_ZCL_ILLUMINANCE_CLIENT(), ZZB_ZCL_ILLUMINANCE_LEVEL_CLIENT(),
+	ZZB_ZCL_OCCUPANCY_CLIENT(),
+};
+
 static const struct zzb_zcl_cluster ep4_clusters[] = {
 	ZZB_ZCL_SCENES_SERVER(&scenes4),
 	{.id = SCENE_CLUSTER, .server = true, .values = &values4, .def = &scene_test_def},
@@ -359,6 +366,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0xfff0,
 		.clusters = ep4_clusters,
 		.cluster_count = ARRAY_SIZE(ep4_clusters),
+	},
+	{
+		.id = CLIENT_EP,
+		.profile = 0x0104,
+		.device_id = 0x0840,
+		.clusters = ep5_clusters,
+		.cluster_count = ARRAY_SIZE(ep5_clusters),
 	},
 	{
 		.id = 20,

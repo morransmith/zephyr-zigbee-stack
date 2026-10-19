@@ -269,6 +269,16 @@ const struct zzb_zcl_cluster_def zzb_zcl_alarms_def = {
 	.cmd = cmd,
 };
 
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_alarms_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};
+
 int zzb_zcl_alarms_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
 			void *cb_arg)
 {

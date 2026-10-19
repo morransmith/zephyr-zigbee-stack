@@ -13,6 +13,7 @@ extern "C" {
 #define ZZB_ZCL_GROUPS 0x0004
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_groups_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_groups_client_def;
 
 /**
  * A Groups server. It keeps the memberships in the APS group table and no group names. ZCL 3.6.2.1
@@ -23,6 +24,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_groups_def;
 		.id = ZZB_ZCL_GROUPS,                                                              \
 		.server = true,                                                                    \
 		.def = &zzb_zcl_groups_def,                                                        \
+	}
+
+/** A Groups client, which controllers have (DTL). */
+#define ZZB_ZCL_GROUPS_CLIENT()                                                                    \
+	{                                                                                          \
+		.id = ZZB_ZCL_GROUPS,                                                              \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_groups_client_def,                                                 \
 	}
 
 #ifdef __cplusplus

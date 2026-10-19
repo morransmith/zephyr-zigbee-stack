@@ -743,7 +743,7 @@ ZCL records, little-endian:
 | `foundation.c` | global commands |
 | `report.c` | reporting table, Configure Reporting, Read Reporting Configuration, Report Attributes |
 | `transition.c` | transitions of Level Control and Color Control |
-| `clusters/` | `basic.c`, `identify.c`, `on_off.c`, `groups.c`, `scenes.c` with the scene table, `level.c`, `color.c`, `clients.c`, `alarms.c` with the alarm table, `power_config.c`, `device_temp.c`, `ballast.c`, `illuminance.c`, `occupancy.c` |
+| `clusters/` | `basic.c`, `identify.c`, `on_off.c`, `groups.c`, `scenes.c` with the scene table, `level.c`, `color.c`, `alarms.c` with the alarm table, `power_config.c`, `device_temp.c`, `ballast.c`, `illuminance.c`, `occupancy.c` |
 
 ### Data model
 
@@ -767,7 +767,7 @@ ZCL records, little-endian:
 - Direction 0 addresses a server instance, direction 1 a client instance.
 - The Default Response (ZCL 2.5.12.2) answers only a NWK unicast to an endpoint other than 0xff (ZCL 2.3.2.1), and never a received Default Response. It carries SUCCESS when Disable Default Response is 0, and an error status in every case:
   - UNSUPPORTED_CLUSTER (0xc3) when the endpoint has no instance for the cluster and the direction;
-  - UNSUP_COMMAND (0x81) for a manufacturer-specific frame, with the manufacturer-specific bit and the received manufacturer code (ZCL 2.5.12.1.1), and for an unknown global or cluster-specific command, including received responses and a received Report Attributes on a server instance. The client instances of the stack accept them (Clients);
+  - UNSUP_COMMAND (0x81) for a manufacturer-specific frame, with the manufacturer-specific bit and the received manufacturer code (ZCL 2.5.12.1.1), and for an unknown global or cluster-specific command, including received responses to a server instance and a received Report Attributes on a server instance. Client instances accept a Report Attributes, and the client definitions of the stack any cluster-specific command (Clients);
   - MALFORMED_COMMAND (0x80) for a payload shorter than its fixed fields. Octets after them are ignored (ZCL 2.3.2).
 - Read, Write and Discover Attributes responses and Identify Query Response are also sent for broadcasts; item 3 of ZCL 2.3.2.1 is read as excluding error responses only. Write Attributes No Response gets no frame (ZCL 2.5.6.3).
 - A response has Disable Default Response 1, the opposite direction and the TSN of the request. It goes to the network source and the source endpoint of the request, from the endpoint that processed it and with the profile of that endpoint. It has NWK security only, an APS ACK request as unicast, as ZDO frames (section 12), and ASDU handle 0xfd, whose confirm is ignored. Requests with APS security are processed, and their responses go without it. The buffer reserves the headroom of a ZDO frame, so an ASDU holds up to `ZZB_APS_MAX_ASDU` (82) bytes.
@@ -893,7 +893,7 @@ ZCL records, little-endian:
 
 ### Clients
 
-- `ZZB_ZCL_ON_OFF_CLIENT()`, `ZZB_ZCL_LEVEL_CLIENT()`, `ZZB_ZCL_COLOR_CLIENT()`, `ZZB_ZCL_GROUPS_CLIENT()`, `ZZB_ZCL_SCENES_CLIENT()`, `ZZB_ZCL_ILLUMINANCE_CLIENT()`, `ZZB_ZCL_ILLUMINANCE_LEVEL_CLIENT()`, `ZZB_ZCL_OCCUPANCY_CLIENT()` and `ZZB_ZCL_ALARMS_CLIENT()` are client instances with ClusterRevision, which the DTL requires on every cluster. They accept any cluster-specific command, such as the responses to a scene controller and Alarm, and a Report Attributes with SUCCESS; the values do not reach the application. Without this a client of Occupancy Sensing would answer every bound report with an error, since error statuses ignore Disable Default Response. `ZZB_ZCL_IDENTIFY_CLIENT()` keeps its definition (Identify).
+- `ZZB_ZCL_ON_OFF_CLIENT()`, `ZZB_ZCL_LEVEL_CLIENT()`, `ZZB_ZCL_COLOR_CLIENT()`, `ZZB_ZCL_GROUPS_CLIENT()`, `ZZB_ZCL_SCENES_CLIENT()`, `ZZB_ZCL_ILLUMINANCE_CLIENT()`, `ZZB_ZCL_ILLUMINANCE_LEVEL_CLIENT()`, `ZZB_ZCL_OCCUPANCY_CLIENT()` and `ZZB_ZCL_ALARMS_CLIENT()` are client instances with ClusterRevision, which the DTL requires on every cluster; each cluster file defines its client next to its server. They accept any cluster-specific command with SUCCESS, such as the responses to a scene controller and Alarm. Every client instance accepts a Report Attributes with SUCCESS, and the values do not reach the application. Without this a client of Occupancy Sensing would answer every bound report with an error, since error statuses ignore Disable Default Response. `ZZB_ZCL_IDENTIFY_CLIENT()` keeps its definition (Identify).
 - One internal function sends a frame to the bound destinations: APSDE-DATA with destination address mode 0x00, the profile of the endpoint, Disable Default Response 1, an APS ACK request for IEEE destinations, the TSN of the node and ASDU handle 0xfd. Reports, Alarm and `zzb_zcl_send_bound()` use it.
 - `zzb_zcl_send_bound(node, ep, cluster, cmd, payload, len)` sends a cluster-specific command of the client instance on ep to the bound destinations. It runs on the stack thread through `zzb_call_sync()` and returns `-ENOENT` without the client instance or without a binding, and the other errors of APSDE-DATA.request, such as `-ENOBUFS` and `-ENOTCONN`. No confirm follows. The cluster headers define the command identifiers; the application builds the payload.
 

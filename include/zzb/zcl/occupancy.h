@@ -55,6 +55,7 @@ struct zzb_zcl_occupancy {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_occupancy_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_occupancy_client_def;
 
 /** An Occupancy Sensing server with the values v, a pointer to struct zzb_zcl_occupancy. */
 #define ZZB_ZCL_OCCUPANCY_SERVER(v)                                                                \
@@ -63,6 +64,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_occupancy_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_occupancy *)NULL),                            \
 		.def = &zzb_zcl_occupancy_def,                                                     \
+	}
+
+/** An Occupancy Sensing client; it accepts reports. */
+#define ZZB_ZCL_OCCUPANCY_CLIENT()                                                                 \
+	{                                                                                          \
+		.id = ZZB_ZCL_OCCUPANCY,                                                           \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_occupancy_client_def,                                              \
 	}
 
 #ifdef __cplusplus

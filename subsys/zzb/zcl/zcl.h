@@ -183,6 +183,9 @@ void zzb_zcl_report_reset(struct zzb_node *node);
 void zzb_zcl_report_check(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 			  uint16_t attr);
 
+/* The cmd hook of the client definitions: responses and Alarm need no processing */
+int zzb_zcl_client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values);
+
 /* Processes a global command; returns the status of the Default Response or ZZB_ZCL_RESPONDED */
 int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);
 

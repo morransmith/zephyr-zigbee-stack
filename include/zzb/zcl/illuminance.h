@@ -59,6 +59,8 @@ struct zzb_zcl_illuminance_level {
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_illuminance_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_illuminance_level_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_illuminance_level_client_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_illuminance_client_def;
 
 /** An Illuminance Measurement server with the values v, a pointer to struct zzb_zcl_illuminance. */
 #define ZZB_ZCL_ILLUMINANCE_SERVER(v)                                                              \
@@ -79,6 +81,22 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_illuminance_level_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_illuminance_level *)NULL),                    \
 		.def = &zzb_zcl_illuminance_level_def,                                             \
+	}
+
+/** An Illuminance Measurement client; it accepts reports. */
+#define ZZB_ZCL_ILLUMINANCE_CLIENT()                                                               \
+	{                                                                                          \
+		.id = ZZB_ZCL_ILLUMINANCE,                                                         \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_illuminance_client_def,                                            \
+	}
+
+/** An Illuminance Level Sensing client; it accepts reports. */
+#define ZZB_ZCL_ILLUMINANCE_LEVEL_CLIENT()                                                         \
+	{                                                                                          \
+		.id = ZZB_ZCL_ILLUMINANCE_LEVEL,                                                   \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_illuminance_level_client_def,                                      \
 	}
 
 #ifdef __cplusplus

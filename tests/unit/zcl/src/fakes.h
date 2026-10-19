@@ -103,6 +103,9 @@ struct recall_calls {
 
 extern struct recall_calls recall_calls;
 
+/* Endpoint 5 has the client definitions of the stack, except Identify */
+#define CLIENT_EP 5
+
 /* The Alarms servers on endpoints 20 and 21, which share the alarm table */
 extern struct zzb_zcl_alarms alarms20;
 extern struct zzb_zcl_alarms alarms21;

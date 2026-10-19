@@ -49,6 +49,7 @@ struct zzb_zcl_on_off {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_client_def;
 
 /** An On/Off server with the values v, a pointer to struct zzb_zcl_on_off. */
 #define ZZB_ZCL_ON_OFF_SERVER(v)                                                                   \
@@ -57,6 +58,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_on_off *)NULL),                               \
 		.def = &zzb_zcl_on_off_def,                                                        \
+	}
+
+/** An On/Off client, which switches and controllers have (DTL). */
+#define ZZB_ZCL_ON_OFF_CLIENT()                                                                    \
+	{                                                                                          \
+		.id = ZZB_ZCL_ON_OFF,                                                              \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_on_off_client_def,                                                 \
 	}
 
 #ifdef __cplusplus

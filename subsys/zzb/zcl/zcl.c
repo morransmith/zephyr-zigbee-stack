@@ -173,6 +173,11 @@ void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, u
 			payload, len);
 }
 
+int zzb_zcl_client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
+{
+	return ZZB_ZCL_SUCCESS;
+}
+
 void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t effect,
 		    uint8_t variant)
 {

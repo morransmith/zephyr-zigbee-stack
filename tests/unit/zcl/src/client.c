@@ -57,4 +57,43 @@ ZTEST(zzb_zcl_client, test_send_bound_error)
 	zassert_equal(zzb_zcl_send_bound(test_node(), 1, ON_OFF, 0x02, NULL, 0), -ENOTCONN);
 }
 
+/* The DTL requires ClusterRevision on every client cluster */
+ZTEST(zzb_zcl_client, test_client_revisions)
+{
+	static const struct {
+		uint16_t cluster;
+		uint8_t revision;
+	} clients[] = {
+		{0x0004, 3}, {0x0005, 3}, {0x0006, 2}, {0x0009, 1},
+		{0x0400, 2}, {0x0401, 1}, {0x0406, 2},
+	};
+
+	ARRAY_FOR_EACH(clients, i) {
+		const uint8_t rsp[] = {
+			0x10, 0x70, 0x01, 0xfd, 0xff, 0x00, 0x21, clients[i].revision, 0x00};
+
+		reset_fakes();
+		receive_ep(CLIENT_EP, clients[i].cluster, (uint8_t[]){0x08, 0x70, 0x00, 0xfd, 0xff},
+			   5);
+		check_frame(0, CLIENT_EP, clients[i].cluster, rsp, sizeof(rsp));
+	}
+}
+
+/* A client accepts a response, such as Add Scene Response, and a Report Attributes */
+ZTEST(zzb_zcl_client, test_client_accepts)
+{
+	static const uint8_t add_scene_rsp[] = {0x09, 0x71, 0x00, 0x00, 0x01, 0x00, 0x05};
+	static const uint8_t report[] = {0x08, 0x72, 0x0a, 0x00, 0x00, 0x18, 0x01};
+
+	receive_ep(CLIENT_EP, 0x0005, add_scene_rsp, sizeof(add_scene_rsp));
+	check_frame(0, CLIENT_EP, 0x0005, (uint8_t[]){0x10, 0x71, 0x0b, 0x00, 0x00}, 5);
+
+	receive_ep(CLIENT_EP, 0x0406, report, sizeof(report));
+	check_frame(1, CLIENT_EP, 0x0406, (uint8_t[]){0x10, 0x72, 0x0b, 0x0a, 0x00}, 5);
+
+	/* Also a client instance without a definition */
+	receive_ep(1, ON_OFF, (uint8_t[]){0x08, 0x73, 0x0a, 0x00, 0x00, 0x10, 0x01}, 7);
+	check_frame(2, 1, ON_OFF, (uint8_t[]){0x10, 0x73, 0x0b, 0x0a, 0x00}, 5);
+}
+
 ZTEST_SUITE(zzb_zcl_client, NULL, setup, before, after, NULL);

@@ -62,3 +62,23 @@ const struct zzb_zcl_cluster_def zzb_zcl_illuminance_level_def = {
 	.init = level_init,
 	.reset = level_reset,
 };
+
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_illuminance_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};
+
+static const struct zzb_zcl_attr level_client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, LEVEL_REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_illuminance_level_client_def = {
+	.attrs = level_client_attrs,
+	.attr_count = ARRAY_SIZE(level_client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};

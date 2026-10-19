@@ -341,6 +341,16 @@ const struct zzb_zcl_cluster_def zzb_zcl_on_off_def = {
 	.recall = recall,
 };
 
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_on_off_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};
+
 void zzb_zcl_on_off_init(struct zzb_node *node)
 {
 	k_work_init_delayable(&node->zcl.on_off_timer, tick);
