@@ -28,6 +28,7 @@ void zzb_nwk_reset(struct zzb_node *node)
 	nwk->candidate = NULL;
 	nwk->key_pending = false;
 	nwk->parent_failures = 0;
+	zzb_nwk_delete(node);
 }
 
 int zzb_nlme_reset_req(struct zzb_node *node)
@@ -86,7 +87,6 @@ static void leave_locally(struct zzb_node *node, bool rejoin)
 {
 	if (!rejoin) {
 		zzb_nwk_reset(node);
-		zzb_nwk_delete(node);
 	}
 }
 

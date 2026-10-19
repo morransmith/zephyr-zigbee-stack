@@ -3,6 +3,7 @@
 #include <zephyr/sys/byteorder.h>
 
 #include "aps/aps.h"
+#include "bdb/bdb.h"
 #include "common/node.h"
 #include "common/queue.h"
 #include "nwk/nwk.h"
@@ -135,7 +136,7 @@ void zzb_zdo_leave(struct zzb_node *node)
 	}
 
 	node->zdo.leave_pending = false;
-	zzb_nlme_leave_req(node, node->zdo.leave_rejoin);
+	zzb_bdb_leave(node, node->zdo.leave_rejoin);
 }
 
 /*

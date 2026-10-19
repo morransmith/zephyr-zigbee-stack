@@ -57,7 +57,31 @@ static struct {
 	/* The trust center link key of the child */
 	const uint8_t *link_key;
 	int withheld_acks;
+	/* Stack compliance revision of Node_Desc_rsp */
+	uint8_t stack_revision;
+	/* Sends the network key after an association or a trust center rejoin */
+	bool key_after_join;
 } parent;
+
+/* Sends the network key KEY_DELAY_MS after a join, when the child has its address */
+static struct k_work_delayable key_work;
+
+/* The delay of the Transport Key after the association on a CC2531 (Z-Stack Home 1.2) */
+#define KEY_DELAY_MS 130
+
+static void schedule_key(void)
+{
+	if (parent.key_after_join) {
+		k_work_reschedule_for_queue(&zzb_workq, &key_work, K_MSEC(KEY_DELAY_MS));
+	}
+}
+
+/* ZDP clusters (R22 Tables 2-44, 2-80) */
+#define NODE_DESC_REQ           0x0002
+#define DEVICE_ANNCE            0x0013
+#define MGMT_PERMIT_JOINING_REQ 0x0036
+#define MGMT_LEAVE_REQ          0x0034
+#define MGMT_LEAVE_RSP          0x8034
 
 static struct zzb_mac_addr short_addr(uint16_t addr)
 {
@@ -284,6 +308,63 @@ static void reply_aps_cmd(const struct zzb_aps_cmd *cmd)
 	}
 }
 
+/* Sends a ZDO frame of cluster to the child, with NWK security only */
+static void send_zdo(uint16_t cluster, const uint8_t *asdu, size_t len)
+{
+	const struct zzb_aps_hdr hdr = {
+		.type = ZZB_APS_FRAME_DATA,
+		.cluster = cluster,
+		.counter = parent.aps_counter++,
+	};
+	uint8_t payload[ZZB_BUF_SIZE];
+
+	send_nwk(ZZB_NWK_FRAME_DATA, ZZB_NWK_SECURITY, parent.child_addr, payload,
+		 write_aps(payload, hdr, asdu, len, NULL, ZZB_SEC_KEY_DATA));
+}
+
+/*
+ * R22 2.4.4.2.3: the descriptor of a coordinator that is the primary trust center and the network
+ * manager, with the stack compliance revision of the test
+ */
+static void send_node_desc_rsp(uint8_t tsn)
+{
+	uint8_t rsp[] = {tsn,  0x00, 0x00, 0x00, 0x00, 0x40, 0x8f, 0x00, 0x00,
+			 0x50, 0xa0, 0x00, 0x00, 0x00, 0xa0, 0x00, 0x00};
+
+	/* The server mask at offset 8 of the descriptor */
+	sys_put_le16(BIT(0) | BIT(6) | (parent.stack_revision << 9), rsp + 12);
+
+	send_zdo(NODE_DESC_REQ | 0x8000, rsp, sizeof(rsp));
+}
+
+/* Logs a ZDO frame of the child to the NWK destination dst and answers Node_Desc_req */
+static void rx_zdo(uint16_t cluster, const uint8_t *asdu, size_t len, uint16_t dst)
+{
+	zassert_true(len > 0);
+	parent_log.zdo_cluster = cluster;
+	parent_log.zdo_dst = dst;
+	switch (cluster) {
+	case DEVICE_ANNCE:
+		parent_log.device_annces++;
+		break;
+	case NODE_DESC_REQ:
+		parent_log.node_desc_reqs++;
+		send_node_desc_rsp(asdu[0]);
+		break;
+	case MGMT_PERMIT_JOINING_REQ:
+		zassert_equal(len, 3);
+		parent_log.permit_joining_reqs++;
+		parent_log.permit_duration = asdu[1];
+		parent_log.tc_significance = asdu[2];
+		break;
+	case MGMT_LEAVE_RSP:
+		parent_log.mgmt_leave_rsps++;
+		break;
+	default:
+		break;
+	}
+}
+
 /* R22 2.2.5.2.3, with the security of the acknowledged frame */
 static void send_aps_ack(const struct zzb_aps_hdr *data)
 {
@@ -303,8 +384,8 @@ static void send_aps_ack(const struct zzb_aps_hdr *data)
 			   ZZB_SEC_KEY_DATA));
 }
 
-/* Unsecures an APS frame of the child in place and logs or answers it */
-static void rx_aps(uint8_t *frame, size_t len)
+/* Unsecures an APS frame of the child to dst in place, and logs or answers it */
+static void rx_aps(uint8_t *frame, size_t len, uint16_t dst)
 {
 	struct zzb_sec_aux_hdr aux;
 	struct zzb_aps_hdr hdr;
@@ -333,14 +414,14 @@ static void rx_aps(uint8_t *frame, size_t len)
 		break;
 	case ZZB_APS_FRAME_DATA:
 		parent_log.aps_data++;
-		if (!(hdr.flags & ZZB_APS_ACK_REQ)) {
-			break;
+		if ((hdr.flags & ZZB_APS_ACK_REQ) && parent.withheld_acks > 0) {
+			parent.withheld_acks--;
+		} else if (hdr.flags & ZZB_APS_ACK_REQ) {
+			send_aps_ack(&hdr);
 		}
 
-		if (parent.withheld_acks > 0) {
-			parent.withheld_acks--;
-		} else {
-			send_aps_ack(&hdr);
+		if (hdr.profile == 0x0000 && hdr.dst_ep == 0) {
+			rx_zdo(hdr.cluster, frame + off, len - off, dst);
 		}
 		break;
 	case ZZB_APS_FRAME_CMD:
@@ -376,6 +457,9 @@ static void reply(const struct zzb_nwk_hdr *hdr, const struct zzb_nwk_cmd *cmd, 
 			.rejoin_rsp = {.short_addr = hdr->src},
 		};
 		send_nwk_cmd(&rsp, secure);
+		if (!secure) {
+			schedule_key();
+		}
 		break;
 	case ZZB_NWK_CMD_LEAVE:
 		parent_log.leaves++;
@@ -405,7 +489,7 @@ static void rx_nwk(uint8_t *frame, size_t len)
 	}
 
 	if (hdr.type == ZZB_NWK_FRAME_DATA) {
-		rx_aps(frame + off, len - off);
+		rx_aps(frame + off, len - off, hdr.dst);
 		return;
 	}
 
@@ -447,6 +531,7 @@ static bool rx_cb(const uint8_t *data, size_t len)
 		if (parent.assoc_pending) {
 			parent.assoc_pending = false;
 			send_assoc_rsp();
+			schedule_key();
 			return true;
 		}
 
@@ -455,6 +540,13 @@ static bool rx_cb(const uint8_t *data, size_t len)
 	default:
 		return false;
 	}
+}
+
+static void send_network_key(void);
+
+static void key_handler(struct k_work *work)
+{
+	send_network_key();
 }
 
 static void set_filter(enum ieee802154_filter_type type, struct ieee802154_filter filter)
@@ -476,7 +568,12 @@ void parent_start(uint16_t short_addr, uint64_t eui64, uint16_t child_addr, uint
 	parent.assoc_pending = false;
 	parent.link_key = zzb_aps_default_tc_link_key;
 	parent.withheld_acks = 0;
+	parent.stack_revision = 22;
+	parent.key_after_join = false;
 	memset(&parent_log, 0, sizeof(parent_log));
+	/* Safe on the zeroed work item of the first call */
+	k_work_cancel_delayable(&key_work);
+	k_work_init_delayable(&key_work, key_handler);
 
 	sys_put_le64(eui64, ieee_addr);
 	set_filter(IEEE802154_FILTER_TYPE_IEEE_ADDR,
@@ -529,11 +626,16 @@ static struct zzb_aps_cmd nwk_key_cmd(const uint8_t *key, uint8_t seq)
 }
 
 /* R22 4.6.3.2.3: the network key under the key-transport key, without NWK security */
-static void transport_key_handler(struct k_work *work)
+static void send_network_key(void)
 {
 	const struct zzb_aps_cmd cmd = nwk_key_cmd(nwk_key, 0);
 
 	send_aps_cmd(&cmd, parent.link_key, ZZB_SEC_KEY_TRANSPORT, parent.child_addr, false);
+}
+
+static void transport_key_handler(struct k_work *work)
+{
+	send_network_key();
 }
 
 void parent_send_transport_key(void)
@@ -598,4 +700,46 @@ void parent_send_nwk_key_update(void)
 	struct k_work work;
 
 	zzb_call_sync(&work, nwk_key_update_handler);
+}
+
+void parent_set_stack_revision(uint8_t revision)
+{
+	parent.stack_revision = revision;
+}
+
+void parent_send_key_after_join(bool send)
+{
+	parent.key_after_join = send;
+}
+
+struct mgmt_leave_call {
+	struct k_work work;
+	bool rejoin;
+};
+
+/* R22 2.4.3.3.5: the device address of the child, rejoin in bit 7 */
+static void mgmt_leave_handler(struct k_work *work)
+{
+	struct mgmt_leave_call *call = CONTAINER_OF(work, struct mgmt_leave_call, work);
+	uint8_t req[10] = {0x45};
+
+	sys_put_le64(parent.child_eui64, req + 1);
+	req[9] = call->rejoin ? BIT(7) : 0;
+	send_zdo(MGMT_LEAVE_REQ, req, sizeof(req));
+}
+
+void parent_send_mgmt_leave(bool rejoin)
+{
+	struct mgmt_leave_call call = {
+		.rejoin = rejoin,
+	};
+
+	zzb_call_sync(&call.work, mgmt_leave_handler);
+}
+
+void parent_set_channel(uint8_t channel)
+{
+	const struct ieee802154_radio_api *api = fake_radios[0]->api;
+
+	zassert_ok(api->set_channel(fake_radios[0], channel));
 }

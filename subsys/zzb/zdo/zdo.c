@@ -5,6 +5,7 @@
 #include <zephyr/random/random.h>
 
 #include "aps/aps.h"
+#include "bdb/bdb.h"
 #include "common/buf.h"
 #include "common/node.h"
 #include "nwk/nwk.h"
@@ -64,12 +65,18 @@ void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
 				 enum zzb_aps_key_type type, const uint8_t *key, uint8_t seq)
 {
 	/* BDB decides about a trust center link key (BDB 10.2.6) */
+	if (type == ZZB_APS_KEY_TC_LINK) {
+		zzb_bdb_tc_link_key_ind(node, src_addr, key);
+		return;
+	}
+
 	if (type != ZZB_APS_KEY_NWK) {
 		return;
 	}
 
 	if (zzb_apsme_set_tc_addr(node, src_addr) == 0) {
 		zzb_nlme_set_nwk_key(node, key, seq);
+		zzb_bdb_nwk_key_ind(node);
 	}
 }
 

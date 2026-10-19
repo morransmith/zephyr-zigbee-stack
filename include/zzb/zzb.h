@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <zephyr/sys/util_macro.h>
+#include <zzb/bdb.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,6 +57,8 @@ struct zzb_node_config {
 	const struct device *radio;
 	/** Device definition, kept by the node. Required with CONFIG_ZZB_ZDO. */
 	const struct zzb_device *device;
+	/** BDB event callback, or NULL. */
+	zzb_bdb_cb_t bdb_cb;
 };
 
 /**

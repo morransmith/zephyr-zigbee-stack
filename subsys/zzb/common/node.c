@@ -5,6 +5,7 @@
 #include <zzb/zzb.h>
 
 #include "aps/aps.h"
+#include "bdb/bdb.h"
 #include "common/eui64.h"
 #include "common/node.h"
 #include "common/queue.h"
@@ -75,6 +76,7 @@ static void init_handler(struct k_work *work)
 	*node = (struct zzb_node){
 		.eui64 = eui64,
 		.device = req->cfg->device,
+		.bdb_cb = req->cfg->bdb_cb,
 	};
 
 	if (IS_ENABLED(CONFIG_ZZB_MAC)) {
@@ -115,6 +117,11 @@ static void init_handler(struct k_work *work)
 		if (req->err) {
 			return;
 		}
+	}
+
+	/* BDB reads the network that NWK has loaded */
+	if (IS_ENABLED(CONFIG_ZZB_BDB)) {
+		zzb_bdb_init(node);
 	}
 
 	node->in_use = true;

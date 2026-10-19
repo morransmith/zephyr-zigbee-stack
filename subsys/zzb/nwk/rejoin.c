@@ -222,12 +222,14 @@ void zzb_nwk_rejoin_rsp_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 		zzb_nlme_set_short_addr(node, addr);
 	}
 
-	/* After a trust center rejoin the network key comes from the trust center */
+	/*
+	 * After a trust center rejoin the network key comes from the trust center. A secure rejoin
+	 * also ends the wait of an earlier trust center rejoin whose key did not arrive.
+	 */
+	nwk->key_pending = !nwk->join_secure;
 	if (nwk->join_secure) {
 		zzb_nwk_save(node);
 		zzb_nwk_ed_timeout_start(node);
-	} else {
-		nwk->key_pending = true;
 	}
 
 	end_rejoin(node, ZZB_NWK_STATUS_SUCCESS);

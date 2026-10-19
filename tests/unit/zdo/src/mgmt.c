@@ -173,24 +173,24 @@ ZTEST(zzb_zdo_mgmt, test_mgmt_leave)
 	zassert_equal(sent[0].handle, 0xfe);
 	zassert_equal(sent[0].len, 2);
 	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x45, 0x00}), 2);
-	zassert_equal(zzb_nlme_leave_req_fake.call_count, 0);
+	zassert_equal(zzb_bdb_leave_fake.call_count, 0);
 
 	/* The rejoin flag of the request, as in R23 */
 	zzb_apsde_data_conf(node, 0xff, ZZB_APS_STATUS_SUCCESS);
 	zzb_apsde_data_conf(node, 0xfe, ZZB_APS_STATUS_NO_ACK);
-	zassert_equal(zzb_nlme_leave_req_fake.call_count, 1);
-	zassert_true(zzb_nlme_leave_req_fake.arg1_val);
+	zassert_equal(zzb_bdb_leave_fake.call_count, 1);
+	zassert_true(zzb_bdb_leave_fake.arg1_val);
 	zassert_true(node->zdo.leave_rejoin);
 	zzb_apsde_data_conf(node, 0xfe, ZZB_APS_STATUS_SUCCESS);
-	zassert_equal(zzb_nlme_leave_req_fake.call_count, 1);
+	zassert_equal(zzb_bdb_leave_fake.call_count, 1);
 
 	/* The address 0 means the node; a response that cannot be sent does not stop the leave */
 	memset(req + 1, 0, 9);
 	zzb_apsde_data_req_fake.custom_fake = NULL;
 	zzb_apsde_data_req_fake.return_val = -ENOBUFS;
 	receive(MGMT_LEAVE_REQ, NODE_ADDR, req, sizeof(req));
-	zassert_equal(zzb_nlme_leave_req_fake.call_count, 2);
-	zassert_false(zzb_nlme_leave_req_fake.arg1_val);
+	zassert_equal(zzb_bdb_leave_fake.call_count, 2);
+	zassert_false(zzb_bdb_leave_fake.arg1_val);
 }
 
 ZTEST(zzb_zdo_mgmt, test_mgmt_leave_of_another_device)
@@ -202,7 +202,7 @@ ZTEST(zzb_zdo_mgmt, test_mgmt_leave_of_another_device)
 
 	receive(MGMT_LEAVE_REQ, NODE_ADDR, req, sizeof(req));
 	check_response(0, MGMT_LEAVE_REQ | 0x8000, (uint8_t[]){0x46, 0xc8}, 2);
-	zassert_equal(zzb_nlme_leave_req_fake.call_count, 0);
+	zassert_equal(zzb_bdb_leave_fake.call_count, 0);
 }
 
 /* R22 Annex E: the node switches after nwkNetworkBroadcastDeliveryTime, 9 s */

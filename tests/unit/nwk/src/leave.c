@@ -152,6 +152,10 @@ ZTEST(zzb_nwk_leave, test_leave_rejected)
 /* BDB 8.2 step 10: a join without the network key ends without a leave command */
 ZTEST(zzb_nwk_leave, test_reset)
 {
+	uint8_t rec[64];
+
+	zzb_nwk_save(child);
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 28);
 	child->nwk.key_pending = true;
 	zzb_nwk_ed_timeout_start(child);
 
@@ -159,6 +163,8 @@ ZTEST(zzb_nwk_leave, test_reset)
 	check_reset();
 	zassert_false(child->nwk.key_pending);
 	zassert_equal(zzb_mcps_data_req_fake.call_count, 0);
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 0);
+	zassert_equal(load_record("nwk/keys", rec, sizeof(rec)), 0);
 
 	zassert_ok(zzb_nlme_network_discovery_req(child, BIT(15), 0));
 	zassert_equal(zzb_nlme_reset_req(child), -EBUSY);

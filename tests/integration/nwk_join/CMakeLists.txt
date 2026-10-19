@@ -12,6 +12,6 @@ target_include_directories(app PRIVATE
 target_sources(app PRIVATE
   src/aps.c
   src/main.c
-  src/parent.c
   ${ZEPHYR_ZZB_MODULE_DIR}/tests/common/fake_radio.c
+  ${ZEPHYR_ZZB_MODULE_DIR}/tests/common/parent.c
 )

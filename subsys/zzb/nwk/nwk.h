@@ -36,6 +36,7 @@ struct zzb_node;
 
 /* Capability Information (R22 Table 3-62) */
 #define ZZB_NWK_CAP_ROUTER     BIT(1)
+#define ZZB_NWK_CAP_MAINS      BIT(2)
 #define ZZB_NWK_CAP_RX_ON_IDLE BIT(3)
 #define ZZB_NWK_CAP_ALLOC_ADDR BIT(7)
 
@@ -312,7 +313,8 @@ void zzb_nlme_leave_ind(struct zzb_node *node, uint64_t ext_addr, bool rejoin);
 
 /*
  * NLME-RESET.request with WarmStart FALSE: clears the NIB and the tables except the outgoing frame
- * counter and nwkSequenceNumber. Returns -EBUSY while an NLME procedure runs.
+ * counter and nwkSequenceNumber, and deletes the NWK records. Returns -EBUSY while an NLME
+ * procedure runs.
  */
 int zzb_nlme_reset_req(struct zzb_node *node);
 

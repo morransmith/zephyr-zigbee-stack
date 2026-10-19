@@ -96,6 +96,30 @@ config ZZB_ZDO
 	  Zigbee device object: the ZDO server, the ZDO client and the processing
 	  of the APS key indications. Tests that fake ZDO turn it off.
 
+config ZZB_BDB
+	bool "BDB"
+	default ZZB_ZDO
+	help
+	  Base Device Behavior: initialization, network steering, the trust
+	  center link key exchange and the resets. Tests that fake BDB turn it
+	  off.
+
+config ZZB_BDB_PRIMARY_CHANNELS
+	hex "bdbPrimaryChannelSet"
+	range 0 0x07fff800
+	default 0x02108800
+	help
+	  Channels that network steering scans first, bit n for channel n. The
+	  default holds channels 11, 15, 20 and 25 (BDB 5.3.8).
+
+config ZZB_BDB_SECONDARY_CHANNELS
+	hex "bdbSecondaryChannelSet"
+	range 0 0x07fff800
+	default 0x05ef7000
+	help
+	  Channels that network steering scans when it finds no network on the
+	  primary channels. The default holds the other channels of 11 to 26.
+
 config ZZB_ZDO_TRANSACTION_COUNT
 	int "ZDO client transactions"
 	range 1 32
