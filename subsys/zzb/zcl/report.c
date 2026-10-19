@@ -515,11 +515,13 @@ int zzb_zcl_report_load(struct zzb_node *node, int index, size_t len, settings_r
 void zzb_zcl_report_start(struct zzb_node *node)
 {
 	const struct zzb_zcl_cluster *cl;
+	const struct zzb_zcl_attr *attr;
 	int64_t now = k_uptime_get();
 
 	ARRAY_FOR_EACH_PTR(node->zcl.reports, r) {
 		if (r->in_use) {
-			r->last = zzb_zcl_attr_value(cl, attr_of(node, r, &cl));
+			attr = attr_of(node, r, &cl);
+			r->last = zzb_zcl_attr_value(cl, attr);
 			r->sent = now;
 		}
 	}
