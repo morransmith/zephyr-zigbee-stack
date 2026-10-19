@@ -918,7 +918,7 @@ ZCL records, little-endian:
 ### Device Temperature Configuration
 
 - `ZZB_ZCL_DEVICE_TEMP_SERVER(&v)`, ClusterRevision 1. The application sets CurrentTemperature (int16, degrees Celsius) and OverTempTotalDwell (read-only, non-volatile). CurrentTemperature is reportable although ZCL does not mark it: ZHA 2.3.1 configures its report, and divides the value by 100 while ZCL and zigpy define whole degrees. The stack keeps MinTempExperienced and MaxTempExperienced (non-volatile) from CurrentTemperature at the start and at its changes; they are 0x8000 until the first known temperature, and the reset of the node sets them to 0x8000. DeviceTempAlarmMask, LowTempThreshold and HighTempThreshold (int16), LowTempDwellTripPoint and HighTempDwellTripPoint (uint24) are writable and non-volatile.
-- CurrentTemperature below LowTempThreshold for LowTempDwellTripPoint seconds gives alarm 0x00, above HighTempThreshold for HighTempDwellTripPoint seconds alarm 0x01, with bit 0, or 1, of DeviceTempAlarmMask. A threshold of 0x8000 or a dwell trip point of 0xffffff disables the alarm (ZCL 3.4.2.2.2). One timer of the node is armed for the earliest deadline.
+- CurrentTemperature below LowTempThreshold for LowTempDwellTripPoint seconds gives alarm 0x00, above HighTempThreshold for HighTempDwellTripPoint seconds alarm 0x01, with bit 0, or 1, of DeviceTempAlarmMask. A threshold of 0x8000 or a dwell trip point of 0xffffff disables the alarm (ZCL 3.4.2.2.2), and a CurrentTemperature of 0x8000 gives none. One timer of the node is armed for the earliest deadline.
 
 ### Ballast Configuration
 
