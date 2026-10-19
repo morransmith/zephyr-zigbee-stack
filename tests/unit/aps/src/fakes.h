@@ -65,4 +65,7 @@ void reset_fakes(void);
 /* Runs the stack thread until it waits, without advancing the time */
 void run_stack(void);
 
+/* What zzb_node_init() does for APS on boot */
+int reboot(struct zzb_node *node);
+
 #endif /* ZZB_TESTS_UNIT_APS_FAKES_H_ */

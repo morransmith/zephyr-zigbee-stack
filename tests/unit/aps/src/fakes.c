@@ -5,7 +5,10 @@
 #include <zephyr/ztest.h>
 #include <zzb/zzb.h>
 
+#include "common/node.h"
+#include "common/queue.h"
 #include "fakes.h"
+#include "storage/settings.h"
 
 DEFINE_FFF_GLOBALS;
 
@@ -114,6 +117,31 @@ void check_no_buffer_leak(void)
 	ARRAY_FOR_EACH(bufs, i) {
 		net_buf_unref(bufs[i]);
 	}
+}
+
+struct reboot_call {
+	struct k_work work;
+	struct zzb_node *node;
+	int err;
+};
+
+static void reboot_handler(struct k_work *work)
+{
+	struct reboot_call *call = CONTAINER_OF(work, struct reboot_call, work);
+
+	zzb_aps_init(call->node);
+	call->err = zzb_settings_load(call->node);
+	if (call->err == 0) {
+		call->err = zzb_fc_start(&call->node->aps.fc);
+	}
+}
+
+int reboot(struct zzb_node *node)
+{
+	struct reboot_call call = {.node = node};
+
+	zzb_call_sync(&call.work, reboot_handler);
+	return call.err;
 }
 
 /* The test thread is cooperative and has a lower priority than the stack thread */

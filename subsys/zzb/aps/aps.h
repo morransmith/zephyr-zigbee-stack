@@ -192,8 +192,9 @@ extern const uint8_t zzb_aps_default_tc_link_key[ZZB_SEC_KEY_LEN];
 void zzb_aps_init(struct zzb_node *node);
 
 /*
- * Clears the AIB, the key-pair table and the duplicate rejection table and deletes the APS
- * records. The transmission table, the APS counter and the outgoing frame counter stay.
+ * Clears the AIB with the key-pair and binding tables and the duplicate rejection table, and
+ * deletes the APS records. The transmission table, the APS counter and the outgoing frame counter
+ * stay.
  */
 void zzb_aps_reset(struct zzb_node *node);
 
@@ -353,5 +354,12 @@ void zzb_aps_delete(struct zzb_node *node);
 int zzb_aps_tc_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
 int zzb_aps_key_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
 		     void *cb_arg);
+
+/* Deletes the binding records */
+void zzb_aps_binding_delete(struct zzb_node *node);
+
+/* Loads the record aps/bind/<index>; -EINVAL for an unknown version or length */
+int zzb_aps_binding_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			 void *cb_arg);
 
 #endif /* ZZB_SUBSYS_APS_APS_H_ */

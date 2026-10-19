@@ -27,6 +27,7 @@ void zzb_aps_reset(struct zzb_node *node)
 	};
 	memset(node->aps.dups, 0, sizeof(node->aps.dups));
 	zzb_aps_delete(node);
+	zzb_aps_binding_delete(node);
 }
 
 /* Returns the header length of a frame for the node without APS security, or an error */

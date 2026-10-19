@@ -15,31 +15,6 @@
 
 static struct zzb_node *node;
 
-struct call {
-	struct k_work work;
-	int err;
-};
-
-/* What zzb_node_init() does for APS on boot */
-static void reboot_handler(struct k_work *work)
-{
-	struct call *call = CONTAINER_OF(work, struct call, work);
-
-	zzb_aps_init(node);
-	call->err = zzb_settings_load(node);
-	if (call->err == 0) {
-		call->err = zzb_fc_start(&node->aps.fc);
-	}
-}
-
-static int reboot(void)
-{
-	struct call call = {0};
-
-	zzb_call_sync(&call.work, reboot_handler);
-	return call.err;
-}
-
 static void *setup(void)
 {
 	node = test_node(0);
@@ -53,7 +28,7 @@ static void before(void *fixture)
 	run_stack();
 	zzb_aps_reset(node);
 	settings_delete("zzb/0/fc/aps");
-	zassert_ok(reboot());
+	zassert_ok(reboot(node));
 }
 
 ZTEST(zzb_aps_keys, test_trust_center_unknown_after_init)
@@ -127,7 +102,7 @@ ZTEST(zzb_aps_keys, test_records_survive_a_reboot)
 	zassert_ok(zzb_apsme_set_tc_addr(node, TC_EUI64));
 	zassert_ok(zzb_apsme_set_link_key(node, TC_EUI64, key_b, ZZB_APS_KEY_VERIFIED,
 					  ZZB_APS_LINK_KEY_UNIQUE));
-	zassert_ok(reboot());
+	zassert_ok(reboot(node));
 
 	zassert_equal(node->aps.aib.tc_addr, TC_EUI64);
 	pair = zzb_aps_key_pair_find(node, TC_EUI64);
@@ -144,7 +119,7 @@ ZTEST(zzb_aps_keys, test_reset_deletes_the_records)
 
 	zassert_equal(node->aps.aib.tc_addr, ZZB_APS_TC_UNKNOWN);
 	zassert_is_null(zzb_aps_key_pair_find(node, TC_EUI64));
-	zassert_ok(reboot());
+	zassert_ok(reboot(node));
 	zassert_equal(node->aps.aib.tc_addr, ZZB_APS_TC_UNKNOWN);
 	zassert_is_null(zzb_aps_key_pair_find(node, TC_EUI64));
 }
@@ -170,13 +145,13 @@ ZTEST(zzb_aps_keys, test_unknown_record_version)
 	uint8_t rec[9] = {2};
 
 	zassert_ok(settings_save_one("zzb/0/aps/tc", rec, sizeof(rec)));
-	zassert_equal(reboot(), -EINVAL);
+	zassert_equal(reboot(node), -EINVAL);
 	zassert_ok(settings_delete("zzb/0/aps/tc"));
 
 	/* A key record with the length of the trust center record */
 	rec[0] = 1;
 	zassert_ok(settings_save_one("zzb/0/aps/key/0", rec, sizeof(rec)));
-	zassert_equal(reboot(), -EINVAL);
+	zassert_equal(reboot(node), -EINVAL);
 }
 
 ZTEST_SUITE(zzb_aps_keys, NULL, setup, before, NULL, NULL);

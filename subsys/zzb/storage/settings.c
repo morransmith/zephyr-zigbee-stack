@@ -10,7 +10,7 @@
 #include "nwk/nwk.h"
 #include "storage/settings.h"
 
-/* Room for zzb/<n>/nwk/keys and zzb/<n>/aps/key/<i> */
+/* Room for zzb/<n>/nwk/keys, zzb/<n>/aps/key/<i> and zzb/<n>/aps/bind/<i> */
 #define NAME_LEN 24
 
 struct load_ctx {
@@ -41,6 +41,8 @@ static void load_aps(struct load_ctx *ctx, const char *key, size_t len, settings
 		ctx->err = zzb_aps_tc_load(ctx->node, len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "aps/key", &index) && index != NULL) {
 		ctx->err = zzb_aps_key_load(ctx->node, atoi(index), len, read_cb, cb_arg);
+	} else if (settings_name_steq(key, "aps/bind", &index) && index != NULL) {
+		ctx->err = zzb_aps_binding_load(ctx->node, atoi(index), len, read_cb, cb_arg);
 	}
 }
 
