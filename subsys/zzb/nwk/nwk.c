@@ -162,9 +162,17 @@ void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_stat
 
 static bool for_node(const struct zzb_nib *nib, const struct zzb_nwk_hdr *hdr)
 {
+	if (hdr->src == nib->short_addr) {
+		return false;
+	}
+
+	/* The destination of a multicast frame is a group, which APS checks (R22 3.6.6) */
+	if (hdr->flags & ZZB_NWK_MULTICAST) {
+		return hdr->type == ZZB_NWK_FRAME_DATA;
+	}
+
 	/* The receiver stays on until milestone 18, so 0xfffd is accepted */
-	return hdr->src != nib->short_addr &&
-	       (hdr->dst == nib->short_addr || hdr->dst == 0xffff || hdr->dst == 0xfffd);
+	return hdr->dst == nib->short_addr || hdr->dst == 0xffff || hdr->dst == 0xfffd;
 }
 
 static bool from_candidate(const struct zzb_node *node, const struct zzb_frame_meta *meta)
@@ -278,7 +286,8 @@ void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf)
 		return;
 	}
 
-	zzb_nlde_data_ind(node, buf, hdr.dst, hdr.src, hdr.flags & ZZB_NWK_SECURITY);
+	zzb_nlde_data_ind(node, buf, (hdr.flags & ZZB_NWK_MULTICAST) ? 0xfffd : hdr.dst, hdr.src,
+			  hdr.flags & ZZB_NWK_SECURITY);
 }
 
 void zzb_mlme_poll_conf(struct zzb_node *node, enum zzb_mac_status status)
