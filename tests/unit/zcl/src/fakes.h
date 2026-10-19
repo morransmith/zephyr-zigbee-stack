@@ -20,6 +20,7 @@
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 			const struct zzb_apsde_req *);
 DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
+DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
 
 #define NODE_EUI64 0x00124b0001020304ULL
 #define NODE_ADDR  0x5678
@@ -34,7 +35,10 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
  */
 #define TEST_CLUSTER 0x0f00
 
-/* An On/Off client without a definition on endpoints 1 and 3; endpoint 3 also has a server */
+/*
+ * An On/Off client without a definition on endpoints 1 and 3; endpoint 3 also has a server.
+ * Endpoint 1 has the Identify client of the stack.
+ */
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*

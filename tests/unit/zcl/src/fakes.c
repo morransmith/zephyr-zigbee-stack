@@ -16,6 +16,7 @@ DEFINE_FFF_GLOBALS;
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 		       const struct zzb_apsde_req *);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
+DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
 
 struct test_values values1;
 struct test_values values2;
@@ -204,6 +205,7 @@ static const struct zzb_zcl_cluster_def test_def = {
 static const struct zzb_zcl_cluster ep1_clusters[] = {
 	{.id = TEST_CLUSTER, .server = true, .values = &values1, .def = &test_def},
 	{.id = ON_OFF},
+	ZZB_ZCL_IDENTIFY_CLIENT(),
 };
 
 static const struct zzb_zcl_cluster ep2_clusters[] = {
@@ -286,6 +288,7 @@ void reset_fakes(void)
 {
 	RESET_FAKE(zzb_apsde_data_req);
 	RESET_FAKE(zzb_bdb_identify_end);
+	RESET_FAKE(zzb_bdb_identify_query_rsp);
 	FFF_RESET_HISTORY();
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;

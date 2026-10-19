@@ -139,6 +139,9 @@ void zzb_bdb_tc_link_key_ind(struct zzb_node *node, uint64_t src_addr, const uin
 /* Called by ZCL when IdentifyTime of the Identify server on ep becomes 0 */
 void zzb_bdb_identify_end(struct zzb_node *node, uint8_t ep);
 
+/* Called by ZCL for Identify Query Response from addr and src_ep to the Identify client on ep */
+void zzb_bdb_identify_query_rsp(struct zzb_node *node, uint8_t ep, uint16_t addr, uint8_t src_ep);
+
 /* Ends finding & binding without an event, at the reset of the node */
 void zzb_bdb_fb_clear(struct zzb_node *node);
 

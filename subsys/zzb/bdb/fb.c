@@ -61,7 +61,11 @@ void zzb_bdb_identify_end(struct zzb_node *node, uint8_t ep)
 	zzb_bdb_notify(node, ZZB_BDB_EVENT_FINDING_BINDING_TARGET, ZZB_BDB_SUCCESS);
 }
 
-/* The confirms of the ZDO client for finding & binding for an initiator (BDB 8.5) */
+/* The callbacks of finding & binding for an initiator (BDB 8.5) */
+void zzb_bdb_identify_query_rsp(struct zzb_node *node, uint8_t ep, uint16_t addr, uint8_t src_ep)
+{
+}
+
 void zzb_zdo_simple_desc_conf(struct zzb_node *node, uint8_t status, uint16_t addr,
 			      const struct zzb_zdo_simple_desc *desc)
 {

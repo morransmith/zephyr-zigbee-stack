@@ -159,4 +159,21 @@ ZTEST(zzb_zcl_identify, test_trigger_effect)
 	zassert_equal(zcl_cb_calls.count, 0);
 }
 
+/* ZCL 3.5.2.4.1: the client passes Identify Query Response to finding & binding */
+ZTEST(zzb_zcl_identify, test_identify_query_response)
+{
+	static const uint8_t malformed[] = {0x10, 0x8c, 0x0b, 0x00, 0x80};
+
+	receive_ep(1, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x19, 0x8b, 0x00, 0xb4, 0x00}, 5);
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.call_count, 1);
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.arg1_val, 1);
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.arg2_val, REQUESTER_ADDR);
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.arg3_val, REQUESTER_EP);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	receive_ep(1, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x19, 0x8c, 0x00, 0xb4}, 4);
+	check_frame(0, 1, ZZB_ZCL_IDENTIFY, malformed, sizeof(malformed));
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.call_count, 1);
+}
+
 ZTEST_SUITE(zzb_zcl_identify, NULL, setup, before, after, NULL);

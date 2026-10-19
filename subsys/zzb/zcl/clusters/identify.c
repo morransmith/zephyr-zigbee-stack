@@ -153,6 +153,31 @@ int zzb_zcl_identify(struct zzb_node *node, uint8_t ep, uint16_t time)
 	return 0;
 }
 
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+/* ZCL 3.5.2.4.1: the response goes to finding & binding for an initiator (BDB 8.5 step 4) */
+static int client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
+{
+	if (cmd->id != CMD_IDENTIFY_QUERY_RSP) {
+		return ZZB_ZCL_UNSUP_COMMAND;
+	}
+
+	if (cmd->len < 2) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	zzb_bdb_identify_query_rsp(node, cmd->ep, cmd->src_addr, cmd->src_ep);
+	return ZZB_ZCL_SUCCESS;
+}
+
+const struct zzb_zcl_cluster_def zzb_zcl_identify_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.cmd = client_cmd,
+};
+
 void zzb_zcl_identify_init(struct zzb_node *node)
 {
 	k_work_init_delayable(&node->zcl.identify_timer, tick);
