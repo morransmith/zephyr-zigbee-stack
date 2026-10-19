@@ -10,6 +10,7 @@
 #include <zzb/zcl.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/identify.h>
+#include <zzb/zcl/on_off.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
@@ -31,7 +32,7 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
 #define TEST_CLUSTER 0x0f00
 
 /* An On/Off client without a definition on endpoints 1 and 3 */
-#define ON_OFF 0x0006
+#define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
  * Values of the test cluster, attributes 0x0000 to 0x0007 in this order; 0x0002 is saved. The
@@ -54,9 +55,10 @@ struct test_values {
 extern struct test_values values1;
 extern struct test_values values2;
 
-/* The Basic and Identify servers on endpoint 2 */
+/* The Basic, Identify and On/Off servers on endpoint 2 */
 extern struct zzb_zcl_basic basic;
 extern struct zzb_zcl_identify identify;
+extern struct zzb_zcl_on_off on_off;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

@@ -1,0 +1,135 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#include <zephyr/ztest.h>
+#include <zzb/zcl/on_off.h>
+
+#include "fakes.h"
+
+#define OFF    0x00
+#define ON     0x01
+#define TOGGLE 0x02
+
+static void *setup(void)
+{
+	test_node();
+	return NULL;
+}
+
+/* Each test starts off, without records */
+static void before(void *fixture)
+{
+	zassert_ok(reboot());
+	reset_node();
+	reset_fakes();
+}
+
+static void after(void *fixture)
+{
+	check_no_buffer_leak();
+}
+
+static uint8_t tsn;
+
+/* Sends the On/Off command id to endpoint 2 and checks its Default Response */
+static void command(uint8_t id)
+{
+	const uint8_t rsp[] = {0x18, ++tsn, 0x0b, id, 0x00};
+	int frames = zzb_apsde_data_req_fake.call_count;
+
+	receive_ep(2, ZZB_ZCL_ON_OFF, (uint8_t[]){0x01, tsn, id}, 3);
+	check_frame(frames, 2, ZZB_ZCL_ON_OFF, rsp, sizeof(rsp));
+}
+
+static void set(uint16_t attr, uint16_t value)
+{
+	zassert_ok(zzb_zcl_attr_set(test_node(), 2, ZZB_ZCL_ON_OFF, attr, &value));
+}
+
+/* The attributes that zcl_cb reported from call i on */
+static void check_notified(int i, const uint16_t *attrs, int count)
+{
+	zassert_equal(zcl_cb_calls.count, i + count);
+	for (int j = 0; j < count; j++) {
+		zassert_equal(zcl_cb_calls.ep[i + j], 2);
+		zassert_equal(zcl_cb_calls.cluster[i + j], ZZB_ZCL_ON_OFF);
+		zassert_equal(zcl_cb_calls.attr[i + j], attrs[j]);
+	}
+}
+
+/* ZCL 3.8.2.3.1, 3.8.2.3.2 */
+ZTEST(zzb_zcl_on_off, test_on_and_off)
+{
+	command(ON);
+	zassert_true(on_off.on_off);
+	zassert_true(on_off.global_scene_control);
+	check_notified(0, (uint16_t[]){ZZB_ZCL_ON_OFF_ON_OFF}, 1);
+
+	/* On a node that is on, nothing changes */
+	command(ON);
+	zassert_equal(zcl_cb_calls.count, 1);
+
+	set(ZZB_ZCL_ON_OFF_ON_TIME, 30);
+	command(OFF);
+	zassert_false(on_off.on_off);
+	zassert_equal(on_off.on_time, 0);
+	check_notified(1, (uint16_t[]){ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_ON_OFF_ON_TIME}, 2);
+}
+
+/* ZCL 3.8.2.3.2: On clears OffWaitTime only when OnTime is 0 */
+ZTEST(zzb_zcl_on_off, test_on_clears_off_wait_time)
+{
+	set(ZZB_ZCL_ON_OFF_ON_TIME, 30);
+	set(ZZB_ZCL_ON_OFF_OFF_WAIT_TIME, 20);
+	command(ON);
+	zassert_equal(on_off.off_wait_time, 20);
+
+	command(OFF);
+	command(ON);
+	zassert_equal(on_off.off_wait_time, 0);
+}
+
+/* ZCL 3.8.2.3.3 */
+ZTEST(zzb_zcl_on_off, test_toggle)
+{
+	set(ZZB_ZCL_ON_OFF_OFF_WAIT_TIME, 20);
+	command(TOGGLE);
+	zassert_true(on_off.on_off);
+	zassert_equal(on_off.off_wait_time, 0);
+
+	set(ZZB_ZCL_ON_OFF_ON_TIME, 30);
+	command(TOGGLE);
+	zassert_false(on_off.on_off);
+	zassert_equal(on_off.on_time, 0);
+}
+
+/* Section 15: OnOff is saved */
+ZTEST(zzb_zcl_on_off, test_saved)
+{
+	command(ON);
+	zassert_ok(reboot());
+	zassert_true(on_off.on_off);
+}
+
+/* ZCL 3.8.2.2: OnOff and GlobalSceneControl are read-only */
+ZTEST(zzb_zcl_on_off, test_attributes)
+{
+	static const uint8_t read[] = {0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x40,
+				       0x01, 0x40, 0x02, 0x40, 0xfd, 0xff};
+	static const uint8_t read_rsp[] = {0x18, 0x90, 0x01, 0x00, 0x00, 0x00, 0x10, 0x00,
+					   0x00, 0x40, 0x00, 0x10, 0x01, 0x01, 0x40, 0x00,
+					   0x21, 0x00, 0x00, 0x02, 0x40, 0x00, 0x21, 0x00,
+					   0x00, 0xfd, 0xff, 0x00, 0x21, 0x02, 0x00};
+	static const uint8_t write[] = {0x00, 0x91, 0x02, 0x00, 0x00, 0x10, 0x01, 0x00,
+					0x40, 0x10, 0x00, 0x01, 0x40, 0x21, 0x0a, 0x00};
+	static const uint8_t write_rsp[] = {0x18, 0x91, 0x04, 0x88, 0x00, 0x00, 0x88, 0x00, 0x40};
+
+	receive_ep(2, ZZB_ZCL_ON_OFF, read, sizeof(read));
+	check_frame(0, 2, ZZB_ZCL_ON_OFF, read_rsp, sizeof(read_rsp));
+
+	receive_ep(2, ZZB_ZCL_ON_OFF, write, sizeof(write));
+	check_frame(1, 2, ZZB_ZCL_ON_OFF, write_rsp, sizeof(write_rsp));
+	zassert_false(on_off.on_off);
+	zassert_equal(on_off.on_time, 10);
+}
+
+ZTEST_SUITE(zzb_zcl_on_off, NULL, setup, before, after, NULL);

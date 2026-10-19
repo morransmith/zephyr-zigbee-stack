@@ -13,5 +13,6 @@ target_sources(app PRIVATE
   src/foundation.c
   src/frame.c
   src/identify.c
+  src/on_off.c
   src/zcl.c
 )

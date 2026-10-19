@@ -58,6 +58,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/attr.c
   zcl/clusters/basic.c
   zcl/clusters/identify.c
+  zcl/clusters/on_off.c
   zcl/foundation.c
   zcl/frame.c
   zcl/zcl.c
