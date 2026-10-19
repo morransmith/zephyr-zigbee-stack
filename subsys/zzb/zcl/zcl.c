@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
 #include <zephyr/net_buf.h>
 
 #include "aps/aps.h"
@@ -250,5 +251,6 @@ void zzb_zcl_reset(struct zzb_node *node)
 		}
 	}
 
+	memset(node->zcl.reports, 0, sizeof(node->zcl.reports));
 	zzb_zcl_attr_delete(node);
 }

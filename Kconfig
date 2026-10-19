@@ -125,6 +125,14 @@ config ZZB_ZCL
 	  application enables a settings backend for the non-volatile
 	  attributes. Tests that fake ZCL turn it off.
 
+config ZZB_ZCL_REPORT_COUNT
+	int "Reporting table entries"
+	range 1 255
+	default 8
+	help
+	  Attributes whose reports Configure Reporting has set up, on all
+	  endpoints of a node.
+
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
 	range 0 0x07fff800

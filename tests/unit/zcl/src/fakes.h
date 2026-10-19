@@ -35,8 +35,8 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
- * Values of the test cluster, attributes 0x0000 to 0x0007 in this order; 0x0002 is saved. The
- * reset sets 0x0001 and 0x0002 to 0.
+ * Values of the test cluster, attributes 0x0000 to 0x0007 in this order; 0x0000 to 0x0002 are
+ * reportable, 0x0002 is saved. The reset sets 0x0001 and 0x0002 to 0.
  */
 struct test_values {
 	bool b;

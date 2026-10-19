@@ -20,11 +20,29 @@ struct zzb_node;
 /* ASDU handle of ZCL frames; their confirm is ignored */
 #define ZZB_ZCL_HANDLE 0xfd
 
+/* Entry of the reporting table: an attribute of a server cluster (ZCL 2.5.7) */
+struct zzb_zcl_report {
+	bool in_use;
+	uint8_t ep;
+	uint16_t cluster;
+	uint16_t attr;
+	/* Seconds */
+	uint16_t min;
+	uint16_t max;
+	/* Reportable change of an analog attribute */
+	uint16_t change;
+	/* The value of the last report */
+	uint16_t last;
+	/* k_uptime_get() at the last report */
+	int64_t sent;
+};
+
 struct zzb_zcl {
 	/* Decrements IdentifyTime every second while one is not 0 */
 	struct k_work_delayable identify_timer;
 	/* Updates OnTime and OffWaitTime every 0.1 s after On With Timed Off */
 	struct k_work_delayable on_off_timer;
+	struct zzb_zcl_report reports[CONFIG_ZZB_ZCL_REPORT_COUNT];
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -34,6 +52,8 @@ struct zzb_zcl {
 #define ZZB_ZCL_WRITE_UNDIVIDED         0x03
 #define ZZB_ZCL_WRITE_ATTRIBUTES_RSP    0x04
 #define ZZB_ZCL_WRITE_NO_RSP            0x05
+#define ZZB_ZCL_CONFIGURE_REPORTING     0x06
+#define ZZB_ZCL_CONFIGURE_REPORTING_RSP 0x07
 #define ZZB_ZCL_DEFAULT_RSP             0x0b
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES     0x0c
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES_RSP 0x0d
@@ -86,6 +106,9 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);
 /* The attribute id of cl, or NULL */
 const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, uint16_t id);
 
+/* The value of an attribute of an integer type of at most 16 bits */
+uint16_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr);
+
 /* Writes the value of attr of cl in its ZCL encoding; returns its length or -ENOSPC */
 int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
 			uint8_t *p, size_t len);
@@ -132,6 +155,9 @@ void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, u
 /* Calls zcl_effect_cb */
 void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t effect,
 		    uint8_t variant);
+
+/* Configure Reporting (ZCL 2.5.7); returns the Default Response status or ZZB_ZCL_RESPONDED */
+int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);

@@ -14,5 +14,6 @@ target_sources(app PRIVATE
   src/frame.c
   src/identify.c
   src/on_off.c
+  src/report.c
   src/zcl.c
 )

@@ -98,11 +98,12 @@ ZTEST(zzb_zcl, test_manufacturer_specific)
 /* ZCL 2.5.12.2: UNSUP_COMMAND, also for a cluster without a definition */
 ZTEST(zzb_zcl, test_unsupported_commands)
 {
-	static const uint8_t configure_reporting[] = {0x00, 0x28, 0x06, 0x00, 0x00, 0x00, 0x10};
-	static const uint8_t rsp[] = {0x18, 0x28, 0x0b, 0x06, 0x81};
+	/* Discover Commands Received */
+	static const uint8_t discover_commands[] = {0x00, 0x28, 0x11, 0x00, 0x05};
+	static const uint8_t rsp[] = {0x18, 0x28, 0x0b, 0x11, 0x81};
 	static const uint8_t client_rsp[] = {0x10, 0x29, 0x0b, 0x01, 0x81};
 
-	receive(TEST_CLUSTER, configure_reporting, sizeof(configure_reporting));
+	receive(TEST_CLUSTER, discover_commands, sizeof(discover_commands));
 	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
 
 	receive(ON_OFF, (uint8_t[]){0x09, 0x29, 0x01}, 3);

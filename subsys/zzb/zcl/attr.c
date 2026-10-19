@@ -37,8 +37,7 @@ static const void *field(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_
 	return (const uint8_t *)cl->values + attr->offset;
 }
 
-/* The value of an attribute of an integer type */
-static uint16_t integer(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr)
+uint16_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr)
 {
 	if (attr->flags & ZZB_ZCL_CONST) {
 		return attr->value;
@@ -84,14 +83,14 @@ int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 			return -ENOSPC;
 		}
 
-		sys_put_le16(integer(cl, attr), p);
+		sys_put_le16(zzb_zcl_attr_value(cl, attr), p);
 		return 2;
 	default:
 		if (len < 1) {
 			return -ENOSPC;
 		}
 
-		p[0] = integer(cl, attr);
+		p[0] = zzb_zcl_attr_value(cl, attr);
 		return 1;
 	}
 }
@@ -127,7 +126,7 @@ bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 			uint16_t value)
 {
 	uint8_t *f = (uint8_t *)cl->values + attr->offset;
-	bool changed = integer(cl, attr) != value;
+	bool changed = zzb_zcl_attr_value(cl, attr) != value;
 
 	if (attr->type == ZZB_ZCL_UINT16) {
 		*(uint16_t *)f = value;
