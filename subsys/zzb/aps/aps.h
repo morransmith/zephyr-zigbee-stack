@@ -4,9 +4,12 @@
 #define ZZB_SUBSYS_APS_APS_H_
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <zephyr/settings/settings.h>
 
 #include "aps/frame.h"
+#include "common/fc.h"
 #include "sec/mmo.h"
 
 struct zzb_node;
@@ -45,6 +48,8 @@ struct zzb_aib {
 
 struct zzb_aps {
 	struct zzb_aib aib;
+	/* Outgoing APS frame counter, kept by zzb_aps_reset() */
+	struct zzb_fc fc;
 };
 
 /* The default global trust center link key "ZigBeeAlliance09" (BDB 6.3.1) */
@@ -52,6 +57,12 @@ extern const uint8_t zzb_aps_default_tc_link_key[ZZB_SEC_KEY_LEN];
 
 /* Clears the APS state. The trust center is not known. */
 void zzb_aps_init(struct zzb_node *node);
+
+/*
+ * Clears the AIB and the key-pair table and deletes their records. The outgoing frame counter
+ * stays.
+ */
+void zzb_aps_reset(struct zzb_node *node);
 
 /*
  * APSME-SET of apsTrustCenterAddress. When the key-pair table has no entry for addr, an entry
@@ -68,5 +79,18 @@ int zzb_apsme_set_link_key(struct zzb_node *node, uint64_t addr, const uint8_t k
 			   enum zzb_aps_key_attr attr, enum zzb_aps_link_key_type type);
 
 struct zzb_aps_key_pair *zzb_aps_key_pair_find(struct zzb_node *node, uint64_t addr);
+
+/* Within APS */
+
+/* Deletes the records aps/tc and aps/key/<i> */
+void zzb_aps_delete(struct zzb_node *node);
+
+/*
+ * Load the records aps/tc and aps/key/<index>; -EINVAL for an unknown version or length. A key
+ * record with an index outside the table is ignored.
+ */
+int zzb_aps_tc_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
+int zzb_aps_key_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+		     void *cb_arg);
 
 #endif /* ZZB_SUBSYS_APS_APS_H_ */

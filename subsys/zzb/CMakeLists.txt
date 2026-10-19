@@ -19,7 +19,6 @@ zephyr_library_sources(
 zephyr_library_sources_ifdef(CONFIG_DT_HAS_ESPRESSIF_ESP32_IEEE802154_ENABLED common/eui64_esp32.c)
 zephyr_library_sources_ifdef(CONFIG_ZZB_MAC mac/assoc.c mac/mac.c mac/poll.c mac/scan.c mac/tx.c)
 zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
-  common/fc.c
   nwk/ed_timeout.c
   nwk/frame.c
   nwk/join.c
@@ -30,8 +29,10 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
   nwk/rejoin.c
   nwk/security.c
   nwk/status.c
-  storage/settings.c
 )
+if(CONFIG_ZZB_NWK OR CONFIG_ZZB_APS)
+  zephyr_library_sources(common/fc.c storage/settings.c)
+endif()
 zephyr_library_sources_ifdef(CONFIG_ZZB_APS aps/aps.c aps/frame.c aps/keys.c)
 zephyr_library_sources_ifdef(CONFIG_IEEE802154_RAW_MODE radio/port.c radio/raw.c)
 zephyr_library_sources_ifdef(CONFIG_NET_L2_CUSTOM_IEEE802154 radio/port.c radio/custom_l2.c)

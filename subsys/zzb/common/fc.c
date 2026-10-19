@@ -48,10 +48,10 @@ void zzb_fc_init(struct zzb_fc *fc, struct zzb_node *node, const char *key)
 int zzb_fc_load(struct zzb_fc *fc, size_t len, settings_read_cb read_cb, void *cb_arg)
 {
 	uint8_t rec[RECORD_LEN];
+	int err = zzb_settings_read(len, read_cb, cb_arg, rec, sizeof(rec));
 
-	if (len != sizeof(rec) || read_cb(cb_arg, rec, sizeof(rec)) != sizeof(rec) ||
-	    rec[0] != RECORD_VERSION) {
-		return -EINVAL;
+	if (err) {
+		return err;
 	}
 
 	fc->watermark = sys_get_le32(rec + 1);

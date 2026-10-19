@@ -1,13 +1,16 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
+#include <stdlib.h>
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/printk.h>
 
+#include "aps/aps.h"
 #include "common/node.h"
 #include "nwk/nwk.h"
 #include "storage/settings.h"
 
-/* Room for zzb/<n>/nwk/keys */
+/* Room for zzb/<n>/nwk/keys and zzb/<n>/aps/key/<i> */
 #define NAME_LEN 24
 
 struct load_ctx {
@@ -15,16 +18,42 @@ struct load_ctx {
 	int err;
 };
 
-static int load_cb(const char *key, size_t len, settings_read_cb read_cb, void *cb_arg, void *param)
+static void load_nwk(struct load_ctx *ctx, const char *key, size_t len, settings_read_cb read_cb,
+		     void *cb_arg)
 {
-	struct load_ctx *ctx = param;
-
 	if (settings_name_steq(key, "fc/nwk", NULL)) {
 		ctx->err = zzb_fc_load(&ctx->node->nwk.fc, len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "nwk/net", NULL)) {
 		ctx->err = zzb_nwk_net_load(ctx->node, len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "nwk/keys", NULL)) {
 		ctx->err = zzb_nwk_keys_load(ctx->node, len, read_cb, cb_arg);
+	}
+}
+
+static void load_aps(struct load_ctx *ctx, const char *key, size_t len, settings_read_cb read_cb,
+		     void *cb_arg)
+{
+	const char *index;
+
+	if (settings_name_steq(key, "fc/aps", NULL)) {
+		ctx->err = zzb_fc_load(&ctx->node->aps.fc, len, read_cb, cb_arg);
+	} else if (settings_name_steq(key, "aps/tc", NULL)) {
+		ctx->err = zzb_aps_tc_load(ctx->node, len, read_cb, cb_arg);
+	} else if (settings_name_steq(key, "aps/key", &index) && index != NULL) {
+		ctx->err = zzb_aps_key_load(ctx->node, atoi(index), len, read_cb, cb_arg);
+	}
+}
+
+static int load_cb(const char *key, size_t len, settings_read_cb read_cb, void *cb_arg, void *param)
+{
+	struct load_ctx *ctx = param;
+
+	if (IS_ENABLED(CONFIG_ZZB_NWK)) {
+		load_nwk(ctx, key, len, read_cb, cb_arg);
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_APS)) {
+		load_aps(ctx, key, len, read_cb, cb_arg);
 	}
 
 	/* Loading stops at the first error */
@@ -55,6 +84,16 @@ int zzb_settings_save(struct zzb_node *node, const char *key, const void *value,
 
 	snprintk(name, sizeof(name), "zzb/%d/%s", zzb_node_index(node), key);
 	return settings_save_one(name, value, len);
+}
+
+int zzb_settings_read(size_t len, settings_read_cb read_cb, void *cb_arg, uint8_t *rec,
+		      size_t rec_len)
+{
+	if (len != rec_len || read_cb(cb_arg, rec, rec_len) != rec_len || rec[0] != 1) {
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 int zzb_settings_delete(struct zzb_node *node, const char *key)

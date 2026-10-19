@@ -129,24 +129,13 @@ void zzb_nwk_delete(struct zzb_node *node)
 	zzb_settings_delete(node, KEYS_KEY);
 }
 
-static int read_record(size_t len, settings_read_cb read_cb, void *cb_arg, uint8_t *rec,
-		       size_t rec_len)
-{
-	if (len != rec_len || read_cb(cb_arg, rec, rec_len) != rec_len ||
-	    rec[0] != RECORD_VERSION) {
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 int zzb_nwk_net_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg)
 {
 	struct zzb_nib *nib = &node->nwk.nib;
 	uint8_t rec[NET_LEN];
 	const uint8_t *p = rec + 1;
 	struct zzb_nwk_neighbor *parent;
-	int err = read_record(len, read_cb, cb_arg, rec, sizeof(rec));
+	int err = zzb_settings_read(len, read_cb, cb_arg, rec, sizeof(rec));
 
 	if (err) {
 		return err;
@@ -185,7 +174,7 @@ int zzb_nwk_keys_load(struct zzb_node *node, size_t len, settings_read_cb read_c
 	struct zzb_nib *nib = &node->nwk.nib;
 	uint8_t rec[KEYS_LEN];
 	const uint8_t *p = rec + 3;
-	int err = read_record(len, read_cb, cb_arg, rec, sizeof(rec));
+	int err = zzb_settings_read(len, read_cb, cb_arg, rec, sizeof(rec));
 
 	if (err) {
 		return err;

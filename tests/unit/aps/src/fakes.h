@@ -22,4 +22,7 @@ struct zzb_node *test_node(int index);
 /* Resets every fake */
 void reset_fakes(void);
 
+/* Runs the stack thread until it waits, without advancing the time */
+void run_stack(void);
+
 #endif /* ZZB_TESTS_UNIT_APS_FAKES_H_ */

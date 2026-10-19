@@ -84,11 +84,20 @@ static void init_handler(struct k_work *work)
 
 	if (IS_ENABLED(CONFIG_ZZB_NWK)) {
 		zzb_nwk_init(node);
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_APS)) {
+		zzb_aps_init(node);
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_NWK) || IS_ENABLED(CONFIG_ZZB_APS)) {
 		req->err = zzb_settings_load(node);
 		if (req->err) {
 			return;
 		}
+	}
 
+	if (IS_ENABLED(CONFIG_ZZB_NWK)) {
 		req->err = zzb_fc_start(&node->nwk.fc);
 		if (req->err) {
 			return;
@@ -96,7 +105,10 @@ static void init_handler(struct k_work *work)
 	}
 
 	if (IS_ENABLED(CONFIG_ZZB_APS)) {
-		zzb_aps_init(node);
+		req->err = zzb_fc_start(&node->aps.fc);
+		if (req->err) {
+			return;
+		}
 	}
 
 	node->in_use = true;

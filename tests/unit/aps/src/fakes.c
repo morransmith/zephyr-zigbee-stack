@@ -35,3 +35,9 @@ void reset_fakes(void)
 {
 	FFF_RESET_HISTORY();
 }
+
+/* The test thread is cooperative and has a lower priority than the stack thread */
+void run_stack(void)
+{
+	k_yield();
+}
