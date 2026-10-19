@@ -69,15 +69,28 @@ static void transport_key_ind_copy(struct zzb_node *node, uint64_t src_addr,
 	memcpy(transported_key, key, ZZB_SEC_KEY_LEN);
 }
 
+/* BDB 10.1.1: "83FE D340 7A93 9723 A5C6 39B2 6916 D505 C3B5" and the key of BDB 10.1.2 */
+static const uint8_t install_code[] = {
+	0x83, 0xfe, 0xd3, 0x40, 0x7a, 0x93, 0x97, 0x23, 0xa5,
+	0xc6, 0x39, 0xb2, 0x69, 0x16, 0xd5, 0x05, 0xc3, 0xb5,
+};
+
+const uint8_t install_code_key[ZZB_SEC_KEY_LEN] = {
+	0x66, 0xb6, 0x90, 0x09, 0x81, 0xe1, 0xee, 0x3c,
+	0xa4, 0x20, 0x6b, 0x6b, 0x86, 0x1c, 0x02, 0xbb,
+};
+
 struct zzb_node *test_node(int index)
 {
-	static const uint64_t eui64[] = {NODE_EUI64, TC_EUI64};
+	static const uint64_t eui64[] = {NODE_EUI64, TC_EUI64, IC_NODE_EUI64};
 	static struct zzb_node *nodes[ARRAY_SIZE(eui64)];
 
 	if (nodes[0] == NULL) {
 		ARRAY_FOR_EACH(nodes, i) {
 			const struct zzb_node_config cfg = {
 				.eui64 = eui64[i],
+				.install_code = eui64[i] == IC_NODE_EUI64 ? install_code : NULL,
+				.install_code_len = sizeof(install_code),
 			};
 
 			zassert_ok(zzb_node_init(&cfg, &nodes[i]));

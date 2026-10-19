@@ -69,9 +69,7 @@ struct net_buf *zzb_aps_ack_build(struct zzb_node *node, const struct zzb_aps_hd
 
 	/* The extended nonce lets a receiver without nwkAddressMap find the key */
 	if ((ack.flags & ZZB_APS_SECURITY) &&
-	    zzb_aps_secure(node, buf, hdr_len,
-			   sec->pair != NULL ? sec->pair->key : zzb_aps_default_tc_link_key,
-			   ZZB_SEC_KEY_DATA, true)) {
+	    zzb_aps_secure(node, buf, hdr_len, sec->key, ZZB_SEC_KEY_DATA, true)) {
 		net_buf_unref(buf);
 		return NULL;
 	}

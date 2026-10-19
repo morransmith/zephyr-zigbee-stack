@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <string.h>
 #include <zephyr/kernel.h>
 #include <zzb/zzb.h>
 
@@ -11,6 +12,7 @@
 #include "common/queue.h"
 #include "mac/mac.h"
 #include "nwk/nwk.h"
+#include "sec/install_code.h"
 #include "storage/settings.h"
 #include "zcl/zcl.h"
 
@@ -60,15 +62,29 @@ static int hw_eui64(const struct zzb_node_config *cfg, uint64_t *eui64)
 	return zzb_eui64_get(eui64);
 }
 
+/* BDB 10.1.1: a code of 6, 8, 12 or 16 bytes and its CRC */
+static int install_key(const struct zzb_node_config *cfg, uint8_t key[ZZB_SEC_KEY_LEN])
+{
+	size_t code_len = cfg->install_code_len - 2;
+
+	if (code_len != 6 && code_len != 8 && code_len != 12 && code_len != 16) {
+		return -EINVAL;
+	}
+
+	return zzb_sec_install_code_key(cfg->install_code, cfg->install_code_len, key);
+}
+
 static void init_handler(struct k_work *work)
 {
 	struct init_req *req = CONTAINER_OF(work, struct init_req, work);
+	const struct zzb_node_config *cfg = req->cfg;
+	uint8_t key[ZZB_SEC_KEY_LEN] = {0};
 	struct zzb_node *node;
-	uint64_t eui64 = req->cfg->eui64;
+	uint64_t eui64 = cfg->eui64;
 
-	if ((IS_ENABLED(CONFIG_ZZB_MAC) && req->cfg->radio == NULL) ||
-	    ((IS_ENABLED(CONFIG_ZZB_ZDO) || IS_ENABLED(CONFIG_ZZB_ZCL)) &&
-	     req->cfg->device == NULL)) {
+	if ((IS_ENABLED(CONFIG_ZZB_MAC) && cfg->radio == NULL) ||
+	    ((IS_ENABLED(CONFIG_ZZB_ZDO) || IS_ENABLED(CONFIG_ZZB_ZCL)) && cfg->device == NULL) ||
+	    (cfg->install_code != NULL && install_key(cfg, key) != 0)) {
 		req->err = -EINVAL;
 		return;
 	}
@@ -80,7 +96,7 @@ static void init_handler(struct k_work *work)
 	}
 
 	if (eui64 == 0) {
-		req->err = hw_eui64(req->cfg, &eui64);
+		req->err = hw_eui64(cfg, &eui64);
 		if (req->err) {
 			return;
 		}
@@ -88,14 +104,16 @@ static void init_handler(struct k_work *work)
 
 	*node = (struct zzb_node){
 		.eui64 = eui64,
-		.device = req->cfg->device,
-		.bdb_cb = req->cfg->bdb_cb,
-		.zcl_cb = req->cfg->zcl_cb,
-		.zcl_effect_cb = req->cfg->zcl_effect_cb,
+		.has_install_key = cfg->install_code != NULL,
+		.device = cfg->device,
+		.bdb_cb = cfg->bdb_cb,
+		.zcl_cb = cfg->zcl_cb,
+		.zcl_effect_cb = cfg->zcl_effect_cb,
 	};
+	memcpy(node->install_key, key, sizeof(key));
 
 	if (IS_ENABLED(CONFIG_ZZB_MAC)) {
-		req->err = zzb_mac_init(node, req->cfg->radio);
+		req->err = zzb_mac_init(node, cfg->radio);
 		if (req->err) {
 			return;
 		}

@@ -56,6 +56,10 @@ void check_no_buffer_leak(void);
 /* Trust center link key B of BDB 10.2.5 */
 extern const uint8_t key_b[ZZB_SEC_KEY_LEN];
 
+/* Node 2 has the install code of BDB 10.1.1, from which this key is derived */
+#define IC_NODE_EUI64 0x00124b0000000c0dULL
+extern const uint8_t install_code_key[ZZB_SEC_KEY_LEN];
+
 /* Node 0 has NODE_EUI64, node 1 plays the trust center with TC_EUI64 */
 struct zzb_node *test_node(int index);
 

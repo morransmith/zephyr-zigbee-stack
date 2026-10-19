@@ -42,7 +42,8 @@ static const struct tc_frame transport = {
 	.nwk_dst = CHILD_ADDR,
 };
 
-static void receive_cmd(const struct zzb_aps_cmd *cmd, const struct tc_frame *how)
+static void receive_cmd_at(struct zzb_node *to, const struct zzb_aps_cmd *cmd,
+			   const struct tc_frame *how)
 {
 	const struct zzb_aps_hdr hdr = {
 		.type = ZZB_APS_FRAME_CMD,
@@ -61,7 +62,12 @@ static void receive_cmd(const struct zzb_aps_cmd *cmd, const struct tc_frame *ho
 		zassert_ok(err);
 	}
 
-	zzb_nlde_data_ind(node, buf, how->nwk_dst, how->nwk_src, how->nwk_security);
+	zzb_nlde_data_ind(to, buf, how->nwk_dst, how->nwk_src, how->nwk_security);
+}
+
+static void receive_cmd(const struct zzb_aps_cmd *cmd, const struct tc_frame *how)
+{
+	receive_cmd_at(node, cmd, how);
 }
 
 static struct zzb_aps_cmd nwk_key_cmd(uint64_t dst, uint64_t src)
@@ -161,6 +167,70 @@ ZTEST(zzb_aps_cmd, test_transport_key_with_ack_request)
 	zassert_true(zzb_aps_hdr_parse(sent[0].data, sent[0].len, &hdr) > 0);
 	zassert_equal(hdr.type, ZZB_APS_FRAME_ACK);
 	zassert_equal(hdr.flags, ZZB_APS_ACK_FORMAT | ZZB_APS_SECURITY);
+}
+
+/*
+ * BDB 6.4: a node with an install code takes the network key under the install code key or under
+ * the default key. The trust center entry gets the key that decrypted it (R22 4.6.3.1).
+ */
+ZTEST(zzb_aps_cmd, test_transport_key_with_an_install_code)
+{
+	struct zzb_node *ic_node = test_node(2);
+	struct zzb_aps_cmd cmd = nwk_key_cmd(IC_NODE_EUI64, TC_EUI64);
+	struct tc_frame how = transport;
+	const struct zzb_aps_key_pair *pair;
+
+	zzb_aps_reset(ic_node);
+	how.link_key = install_code_key;
+	receive_cmd_at(ic_node, &cmd, &how);
+	zassert_equal(zzb_apsme_transport_key_ind_fake.call_count, 1);
+	zassert_ok(zzb_apsme_set_tc_addr(ic_node, TC_EUI64));
+	pair = zzb_aps_key_pair_find(ic_node, TC_EUI64);
+	zassert_mem_equal(pair->key, install_code_key, ZZB_SEC_KEY_LEN);
+	zassert_equal(pair->type, ZZB_APS_LINK_KEY_UNIQUE);
+	zassert_equal(pair->attr, ZZB_APS_KEY_PROVISIONAL);
+
+	/* A network that does not know the install code */
+	zzb_aps_reset(ic_node);
+	how.link_key = zzb_aps_default_tc_link_key;
+	receive_cmd_at(ic_node, &cmd, &how);
+	zassert_equal(zzb_apsme_transport_key_ind_fake.call_count, 2);
+	zassert_ok(zzb_apsme_set_tc_addr(ic_node, TC_EUI64));
+	pair = zzb_aps_key_pair_find(ic_node, TC_EUI64);
+	zassert_mem_equal(pair->key, zzb_aps_default_tc_link_key, ZZB_SEC_KEY_LEN);
+	zassert_equal(pair->type, ZZB_APS_LINK_KEY_GLOBAL);
+
+	/* Neither key */
+	zzb_aps_reset(ic_node);
+	how.link_key = key_b;
+	receive_cmd_at(ic_node, &cmd, &how);
+	zassert_equal(zzb_apsme_transport_key_ind_fake.call_count, 2);
+}
+
+/* The ACK of a frame decrypted with a preconfigured key is secured with the same key */
+ZTEST(zzb_aps_cmd, test_ack_under_the_install_code_key)
+{
+	struct zzb_node *ic_node = test_node(2);
+	struct zzb_aps_cmd cmd = nwk_key_cmd(IC_NODE_EUI64, TC_EUI64);
+	struct tc_frame how = transport;
+	struct zzb_aps_sec sec;
+	struct net_buf *buf;
+
+	zzb_aps_reset(ic_node);
+	how.link_key = install_code_key;
+	how.flags |= ZZB_APS_ACK_REQ;
+	how.nwk_src = 0x0000;
+	receive_cmd_at(ic_node, &cmd, &how);
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 1);
+
+	zassert_ok(zzb_apsme_set_link_key(tc, IC_NODE_EUI64, install_code_key, ZZB_APS_KEY_VERIFIED,
+					  ZZB_APS_LINK_KEY_UNIQUE));
+	buf = zzb_buf_alloc(K_NO_WAIT);
+	net_buf_add_mem(buf, sent[0].data, sent[0].len);
+	zassert_ok(zzb_aps_unsecure(tc, buf, 2, CHILD_ADDR, &sec));
+	zassert_equal(sec.src_addr, IC_NODE_EUI64);
+	net_buf_unref(buf);
+	zzb_aps_reset(tc);
 }
 
 /* Under a router parent the NWK source is the parent (R22 4.6.3.2.4) */

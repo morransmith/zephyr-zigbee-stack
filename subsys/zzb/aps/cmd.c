@@ -130,6 +130,12 @@ void zzb_aps_cmd_process(struct zzb_node *node, const struct zzb_aps_rx *rx,
 {
 	switch (cmd->id) {
 	case ZZB_APS_CMD_TRANSPORT_KEY:
+		/* zzb_apsme_set_tc_addr() gives a new trust center entry this key */
+		if (cmd->transport_key.type == ZZB_APS_KEY_NWK && rx->sec.pair == NULL &&
+		    rx->sec.key != NULL) {
+			node->aps.join_key = rx->sec.key;
+		}
+
 		zzb_apsme_transport_key_ind(node, cmd->transport_key.src, cmd->transport_key.type,
 					    cmd->transport_key.key, cmd->transport_key.seq);
 		break;

@@ -18,6 +18,9 @@
 struct zzb_node {
 	bool in_use;
 	uint64_t eui64;
+	/* The key derived from the install code of the configuration */
+	bool has_install_key;
+	uint8_t install_key[ZZB_SEC_KEY_LEN];
 	const struct zzb_device *device;
 	zzb_bdb_cb_t bdb_cb;
 	zzb_zcl_cb_t zcl_cb;

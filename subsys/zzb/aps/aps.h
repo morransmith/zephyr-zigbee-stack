@@ -208,6 +208,8 @@ struct zzb_aps {
 	struct zzb_aps_dup dups[CONFIG_ZZB_APS_DUP_COUNT];
 	/* Outgoing APS frame counter, kept by zzb_aps_reset() */
 	struct zzb_fc fc;
+	/* The preconfigured key of the last network key, for a new trust center entry */
+	const uint8_t *join_key;
 };
 
 /* The default global trust center link key "ZigBeeAlliance09" (BDB 6.3.1) */
@@ -224,9 +226,10 @@ void zzb_aps_init(struct zzb_node *node);
 void zzb_aps_reset(struct zzb_node *node);
 
 /*
- * APSME-SET of apsTrustCenterAddress. When the key-pair table has no entry for addr, an entry
- * with the default trust center link key, global and provisional, is added. Returns -ENOMEM and
- * changes nothing when the table is full.
+ * APSME-SET of apsTrustCenterAddress. When the key-pair table has no entry for addr, a provisional
+ * entry is added with the preconfigured key that decrypted the last network key Transport Key:
+ * the install code key as unique, the default trust center link key as global. Returns -ENOMEM
+ * and changes nothing when the table is full.
  */
 int zzb_apsme_set_tc_addr(struct zzb_node *node, uint64_t addr);
 
@@ -334,8 +337,10 @@ void zzb_aps_dup_add(struct zzb_node *node, uint16_t src_addr, uint8_t counter);
 struct zzb_aps_sec {
 	enum zzb_sec_key_id key_id;
 	uint64_t src_addr;
-	/* NULL for the default trust center link key while the network key is pending */
+	/* NULL for a preconfigured key while the network key is pending */
 	struct zzb_aps_key_pair *pair;
+	/* The link key of the entry or the preconfigured key */
+	const uint8_t *key;
 };
 
 /* A received frame after the removal of its APS security */

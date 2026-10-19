@@ -99,6 +99,34 @@ ZTEST(zzb_aps_security, test_default_key_only_while_the_network_key_is_pending)
 	net_buf_unref(buf);
 }
 
+/* BDB 6.4: the install code key first, then the default key */
+ZTEST(zzb_aps_security, test_preconfigured_keys_with_an_install_code)
+{
+	struct zzb_node *ic_node = test_node(2);
+	struct net_buf *buf;
+	struct zzb_aps_sec sec;
+
+	zzb_aps_reset(ic_node);
+	zzb_nwk_key_pending_fake.return_val = true;
+
+	buf = secured_cmd(install_code_key, ZZB_SEC_KEY_TRANSPORT, true);
+	zassert_ok(zzb_aps_unsecure(ic_node, buf, sizeof(cmd_hdr), 0x0000, &sec));
+	zassert_is_null(sec.pair);
+	zassert_mem_equal(sec.key, install_code_key, ZZB_SEC_KEY_LEN);
+	check_plaintext(buf);
+	net_buf_unref(buf);
+
+	buf = secured_cmd(zzb_aps_default_tc_link_key, ZZB_SEC_KEY_TRANSPORT, true);
+	zassert_ok(zzb_aps_unsecure(ic_node, buf, sizeof(cmd_hdr), 0x0000, &sec));
+	zassert_equal_ptr(sec.key, zzb_aps_default_tc_link_key);
+	check_plaintext(buf);
+	net_buf_unref(buf);
+
+	buf = secured_cmd(key_b, ZZB_SEC_KEY_TRANSPORT, true);
+	zassert_equal(zzb_aps_unsecure(ic_node, buf, sizeof(cmd_hdr), 0x0000, &sec), -EBADMSG);
+	net_buf_unref(buf);
+}
+
 ZTEST(zzb_aps_security, test_link_key_round_trip)
 {
 	uint32_t fc = tc->aps.fc.value;
