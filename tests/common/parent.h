@@ -104,6 +104,15 @@ void parent_send_aps_data(uint8_t counter);
  */
 void parent_send_zcl(uint16_t cluster, const uint8_t *asdu, size_t len);
 
+/*
+ * Sends a ZCL frame of cluster from endpoint 1 to group with profile 0x0104 as an NWK broadcast to
+ * 0xfffd, from the stack thread
+ */
+void parent_send_group_zcl(uint16_t group, uint16_t cluster, const uint8_t *asdu, size_t len);
+
+/* Sends a ZDO frame of cluster to the child with NWK security only, from the stack thread */
+void parent_send_zdo(uint16_t cluster, const uint8_t *asdu, size_t len);
+
 /* Sends network key 1 in a Transport Key, then a broadcast Switch Key, from the stack thread */
 void parent_send_nwk_key_update(void);
 

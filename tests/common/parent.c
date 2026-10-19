@@ -660,6 +660,7 @@ void parent_withhold_aps_acks(int count)
 
 struct data_call {
 	struct k_work work;
+	uint16_t group;
 	uint16_t cluster;
 	const uint8_t *asdu;
 	size_t len;
@@ -706,6 +707,54 @@ void parent_send_zcl(uint16_t cluster, const uint8_t *asdu, size_t len)
 	};
 
 	zzb_call_sync(&call.work, aps_data_handler);
+}
+
+static void group_zcl_handler(struct k_work *work)
+{
+	struct data_call *call = CONTAINER_OF(work, struct data_call, work);
+	const struct zzb_aps_hdr hdr = {
+		.type = ZZB_APS_FRAME_DATA,
+		.delivery = ZZB_APS_DELIVERY_GROUP,
+		.group = call->group,
+		.cluster = call->cluster,
+		.profile = 0x0104,
+		.src_ep = 0x01,
+		.counter = parent.aps_counter++,
+	};
+	uint8_t payload[ZZB_BUF_SIZE];
+
+	send_nwk(ZZB_NWK_FRAME_DATA, ZZB_NWK_SECURITY, 0xfffd, payload,
+		 write_aps(payload, hdr, call->asdu, call->len, NULL, ZZB_SEC_KEY_DATA));
+}
+
+void parent_send_group_zcl(uint16_t group, uint16_t cluster, const uint8_t *asdu, size_t len)
+{
+	struct data_call call = {
+		.group = group,
+		.cluster = cluster,
+		.asdu = asdu,
+		.len = len,
+	};
+
+	zzb_call_sync(&call.work, group_zcl_handler);
+}
+
+static void zdo_handler(struct k_work *work)
+{
+	struct data_call *call = CONTAINER_OF(work, struct data_call, work);
+
+	send_zdo(call->cluster, call->asdu, call->len);
+}
+
+void parent_send_zdo(uint16_t cluster, const uint8_t *asdu, size_t len)
+{
+	struct data_call call = {
+		.cluster = cluster,
+		.asdu = asdu,
+		.len = len,
+	};
+
+	zzb_call_sync(&call.work, zdo_handler);
 }
 
 /* R22 4.6.3.4.1: a unicast key update, then a broadcast Switch Key with NWK security only */

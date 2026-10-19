@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <zephyr/kernel.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zzb.h>
@@ -71,10 +73,11 @@ static struct zzb_zcl_on_off on_off = {
 	.start_up_default = ZZB_ZCL_START_UP_PREVIOUS,
 };
 
-/* Basic, Identify and On/Off servers of an On/Off Light (Home Automation profile) */
+/* Basic, Identify, Groups and On/Off servers of an On/Off Light (Home Automation profile) */
 static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
+	ZZB_ZCL_GROUPS_SERVER(),
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 };
 
@@ -291,6 +294,75 @@ ZTEST(zzb_bdb_integration, test_zcl)
 	zassert_equal(changes.ep, 1);
 	zassert_equal(changes.cluster, ZZB_ZCL_ON_OFF);
 	zassert_equal(changes.attr, ZZB_ZCL_ON_OFF_ON_OFF);
+}
+
+/*
+ * ZHA configures reporting: Bind_req of On/Off to endpoint 1 of the coordinator, then Configure
+ * Reporting of OnOff with min 0 and max 900. A Toggle sends a report through the binding.
+ */
+ZTEST(zzb_bdb_integration, test_reporting)
+{
+	static const uint8_t configure[] = {0x00, 0x20, 0x06, 0x00, 0x00, 0x00,
+					    0x10, 0x00, 0x00, 0x84, 0x03};
+	static const uint8_t configure_rsp[] = {0x18, 0x20, 0x07, 0x00};
+	static const uint8_t toggle[] = {0x01, 0x21, 0x02};
+	static const uint8_t report[] = {0x0a, 0x00, 0x00, 0x10, 0x01};
+	uint8_t bind[22] = {0x22};
+
+	steer();
+	sys_put_le64(child->eui64, bind + 1);
+	bind[9] = 1;
+	sys_put_le16(ZZB_ZCL_ON_OFF, bind + 10);
+	bind[12] = ZZB_APS_ADDR_EXT;
+	sys_put_le64(PARENT_EUI64, bind + 13);
+	bind[21] = 1;
+	parent_send_zdo(ZZB_ZDP_BIND_REQ, bind, sizeof(bind));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zdo_cluster, ZZB_ZDP_BIND_REQ | 0x8000);
+
+	parent_send_zcl(ZZB_ZCL_ON_OFF, configure, sizeof(configure));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_len, sizeof(configure_rsp));
+	zassert_mem_equal(parent_log.zcl, configure_rsp, sizeof(configure_rsp));
+
+	/* The Default Response, then the report with a TSN of the node */
+	parent_send_zcl(ZZB_ZCL_ON_OFF, toggle, sizeof(toggle));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_frames, 3);
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_ON_OFF);
+	zassert_equal(parent_log.zcl_dst_ep, 1);
+	zassert_true(parent_log.aps_hdr.flags & ZZB_APS_ACK_REQ);
+	zassert_equal(parent_log.zcl_len, 2 + sizeof(report));
+	zassert_equal(parent_log.zcl[0], 0x18);
+	zassert_mem_equal(parent_log.zcl + 2, report, sizeof(report));
+}
+
+/*
+ * ZHA adds the light to a group with a named Add Group, then switches the group on. A frame to
+ * another group is dropped.
+ */
+ZTEST(zzb_bdb_integration, test_group)
+{
+	static const uint8_t add_group[] = {0x01, 0x30, 0x00, 0x42, 0x00, 0x03, 'z', 'h', 'a'};
+	static const uint8_t add_group_rsp[] = {0x19, 0x30, 0x00, 0x00, 0x42, 0x00};
+	static const uint8_t on[] = {0x01, 0x31, 0x01};
+	static const uint8_t off[] = {0x01, 0x32, 0x00};
+
+	steer();
+	parent_send_zcl(ZZB_ZCL_GROUPS, add_group, sizeof(add_group));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_len, sizeof(add_group_rsp));
+	zassert_mem_equal(parent_log.zcl, add_group_rsp, sizeof(add_group_rsp));
+
+	/* No Default Response to a group */
+	parent_send_group_zcl(0x0042, ZZB_ZCL_ON_OFF, on, sizeof(on));
+	k_sleep(K_MSEC(100));
+	zassert_true(on_off.on_off);
+	zassert_equal(parent_log.zcl_frames, 1);
+
+	parent_send_group_zcl(0x0043, ZZB_ZCL_ON_OFF, off, sizeof(off));
+	k_sleep(K_MSEC(100));
+	zassert_true(on_off.on_off);
 }
 
 ZTEST_SUITE(zzb_bdb_integration, NULL, setup, before, NULL, NULL);
