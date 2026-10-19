@@ -71,6 +71,17 @@ ZTEST(zzb_zcl_attr, test_wide_types)
 	zassert_equal(values1.map32, 0x89abcdef);
 }
 
+/* The check hook gets the value struct of the instance on the endpoint */
+ZTEST(zzb_zcl_attr, test_check_values)
+{
+	static const uint8_t req[] = {0x00, 0x63, 0x02, 0x03, 0x00, 0x30, 0x01};
+
+	receive_ep(2, TEST_CLUSTER, req, sizeof(req));
+	zassert_equal_ptr(check_values, &values2);
+	receive_ep(1, TEST_CLUSTER, req, sizeof(req));
+	zassert_equal_ptr(check_values, &values1);
+}
+
 /* Section 15: a record with an unknown version or length fails the boot */
 ZTEST(zzb_zcl_attr, test_bad_record)
 {

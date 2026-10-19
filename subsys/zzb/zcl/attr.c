@@ -105,7 +105,7 @@ static uint8_t check_value(const struct zzb_zcl_cluster *cl, const struct zzb_zc
 		return ZZB_ZCL_INVALID_VALUE;
 	}
 
-	return cl->def->check != NULL ? cl->def->check(attr, value) : ZZB_ZCL_SUCCESS;
+	return cl->def->check != NULL ? cl->def->check(cl->values, attr, value) : ZZB_ZCL_SUCCESS;
 }
 
 uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,

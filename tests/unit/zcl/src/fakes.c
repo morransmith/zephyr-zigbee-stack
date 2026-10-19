@@ -44,6 +44,7 @@ struct zzb_zcl_basic basic = {
 };
 struct cmd_calls cmd_calls;
 int cmd_status;
+const void *check_values;
 struct changed_calls hook_calls;
 struct zcl_cb_calls zcl_cb_calls;
 struct effect_calls effect_calls;
@@ -138,8 +139,9 @@ static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *
 	return cmd_status;
 }
 
-static uint8_t test_check(const struct zzb_zcl_attr *attr, uint32_t value)
+static uint8_t test_check(const void *values, const struct zzb_zcl_attr *attr, uint32_t value)
 {
+	check_values = values;
 	return attr->id == 0x0003 && value > TEST_E8_MAX ? ZZB_ZCL_INVALID_VALUE : ZZB_ZCL_SUCCESS;
 }
 
@@ -299,6 +301,7 @@ void reset_fakes(void)
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
 	cmd_calls = (struct cmd_calls){0};
 	cmd_status = ZZB_ZCL_SUCCESS;
+	check_values = NULL;
 	hook_calls = (struct changed_calls){0};
 	zcl_cb_calls = (struct zcl_cb_calls){0};
 	effect_calls = (struct effect_calls){0};

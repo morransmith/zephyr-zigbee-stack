@@ -148,10 +148,10 @@ struct zzb_zcl_cluster_def {
 	 */
 	int (*cmd)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values);
 	/**
-	 * Checks a remote write of value to attr, or NULL. Returns ZZB_ZCL_SUCCESS or
-	 * ZZB_ZCL_INVALID_VALUE.
+	 * Checks a remote write of value to attr against the values before the write, or NULL.
+	 * Returns ZZB_ZCL_SUCCESS or ZZB_ZCL_INVALID_VALUE.
 	 */
-	uint8_t (*check)(const struct zzb_zcl_attr *attr, uint32_t value);
+	uint8_t (*check)(const void *values, const struct zzb_zcl_attr *attr, uint32_t value);
 	/** Called on the stack thread after every change of the value of attr, or NULL. */
 	void (*changed)(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr);
 	/**

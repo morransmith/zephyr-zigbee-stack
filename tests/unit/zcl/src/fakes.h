@@ -92,6 +92,9 @@ extern int cmd_status;
 /* The check hook of the test cluster rejects a value of attribute 0x0003 above this */
 #define TEST_E8_MAX 0x10
 
+/* The value struct passed to the last call of the check hook of the test cluster */
+extern const void *check_values;
+
 /* Calls of the changed hook of the test cluster and of zcl_cb, in order */
 struct changed_calls {
 	int count;
