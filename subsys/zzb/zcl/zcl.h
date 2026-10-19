@@ -285,7 +285,14 @@ void zzb_zcl_scenes_remove_group(struct zzb_node *node, uint8_t ep, uint16_t gro
 void zzb_zcl_alarm_raise(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t code,
 			 bool send, bool notify);
 
-/* Clears the alarm table and sets AlarmCount 0 with zcl_cb */
+/*
+ * Loads the record zcl/alarm/<index>; -EINVAL for an unknown version or length. A record of an
+ * endpoint without an Alarms server is ignored.
+ */
+int zzb_zcl_alarms_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			void *cb_arg);
+
+/* Clears the alarm table, sets AlarmCount 0 with zcl_cb and deletes the records */
 void zzb_zcl_alarms_reset(struct zzb_node *node);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */

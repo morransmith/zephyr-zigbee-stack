@@ -3,10 +3,12 @@
 #include <errno.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/printk.h>
 #include <zzb/zcl/alarms.h>
 
 #include "common/node.h"
 #include "common/queue.h"
+#include "storage/settings.h"
 #include "zcl/zcl.h"
 
 /* ClusterRevision (ZCL 3.11.1.1) */
@@ -14,6 +16,12 @@
 
 /* Time stamp of an alarm without a Time server (ZCL Table 3-66) */
 #define NO_TIME 0xffffffff
+
+#define RECORD_VERSION 1
+/* Version, sequence number, endpoint, alarm code and cluster */
+#define RECORD_LEN     9
+/* Room for zcl/alarm/<i> with any int i */
+#define NAME_LEN       22
 
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_ALARMS_ALARM_COUNT, ZZB_ZCL_UINT16, 0, struct zzb_zcl_alarms,
@@ -42,6 +50,34 @@ static void count(struct zzb_node *node, uint8_t ep, bool notify)
 	} else {
 		zzb_zcl_store(node, ep, ZZB_ZCL_ALARMS, ZZB_ZCL_ALARMS_ALARM_COUNT, n);
 	}
+}
+
+static void record_name(char name[NAME_LEN], int index)
+{
+	snprintk(name, NAME_LEN, "zcl/alarm/%d", index);
+}
+
+/* A failed save is ignored */
+static void save(struct zzb_node *node, const struct zzb_zcl_alarm *a)
+{
+	uint8_t rec[RECORD_LEN] = {RECORD_VERSION};
+	char name[NAME_LEN];
+
+	sys_put_le32(a->seq, rec + 1);
+	rec[5] = a->ep;
+	rec[6] = a->code;
+	sys_put_le16(a->cluster, rec + 7);
+	record_name(name, a - node->zcl.alarms);
+	zzb_settings_save(node, name, rec, sizeof(rec));
+}
+
+static void remove_entry(struct zzb_node *node, struct zzb_zcl_alarm *a)
+{
+	char name[NAME_LEN];
+
+	a->in_use = false;
+	record_name(name, a - node->zcl.alarms);
+	zzb_settings_delete(node, name);
 }
 
 /* The earliest entry of endpoint ep, or NULL */
@@ -110,6 +146,7 @@ void zzb_zcl_alarm_raise(struct zzb_node *node, uint8_t ep, uint16_t cluster, ui
 		.code = code,
 		.cluster = cluster,
 	};
+	save(node, entry);
 	count(node, replaced, notify);
 	count(node, ep, notify);
 }
@@ -129,7 +166,7 @@ static int get_alarm(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	rsp[1] = a->code;
 	sys_put_le16(a->cluster, rsp + 2);
 	sys_put_le32(NO_TIME, rsp + 4);
-	a->in_use = false;
+	remove_entry(node, a);
 	count(node, cmd->ep, true);
 	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_ALARMS_GET_ALARM_RSP, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
@@ -140,7 +177,7 @@ static int reset_log(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
 	ARRAY_FOR_EACH_PTR(node->zcl.alarms, a) {
 		if (a->in_use && a->ep == cmd->ep) {
-			a->in_use = false;
+			remove_entry(node, a);
 		}
 	}
 
@@ -165,18 +202,61 @@ static void init(void *values)
 	*(struct zzb_zcl_alarms *)values = (struct zzb_zcl_alarms){0};
 }
 
+/* AlarmCount of the loaded table, without zcl_cb */
+static void start(struct zzb_node *node, uint8_t ep, void *values)
+{
+	count(node, ep, false);
+}
+
 const struct zzb_zcl_cluster_def zzb_zcl_alarms_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
 	.init = init,
+	.start = start,
 	.cmd = cmd,
 };
 
+int zzb_zcl_alarms_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			void *cb_arg)
+{
+	uint8_t rec[RECORD_LEN];
+	int err;
+
+	if (index < 0 || index >= ARRAY_SIZE(node->zcl.alarms)) {
+		return 0;
+	}
+
+	err = zzb_settings_read(len, read_cb, cb_arg, rec, sizeof(rec));
+	if (err) {
+		return err;
+	}
+
+	if (!has_server(node, rec[5])) {
+		return 0;
+	}
+
+	node->zcl.alarms[index] = (struct zzb_zcl_alarm){
+		.in_use = true,
+		.seq = sys_get_le32(rec + 1),
+		.ep = rec[5],
+		.code = rec[6],
+		.cluster = sys_get_le16(rec + 7),
+	};
+	return 0;
+}
+
 void zzb_zcl_alarms_reset(struct zzb_node *node)
 {
+	char name[NAME_LEN];
+
 	memset(node->zcl.alarms, 0, sizeof(node->zcl.alarms));
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		count(node, node->device->endpoints[i].id, true);
+	}
+
+	for (int i = 0; i < ARRAY_SIZE(node->zcl.alarms); i++) {
+		record_name(name, i);
+		zzb_settings_delete(node, name);
 	}
 }
 

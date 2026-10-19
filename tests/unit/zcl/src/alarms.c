@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <zephyr/settings/settings.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/alarms.h>
 
@@ -172,6 +173,59 @@ ZTEST(zzb_zcl_alarms, test_reset)
 	zassert_equal(zcl_cb_calls.count, 2);
 	get_no_alarm(20);
 	get_no_alarm(21);
+}
+
+/* The table survives a reboot, and new alarms follow the loaded ones; loading calls no zcl_cb */
+ZTEST(zzb_zcl_alarms, test_table_survives_a_reboot)
+{
+	alarm(20, 0x10);
+	alarm(21, 0x20);
+	alarm(20, 0x11);
+	get_alarm(20, 0x10);
+	command(21, ZZB_ZCL_ALARMS_RESET_ALARM_LOG, NULL, 0, ZZB_ZCL_SUCCESS);
+	zcl_cb_calls.count = 0;
+	zassert_ok(reboot());
+
+	zassert_equal(alarms20.alarm_count, 1);
+	zassert_equal(alarms21.alarm_count, 0);
+	zassert_equal(zcl_cb_calls.count, 0);
+	alarm(20, 0x12);
+	get_alarm(20, 0x11);
+	get_alarm(20, 0x12);
+
+	alarm(20, 0x13);
+	reset_node();
+	zassert_ok(reboot());
+	zassert_equal(alarms20.alarm_count, 0);
+}
+
+ZTEST(zzb_zcl_alarms, test_bad_records)
+{
+	/* Sequence number 5, endpoint 20, alarm code 0x10 of cluster 0x0001 */
+	uint8_t rec[] = {2, 5, 0, 0, 0, 20, 0x10, 0x01, 0x00};
+
+	zassert_ok(settings_save_one("zzb/0/zcl/alarm/0", rec, sizeof(rec)));
+	zassert_equal(reboot(), -EINVAL);
+
+	rec[0] = 1;
+	zassert_ok(settings_save_one("zzb/0/zcl/alarm/0", rec, sizeof(rec) - 1));
+	zassert_equal(reboot(), -EINVAL);
+
+	/* A record of an endpoint without an Alarms server, or of an unknown one, is ignored */
+	rec[5] = 1;
+	zassert_ok(settings_save_one("zzb/0/zcl/alarm/0", rec, sizeof(rec)));
+	zassert_ok(reboot());
+	zassert_false(test_node()->zcl.alarms[0].in_use);
+	rec[5] = 9;
+	zassert_ok(settings_save_one("zzb/0/zcl/alarm/0", rec, sizeof(rec)));
+	zassert_ok(reboot());
+	zassert_false(test_node()->zcl.alarms[0].in_use);
+
+	rec[5] = 20;
+	zassert_ok(settings_save_one("zzb/0/zcl/alarm/0", rec, sizeof(rec)));
+	zassert_ok(reboot());
+	zassert_equal(alarms20.alarm_count, 1);
+	get_alarm(20, 0x10);
 }
 
 ZTEST_SUITE(zzb_zcl_alarms, NULL, setup, before, after, NULL);
