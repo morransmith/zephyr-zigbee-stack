@@ -6,6 +6,7 @@
 
 #include "common/node.h"
 #include "common/queue.h"
+#include "nwk/nwk.h"
 #include "zdo/zdo.h"
 
 /* Node_Desc_rsp: status, NWKAddrOfInterest, then the server mask at offset 8 of the descriptor */
@@ -113,6 +114,17 @@ static struct zzb_zdo_transaction *find(struct zzb_node *node, const struct zzb_
 	}
 
 	return NULL;
+}
+
+int zzb_zdo_device_annce_req(struct zzb_node *node)
+{
+	uint8_t payload[11];
+
+	sys_put_le16(zzb_nlme_get_short_addr(node), payload);
+	sys_put_le64(node->eui64, payload + 2);
+	payload[10] = zzb_nlme_get_capability(node);
+	return zzb_zdo_send(node, 0xfffd, ZZB_ZDP_DEVICE_ANNCE, node->zdo.tsn++, payload,
+			    sizeof(payload), ZZB_ZDO_HANDLE);
 }
 
 void zzb_zdo_client(struct zzb_node *node, const struct zzb_zdo_req *rsp)

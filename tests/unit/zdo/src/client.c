@@ -7,6 +7,7 @@
 #include "fakes.h"
 
 #define NODE_DESC_REQ 0x0002
+#define DEVICE_ANNCE  0x0013
 #define TC_ADDR       0x0000
 
 static struct zzb_node *node;
@@ -118,6 +119,27 @@ ZTEST(zzb_zdo_client, test_rejected_requests)
 	for (int i = 0; i <= CONFIG_ZZB_ZDO_TRANSACTION_COUNT; i++) {
 		zassert_equal(zzb_zdo_node_desc_req(node, TC_ADDR), -ENOTCONN);
 	}
+}
+
+/* R22 2.4.3.1.11: to the devices with the receiver on, without APS ACK */
+ZTEST(zzb_zdo_client, test_device_annce)
+{
+	uint8_t tsn = node->zdo.tsn;
+
+	zassert_ok(zzb_zdo_device_annce_req(node));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.dst_addr, 0xfffd);
+	zassert_equal(sent[0].req.cluster, DEVICE_ANNCE);
+	zassert_equal(sent[0].req.tx_options, 0);
+	zassert_equal(sent[0].len, 12);
+	zassert_mem_equal(sent[0].data,
+			  ((uint8_t[]){tsn, 0x78, 0x56, 0x04, 0x03, 0x02, 0x01, 0x00, 0x4b, 0x12,
+				       0x00, 0x88}),
+			  12);
+
+	zzb_apsde_data_req_fake.custom_fake = NULL;
+	zzb_apsde_data_req_fake.return_val = -ENOTCONN;
+	zassert_equal(zzb_zdo_device_annce_req(node), -ENOTCONN);
 }
 
 ZTEST_SUITE(zzb_zdo_client, NULL, setup, before, after, NULL);

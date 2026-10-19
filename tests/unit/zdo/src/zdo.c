@@ -6,6 +6,8 @@
 #include "fakes.h"
 
 #define MGMT_RTG_REQ 0x0032
+#define DEVICE_ANNCE 0x0013
+#define PARENT_ANNCE 0x001f
 #define TC_EUI64     0x00124b0000000001ULL
 
 static const uint8_t key[ZZB_SEC_KEY_LEN] = {0x01, 0x02, 0x03};
@@ -64,6 +66,11 @@ ZTEST(zzb_zdo, test_dropped_frames)
 
 	/* A response without a transaction */
 	receive(MGMT_RTG_REQ | 0x8000, NODE_ADDR, req, sizeof(req));
+
+	/* Announcements get no response (R22 2.4.3.1.11, 2.4.3.1.12) */
+	receive(DEVICE_ANNCE, NODE_ADDR,
+		(uint8_t[]){0x44, 0x34, 0x12, 1, 2, 3, 4, 5, 6, 7, 8, 0x80}, 12);
+	receive(PARENT_ANNCE, NODE_ADDR, (uint8_t[]){0x45, 0x00}, 2);
 
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
 }

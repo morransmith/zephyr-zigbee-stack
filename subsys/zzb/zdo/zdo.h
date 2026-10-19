@@ -23,6 +23,8 @@ enum zzb_zdp_cluster {
 	ZZB_ZDP_SIMPLE_DESC_REQ = 0x0004,
 	ZZB_ZDP_ACTIVE_EP_REQ = 0x0005,
 	ZZB_ZDP_MATCH_DESC_REQ = 0x0006,
+	ZZB_ZDP_DEVICE_ANNCE = 0x0013,
+	ZZB_ZDP_PARENT_ANNCE = 0x001f,
 	ZZB_ZDP_BIND_REQ = 0x0021,
 	ZZB_ZDP_UNBIND_REQ = 0x0022,
 	ZZB_ZDP_MGMT_LQI_REQ = 0x0031,
@@ -134,6 +136,9 @@ int zzb_zdo_node_desc_req(struct zzb_node *node, uint16_t addr);
  */
 void zzb_zdo_node_desc_conf(struct zzb_node *node, uint8_t status, uint16_t addr,
 			    uint16_t server_mask);
+
+/* Broadcasts Device_annce (R22 2.4.3.1.11). Returns an error of zzb_zdo_send(). */
+int zzb_zdo_device_annce_req(struct zzb_node *node);
 
 void zzb_zdo_client_init(struct zzb_node *node);
 

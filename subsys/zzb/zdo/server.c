@@ -218,6 +218,10 @@ void zzb_zdo_server(struct zzb_node *node, const struct zzb_zdo_req *req)
 	case ZZB_ZDP_MGMT_NWK_UPDATE_REQ:
 		zzb_zdo_serve_mgmt_nwk_update(node, req);
 		return;
+	/* Without nwkAddressMap a Device_annce changes nothing; an end device drops Parent_annce */
+	case ZZB_ZDP_DEVICE_ANNCE:
+	case ZZB_ZDP_PARENT_ANNCE:
+		return;
 	}
 
 	/* R22 2.4.4.1: no error status answers a broadcast */
