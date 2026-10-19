@@ -126,3 +126,42 @@ void zzb_zdo_serve_mgmt_permit_joining(struct zzb_node *node, const struct zzb_z
 
 	zzb_zdo_respond(node, req, &rsp, sizeof(rsp));
 }
+
+void zzb_zdo_leave(struct zzb_node *node)
+{
+	if (!node->zdo.leave_pending) {
+		return;
+	}
+
+	node->zdo.leave_pending = false;
+	zzb_nlme_leave_req(node, node->zdo.leave_rejoin);
+}
+
+/*
+ * R22 2.4.3.3.5, 3.6.1.10.3.1: the response goes out before the node leaves. The rejoin flag comes
+ * from the request, as in R23; Remove Children has no effect on an end device.
+ */
+void zzb_zdo_serve_mgmt_leave(struct zzb_node *node, const struct zzb_zdo_req *req)
+{
+	uint64_t addr;
+	uint8_t status;
+
+	if (req->len < 9) {
+		return;
+	}
+
+	addr = sys_get_le64(req->payload);
+	if (addr != node->eui64 && addr != 0) {
+		status = ZZB_NWK_STATUS_UNKNOWN_DEVICE;
+		zzb_zdo_respond(node, req, &status, sizeof(status));
+		return;
+	}
+
+	status = ZZB_ZDP_SUCCESS;
+	node->zdo.leave_rejoin = req->payload[8] & BIT(7);
+	node->zdo.leave_pending = true;
+	if (zzb_zdo_send(node, req->src_addr, req->cluster | ZZB_ZDP_RSP, req->tsn, &status,
+			 sizeof(status), ZZB_ZDO_LEAVE_HANDLE) != 0) {
+		zzb_zdo_leave(node);
+	}
+}

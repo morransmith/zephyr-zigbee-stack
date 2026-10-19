@@ -160,6 +160,7 @@ static bool unicast_only(uint16_t cluster)
 	case ZZB_ZDP_UNBIND_REQ:
 	case ZZB_ZDP_MGMT_LQI_REQ:
 	case ZZB_ZDP_MGMT_BIND_REQ:
+	case ZZB_ZDP_MGMT_LEAVE_REQ:
 		return true;
 	default:
 		return false;
@@ -210,6 +211,9 @@ void zzb_zdo_server(struct zzb_node *node, const struct zzb_zdo_req *req)
 		return;
 	case ZZB_ZDP_MGMT_PERMIT_JOINING_REQ:
 		zzb_zdo_serve_mgmt_permit_joining(node, req);
+		return;
+	case ZZB_ZDP_MGMT_LEAVE_REQ:
+		zzb_zdo_serve_mgmt_leave(node, req);
 		return;
 	}
 

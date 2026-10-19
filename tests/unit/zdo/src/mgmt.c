@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
 #include <zephyr/ztest.h>
 
@@ -8,6 +9,7 @@
 
 #define MGMT_LQI_REQ            0x0031
 #define MGMT_BIND_REQ           0x0033
+#define MGMT_LEAVE_REQ          0x0034
 #define MGMT_PERMIT_JOINING_REQ 0x0036
 
 static struct zzb_node *node;
@@ -157,6 +159,49 @@ ZTEST(zzb_zdo_mgmt, test_mgmt_permit_joining)
 
 	receive(MGMT_PERMIT_JOINING_REQ, 0xfffc, req, sizeof(req));
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+}
+
+/* R22 2.4.3.3.5: the response goes out before the node leaves */
+ZTEST(zzb_zdo_mgmt, test_mgmt_leave)
+{
+	uint8_t req[] = {0x45, 0x04, 0x03, 0x02, 0x01, 0x00, 0x4b, 0x12, 0x00, 0x80};
+
+	receive(MGMT_LEAVE_REQ, NODE_ADDR, req, sizeof(req));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.cluster, MGMT_LEAVE_REQ | 0x8000);
+	zassert_equal(sent[0].handle, 0xfe);
+	zassert_equal(sent[0].len, 2);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x45, 0x00}), 2);
+	zassert_equal(zzb_nlme_leave_req_fake.call_count, 0);
+
+	/* The rejoin flag of the request, as in R23 */
+	zzb_apsde_data_conf(node, 0xff, ZZB_APS_STATUS_SUCCESS);
+	zzb_apsde_data_conf(node, 0xfe, ZZB_APS_STATUS_NO_ACK);
+	zassert_equal(zzb_nlme_leave_req_fake.call_count, 1);
+	zassert_true(zzb_nlme_leave_req_fake.arg1_val);
+	zassert_true(node->zdo.leave_rejoin);
+	zzb_apsde_data_conf(node, 0xfe, ZZB_APS_STATUS_SUCCESS);
+	zassert_equal(zzb_nlme_leave_req_fake.call_count, 1);
+
+	/* The address 0 means the node; a response that cannot be sent does not stop the leave */
+	memset(req + 1, 0, 9);
+	zzb_apsde_data_req_fake.custom_fake = NULL;
+	zzb_apsde_data_req_fake.return_val = -ENOBUFS;
+	receive(MGMT_LEAVE_REQ, NODE_ADDR, req, sizeof(req));
+	zassert_equal(zzb_nlme_leave_req_fake.call_count, 2);
+	zassert_false(zzb_nlme_leave_req_fake.arg1_val);
+}
+
+ZTEST(zzb_zdo_mgmt, test_mgmt_leave_of_another_device)
+{
+	static const uint8_t req[] = {0x46, 1, 2, 3, 4, 5, 6, 7, 8, 0x00};
+
+	receive(MGMT_LEAVE_REQ, 0xfffd, req, sizeof(req));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	receive(MGMT_LEAVE_REQ, NODE_ADDR, req, sizeof(req));
+	check_response(0, MGMT_LEAVE_REQ | 0x8000, (uint8_t[]){0x46, 0xc8}, 2);
+	zassert_equal(zzb_nlme_leave_req_fake.call_count, 0);
 }
 
 ZTEST_SUITE(zzb_zdo_mgmt, NULL, setup, before, after, NULL);

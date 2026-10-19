@@ -75,6 +75,9 @@ void zzb_apsme_switch_key_ind(struct zzb_node *node, uint64_t src_addr, uint8_t 
 
 void zzb_apsde_data_conf(struct zzb_node *node, uint8_t handle, uint8_t status)
 {
+	if (handle == ZZB_ZDO_LEAVE_HANDLE) {
+		zzb_zdo_leave(node);
+	}
 }
 
 void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind)

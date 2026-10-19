@@ -26,6 +26,7 @@ enum zzb_zdp_cluster {
 	ZZB_ZDP_UNBIND_REQ = 0x0022,
 	ZZB_ZDP_MGMT_LQI_REQ = 0x0031,
 	ZZB_ZDP_MGMT_BIND_REQ = 0x0033,
+	ZZB_ZDP_MGMT_LEAVE_REQ = 0x0034,
 	ZZB_ZDP_MGMT_PERMIT_JOINING_REQ = 0x0036,
 };
 
@@ -41,12 +42,17 @@ enum zzb_zdp_status {
 	ZZB_ZDP_TABLE_FULL = 0x8c,
 };
 
-/* ASDU handle of the ZDO frames; their confirm is ignored */
-#define ZZB_ZDO_HANDLE 0xff
+/* ASDU handles of ZDO frames: Mgmt_Leave_rsp, whose confirm starts the leave, and the others */
+#define ZZB_ZDO_LEAVE_HANDLE 0xfe
+#define ZZB_ZDO_HANDLE       0xff
 
 struct zzb_zdo {
 	/* Transaction sequence number of the next frame ZDO originates */
 	uint8_t tsn;
+	/* Mgmt_Leave_rsp waits for its confirm */
+	bool leave_pending;
+	/* The Rejoin flag of the last Mgmt_Leave_req for the node, which BDB reads */
+	bool leave_rejoin;
 };
 
 /* A received request */
@@ -87,5 +93,9 @@ void zzb_zdo_serve_match_desc(struct zzb_node *node, const struct zzb_zdo_req *r
 void zzb_zdo_serve_mgmt_lqi(struct zzb_node *node, const struct zzb_zdo_req *req);
 void zzb_zdo_serve_mgmt_bind(struct zzb_node *node, const struct zzb_zdo_req *req);
 void zzb_zdo_serve_mgmt_permit_joining(struct zzb_node *node, const struct zzb_zdo_req *req);
+void zzb_zdo_serve_mgmt_leave(struct zzb_node *node, const struct zzb_zdo_req *req);
+
+/* Leaves the network after the confirm of Mgmt_Leave_rsp */
+void zzb_zdo_leave(struct zzb_node *node);
 
 #endif /* ZZB_SUBSYS_ZDO_ZDO_H_ */
