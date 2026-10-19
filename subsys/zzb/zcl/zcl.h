@@ -165,7 +165,7 @@ bool zzb_zcl_transition_step(struct zzb_node *node, uint8_t ep, const struct zzb
 void zzb_zcl_transition_stop(struct zzb_node *node, uint8_t ep, uint16_t cluster,
 			     struct zzb_zcl_transition *t);
 
-/* The time left of t in tenths of a second, rounded up; 0 when t does not run */
+/* The time left of t in tenths of a second, rounded up, at most 0xffff; 0 when t does not run */
 uint16_t zzb_zcl_transition_remaining(const struct zzb_zcl_transition *t);
 
 /* Calls the start hooks after the records are loaded */

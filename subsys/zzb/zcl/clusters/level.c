@@ -163,11 +163,10 @@ static void tick(struct k_work *work)
 
 /*
  * Moves CurrentLevel to level over time_ds tenths of a second, at once for 0, and replaces a
- * running transition; end is the change of OnOff at its end. A transition sets SceneValid FALSE
- * at its start, since its steps do not.
+ * running transition; end is the change of OnOff at its end
  */
-static void move(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, uint8_t level,
-		 uint32_t time_ds, uint8_t end)
+static void move_level(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, uint8_t level,
+		       uint32_t time_ds, uint8_t end)
 {
 	const uint16_t attr = ZZB_ZCL_LEVEL_CURRENT_LEVEL;
 	const uint16_t to = level;
@@ -177,10 +176,6 @@ static void move(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, uin
 	if (time_ds == 0) {
 		set(node, ep, ZZB_ZCL_LEVEL_CURRENT_LEVEL, level);
 	} else {
-		if (level != v->current_level) {
-			zzb_zcl_scenes_invalidate(node, ep, true);
-		}
-
 		zzb_zcl_transition_start(&v->transition, server(zzb_node_endpoint(node, ep)), &attr,
 					 &to, 1, time_ds);
 	}
@@ -190,6 +185,20 @@ static void move(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, uin
 	if (time_ds == 0) {
 		finish(node, ep, v);
 	}
+}
+
+/*
+ * move_level() for a command. Its transition sets SceneValid FALSE at the start, since the steps
+ * do not; the transition of a recalled scene leaves it TRUE.
+ */
+static void move(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, uint8_t level,
+		 uint32_t time_ds, uint8_t end)
+{
+	if (time_ds > 0 && level != v->current_level) {
+		zzb_zcl_scenes_invalidate(node, ep, true);
+	}
+
+	move_level(node, ep, v, level, time_ds, end);
 }
 
 /* With On/Off the endpoint turns on before a move above 1 and off after a move to 1 */
@@ -359,7 +368,7 @@ static void fade_down(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v
 	v->stored_level = v->current_level;
 	zzb_zcl_set(node, ep, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_ON_TIME, 0);
 
-	/* At once, with OnLevel 0xff the level would return to itself */
+	/* With time 0 and OnLevel 0xff the level would return at once, so it stays */
 	move(node, ep, v, time == 0 && v->on_level == 0xff ? v->stored_level : LEVEL_MIN, time,
 	     END_FADE);
 }
@@ -409,6 +418,18 @@ static void init(void *values)
 	};
 }
 
+/* ZCL 3.7.2.4.7: the level moves over the transition time of the scene */
+static void recall(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set_values,
+		   size_t count, uint32_t transition_ds)
+{
+	if (count == 0) {
+		return;
+	}
+
+	move_level(node, ep, values, CLAMP(set_values[0], LEVEL_MIN, LEVEL_MAX), transition_ds,
+		   END_NONE);
+}
+
 /* ZCL Table 3-58: 0x00 sets the minimum, 0xff keeps the loaded level */
 static void start(struct zzb_node *node, uint8_t ep, void *values)
 {
@@ -448,6 +469,7 @@ const struct zzb_zcl_cluster_def zzb_zcl_level_def = {
 	.start = start,
 	.reset = reset,
 	.cmd = cmd,
+	.recall = recall,
 };
 
 void zzb_zcl_level_init(struct zzb_node *node)

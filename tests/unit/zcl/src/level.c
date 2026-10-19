@@ -4,9 +4,11 @@
 #include <zephyr/ztest.h>
 #include <zzb/zcl/level.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/scenes.h>
 
 #include "common/node.h"
 #include "fakes.h"
+#include "zcl/zcl.h"
 
 static void *setup(void)
 {
@@ -83,13 +85,13 @@ static bool timer_armed(void)
 	return k_work_delayable_busy_get(&test_node()->zcl.level_timer) != 0;
 }
 
-/* The number of zcl_cb calls for attribute attr of Level Control on ep */
-static int notified(uint8_t ep, uint16_t attr)
+/* The number of zcl_cb calls for attribute attr of cluster on ep */
+static int notified(uint8_t ep, uint16_t cluster, uint16_t attr)
 {
 	int n = 0;
 
 	for (int i = 0; i < zcl_cb_calls.count; i++) {
-		n += zcl_cb_calls.ep[i] == ep && zcl_cb_calls.cluster[i] == ZZB_ZCL_LEVEL &&
+		n += zcl_cb_calls.ep[i] == ep && zcl_cb_calls.cluster[i] == cluster &&
 		     zcl_cb_calls.attr[i] == attr;
 	}
 
@@ -196,7 +198,7 @@ ZTEST(zzb_zcl_level, test_transition)
 	k_sleep(K_MSEC(1200));
 	zassert_equal(level10.current_level, 200);
 	zassert_equal(level10.remaining_time, 0);
-	zassert_between_inclusive(notified(10, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 9, 11);
+	zassert_between_inclusive(notified(10, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 9, 11);
 	zassert_false(timer_armed());
 	zassert_ok(reboot());
 	zassert_equal(level10.current_level, 200);
@@ -425,7 +427,7 @@ ZTEST(zzb_zcl_level, test_on_level)
 	on_off_command(0x01);
 	zassert_true(on_off11.on_off);
 	zassert_equal(level11.current_level, 150);
-	zassert_equal(notified(11, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 1);
+	zassert_equal(notified(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 1);
 }
 
 /* ZCL Table 3-55: Off fades to 1 and turns off at the end; with OnLevel 0xff the level returns */
@@ -438,7 +440,7 @@ ZTEST(zzb_zcl_level, test_off)
 	on_off_command(0x00);
 	zassert_false(on_off11.on_off);
 	zassert_equal(level11.current_level, 200);
-	zassert_equal(notified(11, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 0);
+	zassert_equal(notified(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 0);
 	on_off_command(0x01);
 
 	set_on_off(11, ZZB_ZCL_ON_OFF_ON_TIME, 30);
@@ -524,6 +526,34 @@ ZTEST(zzb_zcl_level, test_start_up)
 	zassert_ok(reboot());
 	zassert_equal(level10.start_up_current_level, 0x40);
 	zassert_equal(level10.current_level, 0x40);
+}
+
+/* Section 16: a recalled scene moves the level over its transition time, SceneValid stays TRUE */
+ZTEST(zzb_zcl_level, test_scene_recall)
+{
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, (uint8_t[]){200, 0, 0}, 3);
+	zassert_equal(zzb_zcl_scene_store(test_node(), 11, 0x0000, 1), ZZB_ZCL_SUCCESS);
+	move_to_level(11, 100, 0);
+	zassert_false(scenes11.scene_valid);
+
+	reset_fakes();
+	send(11, ZZB_ZCL_SCENES, 0x05, (uint8_t[]){0x00, 0x00, 0x01, 0x05, 0x00}, 5);
+	zassert_true(scenes11.scene_valid);
+	zassert_equal(level11.remaining_time, 5);
+	k_sleep(K_MSEC(300));
+	zassert_between_inclusive(level11.current_level, 140, 170);
+	k_sleep(K_MSEC(400));
+	zassert_equal(level11.current_level, 200);
+	zassert_true(scenes11.scene_valid);
+	zassert_equal(notified(11, ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_SCENE_VALID), 1);
+
+	/* The transition of a command sets SceneValid FALSE once, at its start */
+	reset_fakes();
+	move_to_level(11, 100, 5);
+	zassert_false(scenes11.scene_valid);
+	k_sleep(K_MSEC(700));
+	zassert_equal(level11.current_level, 100);
+	zassert_equal(notified(11, ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_SCENE_VALID), 1);
 }
 
 ZTEST_SUITE(zzb_zcl_level, NULL, setup, before, after, NULL);

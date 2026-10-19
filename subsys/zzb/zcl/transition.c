@@ -64,5 +64,5 @@ uint16_t zzb_zcl_transition_remaining(const struct zzb_zcl_transition *t)
 {
 	int64_t left = t->start + t->duration - k_uptime_get();
 
-	return t->count > 0 && left > 0 ? DIV_ROUND_UP(left, TENTH_MS) : 0;
+	return t->count > 0 && left > 0 ? MIN(DIV_ROUND_UP(left, TENTH_MS), UINT16_MAX) : 0;
 }
