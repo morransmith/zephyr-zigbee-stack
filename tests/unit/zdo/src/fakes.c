@@ -1,0 +1,112 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#include <string.h>
+#include <zephyr/fff.h>
+#include <zephyr/ztest.h>
+#include <zzb/zzb.h>
+
+#include "common/node.h"
+#include "fakes.h"
+#include "zdo/zdo.h"
+
+DEFINE_FFF_GLOBALS;
+
+DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
+		       const struct zzb_apsde_req *);
+
+struct frame_copy sent[8];
+
+static const struct zzb_device device = {
+	.manufacturer_code = 0x1234,
+	.power_source = ZZB_POWER_MAINS,
+};
+
+static int apsde_data_req_take(struct zzb_node *node, struct net_buf *buf,
+			       const struct zzb_apsde_req *req)
+{
+	struct frame_copy *copy = &sent[zzb_apsde_data_req_fake.call_count - 1];
+
+	zassert_true(zzb_apsde_data_req_fake.call_count <= ARRAY_SIZE(sent));
+	zassert_true(buf->len <= sizeof(copy->data));
+	copy->req = *req;
+	copy->handle = zzb_frame_meta(buf)->handle;
+	memcpy(copy->data, buf->data, buf->len);
+	copy->len = buf->len;
+	net_buf_unref(buf);
+	return 0;
+}
+
+struct zzb_node *test_node(void)
+{
+	static struct zzb_node *node;
+	const struct zzb_node_config cfg = {
+		.eui64 = NODE_EUI64,
+		.device = &device,
+	};
+
+	if (node == NULL) {
+		zassert_ok(zzb_node_init(&cfg, &node));
+	}
+
+	return node;
+}
+
+void reset_fakes(void)
+{
+	RESET_FAKE(zzb_apsde_data_req);
+	FFF_RESET_HISTORY();
+
+	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
+}
+
+void check_no_buffer_leak(void)
+{
+	struct net_buf *bufs[CONFIG_ZZB_BUF_COUNT];
+
+	ARRAY_FOR_EACH(bufs, i) {
+		bufs[i] = zzb_buf_alloc(K_NO_WAIT);
+		zassert_not_null(bufs[i], "buffer leak");
+	}
+
+	ARRAY_FOR_EACH(bufs, i) {
+		net_buf_unref(bufs[i]);
+	}
+}
+
+void receive_ind(const struct zzb_apsde_ind *ind, const uint8_t *asdu, size_t len)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+
+	zassert_not_null(buf);
+	net_buf_add_mem(buf, asdu, len);
+	zzb_apsde_data_ind(test_node(), buf, ind);
+}
+
+void receive(uint16_t cluster, uint16_t dst_addr, const uint8_t *asdu, size_t len)
+{
+	const struct zzb_apsde_ind ind = {
+		.dst_addr = dst_addr,
+		.src_addr = REQUESTER_ADDR,
+		.cluster = cluster,
+		.security = ZZB_APS_SECURED_NWK_KEY,
+	};
+
+	receive_ind(&ind, asdu, len);
+}
+
+void check_response(int i, uint16_t cluster, const uint8_t *asdu, size_t len)
+{
+	const struct frame_copy *copy = &sent[i];
+
+	zassert_true(zzb_apsde_data_req_fake.call_count > i);
+	zassert_equal(copy->req.dst_mode, ZZB_APS_ADDR_SHORT);
+	zassert_equal(copy->req.dst_addr, REQUESTER_ADDR);
+	zassert_equal(copy->req.dst_ep, 0);
+	zassert_equal(copy->req.src_ep, 0);
+	zassert_equal(copy->req.profile, 0x0000);
+	zassert_equal(copy->req.cluster, cluster);
+	zassert_equal(copy->req.tx_options, ZZB_APS_TX_ACK);
+	zassert_equal(copy->handle, ZZB_ZDO_HANDLE);
+	zassert_equal(copy->len, len);
+	zassert_mem_equal(copy->data, asdu, len);
+}

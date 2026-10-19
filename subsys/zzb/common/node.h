@@ -11,14 +11,17 @@
 #include "mac/mac.h"
 #include "nwk/nwk.h"
 #include "radio/port.h"
+#include "zdo/zdo.h"
 
 struct zzb_node {
 	bool in_use;
 	uint64_t eui64;
+	const struct zzb_device *device;
 	struct zzb_radio_port port;
 	struct zzb_mac mac;
 	struct zzb_nwk nwk;
 	struct zzb_aps aps;
+	struct zzb_zdo zdo;
 };
 
 /* Index of the node in the pool */

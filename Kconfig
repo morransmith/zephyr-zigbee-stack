@@ -89,6 +89,13 @@ config ZZB_APS_BINDING_COUNT
 	  Entries of apsBindingTable. ZDO Bind_req adds them, and APSDE-DATA
 	  with binding sends to them.
 
+config ZZB_ZDO
+	bool "ZDO"
+	default ZZB_APS
+	help
+	  Zigbee device object: the ZDO server, the ZDO client and the processing
+	  of the APS key indications. Tests that fake ZDO turn it off.
+
 config ZZB_FRAME_COUNTER_JUMP
 	int "Outgoing frame counter jump at boot"
 	default 1024
