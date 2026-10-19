@@ -35,10 +35,14 @@
 #define ON_OFF_ON     0x01
 #define ON_OFF_TOGGLE 0x02
 
-/* The change of OnOff at the end of a transition: none, OnOff FALSE, the end of the fade of Off */
-#define END_NONE 0
-#define END_OFF  1
-#define END_FADE 2
+/*
+ * The change of OnOff at the end of a transition: none, OnOff FALSE, the end of the fade of Off,
+ * none at the end of the fade of On
+ */
+#define END_NONE     0
+#define END_OFF      1
+#define END_FADE_OFF 2
+#define END_FADE_ON  3
 
 /* The fields of Move to Level, Move, Step and Stop before OptionsMask, in octets (ZCL 3.10.2.3) */
 static const uint8_t fields_len[] = {3, 2, 4, 0};
@@ -125,12 +129,12 @@ static void finish(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
 	uint8_t end = v->end;
 
 	v->end = END_NONE;
-	if (end == END_NONE) {
+	if (end != END_OFF && end != END_FADE_OFF) {
 		return;
 	}
 
 	zzb_zcl_on_off_switch(node, ep, false);
-	if (end == END_FADE && v->on_level == 0xff) {
+	if (end == END_FADE_OFF && v->on_level == 0xff) {
 		set(node, ep, ZZB_ZCL_LEVEL_CURRENT_LEVEL, v->stored_level);
 	}
 }
@@ -354,23 +358,27 @@ static void fade_up(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, 
 	}
 
 	zzb_zcl_on_off_switch(node, ep, true);
-	move(node, ep, v, level, time, END_NONE);
+	move(node, ep, v, level, time, END_FADE_ON);
 }
 
 /*
- * Off while on: the level is stored and moves to 1, and OnOff becomes FALSE at the end. OnTime
- * becomes 0 at once, so that its timer does not turn the light off during the fade.
+ * Off while on: the level is stored and moves to 1, and OnOff becomes FALSE at the end. During the
+ * fade of On the stored level stays (ZCL 3.10.2.1.1). OnTime becomes 0 at once, so that its timer
+ * does not turn the light off during the fade.
  */
 static void fade_down(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
 {
 	uint32_t time = fade_time(v, v->off_transition_time, abs(v->current_level - LEVEL_MIN));
 
-	v->stored_level = v->current_level;
+	if (v->transition.count == 0 || v->end != END_FADE_ON) {
+		v->stored_level = v->current_level;
+	}
+
 	zzb_zcl_set(node, ep, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_ON_TIME, 0);
 
 	/* With time 0 and OnLevel 0xff the level would return at once, so it stays */
 	move(node, ep, v, time == 0 && v->on_level == 0xff ? v->stored_level : LEVEL_MIN, time,
-	     END_FADE);
+	     END_FADE_OFF);
 }
 
 int zzb_zcl_level_on_off(struct zzb_node *node, uint8_t ep, uint8_t cmd)
@@ -386,7 +394,7 @@ int zzb_zcl_level_on_off(struct zzb_node *node, uint8_t ep, uint8_t cmd)
 
 	v = cl->values;
 	on = on_off_server(node, ep)->on_off;
-	fading = moving(cl) != NULL && v->end == END_FADE;
+	fading = moving(cl) != NULL && v->end == END_FADE_OFF;
 	up = cmd == ON_OFF_ON || (cmd == ON_OFF_TOGGLE && (!on || fading));
 
 	/* On while on and Off while off leave the level */

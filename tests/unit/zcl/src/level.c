@@ -503,6 +503,29 @@ ZTEST(zzb_zcl_level, test_off_interrupted)
 	zassert_equal(level11.current_level, 50);
 }
 
+/* ZCL 3.10.2.1.1: Off during the fade of On keeps the stored level */
+ZTEST(zzb_zcl_level, test_off_during_on)
+{
+	set_u8(11, ZZB_ZCL_LEVEL_CURRENT_LEVEL, 200);
+	set_u16(11, ZZB_ZCL_LEVEL_ON_OFF_TRANSITION_TIME, 20);
+	on_off_command(0x01);
+	k_sleep(K_MSEC(1000));
+	zassert_between_inclusive(level11.current_level, 80, 120);
+
+	reset_fakes();
+	on_off_command(0x00);
+	k_sleep(K_MSEC(2100));
+	zassert_false(on_off11.on_off);
+	zassert_equal(level11.current_level, 200);
+
+	reset_fakes();
+	on_off_command(0x01);
+	zassert_equal(level11.current_level, 1);
+	k_sleep(K_MSEC(2100));
+	zassert_true(on_off11.on_off);
+	zassert_equal(level11.current_level, 200);
+}
+
 /* ZCL Table 3-58: StartUpCurrentLevel sets CurrentLevel at the start, without zcl_cb */
 ZTEST(zzb_zcl_level, test_start_up)
 {

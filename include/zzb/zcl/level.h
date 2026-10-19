@@ -56,7 +56,7 @@ struct zzb_zcl_level {
 	uint8_t start_up_default;
 	/** Internal: the transition of CurrentLevel. */
 	struct zzb_zcl_transition transition;
-	/** Internal: the change of OnOff at the end of the transition. */
+	/** Internal: the fade of On or Off or the change of OnOff at the end of the transition. */
 	uint8_t end;
 	/** Internal: the level that On and Off store (ZCL Table 3-55). */
 	uint8_t stored_level;
