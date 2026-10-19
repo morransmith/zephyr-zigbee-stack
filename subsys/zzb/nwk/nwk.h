@@ -196,6 +196,18 @@ void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_L
  */
 int zzb_nlme_set_active_key(struct zzb_node *node, uint8_t seq);
 
+/*
+ * NLME-SET of the channel of nwkMacInterfaceTable and of nwkUpdateId. MLME-SET of the channel
+ * comes first, and the NIB and the records change only when it succeeds. Returns -EINVAL for a
+ * channel outside 11 to 26, -EBUSY while an NLME procedure runs, or an error of MLME-SET.
+ */
+int zzb_nlme_set_channel(struct zzb_node *node, uint8_t channel, uint8_t update_id);
+
+/* NLME-GET of nwkNetworkAddress, nwkExtendedPANID and nwkCapabilityInformation */
+uint16_t zzb_nlme_get_short_addr(const struct zzb_node *node);
+uint64_t zzb_nlme_get_ext_pan_id(const struct zzb_node *node);
+uint8_t zzb_nlme_get_capability(const struct zzb_node *node);
+
 /* Whether the network key is pending: joined and unauthorized (R22 4.4.1.2 step 2) */
 bool zzb_nwk_key_pending(const struct zzb_node *node);
 

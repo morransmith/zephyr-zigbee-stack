@@ -200,6 +200,35 @@ ZTEST(zzb_nwk_nib, test_active_key)
 	zassert_equal(rec[1], 1);
 }
 
+/* Channel change after Mgmt_NWK_Update_req (R22 Annex E) */
+ZTEST(zzb_nwk_nib, test_channel)
+{
+	uint8_t rec[64];
+
+	join();
+	zassert_equal(zzb_nlme_set_channel(node, 10, 5), -EINVAL);
+	zassert_equal(zzb_nlme_set_channel(node, 27, 5), -EINVAL);
+
+	/* A busy MAC leaves the NIB on the channel of the radio */
+	zzb_mlme_set_channel_fake.return_val = -EBUSY;
+	zassert_equal(zzb_nlme_set_channel(node, 15, 5), -EBUSY);
+	zassert_equal(nib->channel, 20);
+	zassert_equal(nib->update_id, 4);
+
+	zzb_mlme_set_channel_fake.return_val = 0;
+	zassert_ok(zzb_nlme_set_channel(node, 15, 5));
+	zassert_equal(zzb_mlme_set_channel_fake.arg1_val, 15);
+	zassert_equal(nib->channel, 15);
+	zassert_equal(nib->update_id, 5);
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 28);
+	zassert_equal(rec[13], 15);
+	zassert_equal(rec[14], 5);
+
+	node->nwk.op = ZZB_NWK_OP_REJOIN;
+	zassert_equal(zzb_nlme_set_channel(node, 16, 6), -EBUSY);
+	zassert_equal(zzb_mlme_set_channel_fake.call_count, 2);
+}
+
 /* Records exist only on a network without a pending key */
 ZTEST(zzb_nwk_nib, test_records_are_written_on_a_network)
 {

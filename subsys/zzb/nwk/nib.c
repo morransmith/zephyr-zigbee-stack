@@ -85,6 +85,44 @@ int zzb_nlme_set_active_key(struct zzb_node *node, uint8_t seq)
 	return 0;
 }
 
+int zzb_nlme_set_channel(struct zzb_node *node, uint8_t channel, uint8_t update_id)
+{
+	int err;
+
+	if (channel < 11 || channel > 26) {
+		return -EINVAL;
+	}
+
+	if (node->nwk.op != ZZB_NWK_OP_NONE) {
+		return -EBUSY;
+	}
+
+	err = zzb_mlme_set_channel(node, channel);
+	if (err) {
+		return err;
+	}
+
+	node->nwk.nib.channel = channel;
+	node->nwk.nib.update_id = update_id;
+	zzb_nwk_save(node);
+	return 0;
+}
+
+uint16_t zzb_nlme_get_short_addr(const struct zzb_node *node)
+{
+	return node->nwk.nib.short_addr;
+}
+
+uint64_t zzb_nlme_get_ext_pan_id(const struct zzb_node *node)
+{
+	return node->nwk.nib.ext_pan_id;
+}
+
+uint8_t zzb_nlme_get_capability(const struct zzb_node *node)
+{
+	return node->nwk.nib.capability;
+}
+
 bool zzb_nwk_key_pending(const struct zzb_node *node)
 {
 	return node->nwk.key_pending;
