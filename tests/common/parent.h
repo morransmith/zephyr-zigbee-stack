@@ -38,6 +38,15 @@ struct parent_log {
 	struct zzb_aps_hdr aps_hdr;
 	struct zzb_aps_cmd aps_cmd;
 	uint32_t aps_fc;
+	/* ZDO frames, and the cluster and NWK destination of the last one */
+	int device_annces;
+	int node_desc_reqs;
+	int permit_joining_reqs;
+	uint8_t permit_duration;
+	uint8_t tc_significance;
+	int mgmt_leave_rsps;
+	uint16_t zdo_cluster;
+	uint16_t zdo_dst;
 };
 
 extern struct parent_log parent_log;
@@ -45,8 +54,9 @@ extern struct parent_log parent_log;
 /*
  * Plays a parent on fake radio 0 with short_addr and eui64. It answers beacon requests,
  * associations with child_addr, End Device Timeout Requests with parent_info, and rejoin
- * requests, and clears parent_log. As the trust center it acknowledges APS data and answers
- * Request Key with key B and Verify Key with Confirm Key.
+ * requests, and clears parent_log. As the trust center it acknowledges APS data, answers
+ * Node_Desc_req with stack compliance revision 22, Request Key with key B and Verify Key with
+ * Confirm Key. It does not send the network key on its own.
  */
 void parent_start(uint16_t short_addr, uint64_t eui64, uint16_t child_addr, uint8_t parent_info);
 
@@ -58,6 +68,15 @@ void parent_send_leave_request(bool rejoin);
  * the key-transport key of the default trust center link key, from the stack thread
  */
 void parent_send_transport_key(void);
+
+/* Sets the stack compliance revision of Node_Desc_rsp */
+void parent_set_stack_revision(uint8_t revision);
+
+/*
+ * Sends the network key 130 ms after an association or a trust center rejoin, when the child has
+ * processed the response
+ */
+void parent_send_key_after_join(bool send);
 
 /* Leaves the next count APS data frames without ACK */
 void parent_withhold_aps_acks(int count);
