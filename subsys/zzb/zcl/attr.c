@@ -131,7 +131,14 @@ bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 	return changed;
 }
 
-/* Section 15; a failed save is ignored, the next change writes the record again */
+/* The key of the record of attr: zcl/<ep>/<cluster>/<attr> (section 15) */
+static void key_of(char *key, uint8_t ep, const struct zzb_zcl_cluster *cl,
+		   const struct zzb_zcl_attr *attr)
+{
+	snprintk(key, KEY_LEN, "zcl/%u/%04x/%04x", ep, cl->id, attr->id);
+}
+
+/* A failed save is ignored; the next change writes the record again */
 static void save(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 		 const struct zzb_zcl_attr *attr)
 {
@@ -143,8 +150,28 @@ static void save(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster
 		return;
 	}
 
-	snprintk(key, sizeof(key), "zcl/%u/%04x/%04x", ep, cl->id, attr->id);
+	key_of(key, ep, cl, attr);
 	zzb_settings_save(node, key, rec, 1 + len);
+}
+
+void zzb_zcl_attr_delete(struct zzb_node *node)
+{
+	char key[KEY_LEN];
+
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		const struct zzb_endpoint *ep = &node->device->endpoints[i];
+
+		for (int j = 0; j < ep->cluster_count; j++) {
+			const struct zzb_zcl_cluster *cl = &ep->clusters[j];
+
+			for (int k = 0; cl->def != NULL && k < cl->def->attr_count; k++) {
+				if (cl->def->attrs[k].flags & ZZB_ZCL_NV) {
+					key_of(key, ep->id, cl, &cl->def->attrs[k]);
+					zzb_settings_delete(node, key);
+				}
+			}
+		}
+	}
 }
 
 /* The non-volatile attribute id of a cluster on endpoint ep, and its cluster in *cl */
@@ -205,5 +232,17 @@ void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_clu
 
 	if (node->zcl_cb != NULL) {
 		node->zcl_cb(node, ep, cl->id, attr);
+	}
+}
+
+void zzb_zcl_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr, uint16_t value)
+{
+	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
+	const struct zzb_zcl_cluster *cl =
+		e != NULL ? zzb_zcl_find_cluster(e, cluster, true) : NULL;
+	const struct zzb_zcl_attr *a = cl != NULL ? zzb_zcl_attr_find(cl, attr) : NULL;
+
+	if (a != NULL && zzb_zcl_attr_write(cl, a, value)) {
+		zzb_zcl_changed(node, ep, cl, attr);
 	}
 }

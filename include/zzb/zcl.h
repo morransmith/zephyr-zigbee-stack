@@ -119,6 +119,8 @@ struct zzb_zcl_cluster_def {
 	/** Attributes in ascending order of ID. */
 	const struct zzb_zcl_attr *attrs;
 	uint8_t attr_count;
+	/** Restores the defaults at the reset of the node, on the stack thread, or NULL. */
+	void (*reset)(struct zzb_node *node, uint8_t ep, void *values);
 	/**
 	 * Processes a cluster-specific command on the stack thread, or NULL. Returns the status of
 	 * the Default Response or ZZB_ZCL_RESPONDED.

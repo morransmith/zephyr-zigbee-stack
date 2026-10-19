@@ -71,4 +71,24 @@ ZTEST(zzb_zcl_attr, test_unknown_records)
 	zassert_ok(settings_delete("zzb/0/zcl/1/0f00/0001"));
 }
 
+/* Section 16: the reset sets the defaults as a remote change does, then deletes the records */
+ZTEST(zzb_zcl_attr, test_reset)
+{
+	static const uint8_t req[] = {0x00, 0x61, 0x02, 0x01, 0x00, 0x20,
+				      0x05, 0x02, 0x00, 0x21, 0x07, 0x00};
+
+	receive(TEST_CLUSTER, req, sizeof(req));
+	reset_fakes();
+	reset_node();
+	zassert_equal(values1.u8, 0);
+	zassert_equal(values1.u16, 0);
+	zassert_equal(zcl_cb_calls.count, 2);
+	zassert_equal(zcl_cb_calls.attr[0], 0x0001);
+	zassert_equal(zcl_cb_calls.attr[1], 0x0002);
+
+	values1.u16 = 9;
+	zassert_ok(reboot());
+	zassert_equal(values1.u16, 9);
+}
+
 ZTEST_SUITE(zzb_zcl_attr, NULL, setup, before, after, NULL);

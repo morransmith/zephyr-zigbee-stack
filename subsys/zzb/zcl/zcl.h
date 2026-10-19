@@ -9,6 +9,7 @@
 #include <zephyr/net_buf.h>
 #include <zephyr/settings/settings.h>
 #include <zzb/zcl.h>
+#include <zzb/zzb.h>
 
 #include "aps/aps.h"
 #include "zcl/frame.h"
@@ -51,6 +52,10 @@ struct zzb_zcl_req {
 void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 		     enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len);
 
+/* The server or client instance of cluster id on ep, or NULL */
+const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep, uint16_t id,
+						   bool server);
+
 /* Processes a global command; returns the status of the Default Response or ZZB_ZCL_RESPONDED */
 int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);
 
@@ -79,9 +84,22 @@ bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 int zzb_zcl_attr_load(struct zzb_node *node, const char *key, size_t len, settings_read_cb read_cb,
 		      void *cb_arg);
 
+/* Deletes the records of the non-volatile attributes */
+void zzb_zcl_attr_delete(struct zzb_node *node);
+
 /* Saves a non-volatile attribute, then calls the changed hook of cl and zcl_cb for attr */
 void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 		     uint16_t attr);
+
+/* Writes value to attribute attr of the server cluster on endpoint ep and reports a change */
+void zzb_zcl_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
+		 uint16_t value);
+
+/*
+ * Restores the defaults of the attributes through the reset hooks, which report each change, and
+ * deletes the records of the non-volatile attributes
+ */
+void zzb_zcl_reset(struct zzb_node *node);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);

@@ -46,6 +46,12 @@ static void test_changed(struct zzb_node *node, uint8_t ep, void *values, uint16
 	hook_calls.attr[hook_calls.count++] = attr;
 }
 
+static void test_reset(struct zzb_node *node, uint8_t ep, void *values)
+{
+	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x0001, 0);
+	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x0002, 0);
+}
+
 static void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
 {
 	int i = zcl_cb_calls.count++;
@@ -71,6 +77,7 @@ static const struct zzb_zcl_attr test_attrs[] = {
 static const struct zzb_zcl_cluster_def test_def = {
 	.attrs = test_attrs,
 	.attr_count = ARRAY_SIZE(test_attrs),
+	.reset = test_reset,
 	.cmd = test_cmd,
 	.check = test_check,
 	.changed = test_changed,
@@ -235,4 +242,16 @@ int reboot(void)
 
 	zzb_call_sync(&call.work, reboot_handler);
 	return call.err;
+}
+
+static void reset_handler(struct k_work *work)
+{
+	zzb_zcl_reset(test_node());
+}
+
+void reset_node(void)
+{
+	struct k_work work;
+
+	zzb_call_sync(&work, reset_handler);
 }

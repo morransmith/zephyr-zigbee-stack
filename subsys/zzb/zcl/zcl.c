@@ -14,8 +14,8 @@ static bool accepts(const struct zzb_endpoint *ep, uint16_t profile)
 	return profile == ep->profile || profile == 0xffff;
 }
 
-static const struct zzb_zcl_cluster *find_cluster(const struct zzb_endpoint *ep, uint16_t id,
-						  bool server)
+const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep, uint16_t id,
+						   bool server)
 {
 	for (int i = 0; i < ep->cluster_count; i++) {
 		if (ep->clusters[i].id == id && ep->clusters[i].server == server) {
@@ -119,7 +119,8 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		.hdr = *hdr,
 		.profile = ep->profile,
 		.unicast = !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
-		.cluster = find_cluster(ep, ind->cluster, !(hdr->flags & ZZB_ZCL_TO_CLIENT)),
+		.cluster =
+			zzb_zcl_find_cluster(ep, ind->cluster, !(hdr->flags & ZZB_ZCL_TO_CLIENT)),
 	};
 	int status;
 
@@ -154,7 +155,8 @@ static void dispatch(struct zzb_node *node, const struct zzb_apsde_ind *ind, con
 		for (size_t i = 0; i < node->device->endpoint_count; i++) {
 			ep = &node->device->endpoints[i];
 			if (accepts(ep, ind->profile) &&
-			    find_cluster(ep, ind->cluster, !(hdr.flags & ZZB_ZCL_TO_CLIENT))) {
+			    zzb_zcl_find_cluster(ep, ind->cluster,
+						 !(hdr.flags & ZZB_ZCL_TO_CLIENT))) {
 				receive(node, ep, ind, &hdr, frame + hdr_len, len - hdr_len);
 			}
 		}
@@ -172,4 +174,21 @@ void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct z
 {
 	dispatch(node, ind, buf->data, buf->len);
 	net_buf_unref(buf);
+}
+
+void zzb_zcl_reset(struct zzb_node *node)
+{
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		const struct zzb_endpoint *ep = &node->device->endpoints[i];
+
+		for (int j = 0; j < ep->cluster_count; j++) {
+			const struct zzb_zcl_cluster *cl = &ep->clusters[j];
+
+			if (cl->def != NULL && cl->def->reset != NULL) {
+				cl->def->reset(node, ep->id, cl->values);
+			}
+		}
+	}
+
+	zzb_zcl_attr_delete(node);
 }

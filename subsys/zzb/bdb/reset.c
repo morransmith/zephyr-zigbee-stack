@@ -6,11 +6,12 @@
 #include "bdb/bdb.h"
 #include "common/node.h"
 #include "nwk/nwk.h"
+#include "zcl/zcl.h"
 #include "zdo/zdo.h"
 
 /*
- * BDB 9: clears NWK, APS and ZDO and keeps the outgoing frame counters, then reports event. Returns
- * -EBUSY and changes nothing while NWK runs a procedure.
+ * BDB 9: clears NWK, APS, ZDO and ZCL and keeps the outgoing frame counters, then reports event.
+ * Returns -EBUSY and changes nothing while NWK runs a procedure.
  */
 static int reset_node(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bdb_status status)
 {
@@ -22,6 +23,7 @@ static int reset_node(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_
 
 	zzb_aps_reset(node);
 	zzb_zdo_init(node);
+	zzb_zcl_reset(node);
 	node->bdb.on_network = false;
 	zzb_bdb_report(node, event, status);
 	return 0;
