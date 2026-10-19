@@ -312,7 +312,8 @@ void zzb_nlme_leave_ind(struct zzb_node *node, uint64_t ext_addr, bool rejoin);
 
 /*
  * NLME-RESET.request with WarmStart FALSE: clears the NIB and the tables except the outgoing frame
- * counter and nwkSequenceNumber. Returns -EBUSY while an NLME procedure runs.
+ * counter and nwkSequenceNumber, and deletes the NWK records. Returns -EBUSY while an NLME
+ * procedure runs.
  */
 int zzb_nlme_reset_req(struct zzb_node *node);
 
