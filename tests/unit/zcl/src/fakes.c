@@ -40,6 +40,7 @@ struct cmd_calls cmd_calls;
 int cmd_status;
 struct changed_calls hook_calls;
 struct zcl_cb_calls zcl_cb_calls;
+struct effect_calls effect_calls;
 struct frame_copy sent[8];
 
 static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
@@ -79,6 +80,19 @@ static void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, u
 	zcl_cb_calls.ep[i] = ep;
 	zcl_cb_calls.cluster[i] = cluster;
 	zcl_cb_calls.attr[i] = attr;
+}
+
+static void record_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t effect,
+			  uint8_t variant)
+{
+	effect_calls = (struct effect_calls){
+		.count = effect_calls.count + 1,
+		.ep = ep,
+		.cluster = cluster,
+		.effect = effect,
+		.variant = variant,
+		.zcl_cb_count = zcl_cb_calls.count,
+	};
 }
 
 static const struct zzb_zcl_attr test_attrs[] = {
@@ -169,6 +183,7 @@ struct zzb_node *test_node(void)
 		.eui64 = NODE_EUI64,
 		.device = &device,
 		.zcl_cb = record_zcl_cb,
+		.zcl_effect_cb = record_effect,
 	};
 
 	if (node == NULL) {
@@ -188,6 +203,7 @@ void reset_fakes(void)
 	cmd_status = ZZB_ZCL_SUCCESS;
 	hook_calls = (struct changed_calls){0};
 	zcl_cb_calls = (struct zcl_cb_calls){0};
+	effect_calls = (struct effect_calls){0};
 }
 
 void check_no_buffer_leak(void)

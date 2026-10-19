@@ -156,6 +156,14 @@ struct zzb_zcl_cluster {
 typedef void (*zzb_zcl_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr);
 
 /**
+ * Called on the stack thread for Trigger Effect of an Identify server and Off With Effect of an
+ * On/Off server, with the fields as received. For a variant that the application does not
+ * support, it uses the default variant (ZCL 3.5.2.3.3.2, 3.8.2.3.4.2).
+ */
+typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t cluster,
+				    uint8_t effect, uint8_t variant);
+
+/**
  * @brief Set an attribute of a server cluster on an endpoint.
  *
  * Runs on the stack thread. value points to a value of the type of the field: uint8_t or bool for

@@ -63,6 +63,21 @@ void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 	}
 }
 
+void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+			 const uint8_t *payload, size_t len)
+{
+	zzb_zcl_respond(node, CONTAINER_OF(cmd, struct zzb_zcl_req, cmd), ZZB_ZCL_FRAME_CLUSTER, id,
+			payload, len);
+}
+
+void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t effect,
+		    uint8_t variant)
+{
+	if (node->zcl_effect_cb != NULL) {
+		node->zcl_effect_cb(node, ep, cluster, effect, variant);
+	}
+}
+
 /* ZCL 2.5.12.2 */
 static void default_rsp(struct zzb_node *node, const struct zzb_zcl_req *req, int status)
 {

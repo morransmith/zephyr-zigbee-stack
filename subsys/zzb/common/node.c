@@ -91,6 +91,7 @@ static void init_handler(struct k_work *work)
 		.device = req->cfg->device,
 		.bdb_cb = req->cfg->bdb_cb,
 		.zcl_cb = req->cfg->zcl_cb,
+		.zcl_effect_cb = req->cfg->zcl_effect_cb,
 	};
 
 	if (IS_ENABLED(CONFIG_ZZB_MAC)) {

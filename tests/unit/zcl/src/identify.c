@@ -89,4 +89,58 @@ ZTEST(zzb_zcl_identify, test_malformed)
 	zassert_equal(identify.identify_time, 0);
 }
 
+/* ZCL 3.5.2.3.2: only an identifying node answers, also a broadcast query */
+ZTEST(zzb_zcl_identify, test_identify_query)
+{
+	const struct zzb_apsde_ind broadcast = {
+		.dst_addr = 0xfffd,
+		.dst_ep = 0xff,
+		.src_addr = REQUESTER_ADDR,
+		.src_ep = REQUESTER_EP,
+		.profile = 0x0104,
+		.cluster = ZZB_ZCL_IDENTIFY,
+	};
+	static const uint8_t not_identifying[] = {0x18, 0x85, 0x0b, 0x01, 0x00};
+	static const uint8_t rsp[] = {0x19, 0x86, 0x00, 0x05, 0x00};
+	static const uint8_t broadcast_rsp[] = {0x19, 0x87, 0x00, 0x05, 0x00};
+	uint16_t time = 5;
+
+	receive_ep(2, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x01, 0x85, 0x01}, 3);
+	check_frame(0, 2, ZZB_ZCL_IDENTIFY, not_identifying, sizeof(not_identifying));
+
+	zassert_ok(
+		zzb_zcl_attr_set(test_node(), 2, ZZB_ZCL_IDENTIFY, ZZB_ZCL_IDENTIFY_TIME, &time));
+	receive_ep(2, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x01, 0x86, 0x01}, 3);
+	check_frame(1, 2, ZZB_ZCL_IDENTIFY, rsp, sizeof(rsp));
+
+	receive_ind(&broadcast, (uint8_t[]){0x01, 0x87, 0x01}, 3);
+	check_frame(2, 2, ZZB_ZCL_IDENTIFY, broadcast_rsp, sizeof(broadcast_rsp));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+}
+
+/* ZCL 3.5.2.3.3: the fields go to the application as received */
+ZTEST(zzb_zcl_identify, test_trigger_effect)
+{
+	static const uint8_t rsp[] = {0x18, 0x88, 0x0b, 0x40, 0x00};
+	static const uint8_t malformed[] = {0x18, 0x8a, 0x0b, 0x40, 0x80};
+
+	receive_ep(2, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x01, 0x88, 0x40, 0x02, 0x00}, 5);
+	check_frame(0, 2, ZZB_ZCL_IDENTIFY, rsp, sizeof(rsp));
+	zassert_equal(effect_calls.count, 1);
+	zassert_equal(effect_calls.ep, 2);
+	zassert_equal(effect_calls.cluster, ZZB_ZCL_IDENTIFY);
+	zassert_equal(effect_calls.effect, 0x02);
+	zassert_equal(effect_calls.variant, 0x00);
+
+	receive_ep(2, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x11, 0x89, 0x40, 0x7e, 0x05}, 5);
+	zassert_equal(effect_calls.count, 2);
+	zassert_equal(effect_calls.effect, 0x7e);
+	zassert_equal(effect_calls.variant, 0x05);
+
+	receive_ep(2, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x01, 0x8a, 0x40, 0x02}, 4);
+	check_frame(1, 2, ZZB_ZCL_IDENTIFY, malformed, sizeof(malformed));
+	zassert_equal(effect_calls.count, 2);
+	zassert_equal(zcl_cb_calls.count, 0);
+}
+
 ZTEST_SUITE(zzb_zcl_identify, NULL, setup, before, after, NULL);

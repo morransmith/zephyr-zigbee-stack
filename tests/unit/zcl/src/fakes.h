@@ -92,6 +92,19 @@ struct zcl_cb_calls {
 
 extern struct zcl_cb_calls zcl_cb_calls;
 
+/* Calls of zcl_effect_cb, with the arguments of the last one */
+struct effect_calls {
+	int count;
+	uint8_t ep;
+	uint16_t cluster;
+	uint8_t effect;
+	uint8_t variant;
+	/* zcl_cb_calls.count at the call */
+	int zcl_cb_count;
+};
+
+extern struct effect_calls effect_calls;
+
 /* Copy of a frame passed to APSDE-DATA.request */
 struct frame_copy {
 	struct zzb_apsde_req req;

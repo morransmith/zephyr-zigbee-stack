@@ -60,6 +60,8 @@ struct zzb_node_config {
 	zzb_bdb_cb_t bdb_cb;
 	/** Callback for attribute values changed by the stack, or NULL. */
 	zzb_zcl_cb_t zcl_cb;
+	/** Callback for the effects of ZCL commands, or NULL. */
+	zzb_zcl_effect_cb_t zcl_effect_cb;
 };
 
 /**
