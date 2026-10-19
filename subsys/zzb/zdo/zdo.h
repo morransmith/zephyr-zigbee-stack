@@ -22,6 +22,8 @@ enum zzb_zdp_cluster {
 	ZZB_ZDP_SIMPLE_DESC_REQ = 0x0004,
 	ZZB_ZDP_ACTIVE_EP_REQ = 0x0005,
 	ZZB_ZDP_MATCH_DESC_REQ = 0x0006,
+	ZZB_ZDP_BIND_REQ = 0x0021,
+	ZZB_ZDP_UNBIND_REQ = 0x0022,
 };
 
 /* ZDP status values (R22 Table 2-145) */
@@ -32,6 +34,8 @@ enum zzb_zdp_status {
 	ZZB_ZDP_INVALID_EP = 0x82,
 	ZZB_ZDP_NOT_ACTIVE = 0x83,
 	ZZB_ZDP_NOT_SUPPORTED = 0x84,
+	ZZB_ZDP_NO_ENTRY = 0x88,
+	ZZB_ZDP_TABLE_FULL = 0x8c,
 };
 
 /* ASDU handle of the ZDO frames; their confirm is ignored */
