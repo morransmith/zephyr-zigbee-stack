@@ -30,4 +30,7 @@ struct zzb_node {
 /* Index of the node in the pool */
 int zzb_node_index(const struct zzb_node *node);
 
+/* The endpoint id of the device definition, or NULL */
+const struct zzb_endpoint *zzb_node_endpoint(const struct zzb_node *node, uint8_t id);
+
 #endif /* ZZB_SUBSYS_COMMON_NODE_H_ */

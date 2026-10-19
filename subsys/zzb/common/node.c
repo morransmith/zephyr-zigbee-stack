@@ -27,6 +27,17 @@ int zzb_node_index(const struct zzb_node *node)
 	return node - nodes;
 }
 
+const struct zzb_endpoint *zzb_node_endpoint(const struct zzb_node *node, uint8_t id)
+{
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		if (node->device->endpoints[i].id == id) {
+			return &node->device->endpoints[i];
+		}
+	}
+
+	return NULL;
+}
+
 static struct zzb_node *free_node(void)
 {
 	ARRAY_FOR_EACH_PTR(nodes, node) {
@@ -55,7 +66,8 @@ static void init_handler(struct k_work *work)
 	uint64_t eui64 = req->cfg->eui64;
 
 	if ((IS_ENABLED(CONFIG_ZZB_MAC) && req->cfg->radio == NULL) ||
-	    (IS_ENABLED(CONFIG_ZZB_ZDO) && req->cfg->device == NULL)) {
+	    ((IS_ENABLED(CONFIG_ZZB_ZDO) || IS_ENABLED(CONFIG_ZZB_ZCL)) &&
+	     req->cfg->device == NULL)) {
 		req->err = -EINVAL;
 		return;
 	}

@@ -4,13 +4,14 @@
 #define ZZB_INCLUDE_ZZB_ZCL_H_
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct zzb_zcl_cluster_def;
+struct zzb_node;
 
 /** Data types of the attributes of the stack (ZCL Table 2-11). */
 enum zzb_zcl_type {
@@ -21,6 +22,41 @@ enum zzb_zcl_type {
 	ZZB_ZCL_ENUM8 = 0x30,
 	ZZB_ZCL_OCTSTR = 0x41,
 	ZZB_ZCL_STRING = 0x42,
+};
+
+/** Command status values (ZCL Table 2-12). */
+enum zzb_zcl_status {
+	ZZB_ZCL_SUCCESS = 0x00,
+	ZZB_ZCL_MALFORMED_COMMAND = 0x80,
+	ZZB_ZCL_UNSUP_COMMAND = 0x81,
+	ZZB_ZCL_INVALID_FIELD = 0x85,
+	ZZB_ZCL_UNSUPPORTED_CLUSTER = 0xc3,
+};
+
+/** Returned by a cmd hook that has sent the response of the command itself. */
+#define ZZB_ZCL_RESPONDED 0x100
+
+/** A received cluster-specific command. */
+struct zzb_zcl_cmd {
+	/** The endpoint that processes the command. */
+	uint8_t ep;
+	uint16_t cluster;
+	uint16_t src_addr;
+	uint8_t src_ep;
+	uint8_t tsn;
+	/** Command identifier. */
+	uint8_t id;
+	const uint8_t *payload;
+	size_t len;
+};
+
+/** The attributes and commands of a cluster. */
+struct zzb_zcl_cluster_def {
+	/**
+	 * Processes a cluster-specific command on the stack thread, or NULL. Returns the status of
+	 * the Default Response or ZZB_ZCL_RESPONDED.
+	 */
+	int (*cmd)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values);
 };
 
 /** A cluster on an endpoint. */

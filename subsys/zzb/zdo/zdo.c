@@ -9,6 +9,7 @@
 #include "common/buf.h"
 #include "common/node.h"
 #include "nwk/nwk.h"
+#include "zcl/zcl.h"
 #include "zdo/zdo.h"
 
 void zzb_zdo_init(struct zzb_node *node)
@@ -96,8 +97,12 @@ void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf, const struct
 {
 	struct zzb_zdo_req req;
 
-	/* Application endpoints wait for ZCL */
-	if (ind->dst_ep != 0 || ind->profile != 0x0000 || buf->len == 0) {
+	if (ind->dst_ep != 0) {
+		zzb_zcl_data_ind(node, buf, ind);
+		return;
+	}
+
+	if (ind->profile != 0x0000 || buf->len == 0) {
 		net_buf_unref(buf);
 		return;
 	}

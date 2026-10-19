@@ -26,6 +26,8 @@ DECLARE_FAKE_VOID_FUNC(zzb_zdo_node_desc_conf, struct zzb_node *, uint8_t, uint1
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsme_bind_req, struct zzb_node *, const struct zzb_aps_binding *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsme_unbind_req, struct zzb_node *,
 			const struct zzb_aps_binding *);
+DECLARE_FAKE_VOID_FUNC(zzb_zcl_data_ind, struct zzb_node *, struct net_buf *,
+		       const struct zzb_apsde_ind *);
 
 #define NODE_EUI64 0x00124b0001020304ULL
 #define NODE_ADDR  0x5678

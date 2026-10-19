@@ -53,8 +53,10 @@ ZTEST(zzb_zdo, test_dropped_frames)
 		.cluster = MGMT_RTG_REQ,
 	};
 
-	/* An application endpoint, until ZCL */
+	/* An application endpoint goes to ZCL */
 	receive_ind(&ind, req, sizeof(req));
+	zassert_equal(zzb_zcl_data_ind_fake.call_count, 1);
+	zassert_equal(zzb_zcl_data_ind_fake.arg2_val->dst_ep, 0x01);
 
 	/* A ZDO endpoint frame of another profile */
 	ind.dst_ep = 0x00;

@@ -44,17 +44,6 @@ static void error_rsp(struct zzb_node *node, const struct zzb_zdo_req *req, uint
 	zzb_zdo_respond(node, req, rsp, 3 + zeros);
 }
 
-static const struct zzb_endpoint *find_endpoint(const struct zzb_node *node, uint8_t id)
-{
-	for (size_t i = 0; i < node->device->endpoint_count; i++) {
-		if (node->device->endpoints[i].id == id) {
-			return &node->device->endpoints[i];
-		}
-	}
-
-	return NULL;
-}
-
 /* Writes the count and the IDs of the server or the client instances of ep */
 static uint8_t *put_clusters(uint8_t *p, const struct zzb_endpoint *ep, bool server)
 {
@@ -157,7 +146,7 @@ void zzb_zdo_serve_simple_desc(struct zzb_node *node, const struct zzb_zdo_req *
 		return;
 	}
 
-	ep = find_endpoint(node, id);
+	ep = zzb_node_endpoint(node, id);
 	if (ep == NULL) {
 		error_rsp(node, req, ZZB_ZDP_NOT_ACTIVE, 1);
 		return;
