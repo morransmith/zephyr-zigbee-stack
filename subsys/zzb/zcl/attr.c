@@ -7,6 +7,7 @@
 #include <zephyr/sys/printk.h>
 
 #include "common/node.h"
+#include "common/queue.h"
 #include "storage/settings.h"
 #include "zcl/zcl.h"
 
@@ -95,6 +96,16 @@ int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 	}
 }
 
+static uint8_t check_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
+			   uint16_t value)
+{
+	if (attr->type == ZZB_ZCL_BOOL && value > 1) {
+		return ZZB_ZCL_INVALID_VALUE;
+	}
+
+	return cl->def->check != NULL ? cl->def->check(attr, value) : ZZB_ZCL_SUCCESS;
+}
+
 uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
 			   uint8_t type, const uint8_t *p, uint16_t *value)
 {
@@ -109,11 +120,7 @@ uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zc
 	}
 
 	*value = type == ZZB_ZCL_UINT16 ? sys_get_le16(p) : p[0];
-	if (type == ZZB_ZCL_BOOL && *value > 1) {
-		return ZZB_ZCL_INVALID_VALUE;
-	}
-
-	return cl->def->check != NULL ? cl->def->check(attr, *value) : ZZB_ZCL_SUCCESS;
+	return check_value(cl, attr, *value);
 }
 
 bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
@@ -221,14 +228,21 @@ int zzb_zcl_attr_load(struct zzb_node *node, const char *key, size_t len, settin
 	return 0;
 }
 
+/* Saves a non-volatile attribute and calls the changed hook */
+static void apply(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+		  const struct zzb_zcl_attr *attr)
+{
+	save(node, ep, cl, attr);
+
+	if (cl->def->changed != NULL) {
+		cl->def->changed(node, ep, cl->values, attr->id);
+	}
+}
+
 void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 		     uint16_t attr)
 {
-	save(node, ep, cl, zzb_zcl_attr_find(cl, attr));
-
-	if (cl->def->changed != NULL) {
-		cl->def->changed(node, ep, cl->values, attr);
-	}
+	apply(node, ep, cl, zzb_zcl_attr_find(cl, attr));
 
 	if (node->zcl_cb != NULL) {
 		node->zcl_cb(node, ep, cl->id, attr);
@@ -245,4 +259,64 @@ void zzb_zcl_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t a
 	if (a != NULL && zzb_zcl_attr_write(cl, a, value)) {
 		zzb_zcl_changed(node, ep, cl, attr);
 	}
+}
+
+struct set_req {
+	struct k_work work;
+	struct zzb_node *node;
+	uint8_t ep;
+	uint16_t cluster;
+	uint16_t attr;
+	const void *value;
+	int err;
+};
+
+static int set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t id, const void *value)
+{
+	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
+	const struct zzb_zcl_cluster *cl =
+		e != NULL ? zzb_zcl_find_cluster(e, cluster, true) : NULL;
+	const struct zzb_zcl_attr *attr = cl != NULL ? zzb_zcl_attr_find(cl, id) : NULL;
+	uint16_t v;
+
+	if (attr == NULL) {
+		return -ENOENT;
+	}
+
+	if ((attr->flags & ZZB_ZCL_CONST) || ZZB_ZCL_IS_STRING(attr->type)) {
+		return -EINVAL;
+	}
+
+	v = attr->type == ZZB_ZCL_UINT16 ? *(const uint16_t *)value : *(const uint8_t *)value;
+	if (check_value(cl, attr, v) != ZZB_ZCL_SUCCESS) {
+		return -EINVAL;
+	}
+
+	if (zzb_zcl_attr_write(cl, attr, v)) {
+		apply(node, ep, cl, attr);
+	}
+
+	return 0;
+}
+
+static void set_handler(struct k_work *work)
+{
+	struct set_req *req = CONTAINER_OF(work, struct set_req, work);
+
+	req->err = set(req->node, req->ep, req->cluster, req->attr, req->value);
+}
+
+int zzb_zcl_attr_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
+		     const void *value)
+{
+	struct set_req req = {
+		.node = node,
+		.ep = ep,
+		.cluster = cluster,
+		.attr = attr,
+		.value = value,
+	};
+
+	zzb_call_sync(&req.work, set_handler);
+	return req.err;
 }

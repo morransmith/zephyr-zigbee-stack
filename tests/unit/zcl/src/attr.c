@@ -91,4 +91,46 @@ ZTEST(zzb_zcl_attr, test_reset)
 	zassert_equal(values1.u16, 9);
 }
 
+/* The application sets a value on the stack thread: saved, the changed hook, no zcl_cb */
+ZTEST(zzb_zcl_attr, test_attr_set)
+{
+	struct zzb_node *node = test_node();
+	uint16_t u16 = 0x1111;
+	uint8_t u8 = 0;
+
+	zassert_ok(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0002, &u16));
+	zassert_equal(values1.u16, 0x1111);
+	zassert_equal(hook_calls.count, 1);
+	zassert_equal(hook_calls.attr[0], 0x0002);
+	zassert_equal(zcl_cb_calls.count, 0);
+
+	values1.u16 = 0;
+	zassert_ok(reboot());
+	zassert_equal(values1.u16, 0x1111);
+
+	/* The same value changes nothing */
+	zassert_ok(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0001, &u8));
+	zassert_equal(hook_calls.count, 1);
+}
+
+ZTEST(zzb_zcl_attr, test_attr_set_errors)
+{
+	struct zzb_node *node = test_node();
+	uint8_t big = TEST_E8_MAX + 1;
+	uint8_t two = 2;
+	uint16_t u16 = 1;
+
+	zassert_equal(zzb_zcl_attr_set(node, 9, TEST_CLUSTER, 0x0002, &u16), -ENOENT);
+	zassert_equal(zzb_zcl_attr_set(node, 1, 0x0300, 0x0002, &u16), -ENOENT);
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0100, &u16), -ENOENT);
+	/* On/Off is a client on endpoint 1 */
+	zassert_equal(zzb_zcl_attr_set(node, 1, ON_OFF, 0x0000, &two), -ENOENT);
+
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0xfffd, &u16), -EINVAL);
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0005, &u16), -EINVAL);
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0000, &two), -EINVAL);
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0003, &big), -EINVAL);
+	zassert_equal(hook_calls.count, 0);
+}
+
 ZTEST_SUITE(zzb_zcl_attr, NULL, setup, before, after, NULL);

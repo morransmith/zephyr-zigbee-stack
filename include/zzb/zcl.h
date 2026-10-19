@@ -153,6 +153,20 @@ struct zzb_zcl_cluster {
  */
 typedef void (*zzb_zcl_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr);
 
+/**
+ * @brief Set an attribute of a server cluster on an endpoint.
+ *
+ * Runs on the stack thread. value points to a value of the type of the field: uint8_t or bool for
+ * the one-octet types, uint16_t for ZZB_ZCL_UINT16. A non-volatile attribute is saved. zcl_cb is
+ * not called.
+ *
+ * @retval 0 on success.
+ * @retval -ENOENT the node has no server cluster with the attribute on the endpoint.
+ * @retval -EINVAL the attribute is a constant or a string, or the value is out of range.
+ */
+int zzb_zcl_attr_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
+		     const void *value);
+
 #ifdef __cplusplus
 }
 #endif
