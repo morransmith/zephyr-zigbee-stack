@@ -65,6 +65,25 @@ struct zzb_zcl_illuminance_level illuminance_level;
 struct zzb_zcl_occupancy occupancy = {
 	.occupancy_sensor_type_bitmap = 0x01,
 };
+struct zzb_zcl_scenes scenes40;
+struct zzb_zcl_on_off on_off40;
+struct zzb_zcl_level level40 = {.start_up_default = 0xff};
+struct zzb_zcl_color color40 = {
+	.color_capabilities = ZZB_ZCL_COLOR_CAP_XY | ZZB_ZCL_COLOR_CAP_TEMPERATURE,
+	.color_temp_physical_min = COLOR_TEMP_MIN,
+	.color_temp_physical_max = COLOR_TEMP_MAX,
+	.couple_color_temp_min = COLOR_COUPLE_MIN,
+	.start_up_default = 0xffff,
+};
+struct zzb_zcl_on_off on_off41;
+struct zzb_zcl_level level41 = {.start_up_default = 0xff};
+struct zzb_zcl_color color41 = {
+	.color_capabilities = ZZB_ZCL_COLOR_CAP_TEMPERATURE,
+	.color_temp_physical_min = COLOR_TEMP_MIN,
+	.color_temp_physical_max = COLOR_TEMP_MAX,
+	.couple_color_temp_min = COLOR_COUPLE_MIN,
+	.start_up_default = 0xffff,
+};
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -305,6 +324,7 @@ static const struct zzb_zcl_cluster ep5_clusters[] = {
 	ZZB_ZCL_SCENES_CLIENT(),
 	ZZB_ZCL_ON_OFF_CLIENT(),
 	ZZB_ZCL_LEVEL_CLIENT(),
+	ZZB_ZCL_COLOR_CLIENT(),
 	ZZB_ZCL_ALARMS_CLIENT(),
 	ZZB_ZCL_ILLUMINANCE_CLIENT(),
 	ZZB_ZCL_ILLUMINANCE_LEVEL_CLIENT(),
@@ -357,6 +377,19 @@ static const struct zzb_zcl_cluster ep30_clusters[] = {
 	ZZB_ZCL_ILLUMINANCE_SERVER(&illuminance),
 	ZZB_ZCL_ILLUMINANCE_LEVEL_SERVER(&illuminance_level),
 	ZZB_ZCL_OCCUPANCY_SERVER(&occupancy),
+};
+
+static const struct zzb_zcl_cluster ep40_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes40),
+	ZZB_ZCL_ON_OFF_SERVER(&on_off40),
+	ZZB_ZCL_LEVEL_SERVER(&level40),
+	ZZB_ZCL_COLOR_SERVER(&color40),
+};
+
+static const struct zzb_zcl_cluster ep41_clusters[] = {
+	ZZB_ZCL_ON_OFF_SERVER(&on_off41),
+	ZZB_ZCL_LEVEL_SERVER(&level41),
+	ZZB_ZCL_COLOR_SERVER(&color41),
 };
 
 static const struct zzb_endpoint endpoints[] = {
@@ -429,6 +462,20 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0108,
 		.clusters = ep30_clusters,
 		.cluster_count = ARRAY_SIZE(ep30_clusters),
+	},
+	{
+		.id = 40,
+		.profile = 0x0104,
+		.device_id = 0x010d,
+		.clusters = ep40_clusters,
+		.cluster_count = ARRAY_SIZE(ep40_clusters),
+	},
+	{
+		.id = 41,
+		.profile = 0x0104,
+		.device_id = 0x010c,
+		.clusters = ep41_clusters,
+		.cluster_count = ARRAY_SIZE(ep41_clusters),
 	},
 };
 

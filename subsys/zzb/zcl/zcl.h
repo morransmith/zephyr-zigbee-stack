@@ -75,6 +75,8 @@ struct zzb_zcl {
 	struct k_work_delayable report_timer;
 	/* Steps the transitions of Level Control every 100 ms while one runs */
 	struct k_work_delayable level_timer;
+	/* Steps the transitions of Color Control every 100 ms while one runs */
+	struct k_work_delayable color_timer;
 	/* Transaction sequence number of the next frame ZCL originates */
 	uint8_t tsn;
 	struct zzb_zcl_scene scenes[CONFIG_ZZB_ZCL_SCENE_COUNT];
@@ -202,6 +204,13 @@ void zzb_zcl_identify_init(struct zzb_node *node);
  * -ENOENT without the server.
  */
 int zzb_zcl_identify(struct zzb_node *node, uint8_t ep, uint16_t time);
+void zzb_zcl_color_init(struct zzb_node *node);
+
+/*
+ * Sets ColorTemperatureMireds of the Color Control server on endpoint ep, if there is one, for
+ * CurrentLevel level in color temperature mode, through zzb_zcl_update() (ZCL 5.2.2.1.1)
+ */
+void zzb_zcl_color_level(struct zzb_node *node, uint8_t ep, uint8_t level);
 void zzb_zcl_level_init(struct zzb_node *node);
 void zzb_zcl_on_off_init(struct zzb_node *node);
 

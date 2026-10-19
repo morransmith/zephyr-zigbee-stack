@@ -12,6 +12,7 @@ target_sources(app PRIVATE
   src/ballast.c
   src/basic.c
   src/client.c
+  src/color.c
   src/device_temp.c
   src/fakes.c
   src/foundation.c

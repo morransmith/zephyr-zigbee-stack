@@ -26,7 +26,8 @@
 #define MODE_DOWN 0x01
 
 /* Bits of Options (ZCL Table 3-57) */
-#define EXECUTE_IF_OFF BIT(0)
+#define EXECUTE_IF_OFF    BIT(0)
+#define COUPLE_COLOR_TEMP BIT(1)
 
 /* Commands 0x04 to 0x07 are 0x00 to 0x03 with On/Off (ZCL Table 3-59) */
 #define WITH_ON_OFF 0x04
@@ -451,6 +452,16 @@ static void start(struct zzb_node *node, uint8_t ep, void *values)
 		      CLAMP(v->start_up_current_level, LEVEL_MIN, LEVEL_MAX));
 }
 
+/* ZCL 5.2.2.1.1: with CoupleColorTempToLevel the color temperature follows CurrentLevel */
+static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
+{
+	const struct zzb_zcl_level *v = values;
+
+	if (attr == ZZB_ZCL_LEVEL_CURRENT_LEVEL && (v->options & COUPLE_COLOR_TEMP)) {
+		zzb_zcl_color_level(node, ep, v->current_level);
+	}
+}
+
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	struct zzb_zcl_level *v = values;
@@ -477,6 +488,7 @@ const struct zzb_zcl_cluster_def zzb_zcl_level_def = {
 	.start = start,
 	.reset = reset,
 	.cmd = cmd,
+	.changed = changed,
 	.recall = recall,
 };
 
