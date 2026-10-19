@@ -4,6 +4,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/level.h>
+#include <zzb/zcl/on_off.h>
 
 #include "common/node.h"
 #include "common/timer.h"
@@ -22,6 +23,16 @@
 /* Move mode and step mode (ZCL Table 3-60, 3-62) */
 #define MODE_UP   0x00
 #define MODE_DOWN 0x01
+
+/* Bits of Options (ZCL Table 3-57) */
+#define EXECUTE_IF_OFF BIT(0)
+
+/* Commands 0x04 to 0x07 are 0x00 to 0x03 with On/Off (ZCL Table 3-59) */
+#define WITH_ON_OFF 0x04
+
+/* The change of OnOff at the end of a transition */
+#define END_NONE 0
+#define END_OFF  1
 
 /* The fields of Move to Level, Move, Step and Stop before OptionsMask, in octets (ZCL 3.10.2.3) */
 static const uint8_t fields_len[] = {3, 2, 4, 0};
@@ -62,6 +73,15 @@ static const struct zzb_zcl_cluster *server(const struct zzb_endpoint *ep)
 	return zzb_zcl_find_cluster(ep, ZZB_ZCL_LEVEL, true);
 }
 
+/* The values of the On/Off server on ep, or NULL */
+static const struct zzb_zcl_on_off *on_off_server(struct zzb_node *node, uint8_t ep)
+{
+	const struct zzb_zcl_cluster *cl =
+		zzb_zcl_find_cluster(zzb_node_endpoint(node, ep), ZZB_ZCL_ON_OFF, true);
+
+	return cl != NULL ? cl->values : NULL;
+}
+
 /* The values of the server cl while it runs a transition, or NULL */
 static struct zzb_zcl_level *moving(const struct zzb_zcl_cluster *cl)
 {
@@ -90,6 +110,17 @@ static void remaining(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_le
 		       zzb_zcl_transition_remaining(&v->transition));
 }
 
+/* Applies the change of OnOff at the end of a transition */
+static void finish(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
+{
+	uint8_t end = v->end;
+
+	v->end = END_NONE;
+	if (end == END_OFF) {
+		zzb_zcl_on_off_switch(node, ep, false);
+	}
+}
+
 /* One step of the transitions of all servers of the node */
 static void tick(struct k_work *work)
 {
@@ -100,13 +131,17 @@ static void tick(struct k_work *work)
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];
 		const struct zzb_zcl_cluster *cl = server(ep);
 		struct zzb_zcl_level *v = moving(cl);
+		bool ended;
 
 		if (v == NULL) {
 			continue;
 		}
 
-		zzb_zcl_transition_step(node, ep->id, cl, &v->transition);
+		ended = zzb_zcl_transition_step(node, ep->id, cl, &v->transition);
 		remaining(node, ep->id, v);
+		if (ended) {
+			finish(node, ep->id, v);
+		}
 	}
 
 	schedule(node);
@@ -114,15 +149,17 @@ static void tick(struct k_work *work)
 
 /*
  * Moves CurrentLevel to level over time_ds tenths of a second, at once for 0, and replaces a
- * running transition. A transition sets SceneValid FALSE at its start, since its steps do not.
+ * running transition; end is the change of OnOff at its end. A transition sets SceneValid FALSE
+ * at its start, since its steps do not.
  */
 static void move(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, uint8_t level,
-		 uint32_t time_ds)
+		 uint32_t time_ds, uint8_t end)
 {
 	const uint16_t attr = ZZB_ZCL_LEVEL_CURRENT_LEVEL;
 	const uint16_t to = level;
 
 	v->transition.count = 0;
+	v->end = end;
 	if (time_ds == 0) {
 		set(node, ep, ZZB_ZCL_LEVEL_CURRENT_LEVEL, level);
 	} else {
@@ -136,6 +173,22 @@ static void move(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, uin
 
 	remaining(node, ep, v);
 	schedule(node);
+	if (time_ds == 0) {
+		finish(node, ep, v);
+	}
+}
+
+/* With On/Off the endpoint turns on before a move above 1 and off after a move to 1 */
+static void command_move(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			 struct zzb_zcl_level *v, uint8_t level, uint32_t time_ds)
+{
+	bool on_off = cmd->id & WITH_ON_OFF;
+
+	if (on_off && level > LEVEL_MIN) {
+		zzb_zcl_on_off_switch(node, cmd->ep, true);
+	}
+
+	move(node, cmd->ep, v, level, time_ds, on_off && level == LEVEL_MIN ? END_OFF : END_NONE);
 }
 
 /* ZCL 3.10.2.3.1 */
@@ -144,8 +197,8 @@ static int move_to_level(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 {
 	uint16_t time = sys_get_le16(cmd->payload + 1);
 
-	move(node, cmd->ep, v, CLAMP(cmd->payload[0], LEVEL_MIN, LEVEL_MAX),
-	     time == 0xffff ? v->on_off_transition_time : time);
+	command_move(node, cmd, v, CLAMP(cmd->payload[0], LEVEL_MIN, LEVEL_MAX),
+		     time == 0xffff ? v->on_off_transition_time : time);
 	return ZZB_ZCL_SUCCESS;
 }
 
@@ -162,7 +215,8 @@ static int move_at_rate(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	}
 
 	/* The rate is in levels per second */
-	move(node, cmd->ep, v, level, rate == 0xff ? 0 : 10 * abs(level - v->current_level) / rate);
+	command_move(node, cmd, v, level,
+		     rate == 0xff ? 0 : 10 * abs(level - v->current_level) / rate);
 	return ZZB_ZCL_SUCCESS;
 }
 
@@ -180,30 +234,56 @@ static int step(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb
 	}
 
 	/* A step cut at a limit takes the same part of the transition time */
-	move(node, cmd->ep, v, level,
-	     time == 0xffff || size == 0 ? 0 : time * abs(level - v->current_level) / size);
+	command_move(node, cmd, v, level,
+		     time == 0xffff || size == 0 ? 0 : time * abs(level - v->current_level) / size);
 	return ZZB_ZCL_SUCCESS;
 }
 
-/* ZCL 3.10.2.3.4: the level stays and is saved */
+/* ZCL 3.10.2.3.4: the level stays and is saved, and OnOff does not change at the end */
 static void stop(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
 {
+	v->end = END_NONE;
 	zzb_zcl_transition_stop(node, ep, ZZB_ZCL_LEVEL, &v->transition);
 	remaining(node, ep, v);
 	schedule(node);
 }
 
+/*
+ * ZCL 3.10.2.2.8.1: while the On/Off server on the endpoint is off, a command without On/Off runs
+ * only with ExecuteIfOff in its options, in which OptionsMask selects the bits of OptionsOverride
+ * (ZCL 3.10.2.3.1.2)
+ */
+static bool executes(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+		     const struct zzb_zcl_level *v)
+{
+	const struct zzb_zcl_on_off *on_off = on_off_server(node, cmd->ep);
+	const uint8_t *p = cmd->payload + fields_len[cmd->id];
+	uint8_t options = v->options;
+
+	if (cmd->len >= fields_len[cmd->id] + 2) {
+		options = (options & ~p[0]) | (p[1] & p[0]);
+	}
+
+	return on_off == NULL || on_off->on_off || (options & EXECUTE_IF_OFF);
+}
+
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
-	if (cmd->id >= ARRAY_SIZE(fields_len)) {
+	uint8_t id = cmd->id & ~WITH_ON_OFF;
+
+	if (cmd->id > ZZB_ZCL_LEVEL_STOP_ON_OFF) {
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}
 
-	if (cmd->len < fields_len[cmd->id]) {
+	if (cmd->len < fields_len[id]) {
 		return ZZB_ZCL_MALFORMED_COMMAND;
 	}
 
-	switch (cmd->id) {
+	if (!(cmd->id & WITH_ON_OFF) && !executes(node, cmd, values)) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	switch (id) {
 	case ZZB_ZCL_LEVEL_MOVE_TO_LEVEL:
 		return move_to_level(node, cmd, values);
 	case ZZB_ZCL_LEVEL_MOVE:
@@ -235,6 +315,7 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 	struct zzb_zcl_level *v = values;
 
 	v->transition.count = 0;
+	v->end = END_NONE;
 	remaining(node, ep, v);
 	schedule(node);
 	set(node, ep, ZZB_ZCL_LEVEL_CURRENT_LEVEL, LEVEL_MAX);

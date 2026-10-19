@@ -341,6 +341,21 @@ const struct zzb_zcl_cluster_def zzb_zcl_on_off_def = {
 	.recall = recall,
 };
 
+void zzb_zcl_on_off_switch(struct zzb_node *node, uint8_t ep, bool on_off)
+{
+	const struct zzb_zcl_on_off *v = server(zzb_node_endpoint(node, ep));
+
+	if (v == NULL) {
+		return;
+	}
+
+	if (on_off) {
+		on(node, ep, v);
+	} else {
+		off(node, ep);
+	}
+}
+
 void zzb_zcl_on_off_init(struct zzb_node *node)
 {
 	k_work_init_delayable(&node->zcl.on_off_timer, tick);

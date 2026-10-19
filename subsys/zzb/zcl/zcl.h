@@ -180,6 +180,12 @@ void zzb_zcl_identify_init(struct zzb_node *node);
 int zzb_zcl_identify(struct zzb_node *node, uint8_t ep, uint16_t time);
 void zzb_zcl_level_init(struct zzb_node *node);
 void zzb_zcl_on_off_init(struct zzb_node *node);
+
+/*
+ * Sets OnOff of the On/Off server on endpoint ep, if there is one, with the rules of On or Off for
+ * GlobalSceneControl, OnTime and OffWaitTime; for Level Control (ZCL 3.8.2.1.1, 3.10.2.1.3)
+ */
+void zzb_zcl_on_off_switch(struct zzb_node *node, uint8_t ep, bool on_off);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*

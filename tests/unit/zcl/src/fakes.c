@@ -31,6 +31,9 @@ struct test_values values4;
 struct zzb_zcl_scenes scenes4;
 struct recall_calls recall_calls;
 struct zzb_zcl_level level10;
+struct zzb_zcl_scenes scenes11;
+struct zzb_zcl_on_off on_off11;
+struct zzb_zcl_level level11;
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -275,6 +278,12 @@ static const struct zzb_zcl_cluster ep10_clusters[] = {
 	ZZB_ZCL_LEVEL_SERVER(&level10),
 };
 
+static const struct zzb_zcl_cluster ep11_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes11),
+	ZZB_ZCL_ON_OFF_SERVER(&on_off11),
+	ZZB_ZCL_LEVEL_SERVER(&level11),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -310,6 +319,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0101,
 		.clusters = ep10_clusters,
 		.cluster_count = ARRAY_SIZE(ep10_clusters),
+	},
+	{
+		.id = 11,
+		.profile = 0x0104,
+		.device_id = 0x0101,
+		.clusters = ep11_clusters,
+		.cluster_count = ARRAY_SIZE(ep11_clusters),
 	},
 };
 

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/level.h>
+#include <zzb/zcl/on_off.h>
 
 #include "common/node.h"
 #include "fakes.h"
@@ -70,6 +71,11 @@ static void set_u8(uint8_t ep, uint16_t attr, uint8_t value)
 static void set_u16(uint8_t ep, uint16_t attr, uint16_t value)
 {
 	zassert_ok(zzb_zcl_attr_set(test_node(), ep, ZZB_ZCL_LEVEL, attr, &value));
+}
+
+static void set_on_off(uint8_t ep, uint16_t attr, uint16_t value)
+{
+	zassert_ok(zzb_zcl_attr_set(test_node(), ep, ZZB_ZCL_ON_OFF, attr, &value));
 }
 
 static bool timer_armed(void)
@@ -284,6 +290,75 @@ ZTEST(zzb_zcl_level, test_stop)
 	zassert_equal(level10.current_level, level);
 	zassert_ok(reboot());
 	zassert_equal(level10.current_level, level);
+}
+
+/* ZCL 3.10.2.2.8.1: while off, a command without On/Off runs only with ExecuteIfOff */
+ZTEST(zzb_zcl_level, test_execute_if_off)
+{
+	move_to_level(11, 100, 0);
+	zassert_equal(level11.current_level, 254);
+
+	/* OptionsMask selects the bits of OptionsOverride (ZCL 3.10.2.3.1.2) */
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL, (uint8_t[]){100, 0, 0, 0x01, 0x01}, 5);
+	zassert_equal(level11.current_level, 100);
+
+	set_u8(11, ZZB_ZCL_LEVEL_OPTIONS, 0x01);
+	move_to_level(11, 120, 0);
+	zassert_equal(level11.current_level, 120);
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE, (uint8_t[]){0x00, 0xff, 0x01, 0x00}, 4);
+	zassert_equal(level11.current_level, 120);
+
+	set_u8(11, ZZB_ZCL_LEVEL_OPTIONS, 0x00);
+	set_on_off(11, ZZB_ZCL_ON_OFF_ON_OFF, true);
+	move_to_level(11, 140, 0);
+	zassert_equal(level11.current_level, 140);
+}
+
+/* ZCL 3.10.2.3.6: with On/Off the endpoint turns on before a move above 1 and off at 1 */
+ZTEST(zzb_zcl_level, test_with_on_off)
+{
+	/* ZHA sends 3 octets; the On rules apply to OffWaitTime (ZCL 3.8.2.1.1) */
+	set_on_off(11, ZZB_ZCL_ON_OFF_OFF_WAIT_TIME, 20);
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, (uint8_t[]){200, 5, 0}, 3);
+	zassert_true(on_off11.on_off);
+	zassert_equal(on_off11.off_wait_time, 0);
+	zassert_equal(level11.current_level, 254);
+	k_sleep(K_MSEC(600));
+	zassert_equal(level11.current_level, 200);
+
+	/* Level 0 ends at 1, and OnOff becomes FALSE at the end with the Off rules */
+	set_on_off(11, ZZB_ZCL_ON_OFF_ON_TIME, 30);
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, (uint8_t[]){0, 5, 0}, 3);
+	k_sleep(K_MSEC(300));
+	zassert_true(on_off11.on_off);
+	zassert_between_inclusive(level11.current_level, 60, 141);
+	k_sleep(K_MSEC(300));
+	zassert_equal(level11.current_level, 1);
+	zassert_false(on_off11.on_off);
+	zassert_equal(on_off11.on_time, 0);
+
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_STEP_ON_OFF, (uint8_t[]){0x00, 10, 0xff, 0xff}, 4);
+	zassert_true(on_off11.on_off);
+	zassert_equal(level11.current_level, 11);
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_ON_OFF, (uint8_t[]){0x01, 0xff}, 2);
+	zassert_false(on_off11.on_off);
+	zassert_equal(level11.current_level, 1);
+
+	/* Without an On/Off server only the level moves */
+	send(10, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, (uint8_t[]){0, 0, 0}, 3);
+	zassert_equal(level10.current_level, 1);
+}
+
+/* A command of the cluster cancels the change of OnOff at the end */
+ZTEST(zzb_zcl_level, test_with_on_off_stopped)
+{
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, (uint8_t[]){254, 0, 0}, 3);
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, (uint8_t[]){0, 5, 0}, 3);
+	k_sleep(K_MSEC(200));
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_STOP_ON_OFF, NULL, 0);
+	k_sleep(K_MSEC(500));
+	zassert_true(on_off11.on_off);
+	zassert_true(level11.current_level > 1);
 }
 
 ZTEST_SUITE(zzb_zcl_level, NULL, setup, before, after, NULL);
