@@ -41,4 +41,10 @@ void parent_start(uint16_t short_addr, uint64_t eui64, uint16_t child_addr, uint
 /* Sends a leave request to the child, from the stack thread */
 void parent_send_leave_request(bool rejoin);
 
+/*
+ * Plays the trust center and sends the network key to the child in a Transport Key secured with
+ * the key-transport key of the default trust center link key, from the stack thread
+ */
+void parent_send_transport_key(void);
+
 #endif /* ZZB_TESTS_INTEGRATION_NWK_JOIN_PARENT_H_ */

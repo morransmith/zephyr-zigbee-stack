@@ -6,6 +6,8 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 
+#include "aps/aps.h"
+#include "aps/frame.h"
 #include "common/buf.h"
 #include "common/queue.h"
 #include "fake_radio.h"
@@ -14,6 +16,7 @@
 #include "parent.h"
 #include "sec/aux_hdr.h"
 #include "sec/ccm.h"
+#include "sec/hmac.h"
 #include "sec/key_cache.h"
 
 /* A coordinator that permits association */
@@ -36,6 +39,8 @@ static struct {
 	uint8_t dsn;
 	uint8_t nwk_seq;
 	uint32_t fc;
+	uint8_t aps_counter;
+	uint32_t aps_fc;
 } parent;
 
 static struct zzb_mac_addr short_addr(uint16_t addr)
@@ -106,8 +111,9 @@ static void send_assoc_rsp(void)
 	send_mac(&hdr, payload, zzb_mac_cmd_write(&cmd, payload));
 }
 
-/* Sends cmd to the child with both IEEE addresses and radius 1 */
-static void send_nwk_cmd(const struct zzb_nwk_cmd *cmd, bool secure)
+/* Sends payload to the child with radius 1, secured when flags has ZZB_NWK_SECURITY */
+static void send_nwk(enum zzb_nwk_frame_type type, uint16_t flags, const uint8_t *payload,
+		     size_t payload_len)
 {
 	struct zzb_mac_hdr mac = {
 		.type = ZZB_MAC_FRAME_DATA,
@@ -116,8 +122,8 @@ static void send_nwk_cmd(const struct zzb_nwk_cmd *cmd, bool secure)
 		.src = short_addr(parent.short_addr),
 	};
 	const struct zzb_nwk_hdr hdr = {
-		.type = ZZB_NWK_FRAME_CMD,
-		.flags = ZZB_NWK_SRC_IEEE | ZZB_NWK_DST_IEEE | (secure ? ZZB_NWK_SECURITY : 0),
+		.type = type,
+		.flags = flags,
 		.dst = parent.child_addr,
 		.src = parent.short_addr,
 		.radius = 1,
@@ -131,6 +137,7 @@ static void send_nwk_cmd(const struct zzb_nwk_cmd *cmd, bool secure)
 		.frame_counter = parent.fc++,
 		.src_addr = parent.eui64,
 	};
+	bool secure = flags & ZZB_NWK_SECURITY;
 	uint8_t frame[ZZB_BUF_SIZE];
 	size_t hdr_len = zzb_nwk_hdr_write(&hdr, frame);
 	size_t len = hdr_len;
@@ -140,7 +147,8 @@ static void send_nwk_cmd(const struct zzb_nwk_cmd *cmd, bool secure)
 		len += zzb_sec_aux_hdr_write(&aux, frame + len);
 	}
 
-	len += zzb_nwk_cmd_write(cmd, frame + len);
+	memcpy(frame + len, payload, payload_len);
+	len += payload_len;
 	if (secure) {
 		zassert_ok(zzb_sec_key_get(nwk_key, &id));
 		zassert_ok(zzb_sec_frame_encrypt(id, parent.eui64, frame, hdr_len, len));
@@ -148,6 +156,63 @@ static void send_nwk_cmd(const struct zzb_nwk_cmd *cmd, bool secure)
 	}
 
 	send_mac(&mac, frame, len);
+}
+
+/* Sends cmd to the child with both IEEE addresses */
+static void send_nwk_cmd(const struct zzb_nwk_cmd *cmd, bool secure)
+{
+	uint8_t payload[ZZB_BUF_SIZE];
+
+	send_nwk(ZZB_NWK_FRAME_CMD,
+		 ZZB_NWK_SRC_IEEE | ZZB_NWK_DST_IEEE | (secure ? ZZB_NWK_SECURITY : 0), payload,
+		 zzb_nwk_cmd_write(cmd, payload));
+}
+
+/* The key of key_id derived from link_key (R22 4.5.3) */
+static void frame_key(const uint8_t *link_key, enum zzb_sec_key_id key_id,
+		      uint8_t key[ZZB_SEC_KEY_LEN])
+{
+	if (key_id == ZZB_SEC_KEY_DATA) {
+		memcpy(key, link_key, ZZB_SEC_KEY_LEN);
+		return;
+	}
+
+	zassert_ok(zzb_sec_hmac(link_key, key_id == ZZB_SEC_KEY_TRANSPORT ? 0x00 : 0x02, key));
+}
+
+/*
+ * Writes an APS command of the trust center to p, secured with the key key_id of link_key unless
+ * link_key is NULL, and returns its length
+ */
+static size_t write_aps_cmd(uint8_t *p, const struct zzb_aps_cmd *cmd, const uint8_t *link_key,
+			    enum zzb_sec_key_id key_id)
+{
+	const struct zzb_aps_hdr hdr = {
+		.type = ZZB_APS_FRAME_CMD,
+		.flags = link_key != NULL ? ZZB_APS_SECURITY : 0,
+		.counter = parent.aps_counter++,
+	};
+	const struct zzb_sec_aux_hdr aux = {
+		.key_id = key_id,
+		.ext_nonce = true,
+		.frame_counter = parent.aps_fc++,
+		.src_addr = parent.eui64,
+	};
+	size_t hdr_len = zzb_aps_hdr_write(&hdr, p);
+	size_t len = hdr_len;
+	uint8_t key[ZZB_SEC_KEY_LEN];
+	psa_key_id_t id;
+
+	if (link_key == NULL) {
+		return len + zzb_aps_cmd_write(cmd, p + len);
+	}
+
+	len += zzb_sec_aux_hdr_write(&aux, p + len);
+	len += zzb_aps_cmd_write(cmd, p + len);
+	frame_key(link_key, key_id, key);
+	zassert_ok(zzb_sec_key_get(key, &id));
+	zassert_ok(zzb_sec_frame_encrypt(id, parent.eui64, p, hdr_len, len));
+	return len + ZZB_SEC_MIC_LEN;
 }
 
 static void reply(const struct zzb_nwk_hdr *hdr, const struct zzb_nwk_cmd *cmd, bool secure)
@@ -307,4 +372,27 @@ void parent_send_leave_request(bool rejoin)
 	};
 
 	zzb_call_sync(&call.work, leave_handler);
+}
+
+/* R22 4.6.3.2.3: the network key under the key-transport key, without NWK security */
+static void transport_key_handler(struct k_work *work)
+{
+	struct zzb_aps_cmd cmd = {
+		.id = ZZB_APS_CMD_TRANSPORT_KEY,
+		.transport_key.type = ZZB_APS_KEY_NWK,
+		.transport_key.dst = parent.child_eui64,
+		.transport_key.src = parent.eui64,
+	};
+	uint8_t payload[ZZB_BUF_SIZE];
+
+	memcpy(cmd.transport_key.key, nwk_key, ZZB_SEC_KEY_LEN);
+	send_nwk(ZZB_NWK_FRAME_DATA, 0, payload,
+		 write_aps_cmd(payload, &cmd, zzb_aps_default_tc_link_key, ZZB_SEC_KEY_TRANSPORT));
+}
+
+void parent_send_transport_key(void)
+{
+	struct k_work work;
+
+	zzb_call_sync(&work, transport_key_handler);
 }
