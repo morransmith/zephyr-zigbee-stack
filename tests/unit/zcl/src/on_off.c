@@ -36,16 +36,22 @@ static void after(void *fixture)
 
 static uint8_t tsn;
 
-/* Sends the On/Off command id with the payload to endpoint 2 and checks its Default Response */
-static void command_with(uint8_t id, const uint8_t *payload, size_t len, uint8_t status)
+/* Sends the On/Off command id with the payload to endpoint ep and checks its Default Response */
+static void command_ep(uint8_t ep, uint8_t id, const uint8_t *payload, size_t len, uint8_t status)
 {
 	const uint8_t rsp[] = {0x18, ++tsn, 0x0b, id, status};
 	int frames = zzb_apsde_data_req_fake.call_count;
 	uint8_t frame[8] = {0x01, tsn, id};
 
 	memcpy(frame + 3, payload, len);
-	receive_ep(2, ZZB_ZCL_ON_OFF, frame, 3 + len);
-	check_frame(frames, 2, ZZB_ZCL_ON_OFF, rsp, sizeof(rsp));
+	receive_ep(ep, ZZB_ZCL_ON_OFF, frame, 3 + len);
+	check_frame(frames, ep, ZZB_ZCL_ON_OFF, rsp, sizeof(rsp));
+}
+
+/* command_ep() to endpoint 2 */
+static void command_with(uint8_t id, const uint8_t *payload, size_t len, uint8_t status)
+{
+	command_ep(2, id, payload, len, status);
 }
 
 static void command(uint8_t id)
@@ -58,15 +64,22 @@ static void set(uint16_t attr, uint16_t value)
 	zassert_ok(zzb_zcl_attr_set(test_node(), 2, ZZB_ZCL_ON_OFF, attr, &value));
 }
 
-/* The attributes that zcl_cb reported from call i on */
+/* The On/Off attributes that zcl_cb reported from call i on; Scenes follows the global scene */
 static void check_notified(int i, const uint16_t *attrs, int count)
 {
-	zassert_equal(zcl_cb_calls.count, i + count);
-	for (int j = 0; j < count; j++) {
-		zassert_equal(zcl_cb_calls.ep[i + j], 2);
-		zassert_equal(zcl_cb_calls.cluster[i + j], ZZB_ZCL_ON_OFF);
-		zassert_equal(zcl_cb_calls.attr[i + j], attrs[j]);
+	int n = 0;
+
+	for (; i < zcl_cb_calls.count; i++) {
+		if (zcl_cb_calls.cluster[i] != ZZB_ZCL_ON_OFF) {
+			continue;
+		}
+
+		zassert_true(n < count);
+		zassert_equal(zcl_cb_calls.ep[i], 2);
+		zassert_equal(zcl_cb_calls.attr[i], attrs[n++]);
 	}
+
+	zassert_equal(n, count);
 }
 
 /* ZCL 3.8.2.3.1, 3.8.2.3.2 */
@@ -265,6 +278,45 @@ ZTEST(zzb_zcl_on_off, test_on_with_recall_global_scene)
 	command(ON_WITH_RECALL_GLOBAL_SCENE);
 	zassert_false(on_off.on_off);
 	zassert_true(on_off.global_scene_control);
+}
+
+/* ZCL 3.8.2.2.2: with a Scenes server the global scene is the scene table entry (0, 0) */
+ZTEST(zzb_zcl_on_off, test_global_scene_in_the_scene_table)
+{
+	const struct zzb_zcl_scene *s = &test_node()->zcl.scenes[0];
+
+	command(ON);
+	command_with(OFF_WITH_EFFECT, (uint8_t[]){0x00, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	zassert_true(s->in_use);
+	zassert_equal(s->ep, 2);
+	zassert_equal(s->group, 0);
+	zassert_equal(s->id, 0);
+	zassert_equal(s->data_len, 4);
+	zassert_mem_equal(s->data, ((uint8_t[]){0x06, 0x00, 0x01, 0x01}), 4);
+	zassert_equal(scenes.scene_count, 1);
+
+	command(ON_WITH_RECALL_GLOBAL_SCENE);
+	zassert_true(on_off.on_off);
+
+	/* Without the entry OnOff does not change */
+	command_with(OFF_WITH_EFFECT, (uint8_t[]){0x00, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	reset_fakes();
+	receive_ep(2, ZZB_ZCL_SCENES, (uint8_t[]){0x11, 0x90, 0x02, 0x00, 0x00, 0x00}, 6);
+	command(ON_WITH_RECALL_GLOBAL_SCENE);
+	zassert_false(on_off.on_off);
+	zassert_true(on_off.global_scene_control);
+}
+
+/* Without a Scenes server the global scene is a field of the value struct */
+ZTEST(zzb_zcl_on_off, test_global_scene_in_ram)
+{
+	command_ep(3, ON, NULL, 0, ZZB_ZCL_SUCCESS);
+	command_ep(3, OFF_WITH_EFFECT, (uint8_t[]){0x00, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	zassert_true(on_off3.global_scene);
+	zassert_false(on_off3.on_off);
+	command_ep(3, ON_WITH_RECALL_GLOBAL_SCENE, NULL, 0, ZZB_ZCL_SUCCESS);
+	zassert_true(on_off3.on_off);
+	zassert_equal(scenes.scene_count, 0);
 }
 
 static void timed_off(uint8_t control, uint16_t on_time, uint16_t off_wait_time)

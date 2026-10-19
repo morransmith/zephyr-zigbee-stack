@@ -33,7 +33,7 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
  */
 #define TEST_CLUSTER 0x0f00
 
-/* An On/Off client without a definition on endpoints 1 and 3 */
+/* An On/Off client without a definition on endpoints 1 and 3; endpoint 3 also has a server */
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
@@ -62,6 +62,9 @@ extern struct zzb_zcl_basic basic;
 extern struct zzb_zcl_identify identify;
 extern struct zzb_zcl_scenes scenes;
 extern struct zzb_zcl_on_off on_off;
+
+/* The On/Off server on endpoint 3, which has no Scenes server */
+extern struct zzb_zcl_on_off on_off3;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

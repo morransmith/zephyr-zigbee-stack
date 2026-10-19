@@ -24,6 +24,7 @@ static const uint8_t product_code[] = {0x03, 0x00, 'Z', 'Z'};
 struct zzb_zcl_identify identify;
 struct zzb_zcl_scenes scenes;
 struct zzb_zcl_on_off on_off;
+struct zzb_zcl_on_off on_off3;
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -215,6 +216,7 @@ static const struct zzb_zcl_cluster ep2_clusters[] = {
 
 static const struct zzb_zcl_cluster ep3_clusters[] = {
 	{.id = ON_OFF},
+	ZZB_ZCL_ON_OFF_SERVER(&on_off3),
 };
 
 static const struct zzb_endpoint endpoints[] = {

@@ -3,6 +3,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/scenes.h>
 
 #include "common/node.h"
 #include "common/timer.h"
@@ -127,7 +128,16 @@ static void on(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_on_off *v
 	}
 }
 
-/* ZCL 3.8.2.3.4 */
+/*
+ * With a Scenes server the global scene is its entry with group 0 and scene 0 (ZCL 3.8.2.2.2),
+ * otherwise OnOff in the value struct
+ */
+static bool scene_table(struct zzb_node *node, uint8_t ep)
+{
+	return zzb_zcl_find_cluster(zzb_node_endpoint(node, ep), ZZB_ZCL_SCENES, true) != NULL;
+}
+
+/* ZCL 3.8.2.3.4; a full scene table drops the global scene */
 static int off_with_effect(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 			   struct zzb_zcl_on_off *v)
 {
@@ -141,13 +151,18 @@ static int off_with_effect(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 		return ZZB_ZCL_SUCCESS;
 	}
 
-	v->global_scene = v->on_off;
+	if (scene_table(node, cmd->ep)) {
+		zzb_zcl_scene_store(node, cmd->ep, 0, 0);
+	} else {
+		v->global_scene = v->on_off;
+	}
+
 	set(node, cmd->ep, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, false);
 	off(node, cmd->ep);
 	return ZZB_ZCL_SUCCESS;
 }
 
-/* ZCL 3.8.2.3.5 */
+/* ZCL 3.8.2.3.5; without the entry of the global scene OnOff does not change */
 static void on_with_recall_global_scene(struct zzb_node *node, uint8_t ep,
 					const struct zzb_zcl_on_off *v)
 {
@@ -155,7 +170,12 @@ static void on_with_recall_global_scene(struct zzb_node *node, uint8_t ep,
 		return;
 	}
 
-	set(node, ep, ZZB_ZCL_ON_OFF_ON_OFF, v->global_scene);
+	if (scene_table(node, ep)) {
+		zzb_zcl_scene_recall(node, ep, 0, 0);
+	} else {
+		set(node, ep, ZZB_ZCL_ON_OFF_ON_OFF, v->global_scene);
+	}
+
 	set(node, ep, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, true);
 	if (v->on_time == 0) {
 		set(node, ep, ZZB_ZCL_ON_OFF_OFF_WAIT_TIME, 0);

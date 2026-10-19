@@ -418,68 +418,80 @@ static int remove_one(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 }
 
 /* ZCL 3.7.2.4.6: a new entry has transition time 0; an existing one keeps it */
-static int store_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+uint8_t zzb_zcl_scene_store(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id)
 {
-	uint16_t group = sys_get_le16(cmd->payload);
-	uint8_t id = cmd->payload[2];
-	struct zzb_zcl_scene *s = entry_for(node, cmd->ep, group, id);
+	struct zzb_zcl_scene *s = entry_for(node, ep, group, id);
 	struct zzb_zcl_scene scene = {
 		.in_use = true,
-		.ep = cmd->ep,
+		.ep = ep,
 		.group = group,
 		.id = id,
 	};
-	uint8_t status = check_group(node, cmd->ep, group);
 
-	if (status == ZZB_ZCL_SUCCESS &&
-	    (s == NULL || !current_sets(zzb_node_endpoint(node, cmd->ep), &scene))) {
-		status = ZZB_ZCL_INSUFFICIENT_SPACE;
+	if (s == NULL || !current_sets(zzb_node_endpoint(node, ep), &scene)) {
+		return ZZB_ZCL_INSUFFICIENT_SPACE;
 	}
 
-	if (status == ZZB_ZCL_SUCCESS) {
-		if (s->in_use) {
-			scene.transition = s->transition;
-			scene.transition_100ms = s->transition_100ms;
-		}
-
-		put(node, s, &scene);
-		count(node, cmd->ep);
-		make_current(node, s);
+	if (s->in_use) {
+		scene.transition = s->transition;
+		scene.transition_100ms = s->transition_100ms;
 	}
 
-	return respond(node, cmd, status, group, id);
+	put(node, s, &scene);
+	count(node, ep);
+	make_current(node, s);
+	return ZZB_ZCL_SUCCESS;
 }
 
-/*
- * ZCL 3.7.2.4.7: a cluster without a set keeps its state. OnOff switches at once, so the transition
- * time field is not read. The status goes in the Default Response.
- */
-static int recall_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+static int store_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
-	const struct zzb_endpoint *ep = zzb_node_endpoint(node, cmd->ep);
 	uint16_t group = sys_get_le16(cmd->payload);
-	const struct zzb_zcl_scene *s = find(node, cmd->ep, group, cmd->payload[2]);
 	uint8_t status = check_group(node, cmd->ep, group);
-	const uint8_t *p;
 
-	if (status != ZZB_ZCL_SUCCESS) {
-		return status;
+	if (status == ZZB_ZCL_SUCCESS) {
+		status = zzb_zcl_scene_store(node, cmd->ep, group, cmd->payload[2]);
 	}
+
+	return respond(node, cmd, status, group, cmd->payload[2]);
+}
+
+/* ZCL 3.7.2.4.7: a cluster without a set keeps its state */
+uint8_t zzb_zcl_scene_recall(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id)
+{
+	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
+	const struct zzb_zcl_scene *s = find(node, ep, group, id);
+	const uint8_t *p;
 
 	if (s == NULL) {
 		return ZZB_ZCL_NOT_FOUND;
 	}
 
 	for (p = s->data; p < s->data + s->data_len; p += SET_HDR_LEN + p[2]) {
-		const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(ep, sys_get_le16(p), true);
+		const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(e, sys_get_le16(p), true);
 
 		if (cl != NULL && cl->def != NULL) {
-			recall_set(node, cmd->ep, cl, p + SET_HDR_LEN, p[2]);
+			recall_set(node, ep, cl, p + SET_HDR_LEN, p[2]);
 		}
 	}
 
 	make_current(node, s);
 	return ZZB_ZCL_SUCCESS;
+}
+
+/*
+ * OnOff switches at once, so the transition time field is not read. The status goes in the Default
+ * Response.
+ */
+static int recall_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	uint16_t group = sys_get_le16(cmd->payload);
+	uint8_t status = check_group(node, cmd->ep, group);
+
+	if (status != ZZB_ZCL_SUCCESS) {
+		return status;
+	}
+
+	return zzb_zcl_scene_recall(node, cmd->ep, group, cmd->payload[2]);
 }
 
 /* Copies the scene from to the scene id of group; false when the table is full */
