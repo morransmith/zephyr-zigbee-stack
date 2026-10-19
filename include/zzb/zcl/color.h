@@ -87,8 +87,9 @@ struct zzb_zcl_color_primary {
 /**
  * Values of a Color Control server (ZCL 5.2.2.2) with the XY and color temperature capabilities.
  * The application fills the fields up to primaries before zzb_node_init() and changes them with
- * zzb_zcl_attr_set(); they are read-only. CurrentX, CurrentY, ColorTemperatureMireds, the modes and
- * the writable attributes are saved.
+ * zzb_zcl_attr_set(); they are read-only. ColorTemperatureMireds, the modes and the writable
+ * attributes are saved, CurrentX and CurrentY in XY mode; in color temperature mode with the XY
+ * capability they follow ColorTemperatureMireds.
  */
 struct zzb_zcl_color {
 	/** ZZB_ZCL_COLOR_CAP_XY, ZZB_ZCL_COLOR_CAP_TEMPERATURE or both. */
@@ -123,12 +124,23 @@ struct zzb_zcl_color {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_color_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_color_client_def;
 
 /** A Color Control server with the values v, a pointer to struct zzb_zcl_color. */
 #define ZZB_ZCL_COLOR_SERVER(v)                                                                    \
 	{                                                                                          \
-		.id = ZZB_ZCL_COLOR, .server = true,                                               \
-		.values = (1 ? (v) : (struct zzb_zcl_color *)NULL), .def = &zzb_zcl_color_def,     \
+		.id = ZZB_ZCL_COLOR,                                                               \
+		.server = true,                                                                    \
+		.values = (1 ? (v) : (struct zzb_zcl_color *)NULL),                                \
+		.def = &zzb_zcl_color_def,                                                         \
+	}
+
+/** A Color Control client, which color controllers have (DTL). */
+#define ZZB_ZCL_COLOR_CLIENT()                                                                     \
+	{                                                                                          \
+		.id = ZZB_ZCL_COLOR,                                                               \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_color_client_def,                                                  \
 	}
 
 #ifdef __cplusplus
