@@ -1,13 +1,16 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/on_off.h>
 
 #include "fakes.h"
 
-#define OFF    0x00
-#define ON     0x01
-#define TOGGLE 0x02
+#define OFF                         0x00
+#define ON                          0x01
+#define TOGGLE                      0x02
+#define OFF_WITH_EFFECT             0x40
+#define ON_WITH_RECALL_GLOBAL_SCENE 0x41
 
 static void *setup(void)
 {
@@ -31,14 +34,21 @@ static void after(void *fixture)
 
 static uint8_t tsn;
 
-/* Sends the On/Off command id to endpoint 2 and checks its Default Response */
+/* Sends the On/Off command id with the payload to endpoint 2 and checks its Default Response */
+static void command_with(uint8_t id, const uint8_t *payload, size_t len, uint8_t status)
+{
+	const uint8_t rsp[] = {0x18, ++tsn, 0x0b, id, status};
+	int frames = zzb_apsde_data_req_fake.call_count;
+	uint8_t frame[8] = {0x01, tsn, id};
+
+	memcpy(frame + 3, payload, len);
+	receive_ep(2, ZZB_ZCL_ON_OFF, frame, 3 + len);
+	check_frame(frames, 2, ZZB_ZCL_ON_OFF, rsp, sizeof(rsp));
+}
+
 static void command(uint8_t id)
 {
-	const uint8_t rsp[] = {0x18, ++tsn, 0x0b, id, 0x00};
-	int frames = zzb_apsde_data_req_fake.call_count;
-
-	receive_ep(2, ZZB_ZCL_ON_OFF, (uint8_t[]){0x01, tsn, id}, 3);
-	check_frame(frames, 2, ZZB_ZCL_ON_OFF, rsp, sizeof(rsp));
+	command_with(id, NULL, 0, ZZB_ZCL_SUCCESS);
 }
 
 static void set(uint16_t attr, uint16_t value)
@@ -193,6 +203,66 @@ ZTEST(zzb_zcl_on_off, test_start_up_write)
 	receive_ep(2, ZZB_ZCL_ON_OFF, toggle, sizeof(toggle));
 	check_frame(1, 2, ZZB_ZCL_ON_OFF, (uint8_t[]){0x18, 0x93, 0x04, 0x00}, 4);
 	zassert_equal(on_off.start_up_on_off, ZZB_ZCL_START_UP_TOGGLE);
+}
+
+/* ZCL 3.8.2.3.4: the effect goes to the application, the global scene keeps OnOff */
+ZTEST(zzb_zcl_on_off, test_off_with_effect)
+{
+	command(ON);
+	set(ZZB_ZCL_ON_OFF_ON_TIME, 30);
+	reset_fakes();
+
+	command_with(OFF_WITH_EFFECT, (uint8_t[]){0x00, 0x01}, 2, ZZB_ZCL_SUCCESS);
+	zassert_equal(effect_calls.count, 1);
+	zassert_equal(effect_calls.ep, 2);
+	zassert_equal(effect_calls.cluster, ZZB_ZCL_ON_OFF);
+	zassert_equal(effect_calls.effect, 0x00);
+	zassert_equal(effect_calls.variant, 0x01);
+	zassert_equal(effect_calls.zcl_cb_count, 0);
+	zassert_false(on_off.global_scene_control);
+	zassert_false(on_off.on_off);
+	check_notified(0,
+		       (uint16_t[]){ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, ZZB_ZCL_ON_OFF_ON_OFF,
+				    ZZB_ZCL_ON_OFF_ON_TIME},
+		       3);
+
+	/* With GlobalSceneControl FALSE only OnOff changes, and OnTime keeps its value */
+	set(ZZB_ZCL_ON_OFF_ON_TIME, 30);
+	command_with(OFF_WITH_EFFECT, (uint8_t[]){0x01, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	zassert_false(on_off.on_off);
+	zassert_false(on_off.global_scene_control);
+	zassert_equal(on_off.on_time, 30);
+
+	command_with(OFF_WITH_EFFECT, (uint8_t[]){0x01}, 1, ZZB_ZCL_MALFORMED_COMMAND);
+	zassert_equal(effect_calls.count, 2);
+}
+
+/* ZCL 3.8.2.3.5 */
+ZTEST(zzb_zcl_on_off, test_on_with_recall_global_scene)
+{
+	/* GlobalSceneControl TRUE discards the command */
+	command(ON_WITH_RECALL_GLOBAL_SCENE);
+	zassert_false(on_off.on_off);
+
+	command(ON);
+	command_with(OFF_WITH_EFFECT, (uint8_t[]){0x00, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	set(ZZB_ZCL_ON_OFF_OFF_WAIT_TIME, 20);
+	reset_fakes();
+	command(ON_WITH_RECALL_GLOBAL_SCENE);
+	zassert_true(on_off.on_off);
+	zassert_true(on_off.global_scene_control);
+	zassert_equal(on_off.off_wait_time, 0);
+	check_notified(0,
+		       (uint16_t[]){ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL,
+				    ZZB_ZCL_ON_OFF_OFF_WAIT_TIME},
+		       3);
+
+	/* A scene stored while off recalls off */
+	command(OFF);
+	command_with(OFF_WITH_EFFECT, (uint8_t[]){0x00, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	command(ON_WITH_RECALL_GLOBAL_SCENE);
+	zassert_false(on_off.on_off);
+	zassert_true(on_off.global_scene_control);
 }
 
 ZTEST_SUITE(zzb_zcl_on_off, NULL, setup, before, after, NULL);

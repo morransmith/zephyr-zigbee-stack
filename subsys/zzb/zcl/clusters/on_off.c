@@ -9,9 +9,11 @@
 #define REVISION 2
 
 /* Commands received (ZCL Table 3-47) */
-#define CMD_OFF    0x00
-#define CMD_ON     0x01
-#define CMD_TOGGLE 0x02
+#define CMD_OFF                         0x00
+#define CMD_ON                          0x01
+#define CMD_TOGGLE                      0x02
+#define CMD_OFF_WITH_EFFECT             0x40
+#define CMD_ON_WITH_RECALL_GLOBAL_SCENE 0x41
 
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_BOOL, ZZB_ZCL_REPORT | ZZB_ZCL_NV,
@@ -49,9 +51,44 @@ static void on(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_on_off *v
 	}
 }
 
+/* ZCL 3.8.2.3.4 */
+static int off_with_effect(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			   struct zzb_zcl_on_off *v)
+{
+	if (cmd->len < 2) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	zzb_zcl_effect(node, cmd->ep, ZZB_ZCL_ON_OFF, cmd->payload[0], cmd->payload[1]);
+	if (!v->global_scene_control) {
+		set(node, cmd->ep, ZZB_ZCL_ON_OFF_ON_OFF, false);
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	v->global_scene = v->on_off;
+	set(node, cmd->ep, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, false);
+	off(node, cmd->ep);
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 3.8.2.3.5 */
+static void on_with_recall_global_scene(struct zzb_node *node, uint8_t ep,
+					const struct zzb_zcl_on_off *v)
+{
+	if (v->global_scene_control) {
+		return;
+	}
+
+	set(node, ep, ZZB_ZCL_ON_OFF_ON_OFF, v->global_scene);
+	set(node, ep, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, true);
+	if (v->on_time == 0) {
+		set(node, ep, ZZB_ZCL_ON_OFF_OFF_WAIT_TIME, 0);
+	}
+}
+
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
-	const struct zzb_zcl_on_off *v = values;
+	struct zzb_zcl_on_off *v = values;
 
 	switch (cmd->id) {
 	case CMD_OFF:
@@ -68,6 +105,11 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 			on(node, cmd->ep, v);
 		}
 
+		return ZZB_ZCL_SUCCESS;
+	case CMD_OFF_WITH_EFFECT:
+		return off_with_effect(node, cmd, v);
+	case CMD_ON_WITH_RECALL_GLOBAL_SCENE:
+		on_with_recall_global_scene(node, cmd->ep, v);
 		return ZZB_ZCL_SUCCESS;
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
@@ -101,6 +143,7 @@ static void init(void *values)
 	v->on_time = 0;
 	v->off_wait_time = 0;
 	v->start_up_on_off = v->start_up_default;
+	v->global_scene = false;
 }
 
 /* ZCL 3.8.2.2.5; reserved values keep the loaded OnOff */
@@ -123,8 +166,9 @@ static void start(struct zzb_node *node, uint8_t ep, void *values)
 
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
-	const struct zzb_zcl_on_off *v = values;
+	struct zzb_zcl_on_off *v = values;
 
+	v->global_scene = false;
 	set(node, ep, ZZB_ZCL_ON_OFF_ON_OFF, false);
 	set(node, ep, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, true);
 	set(node, ep, ZZB_ZCL_ON_OFF_ON_TIME, 0);
