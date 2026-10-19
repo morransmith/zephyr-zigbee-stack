@@ -204,6 +204,51 @@ ZTEST(zzb_zcl_color, test_transition_replaced)
 	zassert_false(timer_armed());
 }
 
+/* ZCL 5.2.2.3.12: X and Y move at their rates until one of them reaches its limit */
+ZTEST(zzb_zcl_color, test_move_color)
+{
+	move_to_color(40, 0xe000, 0x8000, 0);
+
+	/* X needs 0x1eff / 0x2000 s, Y 8 s; Y moves 0x1eff / 2 on the same line */
+	send(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_COLOR, (uint8_t[]){0x00, 0x20, 0x00, 0xf0}, 4);
+	zassert_equal(color40.remaining_time, 9);
+	k_sleep(K_MSEC(1000));
+	zassert_equal(color40.current_x, 0xfeff);
+	zassert_equal(color40.current_y, 0x8000 - 0x1eff / 2);
+	zassert_false(timer_armed());
+	zassert_ok(reboot());
+	zassert_equal(color40.current_x, 0xfeff);
+	zassert_equal(color40.current_y, 0x8000 - 0x1eff / 2);
+
+	/* Both rates 0 stop a transition, and the values are saved */
+	move_to_color(40, 0x2000, 0x2000, 10);
+	k_sleep(K_MSEC(350));
+	send(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_COLOR, (uint8_t[]){0x00, 0x00, 0x00, 0x00}, 4);
+	zassert_between_inclusive(color40.current_x, 0xa000, 0xc000);
+	zassert_equal(color40.remaining_time, 0);
+	zassert_false(timer_armed());
+	zassert_ok(reboot());
+	zassert_between_inclusive(color40.current_x, 0xa000, 0xc000);
+
+	command(40, ZZB_ZCL_COLOR_MOVE_COLOR, (uint8_t[]){0x00, 0x20, 0x00}, 3,
+		ZZB_ZCL_MALFORMED_COMMAND);
+}
+
+/* ZCL 5.2.2.3.13: X and Y change by their steps over the transition time, within 0 to 0xfeff */
+ZTEST(zzb_zcl_color, test_step_color)
+{
+	move_to_color(40, 0x2000, 0x0100, 0);
+	send(40, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_STEP_COLOR,
+	     (uint8_t[]){0x00, 0x10, 0x00, 0xfe, 0x05, 0x00}, 6);
+	zassert_equal(color40.remaining_time, 5);
+	k_sleep(K_MSEC(600));
+	zassert_equal(color40.current_x, 0x3000);
+	zassert_equal(color40.current_y, 0x0000);
+
+	command(40, ZZB_ZCL_COLOR_STEP_COLOR, (uint8_t[]){0x00, 0x10, 0x00, 0xfe, 0x05}, 5,
+		ZZB_ZCL_MALFORMED_COMMAND);
+}
+
 /* ZCL 5.2.2.2.1.18: commands of a capability that the light lacks or the stack does not have */
 ZTEST(zzb_zcl_color, test_unsupported)
 {

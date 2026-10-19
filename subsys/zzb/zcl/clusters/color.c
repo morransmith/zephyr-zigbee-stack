@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <stdlib.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/color.h>
@@ -181,6 +182,14 @@ static void move_xy(struct zzb_node *node, uint8_t ep, struct zzb_zcl_color *v, 
 	move(node, ep, v, attrs, to, ARRAY_SIZE(attrs), time_ds);
 }
 
+/* The attributes stay and are saved, and RemainingTime becomes 0 (ZCL 5.2.2.3.20) */
+static void stop(struct zzb_node *node, uint8_t ep, struct zzb_zcl_color *v)
+{
+	zzb_zcl_transition_stop(node, ep, ZZB_ZCL_COLOR, &v->transition);
+	remaining(node, ep, v);
+	schedule(node);
+}
+
 /* ColorMode and EnhancedColorMode take mode, the first action of a command (ZCL 5.2.2.3.2) */
 static void set_mode(struct zzb_node *node, uint8_t ep, uint8_t mode)
 {
@@ -198,6 +207,50 @@ static int move_to_color(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	return ZZB_ZCL_SUCCESS;
 }
 
+/* The distance of value to the limit of X and Y in the direction of rate */
+static uint32_t to_limit(uint16_t value, int16_t rate)
+{
+	return rate > 0 ? XY_MAX - value : value;
+}
+
+/*
+ * ZCL 5.2.2.3.12: the rates are in steps per second. The move ends when X or Y reaches its limit,
+ * so that both stop together on a straight line. Both rates 0 stop the transition.
+ */
+static int move_color(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_color *v)
+{
+	int16_t rate_x = sys_get_le16(cmd->payload);
+	int16_t rate_y = sys_get_le16(cmd->payload + 2);
+	uint32_t dx = to_limit(v->current_x, rate_x);
+	uint32_t dy = to_limit(v->current_y, rate_y);
+	/* X ends the move when it needs less time: dx / |rate_x| <= dy / |rate_y| */
+	bool x_ends = rate_y == 0 || (rate_x != 0 && dx * abs(rate_y) <= dy * abs(rate_x));
+	int32_t distance = x_ends ? dx : dy;
+	int rate = abs(x_ends ? rate_x : rate_y);
+
+	if (rate_x == 0 && rate_y == 0) {
+		stop(node, cmd->ep, v);
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	set_mode(node, cmd->ep, ZZB_ZCL_COLOR_MODE_XY);
+	move_xy(node, cmd->ep, v, v->current_x + rate_x * distance / rate,
+		v->current_y + rate_y * distance / rate, 10 * distance / rate);
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 5.2.2.3.13 */
+static int step_color(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_color *v)
+{
+	int16_t step_x = sys_get_le16(cmd->payload);
+	int16_t step_y = sys_get_le16(cmd->payload + 2);
+
+	set_mode(node, cmd->ep, ZZB_ZCL_COLOR_MODE_XY);
+	move_xy(node, cmd->ep, v, CLAMP(v->current_x + step_x, 0, XY_MAX),
+		CLAMP(v->current_y + step_y, 0, XY_MAX), sys_get_le16(cmd->payload + 4));
+	return ZZB_ZCL_SUCCESS;
+}
+
 /* The commands with the length of their fields before OptionsMask and their capability */
 static const struct {
 	uint8_t id;
@@ -206,6 +259,8 @@ static const struct {
 	int (*fn)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_color *v);
 } commands[] = {
 	{ZZB_ZCL_COLOR_MOVE_TO_COLOR, 6, ZZB_ZCL_COLOR_CAP_XY, move_to_color},
+	{ZZB_ZCL_COLOR_MOVE_COLOR, 4, ZZB_ZCL_COLOR_CAP_XY, move_color},
+	{ZZB_ZCL_COLOR_STEP_COLOR, 6, ZZB_ZCL_COLOR_CAP_XY, step_color},
 };
 
 /* A command of a capability that the light lacks is unsupported (ZCL 5.2.2.2.1.18) */
