@@ -240,6 +240,13 @@ void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
 /* Defined by ZDO. APSME-SWITCH-KEY.indication from the trust center src_addr. */
 void zzb_apsme_switch_key_ind(struct zzb_node *node, uint64_t src_addr, uint8_t seq);
 
+/*
+ * Defined by ZDO. APSME-CONFIRM-KEY.indication from the trust center src_addr. With SUCCESS and the
+ * trust center link key type, the key is verified.
+ */
+void zzb_apsme_confirm_key_ind(struct zzb_node *node, uint8_t status, uint64_t src_addr,
+			       enum zzb_aps_key_type type);
+
 /* Within APS */
 
 /* Whether a frame from src_addr with counter was received before (R22 2.2.8.4.2) */
@@ -308,6 +315,9 @@ int zzb_aps_secure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len,
  */
 int zzb_aps_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len, uint16_t nwk_src,
 		     struct zzb_aps_sec *sec);
+
+/* Saves the record aps/key/<i> of pair */
+void zzb_aps_key_save(struct zzb_node *node, const struct zzb_aps_key_pair *pair);
 
 /* Deletes the records aps/tc and aps/key/<i> */
 void zzb_aps_delete(struct zzb_node *node);

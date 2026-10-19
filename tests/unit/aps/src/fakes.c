@@ -22,6 +22,8 @@ DEFINE_FAKE_VOID_FUNC(zzb_apsde_data_ind, struct zzb_node *, struct net_buf *,
 DEFINE_FAKE_VOID_FUNC(zzb_apsme_transport_key_ind, struct zzb_node *, uint64_t,
 		      enum zzb_aps_key_type, const uint8_t *, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_apsme_switch_key_ind, struct zzb_node *, uint64_t, uint8_t);
+DEFINE_FAKE_VOID_FUNC(zzb_apsme_confirm_key_ind, struct zzb_node *, uint8_t, uint64_t,
+		      enum zzb_aps_key_type);
 
 struct frame_copy sent[8];
 struct frame_copy data_ind;
@@ -92,6 +94,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_apsde_data_ind);
 	RESET_FAKE(zzb_apsme_transport_key_ind);
 	RESET_FAKE(zzb_apsme_switch_key_ind);
+	RESET_FAKE(zzb_apsme_confirm_key_ind);
 	FFF_RESET_HISTORY();
 
 	zzb_nlde_data_req_fake.custom_fake = nlde_data_req_take;

@@ -79,6 +79,31 @@ static bool accept_switch_key(struct zzb_node *node, const struct zzb_aps_rx *rx
 						  : rx->src_addr == 0x0000;
 }
 
+/* R22 4.4.8.2.3 step 1, Table 4-6 */
+static bool accept_confirm_key(struct zzb_node *node, const struct zzb_aps_rx *rx,
+			       const struct zzb_aps_cmd *cmd)
+{
+	return !zzb_nwk_is_broadcast(rx->dst_addr) && tc_key(node, rx, ZZB_SEC_KEY_DATA) &&
+	       cmd->confirm_key.dst == node->eui64;
+}
+
+/* R22 4.4.8.2.3 steps 8 and 9 */
+static void confirm_key(struct zzb_node *node, const struct zzb_aps_rx *rx,
+			const struct zzb_aps_cmd *cmd)
+{
+	struct zzb_aps_key_pair *pair = rx->sec.pair;
+
+	if (cmd->confirm_key.status == ZZB_APS_STATUS_SUCCESS &&
+	    cmd->confirm_key.type == ZZB_APS_KEY_TC_LINK) {
+		pair->attr = ZZB_APS_KEY_VERIFIED;
+		pair->in_fc = 0;
+		zzb_aps_key_save(node, pair);
+	}
+
+	zzb_apsme_confirm_key_ind(node, cmd->confirm_key.status, rx->sec.src_addr,
+				  cmd->confirm_key.type);
+}
+
 bool zzb_aps_cmd_accept(struct zzb_node *node, const struct zzb_aps_rx *rx,
 			const struct zzb_aps_cmd *cmd)
 {
@@ -93,6 +118,8 @@ bool zzb_aps_cmd_accept(struct zzb_node *node, const struct zzb_aps_rx *rx,
 	switch (cmd->id) {
 	case ZZB_APS_CMD_SWITCH_KEY:
 		return accept_switch_key(node, rx);
+	case ZZB_APS_CMD_CONFIRM_KEY:
+		return accept_confirm_key(node, rx, cmd);
 	default:
 		return false;
 	}
@@ -108,6 +135,9 @@ void zzb_aps_cmd_process(struct zzb_node *node, const struct zzb_aps_rx *rx,
 		break;
 	case ZZB_APS_CMD_SWITCH_KEY:
 		zzb_apsme_switch_key_ind(node, node->aps.aib.tc_addr, cmd->switch_key_seq);
+		break;
+	case ZZB_APS_CMD_CONFIRM_KEY:
+		confirm_key(node, rx, cmd);
 		break;
 	default:
 		break;

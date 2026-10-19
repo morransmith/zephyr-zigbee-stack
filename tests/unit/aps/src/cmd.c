@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <zephyr/net_buf.h>
+#include <zephyr/settings/settings.h>
 #include <zephyr/ztest.h>
 
 #include "aps/aps.h"
@@ -460,6 +461,88 @@ ZTEST(zzb_aps_cmd, test_rejected_verify_keys)
 	node->aps.aib.tc_addr = TC_EUI64;
 	zassert_equal(zzb_apsme_verify_key_req(node, TC_EUI64, ZZB_APS_KEY_TC_LINK), -ENOENT);
 	zassert_equal(zzb_nlde_data_req_fake.call_count, 0);
+}
+
+/* The Confirm Key of BDB 10.2.5 step 12, under key B */
+static const struct tc_frame confirm = {
+	.link_key = key_b,
+	.key_id = ZZB_SEC_KEY_DATA,
+	.flags = ZZB_APS_SECURITY,
+	.nwk_src = 0x0000,
+	.nwk_dst = CHILD_ADDR,
+	.nwk_security = true,
+};
+
+static struct zzb_aps_cmd confirm_key_cmd(uint8_t status, uint64_t dst)
+{
+	return (struct zzb_aps_cmd){
+		.id = ZZB_APS_CMD_CONFIRM_KEY,
+		.confirm_key.status = status,
+		.confirm_key.type = ZZB_APS_KEY_TC_LINK,
+		.confirm_key.dst = dst,
+	};
+}
+
+/* The node holds key B, not verified yet */
+static struct zzb_aps_key_pair *install_key_b(void)
+{
+	authorize();
+	zassert_ok(zzb_apsme_set_link_key(node, TC_EUI64, key_b, ZZB_APS_KEY_UNVERIFIED,
+					  ZZB_APS_LINK_KEY_UNIQUE));
+	return zzb_aps_key_pair_find(node, TC_EUI64);
+}
+
+/* R22 4.4.8.2.3 */
+ZTEST(zzb_aps_cmd, test_confirm_key)
+{
+	struct zzb_aps_key_pair *pair = install_key_b();
+	struct zzb_aps_cmd cmd = confirm_key_cmd(0x00, NODE_EUI64);
+	uint8_t rec[27];
+
+	receive_cmd(&cmd, &confirm);
+	zassert_equal(pair->attr, ZZB_APS_KEY_VERIFIED);
+	zassert_equal(pair->in_fc, 0);
+	zassert_equal(settings_load_one("zzb/0/aps/key/0", rec, sizeof(rec)), sizeof(rec));
+	zassert_equal(rec[9], ZZB_APS_KEY_VERIFIED);
+
+	zassert_equal(zzb_apsme_confirm_key_ind_fake.call_count, 1);
+	zassert_equal_ptr(zzb_apsme_confirm_key_ind_fake.arg0_val, node);
+	zassert_equal(zzb_apsme_confirm_key_ind_fake.arg1_val, 0x00);
+	zassert_equal(zzb_apsme_confirm_key_ind_fake.arg2_val, TC_EUI64);
+	zassert_equal(zzb_apsme_confirm_key_ind_fake.arg3_val, ZZB_APS_KEY_TC_LINK);
+}
+
+ZTEST(zzb_aps_cmd, test_confirm_key_with_a_failure_status)
+{
+	struct zzb_aps_key_pair *pair = install_key_b();
+	struct zzb_aps_cmd cmd = confirm_key_cmd(0xad, NODE_EUI64);
+
+	receive_cmd(&cmd, &confirm);
+	zassert_equal(pair->attr, ZZB_APS_KEY_UNVERIFIED);
+	zassert_equal(zzb_apsme_confirm_key_ind_fake.call_count, 1);
+	zassert_equal(zzb_apsme_confirm_key_ind_fake.arg1_val, 0xad);
+}
+
+ZTEST(zzb_aps_cmd, test_rejected_confirm_keys)
+{
+	struct zzb_aps_key_pair *pair = install_key_b();
+	struct zzb_aps_cmd cmd = confirm_key_cmd(0x00, NODE_EUI64);
+	struct tc_frame how = confirm;
+
+	/* R22 4.4.8.2.3 step 1 */
+	how.nwk_dst = 0xfffd;
+	receive_cmd(&cmd, &how);
+
+	/* R22 Table 4-6: APS security is required */
+	how = confirm;
+	how.flags = 0;
+	receive_cmd(&cmd, &how);
+
+	cmd = confirm_key_cmd(0x00, 0x0011223344556677ULL);
+	receive_cmd(&cmd, &confirm);
+
+	zassert_equal(pair->attr, ZZB_APS_KEY_UNVERIFIED);
+	zassert_equal(zzb_apsme_confirm_key_ind_fake.call_count, 0);
 }
 
 ZTEST_SUITE(zzb_aps_cmd, NULL, setup, before, after, NULL);

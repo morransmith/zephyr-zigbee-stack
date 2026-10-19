@@ -43,3 +43,8 @@ void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
 void zzb_apsme_switch_key_ind(struct zzb_node *node, uint64_t src_addr, uint8_t seq)
 {
 }
+
+void zzb_apsme_confirm_key_ind(struct zzb_node *node, uint8_t status, uint64_t src_addr,
+			       enum zzb_aps_key_type type)
+{
+}

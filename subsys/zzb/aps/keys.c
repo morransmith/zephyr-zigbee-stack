@@ -64,7 +64,7 @@ static void save_tc(struct zzb_node *node)
 	zzb_settings_save(node, TC_KEY, rec, sizeof(rec));
 }
 
-static void save_key(struct zzb_node *node, const struct zzb_aps_key_pair *pair)
+void zzb_aps_key_save(struct zzb_node *node, const struct zzb_aps_key_pair *pair)
 {
 	uint8_t rec[KEY_LEN] = {RECORD_VERSION};
 	char name[KEY_NAME_LEN];
@@ -93,7 +93,7 @@ int zzb_apsme_set_link_key(struct zzb_node *node, uint64_t addr, const uint8_t k
 		.type = type,
 	};
 	memcpy(pair->key, key, ZZB_SEC_KEY_LEN);
-	save_key(node, pair);
+	zzb_aps_key_save(node, pair);
 	return 0;
 }
 
