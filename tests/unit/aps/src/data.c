@@ -183,6 +183,35 @@ ZTEST(zzb_aps_data, test_ieee_destination)
 	net_buf_unref(buf);
 }
 
+static int addr_map_find(struct zzb_node *n, uint64_t ext_addr, uint16_t *addr)
+{
+	*addr = 0x4444;
+	return 0;
+}
+
+/* Section 11: a device that is neither the trust center nor a neighbor, through nwkAddressMap */
+ZTEST(zzb_aps_data, test_address_map)
+{
+	const uint64_t remote = 0x00124b0000000099ULL;
+	struct zzb_apsde_req req = on_off_req;
+
+	req.dst_mode = ZZB_APS_ADDR_EXT;
+	req.dst_ext = remote;
+	zzb_nwk_addr_map_find_fake.custom_fake = addr_map_find;
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &req));
+	zassert_equal(zzb_nlde_data_req_fake.arg2_val, 0x4444);
+
+	/* The link key of a network address for the APS security */
+	zzb_nwk_addr_map_ext_fake.return_val = remote;
+	zassert_ok(zzb_apsme_set_link_key(node, remote, key_b, ZZB_APS_KEY_VERIFIED,
+					  ZZB_APS_LINK_KEY_UNIQUE));
+	req.dst_mode = ZZB_APS_ADDR_SHORT;
+	req.dst_addr = 0x4444;
+	req.tx_options = ZZB_APS_TX_SECURITY;
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &req));
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 2);
+}
+
 ZTEST(zzb_aps_data, test_rejected_requests)
 {
 	struct zzb_apsde_req req = on_off_req;
