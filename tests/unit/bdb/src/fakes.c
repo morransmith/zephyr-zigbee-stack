@@ -21,6 +21,7 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_network_discovery_req, struct zzb_node *, u
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_reset_req, struct zzb_node *);
 DEFINE_FAKE_VOID_FUNC(zzb_aps_reset, struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_zdo_device_annce_req, struct zzb_node *);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_zdo_mgmt_permit_joining_req, struct zzb_node *, uint8_t, bool);
 
 struct event_log events;
 
@@ -63,6 +64,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nlme_reset_req);
 	RESET_FAKE(zzb_aps_reset);
 	RESET_FAKE(zzb_zdo_device_annce_req);
+	RESET_FAKE(zzb_zdo_mgmt_permit_joining_req);
 	FFF_RESET_HISTORY();
 	events = (struct event_log){0};
 

@@ -19,6 +19,7 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_network_discovery_req, struct zzb_node *, 
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_reset_req, struct zzb_node *);
 DECLARE_FAKE_VOID_FUNC(zzb_aps_reset, struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_device_annce_req, struct zzb_node *);
+DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_mgmt_permit_joining_req, struct zzb_node *, uint8_t, bool);
 
 #define EXT_PAN_ID 0x00124b0000001a62ULL
 #define NODE_ADDR  0x5678

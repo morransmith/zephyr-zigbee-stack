@@ -9,6 +9,9 @@
 #include "nwk/nwk.h"
 #include "zdo/zdo.h"
 
+/* bdbcMinCommissioningTime */
+#define MIN_COMMISSIONING_TIME_S 180
+
 /* The receiver stays on until milestone 14 */
 static uint8_t capability(const struct zzb_node *node)
 {
@@ -110,6 +113,16 @@ static void join_next(struct zzb_node *node)
 	next_channels(node);
 }
 
+/*
+ * BDB 8.1 steps 3 and 5, 8.2 steps 14 and 16. Step 4 and 8.2 step 15 do not apply to an end
+ * device, which has no permit joining of its own.
+ */
+static void open_network(struct zzb_node *node)
+{
+	zzb_zdo_mgmt_permit_joining_req(node, MIN_COMMISSIONING_TIME_S, true);
+	zzb_bdb_report(node, ZZB_BDB_EVENT_STEERING, ZZB_BDB_SUCCESS);
+}
+
 int zzb_bdb_steer(struct zzb_node *node)
 {
 	if (node->bdb.state != ZZB_BDB_IDLE) {
@@ -117,7 +130,7 @@ int zzb_bdb_steer(struct zzb_node *node)
 	}
 
 	if (node->bdb.on_network) {
-		zzb_bdb_report(node, ZZB_BDB_EVENT_STEERING, ZZB_BDB_SUCCESS);
+		open_network(node);
 		return 0;
 	}
 
@@ -195,5 +208,5 @@ void zzb_bdb_steering_key_ind(struct zzb_node *node)
 {
 	node->bdb.on_network = true;
 	zzb_zdo_device_annce_req(node);
-	zzb_bdb_report(node, ZZB_BDB_EVENT_STEERING, ZZB_BDB_SUCCESS);
+	open_network(node);
 }

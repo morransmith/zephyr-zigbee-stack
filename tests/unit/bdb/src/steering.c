@@ -61,12 +61,20 @@ static void check_join(int i, uint64_t ext_pan_id)
 	zassert_false(zzb_nlme_join_req_fake.arg6_history[i]);
 }
 
+/* bdbcMinCommissioningTime with TC significance (BDB 8.1 step 3, 8.2 step 14) */
+static void check_permit_joining(int count)
+{
+	zassert_equal(zzb_zdo_mgmt_permit_joining_req_fake.call_count, count);
+	zassert_equal(zzb_zdo_mgmt_permit_joining_req_fake.arg1_val, 180);
+	zassert_true(zzb_zdo_mgmt_permit_joining_req_fake.arg2_val);
+}
+
 static void discovered(size_t count)
 {
 	zzb_nlme_network_discovery_conf(node, ZZB_MAC_STATUS_SUCCESS, networks, count);
 }
 
-/* BDB 8.2 steps 2 to 11 */
+/* BDB 8.2 steps 2 to 16 */
 ZTEST(zzb_bdb_steering, test_steering_joins_an_open_network)
 {
 	networks[0].permit_join = false;
@@ -81,7 +89,19 @@ ZTEST(zzb_bdb_steering, test_steering_joins_an_open_network)
 
 	zzb_bdb_nwk_key_ind(node);
 	zassert_equal(zzb_zdo_device_annce_req_fake.call_count, 1);
+	check_permit_joining(1);
 	check_event(1, ZZB_BDB_SUCCESS);
+}
+
+/* BDB 8.1: an end device only extends the permit joining of the routers */
+ZTEST(zzb_bdb_steering, test_steering_on_a_network)
+{
+	reboot(true);
+	zzb_zdo_mgmt_permit_joining_req_fake.return_val = -ENOBUFS;
+	zassert_ok(zzb_bdb_steering(node));
+	check_permit_joining(1);
+	check_event(1, ZZB_BDB_SUCCESS);
+	zassert_equal(zzb_nlme_network_discovery_req_fake.call_count, 0);
 }
 
 ZTEST(zzb_bdb_steering, test_failed_join_tries_the_next_network)
