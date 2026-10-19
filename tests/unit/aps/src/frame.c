@@ -157,4 +157,158 @@ ZTEST(zzb_aps_frame, test_rejected_headers)
 	zassert_equal(zzb_aps_hdr_parse(data, 0, &hdr), -EINVAL);
 }
 
+/* Every field of the command type is written, so equal bytes mean equal fields */
+static void check_cmd_round_trip(const uint8_t *bytes, size_t len,
+				 const struct zzb_aps_cmd *expected)
+{
+	struct zzb_aps_cmd cmd;
+	uint8_t buf[ZZB_BUF_SIZE];
+
+	zassert_equal(zzb_aps_cmd_write(expected, buf), len);
+	zassert_mem_equal(buf, bytes, len);
+
+	zassert_equal(zzb_aps_cmd_parse(bytes, len, &cmd), len);
+	zassert_equal(cmd.id, expected->id);
+	zassert_equal(zzb_aps_cmd_write(&cmd, buf), len);
+	zassert_mem_equal(buf, bytes, len);
+}
+
+/* Payload of the zigbee-rs Transport Key in tests/unit/sec (see NOTICE) */
+ZTEST(zzb_aps_frame, test_transport_key_with_network_key)
+{
+	static const uint8_t bytes[] = {
+		0x05, 0x01, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe5, 0x01, 0x30, 0x38, 0x9c,
+		0x38, 0xc1, 0xa4, 0xe1, 0x52, 0x38, 0x7d, 0xc1, 0x36, 0xce, 0xf4,
+	};
+	const struct zzb_aps_cmd expected = {
+		.id = ZZB_APS_CMD_TRANSPORT_KEY,
+		.transport_key.type = ZZB_APS_KEY_NWK,
+		.transport_key.key = {0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89},
+		.transport_key.seq = 0,
+		.transport_key.dst = 0xa4c1389c383001e5ULL,
+		.transport_key.src = 0xf4ce36c17d3852e1ULL,
+	};
+
+	check_cmd_round_trip(bytes, sizeof(bytes), &expected);
+}
+
+ZTEST(zzb_aps_frame, test_transport_key_with_trust_center_link_key)
+{
+	static const uint8_t bytes[] = {
+		0x05, 0x04, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+		0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0xe5, 0x01, 0x30, 0x38, 0x9c, 0x38,
+		0xc1, 0xa4, 0xe1, 0x52, 0x38, 0x7d, 0xc1, 0x36, 0xce, 0xf4,
+	};
+	const struct zzb_aps_cmd expected = {
+		.id = ZZB_APS_CMD_TRANSPORT_KEY,
+		.transport_key.type = ZZB_APS_KEY_TC_LINK,
+		.transport_key.key = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+				      0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f},
+		.transport_key.dst = 0xa4c1389c383001e5ULL,
+		.transport_key.src = 0xf4ce36c17d3852e1ULL,
+	};
+
+	check_cmd_round_trip(bytes, sizeof(bytes), &expected);
+}
+
+ZTEST(zzb_aps_frame, test_transport_key_with_application_link_key)
+{
+	static const uint8_t bytes[] = {
+		0x05, 0x03, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
+		0x1c, 0x1d, 0x1e, 0x1f, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x00, 0x01,
+	};
+	const struct zzb_aps_cmd expected = {
+		.id = ZZB_APS_CMD_TRANSPORT_KEY,
+		.transport_key.type = ZZB_APS_KEY_APP_LINK,
+		.transport_key.key = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+				      0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f},
+		.transport_key.partner = 0x0011223344556677ULL,
+		.transport_key.initiator = true,
+	};
+
+	check_cmd_round_trip(bytes, sizeof(bytes), &expected);
+}
+
+ZTEST(zzb_aps_frame, test_request_key)
+{
+	static const uint8_t tc_link[] = {0x08, 0x04};
+	static const uint8_t app_link[] = {0x08, 0x02, 0x77, 0x66, 0x55,
+					   0x44, 0x33, 0x22, 0x11, 0x00};
+	const struct zzb_aps_cmd tc_link_cmd = {
+		.id = ZZB_APS_CMD_REQUEST_KEY,
+		.request_key = {.type = ZZB_APS_REQUEST_TC_LINK},
+	};
+	const struct zzb_aps_cmd app_link_cmd = {
+		.id = ZZB_APS_CMD_REQUEST_KEY,
+		.request_key.type = ZZB_APS_REQUEST_APP_LINK,
+		.request_key.partner = 0x0011223344556677ULL,
+	};
+
+	check_cmd_round_trip(tc_link, sizeof(tc_link), &tc_link_cmd);
+	check_cmd_round_trip(app_link, sizeof(app_link), &app_link_cmd);
+}
+
+ZTEST(zzb_aps_frame, test_switch_key)
+{
+	static const uint8_t bytes[] = {0x09, 0x01};
+	const struct zzb_aps_cmd expected = {
+		.id = ZZB_APS_CMD_SWITCH_KEY,
+		.switch_key_seq = 1,
+	};
+
+	check_cmd_round_trip(bytes, sizeof(bytes), &expected);
+}
+
+ZTEST(zzb_aps_frame, test_verify_key)
+{
+	static const uint8_t bytes[] = {
+		0x0f, 0x04, 0xe5, 0x01, 0x30, 0x38, 0x9c, 0x38, 0xc1, 0xa4, 0x20, 0x21, 0x22,
+		0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
+	};
+	const struct zzb_aps_cmd expected = {
+		.id = ZZB_APS_CMD_VERIFY_KEY,
+		.verify_key.type = ZZB_APS_KEY_TC_LINK,
+		.verify_key.src = 0xa4c1389c383001e5ULL,
+		.verify_key.hash = {0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29,
+				    0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f},
+	};
+
+	check_cmd_round_trip(bytes, sizeof(bytes), &expected);
+}
+
+ZTEST(zzb_aps_frame, test_confirm_key)
+{
+	static const uint8_t bytes[] = {0x10, 0x00, 0x04, 0xe5, 0x01, 0x30,
+					0x38, 0x9c, 0x38, 0xc1, 0xa4};
+	const struct zzb_aps_cmd expected = {
+		.id = ZZB_APS_CMD_CONFIRM_KEY,
+		.confirm_key.status = 0x00,
+		.confirm_key.type = ZZB_APS_KEY_TC_LINK,
+		.confirm_key.dst = 0xa4c1389c383001e5ULL,
+	};
+
+	check_cmd_round_trip(bytes, sizeof(bytes), &expected);
+}
+
+ZTEST(zzb_aps_frame, test_rejected_commands)
+{
+	/* Update Device belongs to the router */
+	static const uint8_t update_device[] = {0x06, 0x77, 0x66, 0x55, 0x44, 0x33,
+						0x22, 0x11, 0x00, 0x34, 0x12, 0x00};
+	static const uint8_t reserved_key_type[] = {0x05, 0x02};
+	static const uint8_t reserved_request_type[] = {0x08, 0x01};
+	static const uint8_t confirm_key[] = {0x10, 0x00, 0x04, 0xe5, 0x01, 0x30,
+					      0x38, 0x9c, 0x38, 0xc1, 0xa4};
+	struct zzb_aps_cmd cmd;
+
+	zassert_equal(zzb_aps_cmd_parse(update_device, sizeof(update_device), &cmd), -ENOTSUP);
+	zassert_equal(zzb_aps_cmd_parse(reserved_key_type, sizeof(reserved_key_type), &cmd),
+		      -ENOTSUP);
+	zassert_equal(zzb_aps_cmd_parse(reserved_request_type, sizeof(reserved_request_type), &cmd),
+		      -ENOTSUP);
+	zassert_equal(zzb_aps_cmd_parse(confirm_key, sizeof(confirm_key) - 1, &cmd), -EINVAL);
+	zassert_equal(zzb_aps_cmd_parse(confirm_key, 0, &cmd), -EINVAL);
+}
+
 ZTEST_SUITE(zzb_aps_frame, NULL, NULL, NULL, NULL, NULL);
