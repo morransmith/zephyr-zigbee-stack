@@ -1,10 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <zephyr/ztest.h>
 
 #include "fakes.h"
 
 #define MGMT_RTG_REQ 0x0032
+#define TC_EUI64     0x00124b0000000001ULL
+
+static const uint8_t key[ZZB_SEC_KEY_LEN] = {0x01, 0x02, 0x03};
 
 static void *setup(void)
 {
@@ -62,6 +66,37 @@ ZTEST(zzb_zdo, test_dropped_frames)
 	receive(MGMT_RTG_REQ | 0x8000, NODE_ADDR, req, sizeof(req));
 
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
+/* The network key reaches NLME-SET through ZDO (section 5) */
+ZTEST(zzb_zdo, test_network_key)
+{
+	zzb_apsme_transport_key_ind(test_node(), TC_EUI64, ZZB_APS_KEY_NWK, key, 3);
+	zassert_equal(zzb_apsme_set_tc_addr_fake.call_count, 1);
+	zassert_equal(zzb_apsme_set_tc_addr_fake.arg1_val, TC_EUI64);
+	zassert_equal(set_nwk_key.count, 1);
+	zassert_equal_ptr(set_nwk_key.key, key);
+	zassert_equal(set_nwk_key.seq, 3);
+
+	/* Without a key-pair entry for the trust center the key stays unset */
+	zzb_apsme_set_tc_addr_fake.return_val = -ENOMEM;
+	zzb_apsme_transport_key_ind(test_node(), TC_EUI64, ZZB_APS_KEY_NWK, key, 4);
+	zassert_equal(set_nwk_key.count, 1);
+}
+
+/* BDB decides about a trust center link key (BDB 10.2.6) */
+ZTEST(zzb_zdo, test_trust_center_link_key_is_dropped)
+{
+	zzb_apsme_transport_key_ind(test_node(), TC_EUI64, ZZB_APS_KEY_TC_LINK, key, 0);
+	zassert_equal(zzb_apsme_set_tc_addr_fake.call_count, 0);
+	zassert_equal(set_nwk_key.count, 0);
+}
+
+ZTEST(zzb_zdo, test_switch_key)
+{
+	zzb_apsme_switch_key_ind(test_node(), TC_EUI64, 3);
+	zassert_equal(zzb_nlme_set_active_key_fake.call_count, 1);
+	zassert_equal(zzb_nlme_set_active_key_fake.arg1_val, 3);
 }
 
 ZTEST_SUITE(zzb_zdo, NULL, setup, before, after, NULL);

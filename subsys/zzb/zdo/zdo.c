@@ -55,6 +55,24 @@ void zzb_zdo_respond(struct zzb_node *node, const struct zzb_zdo_req *req, const
 		     ZZB_ZDO_HANDLE);
 }
 
+void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
+				 enum zzb_aps_key_type type, const uint8_t *key, uint8_t seq)
+{
+	/* BDB decides about a trust center link key (BDB 10.2.6) */
+	if (type != ZZB_APS_KEY_NWK) {
+		return;
+	}
+
+	if (zzb_apsme_set_tc_addr(node, src_addr) == 0) {
+		zzb_nlme_set_nwk_key(node, key, seq);
+	}
+}
+
+void zzb_apsme_switch_key_ind(struct zzb_node *node, uint64_t src_addr, uint8_t seq)
+{
+	zzb_nlme_set_active_key(node, seq);
+}
+
 void zzb_apsde_data_conf(struct zzb_node *node, uint8_t handle, uint8_t status)
 {
 }

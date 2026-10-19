@@ -13,8 +13,18 @@ DEFINE_FFF_GLOBALS;
 
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 		       const struct zzb_apsde_req *);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_apsme_set_tc_addr, struct zzb_node *, uint64_t);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_set_active_key, struct zzb_node *, uint8_t);
 
 struct frame_copy sent[8];
+struct set_nwk_key_calls set_nwk_key;
+
+void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_LEN], uint8_t seq)
+{
+	set_nwk_key.count++;
+	set_nwk_key.key = key;
+	set_nwk_key.seq = seq;
+}
 
 static const struct zzb_device device = {
 	.manufacturer_code = 0x1234,
@@ -54,7 +64,10 @@ struct zzb_node *test_node(void)
 void reset_fakes(void)
 {
 	RESET_FAKE(zzb_apsde_data_req);
+	RESET_FAKE(zzb_apsme_set_tc_addr);
+	RESET_FAKE(zzb_nlme_set_active_key);
 	FFF_RESET_HISTORY();
+	set_nwk_key = (struct set_nwk_key_calls){0};
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
 }

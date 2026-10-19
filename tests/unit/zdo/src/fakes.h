@@ -13,6 +13,8 @@
 
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 			const struct zzb_apsde_req *);
+DECLARE_FAKE_VALUE_FUNC(int, zzb_apsme_set_tc_addr, struct zzb_node *, uint64_t);
+DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_set_active_key, struct zzb_node *, uint8_t);
 
 #define NODE_EUI64 0x00124b0001020304ULL
 #define NODE_ADDR  0x5678
@@ -30,6 +32,18 @@ struct frame_copy {
 
 /* By default the zzb_apsde_data_req() fake takes the buffer and copies the frame here */
 extern struct frame_copy sent[8];
+
+/*
+ * Calls of the zzb_nlme_set_nwk_key() fake. FFF declares the array parameter as a pointer, which
+ * -Werror=array-parameter rejects.
+ */
+struct set_nwk_key_calls {
+	int count;
+	const uint8_t *key;
+	uint8_t seq;
+};
+
+extern struct set_nwk_key_calls set_nwk_key;
 
 struct zzb_node *test_node(void);
 

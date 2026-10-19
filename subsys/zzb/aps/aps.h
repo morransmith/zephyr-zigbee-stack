@@ -275,7 +275,7 @@ void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
 void zzb_apsme_switch_key_ind(struct zzb_node *node, uint64_t src_addr, uint8_t seq);
 
 /*
- * Defined by ZDO. APSME-CONFIRM-KEY.indication from the trust center src_addr. With SUCCESS and the
+ * Defined by BDB. APSME-CONFIRM-KEY.indication from the trust center src_addr. With SUCCESS and the
  * trust center link key type, the key is verified.
  */
 void zzb_apsme_confirm_key_ind(struct zzb_node *node, uint8_t status, uint64_t src_addr,
