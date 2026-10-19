@@ -107,6 +107,14 @@ struct effect_calls {
 
 extern struct effect_calls effect_calls;
 
+/* A membership of the APS group table, which the fakes of the group functions keep; ep 0 is free */
+struct membership {
+	uint16_t group;
+	uint8_t ep;
+};
+
+extern struct membership memberships[CONFIG_ZZB_APS_GROUP_COUNT];
+
 /* Copy of a frame passed to APSDE-DATA.request */
 struct frame_copy {
 	struct zzb_apsde_req req;

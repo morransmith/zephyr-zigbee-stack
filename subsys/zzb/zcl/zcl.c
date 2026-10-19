@@ -133,7 +133,8 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		.cmd.len = len,
 		.hdr = *hdr,
 		.profile = ep->profile,
-		.unicast = !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
+		.unicast =
+			!ind->group && !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
 		.cluster =
 			zzb_zcl_find_cluster(ep, ind->cluster, !(hdr->flags & ZZB_ZCL_TO_CLIENT)),
 	};
@@ -154,6 +155,13 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 	default_rsp(node, &req, status);
 }
 
+/* Whether a frame to the broadcast endpoint or a group is for endpoint ep */
+static bool addressed(struct zzb_node *node, const struct zzb_apsde_ind *ind,
+		      const struct zzb_endpoint *ep)
+{
+	return !ind->group || zzb_aps_group_member(node, ind->dst_addr, ep->id);
+}
+
 static void dispatch(struct zzb_node *node, const struct zzb_apsde_ind *ind, const uint8_t *frame,
 		     size_t len)
 {
@@ -165,11 +173,11 @@ static void dispatch(struct zzb_node *node, const struct zzb_apsde_ind *ind, con
 		return;
 	}
 
-	/* ZCL 2.3.2.1 */
-	if (ind->dst_ep == 0xff) {
+	/* ZCL 2.3.2.1, R22 2.2.8.4.2 */
+	if (ind->group || ind->dst_ep == 0xff) {
 		for (size_t i = 0; i < node->device->endpoint_count; i++) {
 			ep = &node->device->endpoints[i];
-			if (accepts(ep, ind->profile) &&
+			if (addressed(node, ind, ep) && accepts(ep, ind->profile) &&
 			    zzb_zcl_find_cluster(ep, ind->cluster,
 						 !(hdr.flags & ZZB_ZCL_TO_CLIENT))) {
 				receive(node, ep, ind, &hdr, frame + hdr_len, len - hdr_len);

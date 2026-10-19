@@ -43,6 +43,18 @@ struct changed_calls hook_calls;
 struct zcl_cb_calls zcl_cb_calls;
 struct effect_calls effect_calls;
 struct frame_copy sent[8];
+struct membership memberships[CONFIG_ZZB_APS_GROUP_COUNT];
+
+bool zzb_aps_group_member(struct zzb_node *node, uint16_t group, uint8_t ep)
+{
+	ARRAY_FOR_EACH_PTR(memberships, m) {
+		if (m->ep != 0 && m->group == group && m->ep == ep) {
+			return true;
+		}
+	}
+
+	return false;
+}
 
 static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
@@ -206,6 +218,7 @@ void reset_fakes(void)
 	hook_calls = (struct changed_calls){0};
 	zcl_cb_calls = (struct zcl_cb_calls){0};
 	effect_calls = (struct effect_calls){0};
+	memset(memberships, 0, sizeof(memberships));
 }
 
 void check_no_buffer_leak(void)

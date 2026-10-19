@@ -189,4 +189,31 @@ ZTEST(zzb_zcl, test_broadcast_endpoint)
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
 }
 
+/* R22 2.2.8.4.2: member endpoints with the cluster get a group frame, without Default Response */
+ZTEST(zzb_zcl, test_group_frame)
+{
+	struct zzb_apsde_ind ind = {
+		.dst_addr = 0x1234,
+		.src_addr = REQUESTER_ADDR,
+		.src_ep = REQUESTER_EP,
+		.profile = 0x0104,
+		.cluster = TEST_CLUSTER,
+		.group = true,
+	};
+
+	memberships[0] = (struct membership){.group = 0x1234, .ep = 2};
+	memberships[1] = (struct membership){.group = 0x1234, .ep = 3};
+	memberships[2] = (struct membership){.group = 0x4321, .ep = 1};
+	cmd_status = 0x85;
+	receive_ind(&ind, (uint8_t[]){0x01, 0x3a, 0x02}, 3);
+	zassert_equal(cmd_calls.count, 1);
+	zassert_equal(cmd_calls.cmd.ep, 2);
+	zassert_equal_ptr(cmd_calls.values, &values2);
+
+	ind.dst_addr = 0x5555;
+	receive_ind(&ind, (uint8_t[]){0x01, 0x3b, 0x02}, 3);
+	zassert_equal(cmd_calls.count, 1);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
 ZTEST_SUITE(zzb_zcl, NULL, setup, before, after, NULL);
