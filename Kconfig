@@ -104,6 +104,14 @@ config ZZB_BDB
 	  center link key exchange and the resets. Tests that fake BDB turn it
 	  off.
 
+config ZZB_ZCL
+	bool "ZCL"
+	default ZZB_BDB
+	help
+	  Zigbee Cluster Library: the foundation commands and the Basic,
+	  Identify and On/Off servers on the application endpoints. Tests that
+	  fake ZCL turn it off.
+
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
 	range 0 0x07fff800
