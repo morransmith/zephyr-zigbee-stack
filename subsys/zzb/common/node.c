@@ -53,7 +53,8 @@ static void init_handler(struct k_work *work)
 	struct zzb_node *node;
 	uint64_t eui64 = req->cfg->eui64;
 
-	if (IS_ENABLED(CONFIG_ZZB_MAC) && req->cfg->radio == NULL) {
+	if ((IS_ENABLED(CONFIG_ZZB_MAC) && req->cfg->radio == NULL) ||
+	    (IS_ENABLED(CONFIG_ZZB_ZDO) && req->cfg->device == NULL)) {
 		req->err = -EINVAL;
 		return;
 	}
@@ -73,6 +74,7 @@ static void init_handler(struct k_work *work)
 
 	*node = (struct zzb_node){
 		.eui64 = eui64,
+		.device = req->cfg->device,
 	};
 
 	if (IS_ENABLED(CONFIG_ZZB_MAC)) {
@@ -88,6 +90,10 @@ static void init_handler(struct k_work *work)
 
 	if (IS_ENABLED(CONFIG_ZZB_APS)) {
 		zzb_aps_init(node);
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_ZDO)) {
+		zzb_zdo_init(node);
 	}
 
 	if (IS_ENABLED(CONFIG_ZZB_NWK) || IS_ENABLED(CONFIG_ZZB_APS)) {

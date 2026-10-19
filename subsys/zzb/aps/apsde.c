@@ -138,15 +138,49 @@ static int send_copy(struct zzb_node *node, struct zzb_aps_tx *tx)
 	return 0;
 }
 
-/* Issues the confirm; the entry stays until a pending NLDE-DATA.confirm */
+/* An entry of the request of tx whose confirm is not issued yet */
+static bool sibling(const struct zzb_aps_tx *tx, const struct zzb_aps_tx *other)
+{
+	return other->in_use && !other->done && other->first == tx->first;
+}
+
+/*
+ * Ends the destination of tx. The last destination of the request issues the confirm with the
+ * first failure in table order; entries stay until a pending NLDE-DATA.confirm.
+ */
 static void finish(struct zzb_node *node, struct zzb_aps_tx *tx, uint8_t status)
 {
-	net_buf_unref(tx->frame);
-	tx->frame = NULL;
+	uint8_t result = ZZB_APS_STATUS_SUCCESS;
+
+	if (tx->frame != NULL) {
+		net_buf_unref(tx->frame);
+		tx->frame = NULL;
+	}
+
 	tx->deadline = 0;
-	tx->done = true;
-	tx->in_use = tx->nlde_pending;
-	zzb_apsde_data_conf(node, tx->handle, status);
+	tx->ended = true;
+	tx->status = status;
+
+	ARRAY_FOR_EACH_PTR(node->aps.tx, other) {
+		if (sibling(tx, other) && !other->ended) {
+			return;
+		}
+	}
+
+	ARRAY_FOR_EACH_PTR(node->aps.tx, other) {
+		if (!sibling(tx, other)) {
+			continue;
+		}
+
+		if (result == ZZB_APS_STATUS_SUCCESS) {
+			result = other->status;
+		}
+
+		other->done = true;
+		other->in_use = other->nlde_pending;
+	}
+
+	zzb_apsde_data_conf(node, tx->handle, result);
 }
 
 static void attempt_failed(struct zzb_node *node, struct zzb_aps_tx *tx)
@@ -183,6 +217,140 @@ void zzb_aps_tx_init(struct zzb_node *node)
 	k_work_init_delayable(&node->aps.timer, timer_handler);
 }
 
+/*
+ * Takes an entry with a copy of the frame for a bound destination. Returns -ENOENT when the
+ * destination does not resolve, which skips it.
+ */
+static int reserve(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_req *req,
+		   const struct zzb_aps_binding *binding, int *first)
+{
+	struct zzb_apsde_req dst_req = *req;
+	struct zzb_aps_hdr hdr = {
+		.type = ZZB_APS_FRAME_DATA,
+		.cluster = req->cluster,
+		.profile = req->profile,
+		.src_ep = req->src_ep,
+		.counter = node->aps.counter,
+	};
+	struct net_buf *frame;
+	struct zzb_aps_tx *tx;
+	uint64_t dst_ext;
+	size_t hdr_len;
+	uint16_t dst;
+	bool ack;
+	int err;
+
+	dst_req.dst_mode = binding->dst_mode;
+	dst_req.dst_addr = binding->dst_addr;
+	dst_req.dst_ext = binding->dst_ext;
+	dst_req.dst_ep = binding->dst_ep;
+	err = resolve_dst(node, &dst_req, &hdr, &dst, &dst_ext);
+	if (err) {
+		return err;
+	}
+
+	ack = (req->tx_options & ZZB_APS_TX_ACK) && hdr.delivery == ZZB_APS_DELIVERY_UNICAST;
+	hdr.flags = ack ? ZZB_APS_ACK_REQ : 0;
+	hdr_len = zzb_aps_hdr_len(&hdr);
+	if (net_buf_headroom(buf) < ZZB_NLDE_HEADROOM + hdr_len) {
+		return -EMSGSIZE;
+	}
+
+	tx = free_tx(node);
+	if (tx == NULL) {
+		return -ENOBUFS;
+	}
+
+	frame = zzb_buf_alloc(K_NO_WAIT);
+	if (frame == NULL) {
+		return -ENOBUFS;
+	}
+
+	net_buf_reserve(frame, net_buf_headroom(buf));
+	net_buf_add_mem(frame, buf->data, buf->len);
+	zzb_aps_hdr_write(&hdr, net_buf_push(frame, hdr_len));
+
+	if (*first < 0) {
+		*first = tx - node->aps.tx;
+	}
+
+	*tx = (struct zzb_aps_tx){
+		.in_use = true,
+		.handle = zzb_frame_meta(buf)->handle,
+		.first = *first,
+		.frame = frame,
+		.ack = ack,
+		.hdr_len = hdr_len,
+		.dst = dst,
+		.cluster = req->cluster,
+		.dst_ep = hdr.dst_ep,
+		.counter = hdr.counter,
+		.radius = req->radius,
+		.retries = ack ? ZZB_APS_MAX_FRAME_RETRIES : 0,
+		.status = ZZB_APS_STATUS_NO_ACK,
+	};
+	node->aps.counter++;
+	return 0;
+}
+
+/* Frees the entries reserve() took for a request that sent nothing */
+static void release(struct zzb_node *node, int first)
+{
+	ARRAY_FOR_EACH_PTR(node->aps.tx, tx) {
+		if (tx->in_use && !tx->done && tx->first == first) {
+			net_buf_unref(tx->frame);
+			tx->in_use = false;
+		}
+	}
+}
+
+/*
+ * R22 2.2.4.1.1. Every destination is a transmission with its own APS counter, since a device
+ * bound twice would drop a second frame with the same counter as a duplicate.
+ */
+static int send_bound(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_req *req)
+{
+	int first = -1;
+	int err;
+
+	if (req->tx_options & ZZB_APS_TX_SECURITY) {
+		return -ENOTSUP;
+	}
+
+	ARRAY_FOR_EACH_PTR(node->aps.aib.bindings, binding) {
+		if (!binding->in_use || binding->src_ep != req->src_ep ||
+		    binding->cluster != req->cluster) {
+			continue;
+		}
+
+		err = reserve(node, buf, req, binding, &first);
+		if (err && err != -ENOENT) {
+			release(node, first);
+			return err;
+		}
+	}
+
+	if (first < 0) {
+		return -ENOENT;
+	}
+
+	err = send_copy(node, &node->aps.tx[first]);
+	if (err) {
+		release(node, first);
+		return err;
+	}
+
+	ARRAY_FOR_EACH_PTR(node->aps.tx, tx) {
+		if (sibling(&node->aps.tx[first], tx) && tx != &node->aps.tx[first] &&
+		    send_copy(node, tx)) {
+			wait_ack(node, tx);
+		}
+	}
+
+	net_buf_unref(buf);
+	return 0;
+}
+
 int zzb_apsde_data_req(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_req *req)
 {
 	bool secure = req->tx_options & ZZB_APS_TX_SECURITY;
@@ -206,6 +374,10 @@ int zzb_apsde_data_req(struct zzb_node *node, struct net_buf *buf, const struct 
 
 	if (req->tx_options & ZZB_APS_TX_FRAGMENT) {
 		return -ENOTSUP;
+	}
+
+	if (req->dst_mode == ZZB_APS_ADDR_BINDING) {
+		return send_bound(node, buf, req);
 	}
 
 	err = resolve_dst(node, req, &hdr, &dst, &dst_ext);
@@ -238,6 +410,8 @@ int zzb_apsde_data_req(struct zzb_node *node, struct net_buf *buf, const struct 
 
 	*tx = (struct zzb_aps_tx){
 		.handle = meta->handle,
+		.first = tx - node->aps.tx,
+		.ack = ack,
 		.hdr_len = hdr_len,
 		.pair = pair,
 		.ext_nonce = ext_nonce,
@@ -300,9 +474,12 @@ void zzb_nlde_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_stat
 		return;
 	}
 
-	if (tx->frame == NULL) {
-		tx->in_use = false;
-		zzb_apsde_data_conf(node, tx->handle, status);
+	if (tx->ended) {
+		return;
+	}
+
+	if (!tx->ack) {
+		finish(node, tx, status);
 		return;
 	}
 
@@ -319,7 +496,7 @@ void zzb_nlde_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_stat
 static bool acknowledges(const struct zzb_aps_hdr *hdr, uint16_t src_addr,
 			 const struct zzb_aps_tx *tx)
 {
-	return tx->in_use && tx->frame != NULL && !(hdr->flags & ZZB_APS_ACK_FORMAT) &&
+	return tx->in_use && tx->ack && tx->frame != NULL && !(hdr->flags & ZZB_APS_ACK_FORMAT) &&
 	       hdr->counter == tx->counter && hdr->cluster == tx->cluster &&
 	       hdr->src_ep == tx->dst_ep && src_addr == tx->dst;
 }

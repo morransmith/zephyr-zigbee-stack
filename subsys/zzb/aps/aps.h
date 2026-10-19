@@ -32,6 +32,12 @@ static inline size_t zzb_aps_aux_len(bool ext_nonce)
  */
 #define ZZB_APSDE_HEADROOM (ZZB_NLDE_HEADROOM + ZZB_APS_HDR_MAX_LEN + ZZB_APS_AUX_MAX_LEN)
 
+/*
+ * Longest ASDU of a unicast frame with NWK security only: 125 bytes less the MAC (9), NWK (8),
+ * auxiliary (14) and APS (8) headers and the MIC (4)
+ */
+#define ZZB_APS_MAX_ASDU 82
+
 /* NSDU handle of the frames APS sends on its own; their confirm is ignored */
 #define ZZB_APS_OWN_HANDLE 0xef
 
@@ -97,11 +103,16 @@ struct zzb_aps_tx {
 	bool in_use;
 	/* ASDU handle of the request */
 	uint8_t handle;
+	/* Index of the first entry of the request; a request to bound destinations takes several */
+	uint8_t first;
+	/* The destination has its final status; the entry waits for the rest of the request */
+	bool ended;
 	/* The confirm was issued; the entry waits for NLDE-DATA.confirm */
 	bool done;
 	bool nlde_pending;
-	/* Plaintext of an acknowledged frame, NULL for an unacknowledged one */
+	/* Plaintext copied for every attempt; NULL for an unacknowledged frame sent as it is */
 	struct net_buf *frame;
+	bool ack;
 	uint8_t hdr_len;
 	/* Key of the APS security of the frame, NULL without */
 	struct zzb_aps_key_pair *pair;
@@ -113,7 +124,10 @@ struct zzb_aps_tx {
 	uint8_t counter;
 	uint8_t radius;
 	uint8_t retries;
-	/* Status of the last failed NLDE-DATA.confirm, NO_ACK while none failed */
+	/*
+	 * Status of the last failed NLDE-DATA.confirm, NO_ACK while none failed; the final status
+	 * once ended
+	 */
 	uint8_t status;
 	/* k_uptime_get() at the end of the ACK wait, 0 without a wait */
 	int64_t deadline;
@@ -154,9 +168,23 @@ struct zzb_aps_key_pair {
 	uint32_t in_fc;
 };
 
+/* Entry of apsBindingTable (R22 2.2.8.2); the source is the node */
+struct zzb_aps_binding {
+	bool in_use;
+	uint8_t src_ep;
+	uint16_t cluster;
+	/* ZZB_APS_ADDR_GROUP or ZZB_APS_ADDR_EXT */
+	enum zzb_aps_addr_mode dst_mode;
+	/* Group address */
+	uint16_t dst_addr;
+	uint64_t dst_ext;
+	uint8_t dst_ep;
+};
+
 struct zzb_aib {
 	uint64_t tc_addr;
 	struct zzb_aps_key_pair keys[CONFIG_ZZB_APS_KEY_PAIR_COUNT];
+	struct zzb_aps_binding bindings[CONFIG_ZZB_APS_BINDING_COUNT];
 };
 
 struct zzb_aps {
@@ -178,8 +206,9 @@ extern const uint8_t zzb_aps_default_tc_link_key[ZZB_SEC_KEY_LEN];
 void zzb_aps_init(struct zzb_node *node);
 
 /*
- * Clears the AIB, the key-pair table and the duplicate rejection table and deletes the APS
- * records. The transmission table, the APS counter and the outgoing frame counter stay.
+ * Clears the AIB with the key-pair and binding tables and the duplicate rejection table, and
+ * deletes the APS records. The transmission table, the APS counter and the outgoing frame counter
+ * stay.
  */
 void zzb_aps_reset(struct zzb_node *node);
 
@@ -200,6 +229,16 @@ int zzb_apsme_set_link_key(struct zzb_node *node, uint64_t addr, const uint8_t k
 struct zzb_aps_key_pair *zzb_aps_key_pair_find(struct zzb_node *node, uint64_t addr);
 
 /*
+ * APSME-BIND.request (R22 2.2.4.3.1) of a binding with the node as source; in_use is ignored.
+ * Returns 0 also when the entry exists, -EINVAL for a destination address mode other than group
+ * and IEEE address, or -ENOMEM when the table is full.
+ */
+int zzb_apsme_bind_req(struct zzb_node *node, const struct zzb_aps_binding *binding);
+
+/* APSME-UNBIND.request (R22 2.2.4.3.3). Returns -ENOENT without the entry. */
+int zzb_apsme_unbind_req(struct zzb_node *node, const struct zzb_aps_binding *binding);
+
+/*
  * APSME-REQUEST-KEY.request of the trust center link key (R22 4.4.5.1). Returns -EINVAL when
  * dst_addr is not apsTrustCenterAddress, -ENOENT without a provisional or verified key for it,
  * -ENOBUFS without a buffer, or an error of zzb_aps_secure() or NLDE-DATA.request.
@@ -215,11 +254,12 @@ int zzb_apsme_verify_key_req(struct zzb_node *node, uint64_t dst_addr, enum zzb_
 
 /*
  * APSDE-DATA.request. buf holds the ASDU after the headroom of its headers, at most
- * ZZB_APSDE_HEADROOM, and its metadata the ASDU handle. Returns -ENOTSUP for binding or
- * fragmentation, -EINVAL for an acknowledged broadcast or group
- * frame, -ENOENT for an IEEE address without a network address or APS security without a
- * provisional or verified key, -ENOBUFS when the transmission table is full, -EMSGSIZE without
- * the headroom, or an error of NLDE-DATA.request.
+ * ZZB_APSDE_HEADROOM, and its metadata the ASDU handle. Binding sends a frame to every bound
+ * destination that resolves, and one confirm follows. Returns -ENOTSUP for fragmentation or
+ * binding with APS security, -EINVAL for an acknowledged broadcast or group frame, -ENOENT for an
+ * IEEE address without a network address, binding without such a destination, or APS security
+ * without a provisional or verified key, -ENOBUFS when the transmission table or the buffers do
+ * not suffice, -EMSGSIZE without the headroom, or an error of NLDE-DATA.request.
  */
 int zzb_apsde_data_req(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_req *req);
 
@@ -241,7 +281,7 @@ void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
 void zzb_apsme_switch_key_ind(struct zzb_node *node, uint64_t src_addr, uint8_t seq);
 
 /*
- * Defined by ZDO. APSME-CONFIRM-KEY.indication from the trust center src_addr. With SUCCESS and the
+ * Defined by BDB. APSME-CONFIRM-KEY.indication from the trust center src_addr. With SUCCESS and the
  * trust center link key type, the key is verified.
  */
 void zzb_apsme_confirm_key_ind(struct zzb_node *node, uint8_t status, uint64_t src_addr,
@@ -329,5 +369,12 @@ void zzb_aps_delete(struct zzb_node *node);
 int zzb_aps_tc_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
 int zzb_aps_key_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
 		     void *cb_arg);
+
+/* Deletes the binding records */
+void zzb_aps_binding_delete(struct zzb_node *node);
+
+/* Loads the record aps/bind/<index>; -EINVAL for an unknown version or length */
+int zzb_aps_binding_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			 void *cb_arg);
 
 #endif /* ZZB_SUBSYS_APS_APS_H_ */

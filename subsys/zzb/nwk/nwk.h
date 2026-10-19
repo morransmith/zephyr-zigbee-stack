@@ -28,6 +28,9 @@ struct zzb_node;
 /* MSDU handles from 0xf0 belong to NWK command frames: 0xf0 | command identifier */
 #define ZZB_NWK_CMD_HANDLE 0xf0
 
+/* nwkNetworkBroadcastDeliveryTime at 2.4 GHz (R22 3.5.2.1) */
+#define ZZB_NWK_BROADCAST_DELIVERY_MS 9000
+
 /* Default radius: 2 * nwkMaxDepth (15 for the Zigbee PRO stack profile) */
 #define ZZB_NWK_DEFAULT_RADIUS 30
 
@@ -49,7 +52,9 @@ static inline bool zzb_nwk_is_broadcast(uint16_t addr)
 /* NWK layer status values (R22 Table 3-73) */
 enum zzb_nwk_status {
 	ZZB_NWK_STATUS_SUCCESS = 0x00,
+	ZZB_NWK_STATUS_INVALID_REQUEST = 0xc2,
 	ZZB_NWK_STATUS_NOT_PERMITTED = 0xc3,
+	ZZB_NWK_STATUS_UNKNOWN_DEVICE = 0xc8,
 	ZZB_NWK_STATUS_NO_NETWORKS = 0xca,
 };
 
@@ -196,6 +201,18 @@ void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_L
  */
 int zzb_nlme_set_active_key(struct zzb_node *node, uint8_t seq);
 
+/*
+ * NLME-SET of the channel of nwkMacInterfaceTable and of nwkUpdateId. MLME-SET of the channel
+ * comes first, and the NIB and the records change only when it succeeds. Returns -EINVAL for a
+ * channel outside 11 to 26, -EBUSY while an NLME procedure runs, or an error of MLME-SET.
+ */
+int zzb_nlme_set_channel(struct zzb_node *node, uint8_t channel, uint8_t update_id);
+
+/* NLME-GET of nwkNetworkAddress, nwkExtendedPANID and nwkCapabilityInformation */
+uint16_t zzb_nlme_get_short_addr(const struct zzb_node *node);
+uint64_t zzb_nlme_get_ext_pan_id(const struct zzb_node *node);
+uint8_t zzb_nlme_get_capability(const struct zzb_node *node);
+
 /* Whether the network key is pending: joined and unauthorized (R22 4.4.1.2 step 2) */
 bool zzb_nwk_key_pending(const struct zzb_node *node);
 
@@ -254,7 +271,7 @@ int zzb_nwk_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len)
 int zzb_nlme_network_discovery_req(struct zzb_node *node, uint32_t channels, uint8_t duration);
 
 /*
- * Defined by ZDO. status is the status of MLME-SCAN.confirm. networks stay valid until the next
+ * Defined by BDB. status is the status of MLME-SCAN.confirm. networks stay valid until the next
  * discovery.
  */
 void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,
@@ -272,7 +289,7 @@ int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_j
 		      uint32_t channels, uint8_t duration, uint8_t capability, bool secure);
 
 /*
- * Defined by ZDO. status is SUCCESS, the status of the last MLME-ASSOCIATE.confirm of an
+ * Defined by BDB. status is SUCCESS, the status of the last MLME-ASSOCIATE.confirm of an
  * association, or NO_NETWORKS or NOT_PERMITTED of a rejoin.
  */
 void zzb_nlme_join_conf(struct zzb_node *node, uint8_t status);
@@ -284,11 +301,11 @@ void zzb_nlme_join_conf(struct zzb_node *node, uint8_t status);
  */
 int zzb_nlme_leave_req(struct zzb_node *node, bool rejoin);
 
-/* Defined by ZDO. status is the status of MCPS-DATA.confirm of the leave command. */
+/* Defined by BDB. status is the status of MCPS-DATA.confirm of the leave command. */
 void zzb_nlme_leave_conf(struct zzb_node *node, uint8_t status);
 
 /*
- * Defined by ZDO. NLME-LEAVE.indication: the neighbor ext_addr has left, or the node has left
+ * Defined by BDB. NLME-LEAVE.indication: the neighbor ext_addr has left, or the node has left
  * when ext_addr is 0.
  */
 void zzb_nlme_leave_ind(struct zzb_node *node, uint64_t ext_addr, bool rejoin);
@@ -300,7 +317,7 @@ void zzb_nlme_leave_ind(struct zzb_node *node, uint64_t ext_addr, bool rejoin);
 int zzb_nlme_reset_req(struct zzb_node *node);
 
 /*
- * Defined by ZDO. NLME-NWK-STATUS.indication with a status code of R22 Table 3-51 and the network
+ * Defined by BDB. NLME-NWK-STATUS.indication with a status code of R22 Table 3-51 and the network
  * address it concerns.
  */
 void zzb_nlme_nwk_status_ind(struct zzb_node *node, uint8_t code, uint16_t addr);
