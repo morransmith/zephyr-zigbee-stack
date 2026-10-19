@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
 #include <zephyr/fff.h>
 #include <zephyr/ztest.h>
@@ -19,6 +20,8 @@ DEFINE_FAKE_VALUE_FUNC(struct zzb_nwk_neighbor *, zzb_nwk_neighbor_find_short, s
 		       uint16_t);
 DEFINE_FAKE_VALUE_FUNC(struct zzb_nwk_neighbor *, zzb_nwk_neighbor_find_ext, struct zzb_node *,
 		       uint64_t);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_nwk_addr_map_find, struct zzb_node *, uint64_t, uint16_t *);
+DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_nwk_addr_map_ext, struct zzb_node *, uint16_t);
 DEFINE_FAKE_VOID_FUNC(zzb_apsde_data_conf, struct zzb_node *, uint8_t, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_apsde_data_ind, struct zzb_node *, struct net_buf *,
 		      const struct zzb_apsde_ind *);
@@ -69,15 +72,28 @@ static void transport_key_ind_copy(struct zzb_node *node, uint64_t src_addr,
 	memcpy(transported_key, key, ZZB_SEC_KEY_LEN);
 }
 
+/* BDB 10.1.1: "83FE D340 7A93 9723 A5C6 39B2 6916 D505 C3B5" and the key of BDB 10.1.2 */
+static const uint8_t install_code[] = {
+	0x83, 0xfe, 0xd3, 0x40, 0x7a, 0x93, 0x97, 0x23, 0xa5,
+	0xc6, 0x39, 0xb2, 0x69, 0x16, 0xd5, 0x05, 0xc3, 0xb5,
+};
+
+const uint8_t install_code_key[ZZB_SEC_KEY_LEN] = {
+	0x66, 0xb6, 0x90, 0x09, 0x81, 0xe1, 0xee, 0x3c,
+	0xa4, 0x20, 0x6b, 0x6b, 0x86, 0x1c, 0x02, 0xbb,
+};
+
 struct zzb_node *test_node(int index)
 {
-	static const uint64_t eui64[] = {NODE_EUI64, TC_EUI64};
+	static const uint64_t eui64[] = {NODE_EUI64, TC_EUI64, IC_NODE_EUI64};
 	static struct zzb_node *nodes[ARRAY_SIZE(eui64)];
 
 	if (nodes[0] == NULL) {
 		ARRAY_FOR_EACH(nodes, i) {
 			const struct zzb_node_config cfg = {
 				.eui64 = eui64[i],
+				.install_code = eui64[i] == IC_NODE_EUI64 ? install_code : NULL,
+				.install_code_len = sizeof(install_code),
 			};
 
 			zassert_ok(zzb_node_init(&cfg, &nodes[i]));
@@ -93,6 +109,8 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nlde_data_req);
 	RESET_FAKE(zzb_nwk_neighbor_find_short);
 	RESET_FAKE(zzb_nwk_neighbor_find_ext);
+	RESET_FAKE(zzb_nwk_addr_map_find);
+	RESET_FAKE(zzb_nwk_addr_map_ext);
 	RESET_FAKE(zzb_apsde_data_conf);
 	RESET_FAKE(zzb_apsde_data_ind);
 	RESET_FAKE(zzb_apsme_transport_key_ind);
@@ -101,6 +119,7 @@ void reset_fakes(void)
 	FFF_RESET_HISTORY();
 
 	zzb_nlde_data_req_fake.custom_fake = nlde_data_req_take;
+	zzb_nwk_addr_map_find_fake.return_val = -ENOENT;
 	zzb_apsde_data_ind_fake.custom_fake = apsde_data_ind_take;
 	zzb_apsme_transport_key_ind_fake.custom_fake = transport_key_ind_copy;
 }

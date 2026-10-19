@@ -37,8 +37,7 @@ static const void *field(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_
 	return (const uint8_t *)cl->values + attr->offset;
 }
 
-/* The value of an attribute of an integer type */
-static uint16_t integer(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr)
+uint16_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr)
 {
 	if (attr->flags & ZZB_ZCL_CONST) {
 		return attr->value;
@@ -84,14 +83,14 @@ int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 			return -ENOSPC;
 		}
 
-		sys_put_le16(integer(cl, attr), p);
+		sys_put_le16(zzb_zcl_attr_value(cl, attr), p);
 		return 2;
 	default:
 		if (len < 1) {
 			return -ENOSPC;
 		}
 
-		p[0] = integer(cl, attr);
+		p[0] = zzb_zcl_attr_value(cl, attr);
 		return 1;
 	}
 }
@@ -127,7 +126,7 @@ bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 			uint16_t value)
 {
 	uint8_t *f = (uint8_t *)cl->values + attr->offset;
-	bool changed = integer(cl, attr) != value;
+	bool changed = zzb_zcl_attr_value(cl, attr) != value;
 
 	if (attr->type == ZZB_ZCL_UINT16) {
 		*(uint16_t *)f = value;
@@ -228,21 +227,29 @@ int zzb_zcl_attr_load(struct zzb_node *node, const char *key, size_t len, settin
 	return 0;
 }
 
-/* Saves a non-volatile attribute and calls the changed hook */
+/*
+ * Saves a non-volatile attribute and calls the changed hook. notify tells whether zcl_cb reports
+ * the change, which the change of SceneValid follows.
+ */
 static void apply(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
-		  const struct zzb_zcl_attr *attr)
+		  const struct zzb_zcl_attr *attr, bool notify)
 {
 	save(node, ep, cl, attr);
 
 	if (cl->def->changed != NULL) {
 		cl->def->changed(node, ep, cl->values, attr->id);
 	}
+
+	zzb_zcl_report_check(node, ep, cl, attr->id);
+	if (attr->flags & ZZB_ZCL_SCENE) {
+		zzb_zcl_scenes_invalidate(node, ep, notify);
+	}
 }
 
 void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
 		     uint16_t attr)
 {
-	apply(node, ep, cl, zzb_zcl_attr_find(cl, attr));
+	apply(node, ep, cl, zzb_zcl_attr_find(cl, attr), true);
 
 	if (node->zcl_cb != NULL) {
 		node->zcl_cb(node, ep, cl->id, attr);
@@ -262,7 +269,7 @@ static void store(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t 
 		return;
 	}
 
-	apply(node, ep, cl, attr);
+	apply(node, ep, cl, attr, notify);
 	if (notify && node->zcl_cb != NULL) {
 		node->zcl_cb(node, ep, cluster, id);
 	}
@@ -311,7 +318,7 @@ static int set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t id,
 	}
 
 	if (zzb_zcl_attr_write(cl, attr, v)) {
-		apply(node, ep, cl, attr);
+		apply(node, ep, cl, attr, false);
 	}
 
 	return 0;

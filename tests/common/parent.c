@@ -77,7 +77,9 @@ static void schedule_key(void)
 }
 
 /* ZDP clusters (R22 Tables 2-44, 2-80) */
+#define IEEE_ADDR_REQ           0x0001
 #define NODE_DESC_REQ           0x0002
+#define SIMPLE_DESC_REQ         0x0004
 #define DEVICE_ANNCE            0x0013
 #define MGMT_PERMIT_JOINING_REQ 0x0036
 #define MGMT_LEAVE_REQ          0x0034
@@ -337,6 +339,60 @@ static void send_node_desc_rsp(uint8_t tsn)
 	send_zdo(NODE_DESC_REQ | 0x8000, rsp, sizeof(rsp));
 }
 
+/* R22 2.4.4.2.1, the single device response */
+static void send_ieee_addr_rsp(uint8_t tsn)
+{
+	uint8_t rsp[12] = {tsn};
+
+	sys_put_le64(parent.eui64, rsp + 2);
+	sys_put_le16(parent.short_addr, rsp + 10);
+	send_zdo(IEEE_ADDR_REQ | 0x8000, rsp, sizeof(rsp));
+}
+
+/* R22 2.4.4.2.5: endpoint 1, a Configuration Tool of Home Automation, for any endpoint */
+static void send_simple_desc_rsp(uint8_t tsn)
+{
+	uint8_t rsp[] = {tsn,  0x00, 0x00, 0x00, 0x0e, 0x01, 0x04, 0x01, 0x05, 0x00,
+			 0x00, 0x03, 0x00, 0x00, 0x03, 0x00, 0x06, 0x00, 0x00};
+
+	sys_put_le16(parent.short_addr, rsp + 2);
+	send_zdo(SIMPLE_DESC_REQ | 0x8000, rsp, sizeof(rsp));
+}
+
+/* Sends a ZCL frame of cluster from endpoint 1 to dst_ep of the child with an ACK request */
+static void send_zcl(uint8_t dst_ep, uint16_t cluster, const uint8_t *asdu, size_t len,
+		     uint8_t counter)
+{
+	const struct zzb_aps_hdr hdr = {
+		.type = ZZB_APS_FRAME_DATA,
+		.flags = ZZB_APS_ACK_REQ,
+		.dst_ep = dst_ep,
+		.cluster = cluster,
+		.profile = 0x0104,
+		.src_ep = 0x01,
+		.counter = counter,
+	};
+	uint8_t payload[ZZB_BUF_SIZE];
+
+	send_nwk(ZZB_NWK_FRAME_DATA, ZZB_NWK_SECURITY, parent.child_addr, payload,
+		 write_aps(payload, hdr, asdu, len, NULL, ZZB_SEC_KEY_DATA));
+}
+
+/* Answers Identify Query (ZCL 3.5.2.3.2) with an IdentifyTime of 60 s */
+static void reply_zcl(const struct zzb_aps_hdr *hdr, const uint8_t *zcl, size_t len)
+{
+	uint8_t rsp[] = {0x19, 0x00, 0x00, 0x3c, 0x00};
+
+	/* Cluster-specific, client to server, without manufacturer code */
+	if (hdr->cluster != 0x0003 || len < 3 || (zcl[0] & 0x0f) != 0x01 || zcl[2] != 0x01) {
+		return;
+	}
+
+	parent_log.identify_queries++;
+	rsp[1] = zcl[1];
+	send_zcl(hdr->src_ep, hdr->cluster, rsp, sizeof(rsp), parent.aps_counter++);
+}
+
 /* Logs a ZDO frame of the child to the NWK destination dst and answers Node_Desc_req */
 static void rx_zdo(uint16_t cluster, const uint8_t *asdu, size_t len, uint16_t dst)
 {
@@ -350,6 +406,14 @@ static void rx_zdo(uint16_t cluster, const uint8_t *asdu, size_t len, uint16_t d
 	case NODE_DESC_REQ:
 		parent_log.node_desc_reqs++;
 		send_node_desc_rsp(asdu[0]);
+		break;
+	case IEEE_ADDR_REQ:
+		parent_log.ieee_addr_reqs++;
+		send_ieee_addr_rsp(asdu[0]);
+		break;
+	case SIMPLE_DESC_REQ:
+		parent_log.simple_desc_reqs++;
+		send_simple_desc_rsp(asdu[0]);
 		break;
 	case MGMT_PERMIT_JOINING_REQ:
 		zassert_equal(len, 3);
@@ -430,6 +494,7 @@ static void rx_aps(uint8_t *frame, size_t len, uint16_t dst)
 			parent_log.zcl_dst_ep = hdr.dst_ep;
 			memcpy(parent_log.zcl, frame + off, len - off);
 			parent_log.zcl_len = len - off;
+			reply_zcl(&hdr, frame + off, len - off);
 		}
 		break;
 	case ZZB_APS_FRAME_CMD:
@@ -660,6 +725,7 @@ void parent_withhold_aps_acks(int count)
 
 struct data_call {
 	struct k_work work;
+	uint16_t group;
 	uint16_t cluster;
 	const uint8_t *asdu;
 	size_t len;
@@ -669,19 +735,8 @@ struct data_call {
 static void aps_data_handler(struct k_work *work)
 {
 	struct data_call *call = CONTAINER_OF(work, struct data_call, work);
-	const struct zzb_aps_hdr hdr = {
-		.type = ZZB_APS_FRAME_DATA,
-		.flags = ZZB_APS_ACK_REQ,
-		.dst_ep = 0x01,
-		.cluster = call->cluster,
-		.profile = 0x0104,
-		.src_ep = 0x01,
-		.counter = call->counter,
-	};
-	uint8_t payload[ZZB_BUF_SIZE];
 
-	send_nwk(ZZB_NWK_FRAME_DATA, ZZB_NWK_SECURITY, parent.child_addr, payload,
-		 write_aps(payload, hdr, call->asdu, call->len, NULL, ZZB_SEC_KEY_DATA));
+	send_zcl(0x01, call->cluster, call->asdu, call->len, call->counter);
 }
 
 void parent_send_aps_data(uint8_t counter)
@@ -708,6 +763,54 @@ void parent_send_zcl(uint16_t cluster, const uint8_t *asdu, size_t len)
 	zzb_call_sync(&call.work, aps_data_handler);
 }
 
+static void group_zcl_handler(struct k_work *work)
+{
+	struct data_call *call = CONTAINER_OF(work, struct data_call, work);
+	const struct zzb_aps_hdr hdr = {
+		.type = ZZB_APS_FRAME_DATA,
+		.delivery = ZZB_APS_DELIVERY_GROUP,
+		.group = call->group,
+		.cluster = call->cluster,
+		.profile = 0x0104,
+		.src_ep = 0x01,
+		.counter = parent.aps_counter++,
+	};
+	uint8_t payload[ZZB_BUF_SIZE];
+
+	send_nwk(ZZB_NWK_FRAME_DATA, ZZB_NWK_SECURITY, 0xfffd, payload,
+		 write_aps(payload, hdr, call->asdu, call->len, NULL, ZZB_SEC_KEY_DATA));
+}
+
+void parent_send_group_zcl(uint16_t group, uint16_t cluster, const uint8_t *asdu, size_t len)
+{
+	struct data_call call = {
+		.group = group,
+		.cluster = cluster,
+		.asdu = asdu,
+		.len = len,
+	};
+
+	zzb_call_sync(&call.work, group_zcl_handler);
+}
+
+static void zdo_handler(struct k_work *work)
+{
+	struct data_call *call = CONTAINER_OF(work, struct data_call, work);
+
+	send_zdo(call->cluster, call->asdu, call->len);
+}
+
+void parent_send_zdo(uint16_t cluster, const uint8_t *asdu, size_t len)
+{
+	struct data_call call = {
+		.cluster = cluster,
+		.asdu = asdu,
+		.len = len,
+	};
+
+	zzb_call_sync(&call.work, zdo_handler);
+}
+
 /* R22 4.6.3.4.1: a unicast key update, then a broadcast Switch Key with NWK security only */
 static void nwk_key_update_handler(struct k_work *work)
 {
@@ -726,6 +829,11 @@ void parent_send_nwk_key_update(void)
 	struct k_work work;
 
 	zzb_call_sync(&work, nwk_key_update_handler);
+}
+
+void parent_set_link_key(const uint8_t *key)
+{
+	parent.link_key = key;
 }
 
 void parent_set_stack_revision(uint8_t revision)

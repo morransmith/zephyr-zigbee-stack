@@ -15,6 +15,12 @@ struct zzb_nwk_network;
 /* Delay before an NLME request that returned -EBUSY is issued again */
 #define ZZB_BDB_RETRY_MS 1000
 
+/* bdbcMinCommissioningTime */
+#define ZZB_BDB_MIN_COMMISSIONING_S 180
+
+/* The clusters of a simple descriptor within apscMaxDescriptorSize */
+#define ZZB_BDB_FB_CLUSTERS_MAX 28
+
 /* bdbScanDuration */
 #define ZZB_BDB_SCAN_DURATION 3
 
@@ -49,6 +55,37 @@ enum zzb_bdb_state {
 	ZZB_BDB_TCLK_VERIFY_KEY,
 };
 
+/* A respondent of finding & binding for an initiator, with its IEEE address once known */
+struct zzb_bdb_respondent {
+	uint16_t addr;
+	uint8_t ep;
+	uint64_t ext_addr;
+};
+
+/* What finding & binding for an initiator waits for */
+enum zzb_bdb_fb_state {
+	ZZB_BDB_FB_QUERY,
+	ZZB_BDB_FB_SIMPLE_DESC,
+	ZZB_BDB_FB_IEEE_ADDR,
+};
+
+/* Finding & binding for an initiator; ep is 0 while it does not run */
+struct zzb_bdb_fb {
+	uint8_t ep;
+	uint16_t group;
+	enum zzb_bdb_fb_state state;
+	struct zzb_bdb_respondent respondents[CONFIG_ZZB_BDB_FB_RESPONDENT_COUNT];
+	uint8_t count;
+	/* The respondent in progress */
+	uint8_t next;
+	/* The clusters of the respondent that wait for its IEEE address */
+	uint16_t clusters[ZZB_BDB_FB_CLUSTERS_MAX];
+	uint8_t cluster_count;
+	bool group_bound;
+	/* Ends the wait for Identify Query Response */
+	struct k_work_delayable timer;
+};
+
 struct zzb_bdb {
 	/* bdbNodeIsOnANetwork */
 	bool on_network;
@@ -74,6 +111,9 @@ struct zzb_bdb {
 	/* bdbTCLinkKeyExchangeAttempts */
 	uint8_t attempts;
 	struct k_work_delayable timer;
+	/* The endpoint of finding & binding for a target, or 0 */
+	uint8_t fb_target_ep;
+	struct zzb_bdb_fb fb;
 };
 
 /*
@@ -130,5 +170,17 @@ void zzb_bdb_tclk_timer(struct zzb_node *node);
 
 /* Called by ZDO for a Transport Key with a trust center link key of ZZB_SEC_KEY_LEN bytes */
 void zzb_bdb_tc_link_key_ind(struct zzb_node *node, uint64_t src_addr, const uint8_t *key);
+
+/* Called by ZCL when IdentifyTime of the Identify server on ep becomes 0 */
+void zzb_bdb_identify_end(struct zzb_node *node, uint8_t ep);
+
+/* Called by ZCL for Identify Query Response from addr and src_ep to the Identify client on ep */
+void zzb_bdb_identify_query_rsp(struct zzb_node *node, uint8_t ep, uint16_t addr, uint8_t src_ep);
+
+/* Ends finding & binding without an event, at the reset of the node */
+void zzb_bdb_fb_clear(struct zzb_node *node);
+
+/* Clears finding & binding at the initialization of BDB */
+void zzb_bdb_fb_init(struct zzb_node *node);
 
 #endif /* ZZB_SUBSYS_BDB_BDB_H_ */

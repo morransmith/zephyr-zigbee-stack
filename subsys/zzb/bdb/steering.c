@@ -9,9 +9,6 @@
 #include "nwk/nwk.h"
 #include "zdo/zdo.h"
 
-/* bdbcMinCommissioningTime */
-#define MIN_COMMISSIONING_TIME_S 180
-
 /* The receiver stays on until milestone 18 */
 static uint8_t capability(const struct zzb_node *node)
 {
@@ -119,7 +116,7 @@ static void join_next(struct zzb_node *node)
  */
 void zzb_bdb_steering_done(struct zzb_node *node)
 {
-	zzb_zdo_mgmt_permit_joining_req(node, MIN_COMMISSIONING_TIME_S, true);
+	zzb_zdo_mgmt_permit_joining_req(node, ZZB_BDB_MIN_COMMISSIONING_S, true);
 	zzb_bdb_report(node, ZZB_BDB_EVENT_STEERING, ZZB_BDB_SUCCESS);
 }
 

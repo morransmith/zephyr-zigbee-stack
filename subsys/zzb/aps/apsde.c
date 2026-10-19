@@ -11,7 +11,7 @@
 #include "common/queue.h"
 #include "nwk/nwk.h"
 
-/* The trust center is at 0x0000 (R22 4.6.2.2); other devices must be neighbors */
+/* The trust center is at 0x0000 (R22 4.6.2.2); other devices are neighbors or in nwkAddressMap */
 static int resolve_ext(struct zzb_node *node, uint64_t ext_addr, uint16_t *addr)
 {
 	struct zzb_nwk_neighbor *nb;
@@ -23,7 +23,7 @@ static int resolve_ext(struct zzb_node *node, uint64_t ext_addr, uint16_t *addr)
 
 	nb = zzb_nwk_neighbor_find_ext(node, ext_addr);
 	if (nb == NULL || nb->relationship == ZZB_NWK_REL_NONE) {
-		return -ENOENT;
+		return zzb_nwk_addr_map_find(node, ext_addr, addr);
 	}
 
 	*addr = nb->short_addr;
@@ -40,7 +40,7 @@ static uint64_t ext_of(struct zzb_node *node, uint16_t addr)
 	}
 
 	nb = zzb_nwk_neighbor_find_short(node, addr);
-	return nb != NULL ? nb->ext_addr : 0;
+	return nb != NULL ? nb->ext_addr : zzb_nwk_addr_map_ext(node, addr);
 }
 
 /* Sets the delivery mode and the destination endpoint or group of hdr */

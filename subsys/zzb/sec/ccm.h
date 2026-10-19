@@ -16,7 +16,10 @@
 int zzb_sec_ccm_encrypt(psa_key_id_t key, const uint8_t nonce[ZZB_SEC_NONCE_LEN], const uint8_t *a,
 			size_t a_len, uint8_t *m, size_t m_len, size_t mic_len);
 
-/* Verifies and decrypts c in place; c_len includes the MIC. Returns -EBADMSG on a MIC mismatch. */
+/*
+ * Verifies and decrypts c in place; c_len includes the MIC. Returns -EBADMSG on a MIC mismatch and
+ * leaves c unchanged then.
+ */
 int zzb_sec_ccm_decrypt(psa_key_id_t key, const uint8_t nonce[ZZB_SEC_NONCE_LEN], const uint8_t *a,
 			size_t a_len, uint8_t *c, size_t c_len, size_t mic_len);
 

@@ -131,6 +131,12 @@ static int value_len(uint8_t type, const uint8_t *p, size_t len)
 	}
 }
 
+bool zzb_zcl_type_analog(uint8_t type)
+{
+	return (type >= 0x20 && type <= 0x2f) || (type >= 0x38 && type <= 0x3a) ||
+	       (type >= 0xe0 && type <= 0xe2);
+}
+
 int zzb_zcl_value_len(uint8_t type, const uint8_t *p, size_t len)
 {
 	int n = value_len(type, p, len);

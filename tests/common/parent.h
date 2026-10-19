@@ -42,6 +42,8 @@ struct parent_log {
 	/* ZDO frames, and the cluster and NWK destination of the last one */
 	int device_annces;
 	int node_desc_reqs;
+	int ieee_addr_reqs;
+	int simple_desc_reqs;
 	int permit_joining_reqs;
 	uint8_t permit_duration;
 	uint8_t tc_significance;
@@ -50,6 +52,7 @@ struct parent_log {
 	uint16_t zdo_dst;
 	/* Frames of application profiles, and the cluster, endpoints and ASDU of the last one */
 	int zcl_frames;
+	int identify_queries;
 	uint16_t zcl_cluster;
 	uint8_t zcl_src_ep;
 	uint8_t zcl_dst_ep;
@@ -64,7 +67,9 @@ extern struct parent_log parent_log;
  * associations with child_addr, End Device Timeout Requests with parent_info, and rejoin
  * requests, and clears parent_log. As the trust center it acknowledges APS data, answers
  * Node_Desc_req with stack compliance revision 22, Request Key with key B and Verify Key with
- * Confirm Key. It does not send the network key on its own.
+ * Confirm Key. It does not send the network key on its own. Its endpoint 1 has Basic, Identify and
+ * On/Off servers, which it reports in Simple_Desc_rsp; it answers IEEE_addr_req, and Identify
+ * Query as an identifying endpoint.
  */
 void parent_start(uint16_t short_addr, uint64_t eui64, uint16_t child_addr, uint8_t parent_info);
 
@@ -76,6 +81,9 @@ void parent_send_leave_request(bool rejoin);
  * the key-transport key of the default trust center link key, from the stack thread
  */
 void parent_send_transport_key(void);
+
+/* Sets the trust center link key of the child, which parent_start() sets to ZigBeeAlliance09 */
+void parent_set_link_key(const uint8_t *key);
 
 /* Sets the stack compliance revision of Node_Desc_rsp */
 void parent_set_stack_revision(uint8_t revision);
@@ -103,6 +111,15 @@ void parent_send_aps_data(uint8_t counter);
  * an ACK request, from the stack thread
  */
 void parent_send_zcl(uint16_t cluster, const uint8_t *asdu, size_t len);
+
+/*
+ * Sends a ZCL frame of cluster from endpoint 1 to group with profile 0x0104 as an NWK broadcast to
+ * 0xfffd, from the stack thread
+ */
+void parent_send_group_zcl(uint16_t group, uint16_t cluster, const uint8_t *asdu, size_t len);
+
+/* Sends a ZDO frame of cluster to the child with NWK security only, from the stack thread */
+void parent_send_zdo(uint16_t cluster, const uint8_t *asdu, size_t len);
 
 /* Sends network key 1 in a Transport Key, then a broadcast Switch Key, from the stack thread */
 void parent_send_nwk_key_update(void);

@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <zephyr/kernel.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zzb.h>
@@ -22,6 +24,17 @@
 #define PARENT_ADDR  0x0000
 #define PARENT_EUI64 0x00124b0000000001ULL
 #define CHILD_ADDR   0x1234
+
+/* The install code of BDB 10.1.1 and its key, which is also in ci/check-frame-log.sh */
+static const uint8_t install_code[] = {
+	0x83, 0xfe, 0xd3, 0x40, 0x7a, 0x93, 0x97, 0x23, 0xa5,
+	0xc6, 0x39, 0xb2, 0x69, 0x16, 0xd5, 0x05, 0xc3, 0xb5,
+};
+
+static const uint8_t install_code_key[ZZB_SEC_KEY_LEN] = {
+	0x66, 0xb6, 0x90, 0x09, 0x81, 0xe1, 0xee, 0x3c,
+	0xa4, 0x20, 0x6b, 0x6b, 0x86, 0x1c, 0x02, 0xbb,
+};
 
 /* The zzb node on fake radio 1 */
 static struct zzb_node *child;
@@ -71,11 +84,18 @@ static struct zzb_zcl_on_off on_off = {
 	.start_up_default = ZZB_ZCL_START_UP_PREVIOUS,
 };
 
-/* Basic, Identify and On/Off servers of an On/Off Light (Home Automation profile) */
+/* Basic, Identify, Groups and On/Off servers of an On/Off Light (Home Automation profile) */
 static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
+	ZZB_ZCL_GROUPS_SERVER(),
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
+};
+
+/* An On/Off Switch, the initiator of finding & binding */
+static const struct zzb_zcl_cluster switch_clusters[] = {
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+	{.id = ZZB_ZCL_ON_OFF},
 };
 
 static const struct zzb_endpoint endpoints[] = {
@@ -85,6 +105,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0100,
 		.clusters = light,
 		.cluster_count = ARRAY_SIZE(light),
+	},
+	{
+		.id = 2,
+		.profile = 0x0104,
+		.device_id = 0x0000,
+		.clusters = switch_clusters,
+		.cluster_count = ARRAY_SIZE(switch_clusters),
 	},
 };
 
@@ -151,6 +178,8 @@ static void *setup(void)
 		.device = &device,
 		.bdb_cb = record_event,
 		.zcl_cb = record_change,
+		.install_code = install_code,
+		.install_code_len = sizeof(install_code),
 	};
 
 	fake_radio_reset();
@@ -206,6 +235,27 @@ ZTEST(zzb_bdb_integration, test_steering_with_an_r20_trust_center)
 	pair = zzb_aps_key_pair_find(child, PARENT_EUI64);
 	zassert_not_null(pair);
 	zassert_mem_equal(pair->key, zzb_aps_default_tc_link_key, ZZB_SEC_KEY_LEN);
+	zassert_equal(pair->type, ZZB_APS_LINK_KEY_GLOBAL);
+	zassert_equal(pair->attr, ZZB_APS_KEY_PROVISIONAL);
+}
+
+/*
+ * BDB 10.1: the network key under the key of the install code. Without the key exchange of an R20
+ * trust center the entry keeps that key.
+ */
+ZTEST(zzb_bdb_integration, test_steering_with_an_install_code)
+{
+	const struct zzb_aps_key_pair *pair;
+
+	parent_set_link_key(install_code_key);
+	parent_set_stack_revision(0);
+	steer();
+	check_event(ZZB_BDB_EVENT_STEERING, ZZB_BDB_SUCCESS);
+
+	pair = zzb_aps_key_pair_find(child, PARENT_EUI64);
+	zassert_not_null(pair);
+	zassert_mem_equal(pair->key, install_code_key, ZZB_SEC_KEY_LEN);
+	zassert_equal(pair->type, ZZB_APS_LINK_KEY_UNIQUE);
 	zassert_equal(pair->attr, ZZB_APS_KEY_PROVISIONAL);
 }
 
@@ -291,6 +341,142 @@ ZTEST(zzb_bdb_integration, test_zcl)
 	zassert_equal(changes.ep, 1);
 	zassert_equal(changes.cluster, ZZB_ZCL_ON_OFF);
 	zassert_equal(changes.attr, ZZB_ZCL_ON_OFF_ON_OFF);
+}
+
+/*
+ * ZHA configures reporting: Bind_req of On/Off to endpoint 1 of the coordinator, then Configure
+ * Reporting of OnOff with min 0 and max 900. A Toggle sends a report through the binding.
+ */
+ZTEST(zzb_bdb_integration, test_reporting)
+{
+	static const uint8_t configure[] = {0x00, 0x20, 0x06, 0x00, 0x00, 0x00,
+					    0x10, 0x00, 0x00, 0x84, 0x03};
+	static const uint8_t configure_rsp[] = {0x18, 0x20, 0x07, 0x00};
+	static const uint8_t toggle[] = {0x01, 0x21, 0x02};
+	static const uint8_t report[] = {0x0a, 0x00, 0x00, 0x10, 0x01};
+	uint8_t bind[22] = {0x22};
+
+	steer();
+	sys_put_le64(child->eui64, bind + 1);
+	bind[9] = 1;
+	sys_put_le16(ZZB_ZCL_ON_OFF, bind + 10);
+	bind[12] = ZZB_APS_ADDR_EXT;
+	sys_put_le64(PARENT_EUI64, bind + 13);
+	bind[21] = 1;
+	parent_send_zdo(ZZB_ZDP_BIND_REQ, bind, sizeof(bind));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zdo_cluster, ZZB_ZDP_BIND_REQ | 0x8000);
+
+	parent_send_zcl(ZZB_ZCL_ON_OFF, configure, sizeof(configure));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_len, sizeof(configure_rsp));
+	zassert_mem_equal(parent_log.zcl, configure_rsp, sizeof(configure_rsp));
+
+	/* The Default Response, then the report with a TSN of the node */
+	parent_send_zcl(ZZB_ZCL_ON_OFF, toggle, sizeof(toggle));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_frames, 3);
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_ON_OFF);
+	zassert_equal(parent_log.zcl_dst_ep, 1);
+	zassert_true(parent_log.aps_hdr.flags & ZZB_APS_ACK_REQ);
+	zassert_equal(parent_log.zcl_len, 2 + sizeof(report));
+	zassert_equal(parent_log.zcl[0], 0x18);
+	zassert_mem_equal(parent_log.zcl + 2, report, sizeof(report));
+}
+
+/*
+ * ZHA adds the light to a group with a named Add Group, then switches the group on. A frame to
+ * another group is dropped.
+ */
+ZTEST(zzb_bdb_integration, test_group)
+{
+	static const uint8_t add_group[] = {0x01, 0x30, 0x00, 0x42, 0x00, 0x03, 'z', 'h', 'a'};
+	static const uint8_t add_group_rsp[] = {0x19, 0x30, 0x00, 0x00, 0x42, 0x00};
+	static const uint8_t on[] = {0x01, 0x31, 0x01};
+	static const uint8_t off[] = {0x01, 0x32, 0x00};
+
+	steer();
+	parent_send_zcl(ZZB_ZCL_GROUPS, add_group, sizeof(add_group));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_len, sizeof(add_group_rsp));
+	zassert_mem_equal(parent_log.zcl, add_group_rsp, sizeof(add_group_rsp));
+
+	/* No Default Response to a group */
+	parent_send_group_zcl(0x0042, ZZB_ZCL_ON_OFF, on, sizeof(on));
+	k_sleep(K_MSEC(100));
+	zassert_true(on_off.on_off);
+	zassert_equal(parent_log.zcl_frames, 1);
+
+	parent_send_group_zcl(0x0043, ZZB_ZCL_ON_OFF, off, sizeof(off));
+	k_sleep(K_MSEC(100));
+	zassert_true(on_off.on_off);
+}
+
+/* BDB 8.4: the coordinator finds the identifying light, then ends the identification */
+ZTEST(zzb_bdb_integration, test_finding_binding_target)
+{
+	static const uint8_t query[] = {0x01, 0x40, 0x01};
+	static const uint8_t query_rsp[] = {0x19, 0x40, 0x00, 0xb4, 0x00};
+	static const uint8_t identify_off[] = {0x01, 0x41, 0x00, 0x00, 0x00};
+
+	steer();
+	events.count = 0;
+	zassert_ok(zzb_bdb_finding_binding_target(child, 1));
+	parent_send_zcl(ZZB_ZCL_IDENTIFY, query, sizeof(query));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_len, sizeof(query_rsp));
+	zassert_mem_equal(parent_log.zcl, query_rsp, sizeof(query_rsp));
+	zassert_equal(events.count, 0);
+
+	parent_send_zcl(ZZB_ZCL_IDENTIFY, identify_off, sizeof(identify_off));
+	k_sleep(K_MSEC(100));
+	check_event(ZZB_BDB_EVENT_FINDING_BINDING_TARGET, ZZB_BDB_SUCCESS);
+}
+
+/*
+ * BDB 8.5: the switch finds endpoint 1 of the coordinator and binds its On/Off client to the
+ * On/Off server there
+ */
+ZTEST(zzb_bdb_integration, test_finding_binding_initiator)
+{
+	const struct zzb_aps_binding *bindings = child->aps.aib.bindings;
+
+	steer();
+	events.count = 0;
+	zassert_ok(zzb_bdb_finding_binding_initiator(child, 2, 0xffff));
+	k_sleep(K_MSEC(5500));
+	check_event(ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.identify_queries, 1);
+	zassert_equal(parent_log.simple_desc_reqs, 1);
+	zassert_equal(parent_log.ieee_addr_reqs, 1);
+
+	zassert_true(bindings[0].in_use);
+	zassert_equal(bindings[0].src_ep, 2);
+	zassert_equal(bindings[0].cluster, ZZB_ZCL_ON_OFF);
+	zassert_equal(bindings[0].dst_mode, ZZB_APS_ADDR_EXT);
+	zassert_equal(bindings[0].dst_ext, PARENT_EUI64);
+	zassert_equal(bindings[0].dst_ep, 1);
+	zassert_false(bindings[1].in_use);
+}
+
+/* BDB 8.5 step 10: a group binding, then Add Group If Identifying to all devices */
+ZTEST(zzb_bdb_integration, test_finding_binding_initiator_with_a_group)
+{
+	static const uint8_t add_group[] = {0x05, 0x42, 0x00, 0x00};
+
+	steer();
+	events.count = 0;
+	zassert_ok(zzb_bdb_finding_binding_initiator(child, 2, 0x0042));
+	k_sleep(K_MSEC(5500));
+	check_event(ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.ieee_addr_reqs, 0);
+	zassert_equal(child->aps.aib.bindings[0].dst_mode, ZZB_APS_ADDR_GROUP);
+	zassert_equal(child->aps.aib.bindings[0].dst_addr, 0x0042);
+
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_GROUPS);
+	zassert_equal(parent_log.zcl_dst_ep, 0xff);
+	zassert_equal(parent_log.zcl_len, 2 + sizeof(add_group));
+	zassert_mem_equal(parent_log.zcl + 2, add_group, sizeof(add_group));
 }
 
 ZTEST_SUITE(zzb_bdb_integration, NULL, setup, before, NULL, NULL);

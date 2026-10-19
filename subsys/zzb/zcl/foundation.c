@@ -189,6 +189,10 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req)
 		return write_attributes(node, req);
 	case ZZB_ZCL_DISCOVER_ATTRIBUTES:
 		return discover_attributes(node, req);
+	case ZZB_ZCL_CONFIGURE_REPORTING:
+		return zzb_zcl_configure_reporting(node, req);
+	case ZZB_ZCL_READ_REPORTING:
+		return zzb_zcl_read_reporting(node, req);
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}

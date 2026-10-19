@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
 #include <zephyr/fff.h>
 #include <zephyr/ztest.h>
@@ -14,6 +15,8 @@ DEFINE_FFF_GLOBALS;
 
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 		       const struct zzb_apsde_req *);
+DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
+DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
 
 struct test_values values1;
 struct test_values values2;
@@ -21,7 +24,9 @@ struct test_values values2;
 static const uint8_t product_code[] = {0x03, 0x00, 'Z', 'Z'};
 
 struct zzb_zcl_identify identify;
+struct zzb_zcl_scenes scenes;
 struct zzb_zcl_on_off on_off;
+struct zzb_zcl_on_off on_off3;
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -43,6 +48,85 @@ struct changed_calls hook_calls;
 struct zcl_cb_calls zcl_cb_calls;
 struct effect_calls effect_calls;
 struct frame_copy sent[8];
+struct membership memberships[CONFIG_ZZB_APS_GROUP_COUNT];
+
+/* The membership of group and ep, or a free one with ep 0 */
+static struct membership *find_membership(uint16_t group, uint8_t ep)
+{
+	ARRAY_FOR_EACH_PTR(memberships, m) {
+		if (m->group == group && m->ep == ep) {
+			return m;
+		}
+	}
+
+	return NULL;
+}
+
+bool zzb_aps_group_member(struct zzb_node *node, uint16_t group, uint8_t ep)
+{
+	return ep != 0 && find_membership(group, ep) != NULL;
+}
+
+int zzb_apsme_add_group(struct zzb_node *node, uint16_t group, uint8_t ep)
+{
+	struct membership *m = find_membership(group, ep);
+
+	if (m == NULL) {
+		m = find_membership(0, 0);
+	}
+
+	if (m == NULL) {
+		return -ENOMEM;
+	}
+
+	*m = (struct membership){.group = group, .ep = ep};
+	return 0;
+}
+
+int zzb_apsme_remove_group(struct zzb_node *node, uint16_t group, uint8_t ep)
+{
+	struct membership *m = find_membership(group, ep);
+
+	if (m == NULL || ep == 0) {
+		return -ENOENT;
+	}
+
+	*m = (struct membership){0};
+	return 0;
+}
+
+void zzb_apsme_remove_all_groups(struct zzb_node *node, uint8_t ep)
+{
+	ARRAY_FOR_EACH_PTR(memberships, m) {
+		if (m->ep == ep) {
+			*m = (struct membership){0};
+		}
+	}
+}
+
+int zzb_aps_group_capacity(struct zzb_node *node)
+{
+	int count = 0;
+
+	ARRAY_FOR_EACH_PTR(memberships, m) {
+		count += m->ep == 0;
+	}
+
+	return count;
+}
+
+int zzb_aps_groups_of(struct zzb_node *node, uint8_t ep, uint16_t *groups, int max)
+{
+	int count = 0;
+
+	ARRAY_FOR_EACH_PTR(memberships, m) {
+		if (m->ep == ep && count < max) {
+			groups[count++] = m->group;
+		}
+	}
+
+	return count;
+}
 
 static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
@@ -97,9 +181,10 @@ static void record_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, u
 }
 
 static const struct zzb_zcl_attr test_attrs[] = {
-	ZZB_ZCL_ATTR(0x0000, ZZB_ZCL_BOOL, ZZB_ZCL_WRITE, struct test_values, b),
-	ZZB_ZCL_ATTR(0x0001, ZZB_ZCL_UINT8, ZZB_ZCL_WRITE, struct test_values, u8),
-	ZZB_ZCL_ATTR(0x0002, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u16),
+	ZZB_ZCL_ATTR(0x0000, ZZB_ZCL_BOOL, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT, struct test_values, b),
+	ZZB_ZCL_ATTR(0x0001, ZZB_ZCL_UINT8, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT, struct test_values, u8),
+	ZZB_ZCL_ATTR(0x0002, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT | ZZB_ZCL_NV,
+		     struct test_values, u16),
 	ZZB_ZCL_ATTR(0x0003, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE, struct test_values, e8),
 	ZZB_ZCL_ATTR(0x0004, ZZB_ZCL_MAP8, ZZB_ZCL_WRITE, struct test_values, map8),
 	ZZB_ZCL_ATTR(0x0005, ZZB_ZCL_STRING, 0, struct test_values, str),
@@ -120,17 +205,21 @@ static const struct zzb_zcl_cluster_def test_def = {
 static const struct zzb_zcl_cluster ep1_clusters[] = {
 	{.id = TEST_CLUSTER, .server = true, .values = &values1, .def = &test_def},
 	{.id = ON_OFF},
+	ZZB_ZCL_IDENTIFY_CLIENT(),
 };
 
 static const struct zzb_zcl_cluster ep2_clusters[] = {
 	{.id = TEST_CLUSTER, .server = true, .values = &values2, .def = &test_def},
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
+	ZZB_ZCL_GROUPS_SERVER(),
+	ZZB_ZCL_SCENES_SERVER(&scenes),
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 };
 
 static const struct zzb_zcl_cluster ep3_clusters[] = {
 	{.id = ON_OFF},
+	ZZB_ZCL_ON_OFF_SERVER(&on_off3),
 };
 
 static const struct zzb_endpoint endpoints[] = {
@@ -198,6 +287,8 @@ struct zzb_node *test_node(void)
 void reset_fakes(void)
 {
 	RESET_FAKE(zzb_apsde_data_req);
+	RESET_FAKE(zzb_bdb_identify_end);
+	RESET_FAKE(zzb_bdb_identify_query_rsp);
 	FFF_RESET_HISTORY();
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
@@ -206,6 +297,7 @@ void reset_fakes(void)
 	hook_calls = (struct changed_calls){0};
 	zcl_cb_calls = (struct zcl_cb_calls){0};
 	effect_calls = (struct effect_calls){0};
+	memset(memberships, 0, sizeof(memberships));
 }
 
 void check_no_buffer_leak(void)

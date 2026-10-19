@@ -42,7 +42,7 @@ struct zzb_zcl_on_off {
 	 * reset of the node take it.
 	 */
 	uint8_t start_up_default;
-	/** Internal: OnOff of the global scene, kept in RAM without the Scenes cluster. */
+	/** Internal: OnOff of the global scene on an endpoint without a Scenes server. */
 	bool global_scene;
 	/** Internal: the update of On With Timed Off runs. */
 	bool timed;

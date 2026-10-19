@@ -3,6 +3,7 @@
 #ifndef ZZB_SUBSYS_ZCL_FRAME_H_
 #define ZZB_SUBSYS_ZCL_FRAME_H_
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <zephyr/sys/util.h>
@@ -47,5 +48,8 @@ int zzb_zcl_hdr_parse(const uint8_t *p, size_t len, struct zzb_zcl_hdr *hdr);
  * does not know.
  */
 int zzb_zcl_value_len(uint8_t type, const uint8_t *p, size_t len);
+
+/* Whether type is analog (ZCL Table 2-11): integers, floating point and time */
+bool zzb_zcl_type_analog(uint8_t type);
 
 #endif /* ZZB_SUBSYS_ZCL_FRAME_H_ */

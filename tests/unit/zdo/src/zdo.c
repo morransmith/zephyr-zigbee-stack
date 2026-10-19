@@ -58,10 +58,17 @@ ZTEST(zzb_zdo, test_dropped_frames)
 	zassert_equal(zzb_zcl_data_ind_fake.call_count, 1);
 	zassert_equal(zzb_zcl_data_ind_fake.arg2_val->dst_ep, 0x01);
 
-	/* A ZDO endpoint frame of another profile */
+	/* A group frame has destination endpoint 0 in the indication */
 	ind.dst_ep = 0x00;
 	ind.profile = 0x0104;
+	ind.group = true;
 	receive_ind(&ind, req, sizeof(req));
+	zassert_equal(zzb_zcl_data_ind_fake.call_count, 2);
+
+	/* A ZDO endpoint frame of another profile */
+	ind.group = false;
+	receive_ind(&ind, req, sizeof(req));
+	zassert_equal(zzb_zcl_data_ind_fake.call_count, 2);
 
 	/* Without a TSN */
 	receive(MGMT_RTG_REQ, NODE_ADDR, req, 0);

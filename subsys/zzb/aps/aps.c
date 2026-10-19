@@ -28,6 +28,19 @@ void zzb_aps_reset(struct zzb_node *node)
 	memset(node->aps.dups, 0, sizeof(node->aps.dups));
 	zzb_aps_delete(node);
 	zzb_aps_binding_delete(node);
+	zzb_aps_group_delete(node);
+}
+
+/* Whether an endpoint of the node is a member of group */
+static bool group_member(const struct zzb_node *node, uint16_t group)
+{
+	ARRAY_FOR_EACH_PTR(node->aps.aib.groups, entry) {
+		if (entry->in_use && entry->group == group) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /* Returns the header length of a frame for the node without APS security, or an error */
@@ -43,8 +56,9 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_aps_r
 
 	link_key = rx->hdr.flags & ZZB_APS_SECURITY;
 
-	/* Without a group table no endpoint is a member of a group */
-	if (rx->hdr.delivery == ZZB_APS_DELIVERY_GROUP) {
+	/* A group shares no link key */
+	if (rx->hdr.delivery == ZZB_APS_DELIVERY_GROUP &&
+	    (link_key || !group_member(node, rx->hdr.group))) {
 		return -ENOENT;
 	}
 
@@ -82,8 +96,9 @@ static bool accepted(struct zzb_node *node, struct net_buf *buf, size_t hdr_len,
 static void deliver(struct zzb_node *node, struct net_buf *buf, const struct zzb_aps_rx *rx,
 		    size_t hdr_len)
 {
+	bool group = rx->hdr.delivery == ZZB_APS_DELIVERY_GROUP;
 	const struct zzb_apsde_ind ind = {
-		.dst_addr = rx->dst_addr,
+		.dst_addr = group ? rx->hdr.group : rx->dst_addr,
 		.dst_ep = rx->hdr.dst_ep,
 		.src_addr = rx->src_addr,
 		.src_ep = rx->hdr.src_ep,
@@ -91,6 +106,7 @@ static void deliver(struct zzb_node *node, struct net_buf *buf, const struct zzb
 		.cluster = rx->hdr.cluster,
 		.security = (rx->hdr.flags & ZZB_APS_SECURITY) ? ZZB_APS_SECURED_LINK_KEY
 							       : ZZB_APS_SECURED_NWK_KEY,
+		.group = group,
 	};
 
 	net_buf_pull(buf, hdr_len);

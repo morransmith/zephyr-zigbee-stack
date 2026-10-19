@@ -20,6 +20,8 @@ DECLARE_FAKE_VALUE_FUNC(struct zzb_nwk_neighbor *, zzb_nwk_neighbor_find_short, 
 			uint16_t);
 DECLARE_FAKE_VALUE_FUNC(struct zzb_nwk_neighbor *, zzb_nwk_neighbor_find_ext, struct zzb_node *,
 			uint64_t);
+DECLARE_FAKE_VALUE_FUNC(int, zzb_nwk_addr_map_find, struct zzb_node *, uint64_t, uint16_t *);
+DECLARE_FAKE_VALUE_FUNC(uint64_t, zzb_nwk_addr_map_ext, struct zzb_node *, uint16_t);
 DECLARE_FAKE_VOID_FUNC(zzb_apsde_data_conf, struct zzb_node *, uint8_t, uint8_t);
 DECLARE_FAKE_VOID_FUNC(zzb_apsde_data_ind, struct zzb_node *, struct net_buf *,
 		       const struct zzb_apsde_ind *);
@@ -55,6 +57,10 @@ void check_no_buffer_leak(void);
 
 /* Trust center link key B of BDB 10.2.5 */
 extern const uint8_t key_b[ZZB_SEC_KEY_LEN];
+
+/* Node 2 has the install code of BDB 10.1.1, from which this key is derived */
+#define IC_NODE_EUI64 0x00124b0000000c0dULL
+extern const uint8_t install_code_key[ZZB_SEC_KEY_LEN];
 
 /* Node 0 has NODE_EUI64, node 1 plays the trust center with TC_EUI64 */
 struct zzb_node *test_node(int index);

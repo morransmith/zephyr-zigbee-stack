@@ -92,6 +92,14 @@ config ZZB_APS_BINDING_COUNT
 	  Entries of apsBindingTable. ZDO Bind_req adds them, and APSDE-DATA
 	  with binding sends to them.
 
+config ZZB_APS_GROUP_COUNT
+	int "Group table entries"
+	range 1 255
+	default 8
+	help
+	  Entries of apsGroupTable, one per group and endpoint. BDB 6.6 asks
+	  for at least 8 memberships on a node that is not a sleepy end device.
+
 config ZZB_ZDO
 	bool "ZDO"
 	default ZZB_APS
@@ -117,6 +125,30 @@ config ZZB_ZCL
 	  application enables a settings backend for the non-volatile
 	  attributes. Tests that fake ZCL turn it off.
 
+config ZZB_ZCL_REPORT_COUNT
+	int "Reporting table entries"
+	range 1 255
+	default 8
+	help
+	  Attributes whose reports Configure Reporting has set up, on all
+	  endpoints of a node.
+
+config ZZB_ZCL_SCENE_COUNT
+	int "Scene table entries"
+	range 1 255
+	default 16
+	help
+	  Scenes of all endpoints of a node. 16 is the default capacity of
+	  ZCL 3.7.2.3.2.
+
+config ZZB_ZCL_SCENE_DATA_LEN
+	int "Bytes of extension field sets per scene"
+	range 4 128
+	default 16
+	help
+	  The extension field sets of a scene, each with the cluster ID, the
+	  length and the values. The set of an On/Off server takes 4 bytes.
+
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
 	range 0 0x07fff800
@@ -141,6 +173,14 @@ config ZZB_ZDO_TRANSACTION_COUNT
 	  Requests of the ZDO client that wait for their response at the same
 	  time.
 
+config ZZB_BDB_FB_RESPONDENT_COUNT
+	int "Respondents of finding & binding for an initiator"
+	range 1 32
+	default 4
+	help
+	  Endpoints that answer Identify Query of finding & binding for an
+	  initiator (BDB 8.5). Further responses are ignored.
+
 config ZZB_FRAME_COUNTER_JUMP
 	int "Outgoing frame counter jump at boot"
 	default 1024
@@ -155,6 +195,14 @@ config ZZB_NEIGHBOR_COUNT
 config ZZB_NWK_NETWORK_COUNT
 	int "Networks reported by a network discovery"
 	default 8
+
+config ZZB_NWK_ADDR_MAP_COUNT
+	int "nwkAddressMap entries"
+	range 1 255
+	default 8
+	help
+	  IEEE and network addresses of devices that are not neighbors, such
+	  as the destinations of bindings that finding & binding creates.
 
 config ZZB_NWK_ED_TIMEOUT
 	int "Requested Timeout Enumeration of the End Device Timeout Request"

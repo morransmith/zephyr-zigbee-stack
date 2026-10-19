@@ -8,6 +8,7 @@ project(zzb_unit_bdb)
 target_include_directories(app PRIVATE ${ZEPHYR_ZZB_MODULE_DIR}/subsys/zzb)
 target_sources(app PRIVATE
   src/fakes.c
+  src/fb.c
   src/init.c
   src/reset.c
   src/steering.c

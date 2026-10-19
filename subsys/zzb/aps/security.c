@@ -105,8 +105,8 @@ static int sender(struct zzb_node *node, const struct zzb_sec_aux_hdr *aux, uint
 }
 
 /*
- * The entry of the sender, or no entry and the default key while the network key is pending
- * (R22 4.4.1.2 step 2)
+ * The entry of the sender, or no entry while the network key is pending (R22 4.4.1.2 step 2),
+ * when the preconfigured keys apply
  */
 static int find_key(struct zzb_node *node, const struct zzb_sec_aux_hdr *aux, uint16_t nwk_src,
 		    struct zzb_aps_sec *sec)
@@ -126,12 +126,45 @@ static int find_key(struct zzb_node *node, const struct zzb_sec_aux_hdr *aux, ui
 	return 0;
 }
 
+/* Decrypts the frame in place with the key key_id of link_key and records the link key in sec */
+static int decrypt(struct net_buf *buf, size_t hdr_len, const uint8_t *link_key,
+		   struct zzb_aps_sec *sec)
+{
+	psa_key_id_t id;
+	int err = import_key(link_key, sec->key_id, &id);
+
+	if (err) {
+		return err;
+	}
+
+	sec->key = link_key;
+	return zzb_sec_frame_decrypt(id, sec->src_addr, buf->data, hdr_len, buf->len);
+}
+
+/*
+ * BDB 6.4: a node with an install code joins also a network that does not know it, so the default
+ * key follows the install code key. A failed decryption leaves the frame unchanged.
+ */
+static int decrypt_preconfigured(struct zzb_node *node, struct net_buf *buf, size_t hdr_len,
+				 struct zzb_aps_sec *sec)
+{
+	int err;
+
+	if (node->has_install_key) {
+		err = decrypt(buf, hdr_len, node->install_key, sec);
+		if (err != -EBADMSG) {
+			return err;
+		}
+	}
+
+	return decrypt(buf, hdr_len, zzb_aps_default_tc_link_key, sec);
+}
+
 int zzb_aps_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len, uint16_t nwk_src,
 		     struct zzb_aps_sec *sec)
 {
 	struct zzb_aps_key_pair *pair;
 	struct zzb_sec_aux_hdr aux;
-	psa_key_id_t id;
 	int aux_len;
 	int err;
 
@@ -156,12 +189,8 @@ int zzb_aps_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len,
 		return -EALREADY;
 	}
 
-	err = import_key(pair != NULL ? pair->key : zzb_aps_default_tc_link_key, aux.key_id, &id);
-	if (err) {
-		return err;
-	}
-
-	err = zzb_sec_frame_decrypt(id, sec->src_addr, buf->data, hdr_len, buf->len);
+	err = pair != NULL ? decrypt(buf, hdr_len, pair->key, sec)
+			   : decrypt_preconfigured(node, buf, hdr_len, sec);
 	if (err) {
 		return err;
 	}

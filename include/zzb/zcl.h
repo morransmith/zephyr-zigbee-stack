@@ -43,6 +43,8 @@ enum zzb_zcl_type {
 #define ZZB_ZCL_CONST  BIT(2)
 /** The attribute is saved in the settings at every change. */
 #define ZZB_ZCL_NV     BIT(3)
+/** The attribute is in the scene extension field set of its cluster, in the order of the table. */
+#define ZZB_ZCL_SCENE  BIT(4)
 
 /**
  * An attribute. A character string is stored as a const char pointer, an octet string as a const
@@ -93,6 +95,8 @@ enum zzb_zcl_status {
 	ZZB_ZCL_INVALID_VALUE = 0x87,
 	ZZB_ZCL_READ_ONLY = 0x88,
 	ZZB_ZCL_INSUFFICIENT_SPACE = 0x89,
+	ZZB_ZCL_NOT_FOUND = 0x8b,
+	ZZB_ZCL_UNREPORTABLE_ATTRIBUTE = 0x8c,
 	ZZB_ZCL_INVALID_DATA_TYPE = 0x8d,
 	ZZB_ZCL_UNSUPPORTED_CLUSTER = 0xc3,
 };
@@ -112,6 +116,8 @@ struct zzb_zcl_cmd {
 	uint8_t id;
 	const uint8_t *payload;
 	size_t len;
+	/** The command came as a NWK unicast to the endpoint, which ZCL responses may answer. */
+	bool unicast;
 };
 
 /** The attributes and commands of a cluster. */
@@ -137,6 +143,11 @@ struct zzb_zcl_cluster_def {
 	uint8_t (*check)(const struct zzb_zcl_attr *attr, uint16_t value);
 	/** Called on the stack thread after every change of the value of attr, or NULL. */
 	void (*changed)(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr);
+	/**
+	 * Called on the stack thread after a scene recall has written the attributes of the
+	 * extension field set of the cluster, or NULL.
+	 */
+	void (*recalled)(struct zzb_node *node, uint8_t ep, void *values);
 };
 
 /** A cluster on an endpoint. */

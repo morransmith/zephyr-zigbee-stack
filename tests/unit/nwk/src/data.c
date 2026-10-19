@@ -243,6 +243,35 @@ ZTEST(zzb_nwk_data, test_frames_are_dropped)
 	zassert_equal(zzb_nlde_data_ind_fake.call_count, 0);
 }
 
+/*
+ * R22 3.6.6: a multicast data frame goes up as a broadcast, since APS checks the group. The group
+ * ID here equals the address of the node; a multicast command is dropped.
+ */
+ZTEST(zzb_nwk_data, test_multicast)
+{
+	struct zzb_nwk_hdr hdr = {
+		.type = ZZB_NWK_FRAME_DATA,
+		.flags = ZZB_NWK_SECURITY | ZZB_NWK_MULTICAST,
+		.dst = CHILD_SHORT,
+		.src = PARENT_SHORT,
+		.radius = 1,
+	};
+	const struct zzb_nwk_cmd status = {
+		.id = ZZB_NWK_CMD_NWK_STATUS,
+		.nwk_status = {.code = 0x0d, .has_addr = true, .addr = 0x5678},
+	};
+
+	receive_frame(child, parent, &hdr, nsdu, sizeof(nsdu));
+	zassert_equal(zzb_nlde_data_ind_fake.call_count, 1);
+	zassert_equal(zzb_nlde_data_ind_fake.arg2_val, 0xfffd);
+	zassert_equal(zzb_nlde_data_ind_fake.arg3_val, PARENT_SHORT);
+	zassert_equal(data_ind.len, sizeof(nsdu));
+
+	hdr.type = ZZB_NWK_FRAME_CMD;
+	receive_cmd(child, parent, &hdr, &status);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+}
+
 /* R22 3.6.2.2 step 1 */
 ZTEST(zzb_nwk_data, test_end_device_drops_frames_with_end_device_initiator)
 {

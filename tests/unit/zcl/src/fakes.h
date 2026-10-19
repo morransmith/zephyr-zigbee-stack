@@ -9,14 +9,18 @@
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/scenes.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
 
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 			const struct zzb_apsde_req *);
+DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
+DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
 
 #define NODE_EUI64 0x00124b0001020304ULL
 #define NODE_ADDR  0x5678
@@ -31,12 +35,15 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
  */
 #define TEST_CLUSTER 0x0f00
 
-/* An On/Off client without a definition on endpoints 1 and 3 */
+/*
+ * An On/Off client without a definition on endpoints 1 and 3; endpoint 3 also has a server.
+ * Endpoint 1 has the Identify client of the stack.
+ */
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
- * Values of the test cluster, attributes 0x0000 to 0x0007 in this order; 0x0002 is saved. The
- * reset sets 0x0001 and 0x0002 to 0.
+ * Values of the test cluster, attributes 0x0000 to 0x0007 in this order; 0x0000 to 0x0002 are
+ * reportable, 0x0002 is saved. The reset sets 0x0001 and 0x0002 to 0.
  */
 struct test_values {
 	bool b;
@@ -55,10 +62,14 @@ struct test_values {
 extern struct test_values values1;
 extern struct test_values values2;
 
-/* The Basic, Identify and On/Off servers on endpoint 2 */
+/* The Basic, Identify, Groups, Scenes and On/Off servers on endpoint 2 */
 extern struct zzb_zcl_basic basic;
 extern struct zzb_zcl_identify identify;
+extern struct zzb_zcl_scenes scenes;
 extern struct zzb_zcl_on_off on_off;
+
+/* The On/Off server on endpoint 3, which has no Scenes server */
+extern struct zzb_zcl_on_off on_off3;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
@@ -106,6 +117,14 @@ struct effect_calls {
 };
 
 extern struct effect_calls effect_calls;
+
+/* A membership of the APS group table, kept by the fakes of the group functions; ep 0 is free */
+struct membership {
+	uint16_t group;
+	uint8_t ep;
+};
+
+extern struct membership memberships[CONFIG_ZZB_APS_GROUP_COUNT];
 
 /* Copy of a frame passed to APSDE-DATA.request */
 struct frame_copy {

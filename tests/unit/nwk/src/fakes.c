@@ -8,7 +8,9 @@
 #include <zzb/zzb.h>
 
 #include "common/node.h"
+#include "common/queue.h"
 #include "fakes.h"
+#include "storage/settings.h"
 
 DEFINE_FFF_GLOBALS;
 
@@ -157,6 +159,28 @@ void delete_nwk_records(void)
 {
 	settings_delete("zzb/0/nwk/net");
 	settings_delete("zzb/0/nwk/keys");
+}
+
+struct reboot_call {
+	struct k_work work;
+	int err;
+};
+
+static void reboot_handler(struct k_work *work)
+{
+	struct reboot_call *call = CONTAINER_OF(work, struct reboot_call, work);
+
+	zzb_nwk_init(test_node(0));
+	call->err = zzb_settings_load(test_node(0));
+}
+
+int nwk_reboot(void)
+{
+	struct reboot_call call = {0};
+
+	reset_fakes();
+	zzb_call_sync(&call.work, reboot_handler);
+	return call.err;
 }
 
 /* The test thread is cooperative and has a lower priority than the stack thread */

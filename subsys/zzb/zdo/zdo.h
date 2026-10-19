@@ -137,6 +137,44 @@ int zzb_zdo_node_desc_req(struct zzb_node *node, uint16_t addr);
 void zzb_zdo_node_desc_conf(struct zzb_node *node, uint8_t status, uint16_t addr,
 			    uint16_t server_mask);
 
+/* A simple descriptor of Simple_Desc_rsp (R22 2.3.2.5); the cluster lists point into the frame */
+struct zzb_zdo_simple_desc {
+	uint8_t ep;
+	uint16_t profile;
+	uint16_t device_id;
+	uint8_t in_count;
+	/* Little-endian cluster IDs */
+	const uint8_t *in;
+	uint8_t out_count;
+	const uint8_t *out;
+};
+
+/*
+ * Simple_Desc_req to addr for endpoint ep of addr (R22 2.4.3.1.5). Returns the errors of
+ * zzb_zdo_node_desc_req(); otherwise one zzb_zdo_simple_desc_conf() follows.
+ */
+int zzb_zdo_simple_desc_req(struct zzb_node *node, uint16_t addr, uint8_t ep);
+
+/*
+ * Defined by BDB. status is the status of Simple_Desc_rsp or ZZB_ZDP_TIMEOUT; desc is valid with
+ * SUCCESS during the call, otherwise NULL.
+ */
+void zzb_zdo_simple_desc_conf(struct zzb_node *node, uint8_t status, uint16_t addr,
+			      const struct zzb_zdo_simple_desc *desc);
+
+/*
+ * IEEE_addr_req to addr for addr with request type 0x00 (R22 2.4.3.1.2). Returns the errors of
+ * zzb_zdo_node_desc_req(); otherwise one zzb_zdo_ieee_addr_conf() follows.
+ */
+int zzb_zdo_ieee_addr_req(struct zzb_node *node, uint16_t addr);
+
+/*
+ * Defined by BDB. status is the status of IEEE_addr_rsp or ZZB_ZDP_TIMEOUT; ext_addr is valid
+ * with SUCCESS, which has set the nwkAddressMap entry of addr.
+ */
+void zzb_zdo_ieee_addr_conf(struct zzb_node *node, uint8_t status, uint16_t addr,
+			    uint64_t ext_addr);
+
 /* Broadcasts Device_annce (R22 2.4.3.1.11). Returns an error of zzb_zdo_send(). */
 int zzb_zdo_device_annce_req(struct zzb_node *node);
 

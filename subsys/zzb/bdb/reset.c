@@ -23,6 +23,8 @@ static int reset_node(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_
 
 	zzb_aps_reset(node);
 	zzb_zdo_init(node);
+	/* Before the reset of IdentifyTime, which would end finding & binding with an event */
+	zzb_bdb_fb_clear(node);
 	zzb_zcl_reset(node);
 	node->bdb.on_network = false;
 	zzb_bdb_report(node, event, status);

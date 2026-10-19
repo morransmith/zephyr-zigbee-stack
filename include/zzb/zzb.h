@@ -62,6 +62,12 @@ struct zzb_node_config {
 	zzb_zcl_cb_t zcl_cb;
 	/** Callback for the effects of ZCL commands, or NULL. */
 	zzb_zcl_effect_cb_t zcl_effect_cb;
+	/**
+	 * Install code with its CRC (BDB 10.1.1), 8, 10, 14 or 18 bytes, or NULL. The node joins
+	 * with the key derived from it or with the default trust center link key.
+	 */
+	const uint8_t *install_code;
+	size_t install_code_len;
 };
 
 /**
@@ -76,8 +82,8 @@ struct zzb_node_config {
  *
  * @retval 0 on success.
  * @retval -EINVAL cfg->radio is NULL and CONFIG_ZZB_MAC is set, cfg->device is NULL and
- *                 CONFIG_ZZB_ZDO is set, or a settings record of the node has an unknown version
- *                 or length.
+ *                 CONFIG_ZZB_ZDO is set, the install code has another length or a wrong CRC, or a
+ *                 settings record of the node has an unknown version or length.
  * @retval -ENOMEM all CONFIG_ZZB_NODE_COUNT nodes are in use.
  * @retval -ENODEV cfg->eui64 is 0 and the hardware provides no EUI-64, or the custom-L2 backend
  *                 finds no interface for cfg->radio.

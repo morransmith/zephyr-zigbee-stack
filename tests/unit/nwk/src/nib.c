@@ -107,29 +107,6 @@ ZTEST(zzb_nwk_nib, test_key_ends_the_pending_state)
 	zassert_false(node->nwk.key_pending);
 }
 
-struct call {
-	struct k_work work;
-	int err;
-};
-
-/* What zzb_node_init() does for NWK on boot */
-static void reboot_handler(struct k_work *work)
-{
-	struct call *call = CONTAINER_OF(work, struct call, work);
-
-	zzb_nwk_init(node);
-	call->err = zzb_settings_load(node);
-}
-
-static int reboot(void)
-{
-	struct call call = {0};
-
-	reset_fakes();
-	zzb_call_sync(&call.work, reboot_handler);
-	return call.err;
-}
-
 /* A node on a network as join and rejoin leave it */
 static struct zzb_nwk_neighbor *join(void)
 {
@@ -155,7 +132,7 @@ ZTEST(zzb_nwk_nib, test_records_survive_a_reboot)
 
 	join();
 	zzb_nwk_save(node);
-	zassert_ok(reboot());
+	zassert_ok(nwk_reboot());
 
 	zassert_equal(nib->pan_id, 0x1a62);
 	zassert_equal(nib->short_addr, 0x5678);
@@ -262,11 +239,11 @@ ZTEST(zzb_nwk_nib, test_unknown_record_version)
 	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 28);
 	rec[0] = 2;
 	zassert_ok(settings_save_one("zzb/0/nwk/net", rec, 28));
-	zassert_equal(reboot(), -EINVAL);
+	zassert_equal(nwk_reboot(), -EINVAL);
 
 	rec[0] = 1;
 	zassert_ok(settings_save_one("zzb/0/nwk/net", rec, 27));
-	zassert_equal(reboot(), -EINVAL);
+	zassert_equal(nwk_reboot(), -EINVAL);
 }
 
 ZTEST_SUITE(zzb_nwk_nib, NULL, setup, before, NULL, NULL);

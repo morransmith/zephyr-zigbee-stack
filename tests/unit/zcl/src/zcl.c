@@ -1,8 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <zephyr/ztest.h>
 
+#include "common/node.h"
 #include "fakes.h"
+#include "zcl/zcl.h"
 
 static void *setup(void)
 {
@@ -98,11 +101,12 @@ ZTEST(zzb_zcl, test_manufacturer_specific)
 /* ZCL 2.5.12.2: UNSUP_COMMAND, also for a cluster without a definition */
 ZTEST(zzb_zcl, test_unsupported_commands)
 {
-	static const uint8_t configure_reporting[] = {0x00, 0x28, 0x06, 0x00, 0x00, 0x00, 0x10};
-	static const uint8_t rsp[] = {0x18, 0x28, 0x0b, 0x06, 0x81};
+	/* Discover Commands Received */
+	static const uint8_t discover_commands[] = {0x00, 0x28, 0x11, 0x00, 0x05};
+	static const uint8_t rsp[] = {0x18, 0x28, 0x0b, 0x11, 0x81};
 	static const uint8_t client_rsp[] = {0x10, 0x29, 0x0b, 0x01, 0x81};
 
-	receive(TEST_CLUSTER, configure_reporting, sizeof(configure_reporting));
+	receive(TEST_CLUSTER, discover_commands, sizeof(discover_commands));
 	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
 
 	receive(ON_OFF, (uint8_t[]){0x09, 0x29, 0x01}, 3);
@@ -187,6 +191,59 @@ ZTEST(zzb_zcl, test_broadcast_endpoint)
 	receive_ind(&no_cluster, (uint8_t[]){0x01, 0x39, 0x02}, 3);
 	zassert_equal(cmd_calls.count, 2);
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
+/* R22 2.2.8.4.2: member endpoints with the cluster get a group frame, without Default Response */
+ZTEST(zzb_zcl, test_group_frame)
+{
+	struct zzb_apsde_ind ind = {
+		.dst_addr = 0x1234,
+		.src_addr = REQUESTER_ADDR,
+		.src_ep = REQUESTER_EP,
+		.profile = 0x0104,
+		.cluster = TEST_CLUSTER,
+		.group = true,
+	};
+
+	memberships[0] = (struct membership){.group = 0x1234, .ep = 2};
+	memberships[1] = (struct membership){.group = 0x1234, .ep = 3};
+	memberships[2] = (struct membership){.group = 0x4321, .ep = 1};
+	cmd_status = 0x85;
+	receive_ind(&ind, (uint8_t[]){0x01, 0x3a, 0x02}, 3);
+	zassert_equal(cmd_calls.count, 1);
+	zassert_equal(cmd_calls.cmd.ep, 2);
+	zassert_equal_ptr(cmd_calls.values, &values2);
+
+	ind.dst_addr = 0x5555;
+	receive_ind(&ind, (uint8_t[]){0x01, 0x3b, 0x02}, 3);
+	zassert_equal(cmd_calls.count, 1);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
+/* A command of finding & binding: a broadcast without APS ACK, a unicast with it */
+ZTEST(zzb_zcl, test_send_cmd)
+{
+	uint8_t tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_send_cmd(test_node(), 1, 0xffff, 0xff, 0x0003, 0x01, NULL, 0));
+	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_SHORT);
+	zassert_equal(sent[0].req.dst_addr, 0xffff);
+	zassert_equal(sent[0].req.dst_ep, 0xff);
+	zassert_equal(sent[0].req.src_ep, 1);
+	zassert_equal(sent[0].req.profile, 0x0104);
+	zassert_equal(sent[0].req.cluster, 0x0003);
+	zassert_equal(sent[0].req.tx_options, 0);
+	zassert_equal(sent[0].len, 3);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, tsn, 0x01}), 3);
+
+	zassert_ok(zzb_zcl_send_cmd(test_node(), 1, 0x1234, 0x02, 0x0004, 0x05,
+				    (uint8_t[]){0x01, 0x00, 0x00}, 3));
+	zassert_equal(sent[1].req.tx_options, ZZB_APS_TX_ACK);
+	zassert_mem_equal(sent[1].data, ((uint8_t[]){0x11, tsn + 1, 0x05, 0x01, 0x00, 0x00}), 6);
+
+	zassert_equal(zzb_zcl_send_cmd(test_node(), 9, 0xffff, 0xff, 0x0003, 0x01, NULL, 0),
+		      -ENOENT);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
 }
 
 ZTEST_SUITE(zzb_zcl, NULL, setup, before, after, NULL);

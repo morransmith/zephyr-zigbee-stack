@@ -182,6 +182,7 @@ void zzb_nwk_delete(struct zzb_node *node)
 {
 	zzb_settings_delete(node, NET_KEY);
 	zzb_settings_delete(node, KEYS_KEY);
+	zzb_nwk_addr_map_delete(node);
 }
 
 int zzb_nwk_net_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg)

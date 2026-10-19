@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/identify.h>
@@ -53,6 +54,10 @@ ZTEST(zzb_zcl_identify, test_identify)
 	check_identify_time(3, 0);
 	zassert_equal(zcl_cb_calls.count, 4);
 	zassert_false(timer_armed());
+
+	/* The end of the identification ends finding & binding for a target */
+	zassert_equal(zzb_bdb_identify_end_fake.call_count, 1);
+	zassert_equal(zzb_bdb_identify_end_fake.arg1_val, 2);
 }
 
 /* A write starts the identification and the Identify command stops it */
@@ -68,6 +73,17 @@ ZTEST(zzb_zcl_identify, test_write_and_stop)
 	receive_ep(2, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x11, 0x82, 0x00, 0x00, 0x00}, 5);
 	check_identify_time(1, 0);
 	zassert_false(timer_armed());
+	zassert_equal(zzb_bdb_identify_end_fake.call_count, 1);
+}
+
+/* Finding & binding for a target sets IdentifyTime as a remote command does */
+ZTEST(zzb_zcl_identify, test_identify_for_finding_and_binding)
+{
+	zassert_ok(zzb_zcl_identify(test_node(), 2, 180));
+	check_identify_time(0, 180);
+	zassert_true(timer_armed());
+	zassert_equal(zzb_zcl_identify(test_node(), 1, 180), -ENOENT);
+	zassert_equal(zzb_zcl_identify(test_node(), 9, 180), -ENOENT);
 }
 
 ZTEST(zzb_zcl_identify, test_read)
@@ -141,6 +157,23 @@ ZTEST(zzb_zcl_identify, test_trigger_effect)
 	check_frame(1, 2, ZZB_ZCL_IDENTIFY, malformed, sizeof(malformed));
 	zassert_equal(effect_calls.count, 2);
 	zassert_equal(zcl_cb_calls.count, 0);
+}
+
+/* ZCL 3.5.2.4.1: the client passes Identify Query Response to finding & binding */
+ZTEST(zzb_zcl_identify, test_identify_query_response)
+{
+	static const uint8_t malformed[] = {0x10, 0x8c, 0x0b, 0x00, 0x80};
+
+	receive_ep(1, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x19, 0x8b, 0x00, 0xb4, 0x00}, 5);
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.call_count, 1);
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.arg1_val, 1);
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.arg2_val, REQUESTER_ADDR);
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.arg3_val, REQUESTER_EP);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	receive_ep(1, ZZB_ZCL_IDENTIFY, (uint8_t[]){0x19, 0x8c, 0x00, 0xb4}, 4);
+	check_frame(0, 1, ZZB_ZCL_IDENTIFY, malformed, sizeof(malformed));
+	zassert_equal(zzb_bdb_identify_query_rsp_fake.call_count, 1);
 }
 
 ZTEST_SUITE(zzb_zcl_identify, NULL, setup, before, after, NULL);

@@ -104,11 +104,15 @@ int zzb_apsme_set_link_key(struct zzb_node *node, uint64_t addr, const uint8_t k
 
 int zzb_apsme_set_tc_addr(struct zzb_node *node, uint64_t addr)
 {
+	/* An install code key is unique (R22 4.6.3.1) */
+	bool install_key = node->aps.join_key == node->install_key;
 	int err;
 
 	if (zzb_aps_key_pair_find(node, addr) == NULL) {
-		err = zzb_apsme_set_link_key(node, addr, zzb_aps_default_tc_link_key,
-					     ZZB_APS_KEY_PROVISIONAL, ZZB_APS_LINK_KEY_GLOBAL);
+		err = zzb_apsme_set_link_key(
+			node, addr, install_key ? node->install_key : zzb_aps_default_tc_link_key,
+			ZZB_APS_KEY_PROVISIONAL,
+			install_key ? ZZB_APS_LINK_KEY_UNIQUE : ZZB_APS_LINK_KEY_GLOBAL);
 		if (err) {
 			return err;
 		}

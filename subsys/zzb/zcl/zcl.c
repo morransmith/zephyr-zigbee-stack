@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <zephyr/net_buf.h>
+#include <zephyr/random/random.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
@@ -26,6 +28,57 @@ const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep
 	return NULL;
 }
 
+int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
+		 const struct zzb_zcl_hdr *hdr, const uint8_t *payload, size_t len)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	int err;
+
+	if (buf == NULL) {
+		return -ENOBUFS;
+	}
+
+	/* ZCL frames have no APS security, so the longest ASDU fits */
+	net_buf_reserve(buf, ZZB_NLDE_HEADROOM + ZZB_APS_HDR_MAX_LEN);
+	zzb_zcl_hdr_write(hdr, net_buf_add(buf, zzb_zcl_hdr_len(hdr)));
+	net_buf_add_mem(buf, payload, len);
+	zzb_frame_meta(buf)->handle = ZZB_ZCL_HANDLE;
+
+	err = zzb_apsde_data_req(node, buf, aps);
+	if (err) {
+		net_buf_unref(buf);
+	}
+
+	return err;
+}
+
+int zzb_zcl_send_cmd(struct zzb_node *node, uint8_t src_ep, uint16_t dst_addr, uint8_t dst_ep,
+		     uint16_t cluster, uint8_t cmd, const uint8_t *payload, size_t len)
+{
+	const struct zzb_endpoint *ep = zzb_node_endpoint(node, src_ep);
+	struct zzb_zcl_hdr hdr = {
+		.type = ZZB_ZCL_FRAME_CLUSTER,
+		.flags = ZZB_ZCL_DISABLE_DEFAULT_RSP,
+		.cmd = cmd,
+	};
+	struct zzb_apsde_req aps = {
+		.dst_mode = ZZB_APS_ADDR_SHORT,
+		.dst_addr = dst_addr,
+		.dst_ep = dst_ep,
+		.cluster = cluster,
+		.src_ep = src_ep,
+		.tx_options = zzb_nwk_is_broadcast(dst_addr) ? 0 : ZZB_APS_TX_ACK,
+	};
+
+	if (ep == NULL) {
+		return -ENOENT;
+	}
+
+	hdr.tsn = node->zcl.tsn++;
+	aps.profile = ep->profile;
+	return zzb_zcl_send(node, &aps, &hdr, payload, len);
+}
+
 void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 		     enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len)
 {
@@ -46,21 +99,8 @@ void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 		.src_ep = req->cmd.ep,
 		.tx_options = ZZB_APS_TX_ACK,
 	};
-	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
 
-	if (buf == NULL) {
-		return;
-	}
-
-	/* ZCL frames have no APS security, so the longest ASDU fits */
-	net_buf_reserve(buf, ZZB_NLDE_HEADROOM + ZZB_APS_HDR_MAX_LEN);
-	zzb_zcl_hdr_write(&hdr, net_buf_add(buf, zzb_zcl_hdr_len(&hdr)));
-	net_buf_add_mem(buf, payload, len);
-	zzb_frame_meta(buf)->handle = ZZB_ZCL_HANDLE;
-
-	if (zzb_apsde_data_req(node, buf, &aps)) {
-		net_buf_unref(buf);
-	}
+	zzb_zcl_send(node, &aps, &hdr, payload, len);
 }
 
 void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
@@ -83,7 +123,7 @@ static void default_rsp(struct zzb_node *node, const struct zzb_zcl_req *req, in
 {
 	const uint8_t rsp[] = {req->hdr.cmd, status};
 
-	if (status == ZZB_ZCL_RESPONDED || !req->unicast) {
+	if (status == ZZB_ZCL_RESPONDED || !req->cmd.unicast) {
 		return;
 	}
 
@@ -133,7 +173,8 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		.cmd.len = len,
 		.hdr = *hdr,
 		.profile = ep->profile,
-		.unicast = !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
+		.cmd.unicast =
+			!ind->group && !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
 		.cluster =
 			zzb_zcl_find_cluster(ep, ind->cluster, !(hdr->flags & ZZB_ZCL_TO_CLIENT)),
 	};
@@ -154,6 +195,13 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 	default_rsp(node, &req, status);
 }
 
+/* Whether a frame to the broadcast endpoint or a group is for endpoint ep */
+static bool addressed(struct zzb_node *node, const struct zzb_apsde_ind *ind,
+		      const struct zzb_endpoint *ep)
+{
+	return !ind->group || zzb_aps_group_member(node, ind->dst_addr, ep->id);
+}
+
 static void dispatch(struct zzb_node *node, const struct zzb_apsde_ind *ind, const uint8_t *frame,
 		     size_t len)
 {
@@ -165,11 +213,11 @@ static void dispatch(struct zzb_node *node, const struct zzb_apsde_ind *ind, con
 		return;
 	}
 
-	/* ZCL 2.3.2.1 */
-	if (ind->dst_ep == 0xff) {
+	/* ZCL 2.3.2.1, R22 2.2.8.4.2 */
+	if (ind->group || ind->dst_ep == 0xff) {
 		for (size_t i = 0; i < node->device->endpoint_count; i++) {
 			ep = &node->device->endpoints[i];
-			if (accepts(ep, ind->profile) &&
+			if (addressed(node, ind, ep) && accepts(ep, ind->profile) &&
 			    zzb_zcl_find_cluster(ep, ind->cluster,
 						 !(hdr.flags & ZZB_ZCL_TO_CLIENT))) {
 				receive(node, ep, ind, &hdr, frame + hdr_len, len - hdr_len);
@@ -196,9 +244,13 @@ void zzb_zcl_init(struct zzb_node *node)
 	/* Safe on the zeroed struct of a new node */
 	k_work_cancel_delayable(&node->zcl.identify_timer);
 	k_work_cancel_delayable(&node->zcl.on_off_timer);
-	node->zcl = (struct zzb_zcl){0};
+	k_work_cancel_delayable(&node->zcl.report_timer);
+	node->zcl = (struct zzb_zcl){
+		.tsn = sys_rand8_get(),
+	};
 	zzb_zcl_identify_init(node);
 	zzb_zcl_on_off_init(node);
+	zzb_zcl_report_init(node);
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];
@@ -215,6 +267,9 @@ void zzb_zcl_init(struct zzb_node *node)
 
 void zzb_zcl_start(struct zzb_node *node)
 {
+	/* Before the start hooks, so that a change of StartUpOnOff is reported */
+	zzb_zcl_report_start(node);
+
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];
 
@@ -242,5 +297,8 @@ void zzb_zcl_reset(struct zzb_node *node)
 		}
 	}
 
+	/* After the reset hooks, which may have armed the reporting timer */
+	zzb_zcl_report_reset(node);
+	zzb_zcl_scenes_delete(node);
 	zzb_zcl_attr_delete(node);
 }

@@ -19,6 +19,7 @@ zephyr_library_sources(
 zephyr_library_sources_ifdef(CONFIG_DT_HAS_ESPRESSIF_ESP32_IEEE802154_ENABLED common/eui64_esp32.c)
 zephyr_library_sources_ifdef(CONFIG_ZZB_MAC mac/assoc.c mac/mac.c mac/poll.c mac/scan.c mac/tx.c)
 zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
+  nwk/addr_map.c
   nwk/ed_timeout.c
   nwk/frame.c
   nwk/join.c
@@ -43,6 +44,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_APS
   aps/binding.c
   aps/cmd.c
   aps/frame.c
+  aps/group.c
   aps/keys.c
   aps/security.c
 )
@@ -53,14 +55,24 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZDO
   zdo/server.c
   zdo/zdo.c
 )
-zephyr_library_sources_ifdef(CONFIG_ZZB_BDB bdb/bdb.c bdb/init.c bdb/reset.c bdb/steering.c bdb/tclk.c)
+zephyr_library_sources_ifdef(CONFIG_ZZB_BDB
+  bdb/bdb.c
+  bdb/fb.c
+  bdb/init.c
+  bdb/reset.c
+  bdb/steering.c
+  bdb/tclk.c
+)
 zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/attr.c
   zcl/clusters/basic.c
+  zcl/clusters/groups.c
   zcl/clusters/identify.c
   zcl/clusters/on_off.c
+  zcl/clusters/scenes.c
   zcl/foundation.c
   zcl/frame.c
+  zcl/report.c
   zcl/zcl.c
 )
 zephyr_library_sources_ifdef(CONFIG_IEEE802154_RAW_MODE radio/port.c radio/raw.c)
