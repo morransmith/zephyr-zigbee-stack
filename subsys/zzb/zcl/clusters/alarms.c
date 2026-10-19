@@ -165,6 +165,41 @@ void zzb_zcl_alarm_raise(struct zzb_node *node, uint8_t ep, uint16_t cluster, ui
 	}
 }
 
+/* The alarm_reset hook of cl raises its alarms again while their conditions last */
+static void reset_cluster(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+			  uint8_t code)
+{
+	if (cl != NULL && cl->server && cl->def != NULL && cl->def->alarm_reset != NULL) {
+		cl->def->alarm_reset(node, ep, cl->values, code);
+	}
+}
+
+/* ZCL 3.11.2.4.1: alarm code and cluster */
+static int reset_alarm(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	const struct zzb_endpoint *ep = zzb_node_endpoint(node, cmd->ep);
+
+	if (cmd->len < 3) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	reset_cluster(node, cmd->ep, zzb_zcl_find_cluster(ep, sys_get_le16(cmd->payload + 1), true),
+		      cmd->payload[0]);
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 3.11.2.4.2 */
+static int reset_all(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	const struct zzb_endpoint *ep = zzb_node_endpoint(node, cmd->ep);
+
+	for (int i = 0; i < ep->cluster_count; i++) {
+		reset_cluster(node, cmd->ep, &ep->clusters[i], 0xff);
+	}
+
+	return ZZB_ZCL_SUCCESS;
+}
+
 /* ZCL 3.11.2.4.3; the response also answers a broadcast */
 static int get_alarm(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
@@ -202,6 +237,10 @@ static int reset_log(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
 	switch (cmd->id) {
+	case ZZB_ZCL_ALARMS_RESET_ALARM:
+		return reset_alarm(node, cmd);
+	case ZZB_ZCL_ALARMS_RESET_ALL_ALARMS:
+		return reset_all(node, cmd);
 	case ZZB_ZCL_ALARMS_GET_ALARM:
 		return get_alarm(node, cmd);
 	case ZZB_ZCL_ALARMS_RESET_ALARM_LOG:

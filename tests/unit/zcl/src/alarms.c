@@ -209,6 +209,34 @@ ZTEST(zzb_zcl_alarms, test_reset)
 	get_no_alarm(21);
 }
 
+/* ZCL 3.11.2.4.1: Reset Alarm calls the alarm_reset hook of the server of its cluster */
+ZTEST(zzb_zcl_alarms, test_reset_alarm)
+{
+	command(20, ZZB_ZCL_ALARMS_RESET_ALARM, (uint8_t[]){0x05, 0x02, 0x0f}, 3, ZZB_ZCL_SUCCESS);
+	zassert_equal(alarm_reset_calls.count, 1);
+	zassert_equal(alarm_reset_calls.ep, 20);
+	zassert_equal_ptr(alarm_reset_calls.values, &values20);
+	zassert_equal(alarm_reset_calls.code, 0x05);
+
+	/* A cluster that the endpoint does not have, and a truncated command */
+	command(21, ZZB_ZCL_ALARMS_RESET_ALARM, (uint8_t[]){0x05, 0x02, 0x0f}, 3, ZZB_ZCL_SUCCESS);
+	command(20, ZZB_ZCL_ALARMS_RESET_ALARM, (uint8_t[]){0x05, 0x02}, 2,
+		ZZB_ZCL_MALFORMED_COMMAND);
+	zassert_equal(alarm_reset_calls.count, 1);
+}
+
+/* ZCL 3.11.2.4.2: Reset All Alarms calls the hook of every server on the endpoint with 0xff */
+ZTEST(zzb_zcl_alarms, test_reset_all_alarms)
+{
+	command(20, ZZB_ZCL_ALARMS_RESET_ALL_ALARMS, NULL, 0, ZZB_ZCL_SUCCESS);
+	zassert_equal(alarm_reset_calls.count, 1);
+	zassert_equal(alarm_reset_calls.ep, 20);
+	zassert_equal(alarm_reset_calls.code, 0xff);
+
+	command(21, ZZB_ZCL_ALARMS_RESET_ALL_ALARMS, NULL, 0, ZZB_ZCL_SUCCESS);
+	zassert_equal(alarm_reset_calls.count, 1);
+}
+
 /* The table survives a reboot, and new alarms follow the loaded ones; loading calls no zcl_cb */
 ZTEST(zzb_zcl_alarms, test_table_survives_a_reboot)
 {

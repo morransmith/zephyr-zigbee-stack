@@ -174,6 +174,12 @@ struct zzb_zcl_cluster_def {
 	 */
 	void (*recall)(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set,
 		       size_t count, uint32_t transition_ds);
+	/**
+	 * Raises the alarms of the cluster whose conditions last again (ZCL 3.11.2.4.1), on the
+	 * stack thread, or NULL. code is the alarm code of Reset Alarm, or 0xff for Reset All
+	 * Alarms.
+	 */
+	void (*alarm_reset)(struct zzb_node *node, uint8_t ep, void *values, uint8_t code);
 };
 
 /** A cluster on an endpoint. */

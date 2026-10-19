@@ -102,6 +102,21 @@ extern struct recall_calls recall_calls;
 extern struct zzb_zcl_alarms alarms20;
 extern struct zzb_zcl_alarms alarms21;
 
+/* A cluster of the test on endpoint 20 without attributes and with the alarm_reset hook */
+#define ALARM_CLUSTER 0x0f02
+
+extern struct test_values values20;
+
+/* Calls of the alarm_reset hook of the alarm test cluster, with the arguments of the last one */
+struct alarm_reset_calls {
+	int count;
+	uint8_t ep;
+	void *values;
+	uint8_t code;
+};
+
+extern struct alarm_reset_calls alarm_reset_calls;
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;

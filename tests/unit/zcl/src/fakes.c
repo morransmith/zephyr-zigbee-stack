@@ -32,6 +32,8 @@ struct zzb_zcl_scenes scenes4;
 struct recall_calls recall_calls;
 struct zzb_zcl_alarms alarms20;
 struct zzb_zcl_alarms alarms21;
+struct test_values values20;
+struct alarm_reset_calls alarm_reset_calls;
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -272,8 +274,23 @@ static const struct zzb_zcl_cluster ep4_clusters[] = {
 	{.id = SCENE_CLUSTER, .server = true, .values = &values4, .def = &scene_test_def},
 };
 
+static void alarm_reset(struct zzb_node *node, uint8_t ep, void *values, uint8_t code)
+{
+	alarm_reset_calls = (struct alarm_reset_calls){
+		.count = alarm_reset_calls.count + 1,
+		.ep = ep,
+		.values = values,
+		.code = code,
+	};
+}
+
+static const struct zzb_zcl_cluster_def alarm_test_def = {
+	.alarm_reset = alarm_reset,
+};
+
 static const struct zzb_zcl_cluster ep20_clusters[] = {
 	ZZB_ZCL_ALARMS_SERVER(&alarms20),
+	{.id = ALARM_CLUSTER, .server = true, .values = &values20, .def = &alarm_test_def},
 };
 
 static const struct zzb_zcl_cluster ep21_clusters[] = {
@@ -378,6 +395,7 @@ void reset_fakes(void)
 	zcl_cb_calls = (struct zcl_cb_calls){0};
 	effect_calls = (struct effect_calls){0};
 	recall_calls = (struct recall_calls){0};
+	alarm_reset_calls = (struct alarm_reset_calls){0};
 	memset(memberships, 0, sizeof(memberships));
 }
 
