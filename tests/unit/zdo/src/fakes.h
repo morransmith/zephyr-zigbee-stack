@@ -25,6 +25,9 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_nwk_key_ind, struct zzb_node *);
 DECLARE_FAKE_VOID_FUNC(zzb_bdb_leave, struct zzb_node *, bool);
 DECLARE_FAKE_VOID_FUNC(zzb_bdb_tc_link_key_ind, struct zzb_node *, uint64_t, const uint8_t *);
 DECLARE_FAKE_VOID_FUNC(zzb_zdo_node_desc_conf, struct zzb_node *, uint8_t, uint16_t, uint16_t);
+DECLARE_FAKE_VOID_FUNC(zzb_zdo_simple_desc_conf, struct zzb_node *, uint8_t, uint16_t,
+		       const struct zzb_zdo_simple_desc *);
+DECLARE_FAKE_VOID_FUNC(zzb_zdo_ieee_addr_conf, struct zzb_node *, uint8_t, uint16_t, uint64_t);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsme_bind_req, struct zzb_node *, const struct zzb_aps_binding *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsme_unbind_req, struct zzb_node *,
 			const struct zzb_aps_binding *);
@@ -36,6 +39,11 @@ DECLARE_FAKE_VOID_FUNC(zzb_zcl_data_ind, struct zzb_node *, struct net_buf *,
 
 /* The coordinator sends the requests */
 #define REQUESTER_ADDR 0x0000
+
+/* The descriptor of the last zzb_zdo_simple_desc_conf() with SUCCESS, and its cluster lists */
+extern struct zzb_zdo_simple_desc simple_desc;
+extern uint8_t simple_desc_in[16];
+extern uint8_t simple_desc_out[16];
 
 /* Copy of a frame passed to APSDE-DATA.request */
 struct frame_copy {

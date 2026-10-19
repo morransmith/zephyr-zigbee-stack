@@ -8,6 +8,7 @@
 #include "common/node.h"
 #include "common/queue.h"
 #include "zcl/zcl.h"
+#include "zdo/zdo.h"
 
 /* Identify cluster (ZCL 3.5) */
 #define CLUSTER_IDENTIFY 0x0003
@@ -58,6 +59,16 @@ void zzb_bdb_identify_end(struct zzb_node *node, uint8_t ep)
 
 	node->bdb.fb_target_ep = 0;
 	zzb_bdb_notify(node, ZZB_BDB_EVENT_FINDING_BINDING_TARGET, ZZB_BDB_SUCCESS);
+}
+
+/* The confirms of the ZDO client for finding & binding for an initiator (BDB 8.5) */
+void zzb_zdo_simple_desc_conf(struct zzb_node *node, uint8_t status, uint16_t addr,
+			      const struct zzb_zdo_simple_desc *desc)
+{
+}
+
+void zzb_zdo_ieee_addr_conf(struct zzb_node *node, uint8_t status, uint16_t addr, uint64_t ext_addr)
+{
 }
 
 void zzb_bdb_fb_clear(struct zzb_node *node)

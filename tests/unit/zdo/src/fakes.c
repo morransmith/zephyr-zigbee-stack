@@ -26,6 +26,9 @@ DEFINE_FAKE_VOID_FUNC(zzb_bdb_nwk_key_ind, struct zzb_node *);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_leave, struct zzb_node *, bool);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_tc_link_key_ind, struct zzb_node *, uint64_t, const uint8_t *);
 DEFINE_FAKE_VOID_FUNC(zzb_zdo_node_desc_conf, struct zzb_node *, uint8_t, uint16_t, uint16_t);
+DEFINE_FAKE_VOID_FUNC(zzb_zdo_simple_desc_conf, struct zzb_node *, uint8_t, uint16_t,
+		      const struct zzb_zdo_simple_desc *);
+DEFINE_FAKE_VOID_FUNC(zzb_zdo_ieee_addr_conf, struct zzb_node *, uint8_t, uint16_t, uint64_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsme_bind_req, struct zzb_node *, const struct zzb_aps_binding *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsme_unbind_req, struct zzb_node *,
 		       const struct zzb_aps_binding *);
@@ -125,6 +128,24 @@ struct zzb_node *test_node(void)
 	return node;
 }
 
+struct zzb_zdo_simple_desc simple_desc;
+uint8_t simple_desc_in[16];
+uint8_t simple_desc_out[16];
+
+static void simple_desc_copy(struct zzb_node *node, uint8_t status, uint16_t addr,
+			     const struct zzb_zdo_simple_desc *desc)
+{
+	if (desc == NULL) {
+		return;
+	}
+
+	zassert_true(2 * desc->in_count <= sizeof(simple_desc_in));
+	zassert_true(2 * desc->out_count <= sizeof(simple_desc_out));
+	simple_desc = *desc;
+	memcpy(simple_desc_in, desc->in, 2 * desc->in_count);
+	memcpy(simple_desc_out, desc->out, 2 * desc->out_count);
+}
+
 void reset_fakes(void)
 {
 	RESET_FAKE(zzb_apsde_data_req);
@@ -140,6 +161,8 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_bdb_leave);
 	RESET_FAKE(zzb_bdb_tc_link_key_ind);
 	RESET_FAKE(zzb_zdo_node_desc_conf);
+	RESET_FAKE(zzb_zdo_simple_desc_conf);
+	RESET_FAKE(zzb_zdo_ieee_addr_conf);
 	RESET_FAKE(zzb_apsme_bind_req);
 	RESET_FAKE(zzb_apsme_unbind_req);
 	RESET_FAKE(zzb_zcl_data_ind);
@@ -150,6 +173,7 @@ void reset_fakes(void)
 	zzb_apsme_bind_req_fake.custom_fake = bind_copy;
 	zzb_apsme_unbind_req_fake.custom_fake = bind_copy;
 	zzb_zcl_data_ind_fake.custom_fake = zcl_data_ind_drop;
+	zzb_zdo_simple_desc_conf_fake.custom_fake = simple_desc_copy;
 	binding = (struct zzb_aps_binding){0};
 	zzb_nlme_get_short_addr_fake.return_val = NODE_ADDR;
 	zzb_nwk_addr_map_find_fake.return_val = -ENOENT;

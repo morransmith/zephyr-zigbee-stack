@@ -13,6 +13,14 @@
 #define NODE_DESC_RSP_LEN  16
 #define SERVER_MASK_OFFSET (3 + 8)
 
+/* IEEE_addr_rsp of request type 0x00: status, IEEE address and network address */
+#define IEEE_ADDR_RSP_LEN 11
+
+/* Simple_Desc_rsp: status, NWKAddrOfInterest and length, then the descriptor */
+#define SIMPLE_DESC_OFFSET 4
+/* Endpoint, profile, device ID, device version and input cluster count */
+#define SIMPLE_DESC_MIN    7
+
 static void schedule(struct zzb_node *node)
 {
 	int64_t next = INT64_MAX;
@@ -32,13 +40,87 @@ static void schedule(struct zzb_node *node)
 				    K_MSEC(MAX(next - k_uptime_get(), 0)));
 }
 
-/* Frees the entry, then issues the confirm of its request */
-static void finish(struct zzb_node *node, struct zzb_zdo_transaction *t, uint8_t status,
-		   uint16_t server_mask)
+/* Parses the descriptor of a Simple_Desc_rsp with SUCCESS; false when it is short */
+static bool simple_desc(const struct zzb_zdo_req *rsp, struct zzb_zdo_simple_desc *desc)
 {
+	const uint8_t *p = rsp->payload + SIMPLE_DESC_OFFSET;
+	size_t len;
+	size_t out;
+
+	if (rsp->len < SIMPLE_DESC_OFFSET) {
+		return false;
+	}
+
+	len = rsp->payload[3];
+	if (len < SIMPLE_DESC_MIN || rsp->len < SIMPLE_DESC_OFFSET + len) {
+		return false;
+	}
+
+	/* The output cluster count follows the input cluster list */
+	out = SIMPLE_DESC_MIN + 2 * p[6];
+	if (len < out + 1 || len < out + 1 + 2 * p[out]) {
+		return false;
+	}
+
+	*desc = (struct zzb_zdo_simple_desc){
+		.ep = p[0],
+		.profile = sys_get_le16(p + 1),
+		.device_id = sys_get_le16(p + 3),
+		.in_count = p[6],
+		.in = p + SIMPLE_DESC_MIN,
+		.out_count = p[out],
+		.out = p + out + 1,
+	};
+	return true;
+}
+
+/* Whether a response with SUCCESS holds everything its cluster needs */
+static bool complete(uint16_t cluster, const struct zzb_zdo_req *rsp)
+{
+	struct zzb_zdo_simple_desc desc;
+
+	switch (cluster) {
+	case ZZB_ZDP_NODE_DESC_REQ:
+		return rsp->len >= NODE_DESC_RSP_LEN;
+	case ZZB_ZDP_IEEE_ADDR_REQ:
+		return rsp->len >= IEEE_ADDR_RSP_LEN;
+	default:
+		return simple_desc(rsp, &desc);
+	}
+}
+
+/*
+ * Frees the entry, then issues the confirm of its request with the response, NULL after the
+ * timeout
+ */
+static void finish(struct zzb_node *node, struct zzb_zdo_transaction *t,
+		   const struct zzb_zdo_req *rsp)
+{
+	uint8_t status = rsp != NULL ? rsp->payload[0] : ZZB_ZDP_TIMEOUT;
+	bool ok = status == ZZB_ZDP_SUCCESS;
+	struct zzb_zdo_simple_desc desc;
+	uint64_t ext_addr;
+
 	t->in_use = false;
 	schedule(node);
-	zzb_zdo_node_desc_conf(node, status, t->dst, server_mask);
+	switch (t->cluster) {
+	case ZZB_ZDP_NODE_DESC_REQ:
+		zzb_zdo_node_desc_conf(node, status, t->dst,
+				       ok ? sys_get_le16(rsp->payload + SERVER_MASK_OFFSET) : 0);
+		break;
+	case ZZB_ZDP_IEEE_ADDR_REQ:
+		ext_addr = ok ? sys_get_le64(rsp->payload + 1) : 0;
+		if (ok) {
+			zzb_nlme_set_addr_map(node, ext_addr, sys_get_le16(rsp->payload + 9));
+		}
+
+		zzb_zdo_ieee_addr_conf(node, status, t->dst, ext_addr);
+		break;
+	default:
+		zzb_zdo_simple_desc_conf(node, status, t->dst,
+					 ok && simple_desc(rsp, &desc) ? &desc : NULL);
+		break;
+	}
 }
 
 static void timer_handler(struct k_work *work)
@@ -49,7 +131,7 @@ static void timer_handler(struct k_work *work)
 
 	ARRAY_FOR_EACH_PTR(node->zdo.transactions, t) {
 		if (t->in_use && t->deadline <= now) {
-			finish(node, t, ZZB_ZDP_TIMEOUT, 0);
+			finish(node, t, NULL);
 		}
 	}
 
@@ -103,6 +185,24 @@ int zzb_zdo_node_desc_req(struct zzb_node *node, uint16_t addr)
 	return request(node, addr, ZZB_ZDP_NODE_DESC_REQ, payload, sizeof(payload));
 }
 
+int zzb_zdo_simple_desc_req(struct zzb_node *node, uint16_t addr, uint8_t ep)
+{
+	uint8_t payload[3];
+
+	sys_put_le16(addr, payload);
+	payload[2] = ep;
+	return request(node, addr, ZZB_ZDP_SIMPLE_DESC_REQ, payload, sizeof(payload));
+}
+
+/* Request type 0x00 (single device response) and start index 0 */
+int zzb_zdo_ieee_addr_req(struct zzb_node *node, uint16_t addr)
+{
+	uint8_t payload[4] = {0};
+
+	sys_put_le16(addr, payload);
+	return request(node, addr, ZZB_ZDP_IEEE_ADDR_REQ, payload, sizeof(payload));
+}
+
 /* The transaction of a response: the same TSN and cluster, from the destination of the request */
 static struct zzb_zdo_transaction *find(struct zzb_node *node, const struct zzb_zdo_req *rsp)
 {
@@ -143,15 +243,10 @@ void zzb_zdo_client(struct zzb_node *node, const struct zzb_zdo_req *rsp)
 		return;
 	}
 
-	if (rsp->payload[0] != ZZB_ZDP_SUCCESS) {
-		finish(node, t, rsp->payload[0], 0);
+	/* A short response with SUCCESS leaves the transaction to its timeout */
+	if (rsp->payload[0] == ZZB_ZDP_SUCCESS && !complete(t->cluster, rsp)) {
 		return;
 	}
 
-	/* A short descriptor leaves the transaction to its timeout */
-	if (rsp->len < NODE_DESC_RSP_LEN) {
-		return;
-	}
-
-	finish(node, t, ZZB_ZDP_SUCCESS, sys_get_le16(rsp->payload + SERVER_MASK_OFFSET));
+	finish(node, t, rsp);
 }
