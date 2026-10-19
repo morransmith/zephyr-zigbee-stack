@@ -8,10 +8,13 @@
 
 set -eu
 
-# The network key of the integration tests and the default trust center link key
-# "ZigBeeAlliance09"; tshark derives the key-transport and key-load keys itself
+# The network keys 0 and 1 of the integration tests, the default trust center link key
+# "ZigBeeAlliance09" and trust center link key B; tshark derives the key-transport and key-load
+# keys itself
 keys="00:01:02:03:04:05:06:07:08:09:0a:0b:0c:0d:0e:0f
-5a:69:67:42:65:65:41:6c:6c:69:61:6e:63:65:30:39"
+10:11:12:13:14:15:16:17:18:19:1a:1b:1c:1d:1e:1f
+5a:69:67:42:65:65:41:6c:6c:69:61:6e:63:65:30:39
+20:21:22:23:24:25:26:27:28:29:2a:2b:2c:2d:2e:2f"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -56,14 +59,22 @@ for log in $logs; do
 	fi
 
 	text2pcap -q -l 230 "$tmp/frames.txt" "$tmp/frames.pcap" > /dev/null
-	# Each auxiliary header adds a key identifier, each decrypted one a key
+	# Each auxiliary header adds a key identifier, each decrypted one a key. tshark does not
+	# decrypt the empty payload of an APS ACK (frame type 0x02) with APS security.
 	tshark -r "$tmp/frames.pcap" "$@" -T fields -E separator=';' -e frame.number \
-		-e zbee_nwk.security -e zbee_aps.security -e zbee.sec.key_id -e zbee.sec.key \
-		> "$tmp/fields.txt"
+		-e zbee_nwk.security -e zbee_aps.security -e zbee_aps.type -e zbee.sec.key_id \
+		-e zbee.sec.key > "$tmp/fields.txt"
 
 	secured=$(awk -F';' '$2 == "True" || $3 == "True"' "$tmp/fields.txt" | wc -l)
-	failed=$(awk -F';' '($2 == "True" || $3 == "True") &&
-		split($4, ids, ",") != split($5, keys, ",") { printf " %s", $1 }' "$tmp/fields.txt")
+	failed=$(awk -F';' '$2 == "True" || $3 == "True" {
+		missing = split($5, ids, ",") - split($6, keys, ",")
+		if (missing == 1 && $3 == "True" && $4 == "0x02") {
+			missing = 0
+		}
+		if (missing != 0) {
+			printf " %s", $1
+		}
+	}' "$tmp/fields.txt")
 	if [ "$secured" -eq 0 ]; then
 		echo "$log: no frame with NWK or APS security"
 		exit 1
