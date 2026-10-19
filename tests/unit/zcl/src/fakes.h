@@ -11,6 +11,7 @@
 #include <zzb/zcl/alarms.h>
 #include <zzb/zcl/ballast.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/color.h>
 #include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
@@ -151,6 +152,24 @@ extern struct zzb_zcl_ballast ballast;
 extern struct zzb_zcl_illuminance illuminance;
 extern struct zzb_zcl_illuminance_level illuminance_level;
 extern struct zzb_zcl_occupancy occupancy;
+
+/*
+ * The Scenes, On/Off, Level Control and Color Control servers of an Extended Color Light on
+ * endpoint 40 (ColorCapabilities 0x0018), and the On/Off, Level Control and Color Control servers
+ * of a Color Temperature Light on endpoint 41 (0x0010). Both have this range of color temperature
+ * and the factory StartUpColorTemperatureMireds 0xffff.
+ */
+#define COLOR_TEMP_MIN   153
+#define COLOR_TEMP_MAX   500
+#define COLOR_COUPLE_MIN 200
+
+extern struct zzb_zcl_scenes scenes40;
+extern struct zzb_zcl_on_off on_off40;
+extern struct zzb_zcl_level level40;
+extern struct zzb_zcl_color color40;
+extern struct zzb_zcl_on_off on_off41;
+extern struct zzb_zcl_level level41;
+extern struct zzb_zcl_color color41;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

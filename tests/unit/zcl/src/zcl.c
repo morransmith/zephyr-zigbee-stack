@@ -187,7 +187,7 @@ ZTEST(zzb_zcl, test_broadcast_endpoint)
 	zassert_equal(cmd_calls.cmd.ep, 2);
 	zassert_equal_ptr(cmd_calls.values, &values2);
 
-	no_cluster.cluster = 0x0300;
+	no_cluster.cluster = 0x0702;
 	receive_ind(&no_cluster, (uint8_t[]){0x01, 0x39, 0x02}, 3);
 	zassert_equal(cmd_calls.count, 2);
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
