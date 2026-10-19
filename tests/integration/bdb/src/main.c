@@ -5,10 +5,15 @@
 #include <zzb/zzb.h>
 
 #include "aps/aps.h"
+#include "bdb/bdb.h"
+#include "common/fc.h"
 #include "common/node.h"
+#include "common/queue.h"
 #include "fake_radio.h"
 #include "nwk/nwk.h"
 #include "parent.h"
+#include "storage/settings.h"
+#include "zdo/zdo.h"
 
 #define PARENT_ADDR  0x0000
 #define PARENT_EUI64 0x00124b0000000001ULL
@@ -63,6 +68,40 @@ static void steer(void)
 {
 	zassert_ok(zzb_bdb_steering(child));
 	k_sleep(K_SECONDS(2));
+}
+
+struct reboot_call {
+	struct k_work work;
+	int err;
+};
+
+/* The layers above the MAC start again from their records, as zzb_node_init() does */
+static void reboot_handler(struct k_work *work)
+{
+	struct reboot_call *call = CONTAINER_OF(work, struct reboot_call, work);
+
+	zzb_nwk_init(child);
+	zzb_aps_init(child);
+	zzb_zdo_init(child);
+	call->err = zzb_settings_load(child);
+	if (call->err == 0) {
+		call->err = zzb_fc_start(&child->nwk.fc);
+	}
+
+	if (call->err == 0) {
+		call->err = zzb_fc_start(&child->aps.fc);
+	}
+
+	zzb_bdb_init(child);
+}
+
+static void reboot(void)
+{
+	struct reboot_call call = {0};
+
+	zzb_call_sync(&call.work, reboot_handler);
+	zassert_ok(call.err);
+	events.count = 0;
 }
 
 static void *setup(void)
@@ -127,6 +166,58 @@ ZTEST(zzb_bdb_integration, test_steering_with_an_r20_trust_center)
 	zassert_not_null(pair);
 	zassert_mem_equal(pair->key, zzb_aps_default_tc_link_key, ZZB_SEC_KEY_LEN);
 	zassert_equal(pair->attr, ZZB_APS_KEY_PROVISIONAL);
+}
+
+/* BDB 7.1: a secure rejoin on the channel of the network, then Device_annce */
+ZTEST(zzb_bdb_integration, test_reboot_rejoins)
+{
+	steer();
+	reboot();
+	zassert_ok(zzb_bdb_start(child));
+	k_sleep(K_SECONDS(2));
+
+	check_event(ZZB_BDB_EVENT_INIT, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.rejoin_reqs, 1);
+	zassert_true(parent_log.rejoin_hdr.flags & ZZB_NWK_SECURITY);
+	zassert_equal(parent_log.device_annces, 2);
+	zassert_equal(child->nwk.nib.short_addr, CHILD_ADDR);
+}
+
+/* BDB 9.4: the response, the leave command, then the reset */
+ZTEST(zzb_bdb_integration, test_mgmt_leave_resets_the_node)
+{
+	steer();
+	events.count = 0;
+	parent_send_mgmt_leave(false);
+	k_sleep(K_MSEC(100));
+
+	check_event(ZZB_BDB_EVENT_LEFT, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.mgmt_leave_rsps, 1);
+	zassert_equal(parent_log.leaves, 1);
+	zassert_equal(parent_log.cmd.leave_options, 0);
+	zassert_is_null(zzb_aps_key_pair_find(child, PARENT_EUI64));
+
+	/* The NWK records are gone */
+	reboot();
+	zassert_ok(zzb_bdb_start(child));
+	check_event(ZZB_BDB_EVENT_INIT, ZZB_BDB_NOT_ON_A_NETWORK);
+}
+
+/*
+ * The poll keepalive fails three times, 3.33 s apart; the secure rejoin on the old channel finds
+ * no beacon, the one on all channels finds the parent
+ */
+ZTEST(zzb_bdb_integration, test_parent_moves_to_another_channel)
+{
+	steer();
+	events.count = 0;
+	parent_set_channel(20);
+	k_sleep(K_SECONDS(16));
+
+	check_event(ZZB_BDB_EVENT_REJOIN, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.rejoin_reqs, 1);
+	zassert_equal(parent_log.device_annces, 2);
+	zassert_equal(child->nwk.nib.channel, 20);
 }
 
 ZTEST_SUITE(zzb_bdb_integration, NULL, setup, before, NULL, NULL);

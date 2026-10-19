@@ -78,6 +78,12 @@ void parent_set_stack_revision(uint8_t revision);
  */
 void parent_send_key_after_join(bool send);
 
+/* Sends Mgmt_Leave_req for the child, from the stack thread */
+void parent_send_mgmt_leave(bool rejoin);
+
+/* Moves the parent to another channel */
+void parent_set_channel(uint8_t channel);
+
 /* Leaves the next count APS data frames without ACK */
 void parent_withhold_aps_acks(int count);
 

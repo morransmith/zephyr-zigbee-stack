@@ -80,6 +80,7 @@ static void schedule_key(void)
 #define NODE_DESC_REQ           0x0002
 #define DEVICE_ANNCE            0x0013
 #define MGMT_PERMIT_JOINING_REQ 0x0036
+#define MGMT_LEAVE_REQ          0x0034
 #define MGMT_LEAVE_RSP          0x8034
 
 static struct zzb_mac_addr short_addr(uint16_t addr)
@@ -709,4 +710,36 @@ void parent_set_stack_revision(uint8_t revision)
 void parent_send_key_after_join(bool send)
 {
 	parent.key_after_join = send;
+}
+
+struct mgmt_leave_call {
+	struct k_work work;
+	bool rejoin;
+};
+
+/* R22 2.4.3.3.5: the device address of the child, rejoin in bit 7 */
+static void mgmt_leave_handler(struct k_work *work)
+{
+	struct mgmt_leave_call *call = CONTAINER_OF(work, struct mgmt_leave_call, work);
+	uint8_t req[10] = {0x45};
+
+	sys_put_le64(parent.child_eui64, req + 1);
+	req[9] = call->rejoin ? BIT(7) : 0;
+	send_zdo(MGMT_LEAVE_REQ, req, sizeof(req));
+}
+
+void parent_send_mgmt_leave(bool rejoin)
+{
+	struct mgmt_leave_call call = {
+		.rejoin = rejoin,
+	};
+
+	zzb_call_sync(&call.work, mgmt_leave_handler);
+}
+
+void parent_set_channel(uint8_t channel)
+{
+	const struct ieee802154_radio_api *api = fake_radios[0]->api;
+
+	zassert_ok(api->set_channel(fake_radios[0], channel));
 }
