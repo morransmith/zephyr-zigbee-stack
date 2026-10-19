@@ -8,6 +8,7 @@
 #include <zephyr/fff.h>
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
+#include <zzb/zcl/basic.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
@@ -22,7 +23,10 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
 #define REQUESTER_ADDR 0x0000
 #define REQUESTER_EP   0x01
 
-/* A cluster of the test: a server on endpoints 1 and 2, not on endpoint 3 */
+/*
+ * A cluster of the test: a server on endpoints 1 and 2, not on endpoint 3. Endpoint 2 also has the
+ * servers of the stack.
+ */
 #define TEST_CLUSTER 0x0f00
 
 /* An On/Off client without a definition on endpoints 1 and 3 */
@@ -48,6 +52,9 @@ struct test_values {
 
 extern struct test_values values1;
 extern struct test_values values2;
+
+/* The Basic server on endpoint 2 */
+extern struct zzb_zcl_basic basic;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
@@ -105,7 +112,10 @@ void check_no_buffer_leak(void);
 /* Passes the ASDU to ZCL as APSDE-DATA.indication with the parameters of ind */
 void receive_ind(const struct zzb_apsde_ind *ind, const uint8_t *asdu, size_t len);
 
-/* Passes a ZCL frame of cluster from the requester to endpoint 1 as unicast, with profile 0x0104 */
+/* Passes a ZCL frame of cluster from the requester to endpoint ep as unicast, profile 0x0104 */
+void receive_ep(uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_t len);
+
+/* receive_ep() to endpoint 1 */
 void receive(uint16_t cluster, const uint8_t *asdu, size_t len);
 
 /* Loads the settings records of the node again, on the stack thread */

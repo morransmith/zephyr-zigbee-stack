@@ -17,6 +17,23 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_bu
 
 struct test_values values1;
 struct test_values values2;
+
+static const uint8_t product_code[] = {0x03, 0x00, 'Z', 'Z'};
+
+struct zzb_zcl_basic basic = {
+	.app_version = 1,
+	.stack_version = 2,
+	.hw_version = 3,
+	.manufacturer_name = "zzb",
+	.model_id = "test",
+	.date_code = "20261019",
+	.power_source = 0x01,
+	.generic_device_class = 0xff,
+	.generic_device_type = 0xff,
+	.product_code = product_code,
+	.product_url = "u",
+	.sw_build_id = "1.0",
+};
 struct cmd_calls cmd_calls;
 int cmd_status;
 struct changed_calls hook_calls;
@@ -90,6 +107,7 @@ static const struct zzb_zcl_cluster ep1_clusters[] = {
 
 static const struct zzb_zcl_cluster ep2_clusters[] = {
 	{.id = TEST_CLUSTER, .server = true, .values = &values2, .def = &test_def},
+	ZZB_ZCL_BASIC_SERVER(&basic),
 };
 
 static const struct zzb_zcl_cluster ep3_clusters[] = {
@@ -192,11 +210,11 @@ void receive_ind(const struct zzb_apsde_ind *ind, const uint8_t *asdu, size_t le
 	zzb_zcl_data_ind(test_node(), buf, ind);
 }
 
-void receive(uint16_t cluster, const uint8_t *asdu, size_t len)
+void receive_ep(uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_t len)
 {
 	const struct zzb_apsde_ind ind = {
 		.dst_addr = NODE_ADDR,
-		.dst_ep = 1,
+		.dst_ep = ep,
 		.src_addr = REQUESTER_ADDR,
 		.src_ep = REQUESTER_EP,
 		.profile = 0x0104,
@@ -205,6 +223,11 @@ void receive(uint16_t cluster, const uint8_t *asdu, size_t len)
 	};
 
 	receive_ind(&ind, asdu, len);
+}
+
+void receive(uint16_t cluster, const uint8_t *asdu, size_t len)
+{
+	receive_ep(1, cluster, asdu, len);
 }
 
 void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_t len)
