@@ -19,6 +19,7 @@ DEFINE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node 
 DEFINE_FAKE_VALUE_FUNC(uint8_t, zzb_nlme_get_capability, const struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_nlme_get_ext_pan_id, const struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_leave_req, struct zzb_node *, bool);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_set_channel, struct zzb_node *, uint8_t, uint8_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsme_bind_req, struct zzb_node *, const struct zzb_aps_binding *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsme_unbind_req, struct zzb_node *,
 		       const struct zzb_aps_binding *);
@@ -110,6 +111,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nlme_get_capability);
 	RESET_FAKE(zzb_nlme_get_ext_pan_id);
 	RESET_FAKE(zzb_nlme_leave_req);
+	RESET_FAKE(zzb_nlme_set_channel);
 	RESET_FAKE(zzb_apsme_bind_req);
 	RESET_FAKE(zzb_apsme_unbind_req);
 	FFF_RESET_HISTORY();

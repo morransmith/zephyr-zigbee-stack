@@ -28,6 +28,9 @@ struct zzb_node;
 /* MSDU handles from 0xf0 belong to NWK command frames: 0xf0 | command identifier */
 #define ZZB_NWK_CMD_HANDLE 0xf0
 
+/* nwkNetworkBroadcastDeliveryTime at 2.4 GHz (R22 3.5.2.1) */
+#define ZZB_NWK_BROADCAST_DELIVERY_MS 9000
+
 /* Default radius: 2 * nwkMaxDepth (15 for the Zigbee PRO stack profile) */
 #define ZZB_NWK_DEFAULT_RADIUS 30
 

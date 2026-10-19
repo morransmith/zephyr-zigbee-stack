@@ -215,6 +215,9 @@ void zzb_zdo_server(struct zzb_node *node, const struct zzb_zdo_req *req)
 	case ZZB_ZDP_MGMT_LEAVE_REQ:
 		zzb_zdo_serve_mgmt_leave(node, req);
 		return;
+	case ZZB_ZDP_MGMT_NWK_UPDATE_REQ:
+		zzb_zdo_serve_mgmt_nwk_update(node, req);
+		return;
 	}
 
 	/* R22 2.4.4.1: no error status answers a broadcast */

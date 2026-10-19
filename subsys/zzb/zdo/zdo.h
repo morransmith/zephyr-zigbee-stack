@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <zephyr/kernel.h>
 #include <zephyr/sys/util_macro.h>
 
 struct zzb_node;
@@ -28,6 +29,7 @@ enum zzb_zdp_cluster {
 	ZZB_ZDP_MGMT_BIND_REQ = 0x0033,
 	ZZB_ZDP_MGMT_LEAVE_REQ = 0x0034,
 	ZZB_ZDP_MGMT_PERMIT_JOINING_REQ = 0x0036,
+	ZZB_ZDP_MGMT_NWK_UPDATE_REQ = 0x0038,
 };
 
 /* ZDP status values (R22 Table 2-145) */
@@ -53,6 +55,10 @@ struct zzb_zdo {
 	bool leave_pending;
 	/* The Rejoin flag of the last Mgmt_Leave_req for the node, which BDB reads */
 	bool leave_rejoin;
+	/* Channel change of Mgmt_NWK_Update_req after nwkNetworkBroadcastDeliveryTime */
+	struct k_work_delayable channel_timer;
+	uint8_t channel;
+	uint8_t update_id;
 };
 
 /* A received request */
@@ -94,6 +100,9 @@ void zzb_zdo_serve_mgmt_lqi(struct zzb_node *node, const struct zzb_zdo_req *req
 void zzb_zdo_serve_mgmt_bind(struct zzb_node *node, const struct zzb_zdo_req *req);
 void zzb_zdo_serve_mgmt_permit_joining(struct zzb_node *node, const struct zzb_zdo_req *req);
 void zzb_zdo_serve_mgmt_leave(struct zzb_node *node, const struct zzb_zdo_req *req);
+void zzb_zdo_serve_mgmt_nwk_update(struct zzb_node *node, const struct zzb_zdo_req *req);
+
+void zzb_zdo_mgmt_init(struct zzb_node *node);
 
 /* Leaves the network after the confirm of Mgmt_Leave_rsp */
 void zzb_zdo_leave(struct zzb_node *node);

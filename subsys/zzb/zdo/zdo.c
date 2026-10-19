@@ -12,9 +12,12 @@
 
 void zzb_zdo_init(struct zzb_node *node)
 {
+	/* Safe on the zeroed struct of a new node */
+	k_work_cancel_delayable(&node->zdo.channel_timer);
 	node->zdo = (struct zzb_zdo){
 		.tsn = sys_rand8_get(),
 	};
+	zzb_zdo_mgmt_init(node);
 }
 
 int zzb_zdo_send(struct zzb_node *node, uint16_t dst, uint16_t cluster, uint8_t tsn,

@@ -11,6 +11,7 @@
 #define MGMT_BIND_REQ           0x0033
 #define MGMT_LEAVE_REQ          0x0034
 #define MGMT_PERMIT_JOINING_REQ 0x0036
+#define MGMT_NWK_UPDATE_REQ     0x0038
 
 static struct zzb_node *node;
 
@@ -202,6 +203,75 @@ ZTEST(zzb_zdo_mgmt, test_mgmt_leave_of_another_device)
 	receive(MGMT_LEAVE_REQ, NODE_ADDR, req, sizeof(req));
 	check_response(0, MGMT_LEAVE_REQ | 0x8000, (uint8_t[]){0x46, 0xc8}, 2);
 	zassert_equal(zzb_nlme_leave_req_fake.call_count, 0);
+}
+
+/* R22 Annex E: the node switches after nwkNetworkBroadcastDeliveryTime, 9 s */
+ZTEST(zzb_zdo_mgmt, test_channel_change)
+{
+	/* Channel 15, scan duration 0xfe, nwkUpdateId 7 */
+	uint8_t req[] = {0x47, 0x00, 0x80, 0x00, 0x00, 0xfe, 0x07};
+
+	receive(MGMT_NWK_UPDATE_REQ, 0xfffd, req, sizeof(req));
+	k_sleep(K_MSEC(8900));
+	zassert_equal(zzb_nlme_set_channel_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_nlme_set_channel_fake.call_count, 1);
+	zassert_equal(zzb_nlme_set_channel_fake.arg1_val, 15);
+	/* Copied from the request, as in R23 Annex E */
+	zassert_equal(zzb_nlme_set_channel_fake.arg2_val, 7);
+
+	/* A new request replaces the pending one: channel 26 */
+	receive(MGMT_NWK_UPDATE_REQ, 0xfffd, req, sizeof(req));
+	k_sleep(K_MSEC(5000));
+	req[2] = 0x00;
+	req[4] = 0x04;
+	req[6] = 0x08;
+	receive(MGMT_NWK_UPDATE_REQ, NODE_ADDR, req, sizeof(req));
+	k_sleep(K_MSEC(9100));
+	zassert_equal(zzb_nlme_set_channel_fake.call_count, 2);
+	zassert_equal(zzb_nlme_set_channel_fake.arg1_val, 26);
+	zassert_equal(zzb_nlme_set_channel_fake.arg2_val, 8);
+
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
+/* R22 2.4.3.3.9: errors answer only a unicast request */
+ZTEST(zzb_zdo_mgmt, test_rejected_mgmt_nwk_update)
+{
+	/* Channels 15 and 16 */
+	uint8_t req[] = {0x48, 0x00, 0x80, 0x01, 0x00, 0xfe, 0x07};
+	/* Scan duration 0xff with nwkUpdateId and nwkManagerAddr */
+	static const uint8_t manager[] = {0x48, 0x00, 0x80, 0x00, 0x00, 0xff, 0x07, 0x00, 0x00};
+
+	receive(MGMT_NWK_UPDATE_REQ, 0xfffd, req, sizeof(req));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	receive(MGMT_NWK_UPDATE_REQ, NODE_ADDR, req, sizeof(req));
+	check_response(0, MGMT_NWK_UPDATE_REQ | 0x8000, (uint8_t[]){0x48, 0xc2}, 2);
+
+	/* Channel page 1 */
+	req[2] = 0x00;
+	req[3] = 0x00;
+	req[4] = 0x08;
+	receive(MGMT_NWK_UPDATE_REQ, NODE_ADDR, req, sizeof(req));
+	check_response(1, MGMT_NWK_UPDATE_REQ | 0x8000, (uint8_t[]){0x48, 0xc2}, 2);
+
+	/* The MAC has no energy scan */
+	req[5] = 0x03;
+	req[6] = 0x01;
+	receive(MGMT_NWK_UPDATE_REQ, 0xfffd, req, sizeof(req));
+	receive(MGMT_NWK_UPDATE_REQ, NODE_ADDR, req, sizeof(req));
+	check_response(2, MGMT_NWK_UPDATE_REQ | 0x8000, (uint8_t[]){0x48, 0x84}, 2);
+
+	req[5] = 0x06;
+	receive(MGMT_NWK_UPDATE_REQ, NODE_ADDR, req, sizeof(req));
+	check_response(3, MGMT_NWK_UPDATE_REQ | 0x8000, (uint8_t[]){0x48, 0xc2}, 2);
+
+	/* apsChannelMaskList and nwkManagerAddr are not kept */
+	receive(MGMT_NWK_UPDATE_REQ, NODE_ADDR, manager, sizeof(manager));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
+
+	k_sleep(K_MSEC(9100));
+	zassert_equal(zzb_nlme_set_channel_fake.call_count, 0);
 }
 
 ZTEST_SUITE(zzb_zdo_mgmt, NULL, setup, before, after, NULL);

@@ -4,6 +4,7 @@
 
 #include "aps/aps.h"
 #include "common/node.h"
+#include "common/queue.h"
 #include "nwk/nwk.h"
 #include "zdo/zdo.h"
 
@@ -164,4 +165,74 @@ void zzb_zdo_serve_mgmt_leave(struct zzb_node *node, const struct zzb_zdo_req *r
 			 sizeof(status), ZZB_ZDO_LEAVE_HANDLE) != 0) {
 		zzb_zdo_leave(node);
 	}
+}
+
+/* Channels 11 to 26 of channel page 0 */
+#define CHANNELS_2400_MHZ 0x07fff800
+
+static void channel_handler(struct k_work *work)
+{
+	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+	struct zzb_node *node = CONTAINER_OF(dwork, struct zzb_node, zdo.channel_timer);
+
+	/* On an error BDB finds the network by a rejoin on all channels */
+	zzb_nlme_set_channel(node, node->zdo.channel, node->zdo.update_id);
+}
+
+void zzb_zdo_mgmt_init(struct zzb_node *node)
+{
+	k_work_init_delayable(&node->zdo.channel_timer, channel_handler);
+}
+
+/* R22 2.4.3.3.9: Mgmt_NWK_Update_notify with the status only answers an error */
+static void update_error(struct zzb_node *node, const struct zzb_zdo_req *req, uint8_t status)
+{
+	if (!req->broadcast) {
+		zzb_zdo_respond(node, req, &status, sizeof(status));
+	}
+}
+
+/*
+ * R22 2.4.3.3.9, Annex E. The channel changes after nwkNetworkBroadcastDeliveryTime, and
+ * nwkUpdateId is copied from the request, as in R23 Annex E.
+ */
+void zzb_zdo_serve_mgmt_nwk_update(struct zzb_node *node, const struct zzb_zdo_req *req)
+{
+	uint32_t channels;
+	uint8_t duration;
+
+	if (req->len < 5) {
+		return;
+	}
+
+	channels = sys_get_le32(req->payload);
+	duration = req->payload[4];
+	if (duration <= 0x05) {
+		update_error(node, req, ZZB_ZDP_NOT_SUPPORTED);
+		return;
+	}
+
+	/* apsChannelMaskList and nwkManagerAddr are not kept */
+	if (duration == 0xff) {
+		return;
+	}
+
+	if (duration != 0xfe) {
+		update_error(node, req, ZZB_NWK_STATUS_INVALID_REQUEST);
+		return;
+	}
+
+	if (req->len < 6) {
+		return;
+	}
+
+	if ((channels & ~CHANNELS_2400_MHZ) != 0 || !IS_POWER_OF_TWO(channels)) {
+		update_error(node, req, ZZB_NWK_STATUS_INVALID_REQUEST);
+		return;
+	}
+
+	node->zdo.channel = find_lsb_set(channels) - 1;
+	node->zdo.update_id = req->payload[5];
+	k_work_reschedule_for_queue(&zzb_workq, &node->zdo.channel_timer,
+				    K_MSEC(ZZB_NWK_BROADCAST_DELIVERY_MS));
 }
