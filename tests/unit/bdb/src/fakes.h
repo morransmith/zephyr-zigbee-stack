@@ -28,6 +28,7 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsme_verify_key_req, struct zzb_node *, uint64
 			enum zzb_aps_key_type);
 DECLARE_FAKE_VOID_FUNC(zzb_zdo_init, struct zzb_node *);
 DECLARE_FAKE_VOID_FUNC(zzb_zcl_reset, struct zzb_node *);
+DECLARE_FAKE_VALUE_FUNC(int, zzb_zcl_identify, struct zzb_node *, uint8_t, uint16_t);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_device_annce_req, struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_node_desc_req, struct zzb_node *, uint16_t);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_mgmt_permit_joining_req, struct zzb_node *, uint8_t, bool);
@@ -39,6 +40,10 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_mgmt_permit_joining_req, struct zzb_node *,
 #define CAPABILITY 0x8c
 
 #define TC_EUI64 0x00124b0000000001ULL
+
+/* Endpoint 1 has an Identify server, endpoint 2 none */
+#define IDENTIFY_EP 1
+#define OTHER_EP    2
 
 /* The trust center entry that zzb_aps_key_pair_find() returns, with the default key */
 extern struct zzb_aps_key_pair tc_pair;

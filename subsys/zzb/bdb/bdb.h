@@ -15,6 +15,9 @@ struct zzb_nwk_network;
 /* Delay before an NLME request that returned -EBUSY is issued again */
 #define ZZB_BDB_RETRY_MS 1000
 
+/* bdbcMinCommissioningTime */
+#define ZZB_BDB_MIN_COMMISSIONING_S 180
+
 /* bdbScanDuration */
 #define ZZB_BDB_SCAN_DURATION 3
 
@@ -74,6 +77,8 @@ struct zzb_bdb {
 	/* bdbTCLinkKeyExchangeAttempts */
 	uint8_t attempts;
 	struct k_work_delayable timer;
+	/* The endpoint of finding & binding for a target, or 0 */
+	uint8_t fb_target_ep;
 };
 
 /*
@@ -130,5 +135,11 @@ void zzb_bdb_tclk_timer(struct zzb_node *node);
 
 /* Called by ZDO for a Transport Key with a trust center link key of ZZB_SEC_KEY_LEN bytes */
 void zzb_bdb_tc_link_key_ind(struct zzb_node *node, uint64_t src_addr, const uint8_t *key);
+
+/* Called by ZCL when IdentifyTime of the Identify server on ep becomes 0 */
+void zzb_bdb_identify_end(struct zzb_node *node, uint8_t ep);
+
+/* Ends finding & binding without an event, at the reset of the node */
+void zzb_bdb_fb_clear(struct zzb_node *node);
 
 #endif /* ZZB_SUBSYS_BDB_BDB_H_ */

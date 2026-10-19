@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/identify.h>
 
 #include "common/node.h"
+#include "bdb/bdb.h"
 #include "common/timer.h"
 #include "zcl/zcl.h"
 
@@ -63,6 +65,13 @@ static void tick(struct k_work *work)
 
 static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
 {
+	const struct zzb_zcl_identify *v = values;
+
+	/* The end of the identification ends finding & binding for a target (BDB 8.4 step 5) */
+	if (v->identify_time == 0) {
+		zzb_bdb_identify_end(node, ep);
+	}
+
 	if (identifying(node)) {
 		zzb_timer_arm(&node->zcl.identify_timer, K_SECONDS(1));
 	} else {
@@ -131,6 +140,18 @@ const struct zzb_zcl_cluster_def zzb_zcl_identify_def = {
 	.cmd = cmd,
 	.changed = changed,
 };
+
+int zzb_zcl_identify(struct zzb_node *node, uint8_t ep, uint16_t time)
+{
+	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
+
+	if (e == NULL || server(e) == NULL) {
+		return -ENOENT;
+	}
+
+	zzb_zcl_set(node, ep, ZZB_ZCL_IDENTIFY, ZZB_ZCL_IDENTIFY_TIME, time);
+	return 0;
+}
 
 void zzb_zcl_identify_init(struct zzb_node *node)
 {

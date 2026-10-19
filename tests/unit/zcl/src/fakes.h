@@ -19,6 +19,7 @@
 
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 			const struct zzb_apsde_req *);
+DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 
 #define NODE_EUI64 0x00124b0001020304ULL
 #define NODE_ADDR  0x5678

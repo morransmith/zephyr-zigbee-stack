@@ -15,6 +15,7 @@ DEFINE_FFF_GLOBALS;
 
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 		       const struct zzb_apsde_req *);
+DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 
 struct test_values values1;
 struct test_values values2;
@@ -284,6 +285,7 @@ struct zzb_node *test_node(void)
 void reset_fakes(void)
 {
 	RESET_FAKE(zzb_apsde_data_req);
+	RESET_FAKE(zzb_bdb_identify_end);
 	FFF_RESET_HISTORY();
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;

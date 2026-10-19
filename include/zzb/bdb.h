@@ -3,6 +3,8 @@
 #ifndef ZZB_INCLUDE_ZZB_BDB_H_
 #define ZZB_INCLUDE_ZZB_BDB_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,6 +29,8 @@ enum zzb_bdb_event {
 	ZZB_BDB_EVENT_REJOIN,
 	/** The node has left its network and is reset. */
 	ZZB_BDB_EVENT_LEFT,
+	/** Finding & binding for a target endpoint of zzb_bdb_finding_binding_target(). */
+	ZZB_BDB_EVENT_FINDING_BINDING_TARGET,
 };
 
 /**
@@ -71,6 +75,20 @@ int zzb_bdb_steering(struct zzb_node *node);
  * @retval -EBUSY the network layer runs a procedure.
  */
 int zzb_bdb_reset(struct zzb_node *node);
+
+/**
+ * @brief Start finding & binding for a target endpoint (BDB 8.4).
+ *
+ * The Identify server on ep identifies for bdbcMinCommissioningTime (180 s), and an initiator can
+ * find and bind it. ZZB_BDB_EVENT_FINDING_BINDING_TARGET ends the procedure when IdentifyTime
+ * becomes 0, or reports ZZB_BDB_NOT_ON_A_NETWORK at once on a node off a network. The procedure
+ * runs beside the other BDB procedures; the reset of the node ends it without an event.
+ *
+ * @retval 0 on success.
+ * @retval -ENOENT ep has no Identify server.
+ * @retval -EBUSY finding & binding for a target runs.
+ */
+int zzb_bdb_finding_binding_target(struct zzb_node *node, uint8_t ep);
 
 #ifdef __cplusplus
 }

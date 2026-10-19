@@ -129,6 +129,12 @@ void zzb_zcl_store(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t
 void zzb_zcl_start(struct zzb_node *node);
 
 void zzb_zcl_identify_init(struct zzb_node *node);
+
+/*
+ * Sets IdentifyTime of the Identify server on ep, with zcl_cb, for finding & binding. Returns
+ * -ENOENT without the server.
+ */
+int zzb_zcl_identify(struct zzb_node *node, uint8_t ep, uint16_t time);
 void zzb_zcl_on_off_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
