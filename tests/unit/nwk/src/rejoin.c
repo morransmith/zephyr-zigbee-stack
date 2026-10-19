@@ -348,6 +348,29 @@ ZTEST(zzb_nwk_rejoin, test_trust_center_rejoin)
 	zassert_equal(cmd.id, ZZB_NWK_CMD_ED_TIMEOUT_REQ);
 }
 
+/* The network key of a trust center rejoin did not arrive; a secure rejoin follows */
+ZTEST(zzb_nwk_rejoin, test_secure_rejoin_ends_a_pending_key)
+{
+	uint8_t rec[64];
+
+	zassert_ok(rejoin(false));
+	notify_beacon(child, &parent_beacon, PAN_ID, PARENT_SHORT, CHANNEL, SF_COORD, 150);
+	end_scan();
+	check_request_security(0, PARENT_SHORT, parent->eui64, CHILD_SHORT, 0);
+	respond_security(CHILD_SHORT, 0x00, child->eui64, 0);
+	zassert_true(child->nwk.key_pending);
+
+	RESET_FAKE(zzb_nlme_join_conf);
+	zassert_ok(rejoin(true));
+	notify_beacon(child, &parent_beacon, PAN_ID, PARENT_SHORT, CHANNEL, SF_COORD, 150);
+	end_scan();
+	check_request(1, PARENT_SHORT, parent->eui64, CHILD_SHORT);
+	respond(CHILD_SHORT, 0x00, child->eui64);
+	check_conf(ZZB_NWK_STATUS_SUCCESS);
+	zassert_false(child->nwk.key_pending);
+	zassert_equal(load_record("nwk/net", rec, sizeof(rec)), 28);
+}
+
 /* R22 3.6.2.2: only a trust center rejoin takes an unsecured rejoin response */
 ZTEST(zzb_nwk_rejoin, test_secure_rejoin_needs_a_secured_response)
 {
