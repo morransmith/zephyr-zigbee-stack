@@ -21,7 +21,9 @@ struct zzb_node;
 #define ZZB_ZCL_READ_ATTRIBUTES         0x00
 #define ZZB_ZCL_READ_ATTRIBUTES_RSP     0x01
 #define ZZB_ZCL_WRITE_ATTRIBUTES        0x02
+#define ZZB_ZCL_WRITE_UNDIVIDED         0x03
 #define ZZB_ZCL_WRITE_ATTRIBUTES_RSP    0x04
+#define ZZB_ZCL_WRITE_NO_RSP            0x05
 #define ZZB_ZCL_DEFAULT_RSP             0x0b
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES     0x0c
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES_RSP 0x0d

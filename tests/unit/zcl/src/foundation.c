@@ -231,4 +231,47 @@ ZTEST(zzb_zcl_foundation, test_write_malformed)
 	zassert_equal(zcl_cb_calls.count, 0);
 }
 
+/* ZCL 2.5.4: one failed record leaves every attribute unchanged */
+ZTEST(zzb_zcl_foundation, test_write_undivided)
+{
+	static const uint8_t failing[] = {0x00, 0x56, 0x03, 0x01, 0x00, 0x20,
+					  0x40, 0x00, 0x01, 0x20, 0x00};
+	static const uint8_t failed[] = {0x18, 0x56, 0x04, 0x86, 0x00, 0x01};
+	static const uint8_t passing[] = {0x00, 0x57, 0x03, 0x01, 0x00, 0x20,
+					  0x40, 0x02, 0x00, 0x21, 0x01, 0x01};
+	static const uint8_t written[] = {0x18, 0x57, 0x04, 0x00};
+
+	receive(TEST_CLUSTER, failing, sizeof(failing));
+	check_frame(0, 1, TEST_CLUSTER, failed, sizeof(failed));
+	zassert_equal(values1.u8, 0x12);
+	zassert_equal(zcl_cb_calls.count, 0);
+
+	receive(TEST_CLUSTER, passing, sizeof(passing));
+	check_frame(1, 1, TEST_CLUSTER, written, sizeof(written));
+	zassert_equal(values1.u8, 0x40);
+	zassert_equal(values1.u16, 0x0101);
+	zassert_equal(zcl_cb_calls.count, 2);
+	check_notified(0, 0x0001);
+	check_notified(1, 0x0002);
+}
+
+/* ZCL 2.5.6.3: no frame answers Write Attributes No Response, also in error */
+ZTEST(zzb_zcl_foundation, test_write_no_response)
+{
+	static const uint8_t req[] = {0x00, 0x58, 0x05, 0x01, 0x00, 0x20,
+				      0x41, 0x00, 0x01, 0x20, 0x00};
+
+	receive(TEST_CLUSTER, req, sizeof(req));
+	zassert_equal(values1.u8, 0x41);
+	zassert_equal(zcl_cb_calls.count, 1);
+	check_notified(0, 0x0001);
+
+	/* Malformed, an unsupported cluster, manufacturer specific */
+	receive(TEST_CLUSTER, (uint8_t[]){0x00, 0x59, 0x05, 0x01, 0x00, 0x21, 0x00}, 7);
+	receive(0x0300, req, sizeof(req));
+	receive(TEST_CLUSTER, (uint8_t[]){0x04, 0x34, 0x12, 0x5a, 0x05, 0x01, 0x00, 0x20, 0x42}, 9);
+	zassert_equal(values1.u8, 0x41);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
 ZTEST_SUITE(zzb_zcl_foundation, NULL, setup, before, after, NULL);

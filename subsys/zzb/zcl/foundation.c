@@ -94,7 +94,7 @@ static int check_writes(const struct zzb_zcl_req *req, struct write_record *reco
 	return count;
 }
 
-/* ZCL 2.5.3.3 */
+/* ZCL 2.5.3.3, 2.5.4, 2.5.6.3 */
 static int write_attributes(struct zzb_node *node, const struct zzb_zcl_req *req)
 {
 	struct write_record records[WRITE_RECORDS_MAX];
@@ -108,8 +108,6 @@ static int write_attributes(struct zzb_node *node, const struct zzb_zcl_req *req
 	}
 
 	for (int i = 0; i < count; i++) {
-		changed[i] = records[i].status == ZZB_ZCL_SUCCESS &&
-			     zzb_zcl_attr_write(req->cluster, records[i].attr, records[i].value);
 		if (records[i].status != ZZB_ZCL_SUCCESS) {
 			rsp[n] = records[i].status;
 			sys_put_le16(records[i].id, rsp + n + 1);
@@ -117,9 +115,18 @@ static int write_attributes(struct zzb_node *node, const struct zzb_zcl_req *req
 		}
 	}
 
+	/* An undivided write with a failed record writes nothing */
+	for (int i = 0; i < count; i++) {
+		changed[i] = records[i].status == ZZB_ZCL_SUCCESS &&
+			     !(req->hdr.cmd == ZZB_ZCL_WRITE_UNDIVIDED && n > 0) &&
+			     zzb_zcl_attr_write(req->cluster, records[i].attr, records[i].value);
+	}
+
 	/* ZCL 2.5.5.1.2: one SUCCESS record without an ID when every attribute is written */
-	zzb_zcl_respond(node, req, ZZB_ZCL_FRAME_GLOBAL, ZZB_ZCL_WRITE_ATTRIBUTES_RSP, rsp,
-			MAX(n, 1));
+	if (req->hdr.cmd != ZZB_ZCL_WRITE_NO_RSP) {
+		zzb_zcl_respond(node, req, ZZB_ZCL_FRAME_GLOBAL, ZZB_ZCL_WRITE_ATTRIBUTES_RSP, rsp,
+				MAX(n, 1));
+	}
 
 	for (int i = 0; i < count; i++) {
 		if (changed[i]) {
@@ -177,6 +184,8 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req)
 	case ZZB_ZCL_READ_ATTRIBUTES:
 		return read_attributes(node, req);
 	case ZZB_ZCL_WRITE_ATTRIBUTES:
+	case ZZB_ZCL_WRITE_UNDIVIDED:
+	case ZZB_ZCL_WRITE_NO_RSP:
 		return write_attributes(node, req);
 	case ZZB_ZCL_DISCOVER_ATTRIBUTES:
 		return discover_attributes(node, req);

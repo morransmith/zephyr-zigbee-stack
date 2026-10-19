@@ -121,13 +121,21 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		.unicast = !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
 		.cluster = find_cluster(ep, ind->cluster, !(hdr->flags & ZZB_ZCL_TO_CLIENT)),
 	};
+	int status;
 
 	/* A Default Response is never answered (ZCL 2.5.12.2) */
 	if (hdr->type == ZZB_ZCL_FRAME_GLOBAL && hdr->cmd == ZZB_ZCL_DEFAULT_RSP) {
 		return;
 	}
 
-	default_rsp(node, &req, process(node, &req));
+	status = process(node, &req);
+
+	/* ZCL 2.5.6.3 */
+	if (hdr->type == ZZB_ZCL_FRAME_GLOBAL && hdr->cmd == ZZB_ZCL_WRITE_NO_RSP) {
+		return;
+	}
+
+	default_rsp(node, &req, status);
 }
 
 static void dispatch(struct zzb_node *node, const struct zzb_apsde_ind *ind, const uint8_t *frame,
