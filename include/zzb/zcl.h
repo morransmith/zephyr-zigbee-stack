@@ -188,6 +188,24 @@ struct zzb_zcl_cluster {
 };
 
 /**
+ * Internal: a transition of Level Control or Color Control, a field of the value struct. It moves
+ * up to two attributes of at most 16 bits together.
+ */
+struct zzb_zcl_transition {
+	/** k_uptime_get() at the start. */
+	int64_t start;
+	/** Milliseconds. */
+	uint32_t duration;
+	/** The number of attributes, 0 while no transition runs. */
+	uint8_t count;
+	uint16_t attr[2];
+	uint16_t from[2];
+	uint16_t to[2];
+	/** The values written last. */
+	uint16_t last[2];
+};
+
+/**
  * Called on the stack thread when a remote command, a write, a timer of the stack or the reset of
  * the node gives attribute attr of a cluster on endpoint ep a new value. The new value is in the
  * value struct of the cluster.

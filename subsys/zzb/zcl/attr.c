@@ -248,6 +248,17 @@ static bool in_scene(const struct zzb_zcl_cluster *cl, uint16_t id)
 	return false;
 }
 
+/* Calls the changed hook and the reporting check after a change of attr */
+static void follow(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+		   const struct zzb_zcl_attr *attr)
+{
+	if (cl->def->changed != NULL) {
+		cl->def->changed(node, ep, cl->values, attr->id);
+	}
+
+	zzb_zcl_report_check(node, ep, cl, attr->id);
+}
+
 /*
  * Saves a non-volatile attribute and calls the changed hook. notify tells whether zcl_cb reports
  * the change, which the change of SceneValid follows.
@@ -256,12 +267,7 @@ static void apply(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluste
 		  const struct zzb_zcl_attr *attr, bool notify)
 {
 	save(node, ep, cl, attr);
-
-	if (cl->def->changed != NULL) {
-		cl->def->changed(node, ep, cl->values, attr->id);
-	}
-
-	zzb_zcl_report_check(node, ep, cl, attr->id);
+	follow(node, ep, cl, attr);
 	if (in_scene(cl, attr->id)) {
 		zzb_zcl_scenes_invalidate(node, ep, notify);
 	}
@@ -277,14 +283,22 @@ void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_clu
 	}
 }
 
+/* The attribute id of the server cluster on endpoint ep, and the cluster in *cl, or NULL */
+static const struct zzb_zcl_attr *server_attr(struct zzb_node *node, uint8_t ep, uint16_t cluster,
+					      uint16_t id, const struct zzb_zcl_cluster **cl)
+{
+	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
+
+	*cl = e != NULL ? zzb_zcl_find_cluster(e, cluster, true) : NULL;
+	return *cl != NULL ? zzb_zcl_attr_find(*cl, id) : NULL;
+}
+
 /* Writes value to attribute id of the server cluster on ep and reports a change */
 static void store(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t id, uint32_t value,
 		  bool notify)
 {
-	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
-	const struct zzb_zcl_cluster *cl =
-		e != NULL ? zzb_zcl_find_cluster(e, cluster, true) : NULL;
-	const struct zzb_zcl_attr *attr = cl != NULL ? zzb_zcl_attr_find(cl, id) : NULL;
+	const struct zzb_zcl_cluster *cl;
+	const struct zzb_zcl_attr *attr = server_attr(node, ep, cluster, id, &cl);
 
 	if (attr == NULL || !zzb_zcl_attr_write(cl, attr, value)) {
 		return;
@@ -307,6 +321,32 @@ void zzb_zcl_store(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t
 	store(node, ep, cluster, attr, value, false);
 }
 
+void zzb_zcl_update(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t id,
+		    uint32_t value)
+{
+	const struct zzb_zcl_cluster *cl;
+	const struct zzb_zcl_attr *attr = server_attr(node, ep, cluster, id, &cl);
+
+	if (attr == NULL || !zzb_zcl_attr_write(cl, attr, value)) {
+		return;
+	}
+
+	follow(node, ep, cl, attr);
+	if (node->zcl_cb != NULL) {
+		node->zcl_cb(node, ep, cluster, id);
+	}
+}
+
+void zzb_zcl_save(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t id)
+{
+	const struct zzb_zcl_cluster *cl;
+	const struct zzb_zcl_attr *attr = server_attr(node, ep, cluster, id, &cl);
+
+	if (attr != NULL) {
+		save(node, ep, cl, attr);
+	}
+}
+
 struct set_req {
 	struct k_work work;
 	struct zzb_node *node;
@@ -319,10 +359,8 @@ struct set_req {
 
 static int set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t id, const void *value)
 {
-	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
-	const struct zzb_zcl_cluster *cl =
-		e != NULL ? zzb_zcl_find_cluster(e, cluster, true) : NULL;
-	const struct zzb_zcl_attr *attr = cl != NULL ? zzb_zcl_attr_find(cl, id) : NULL;
+	const struct zzb_zcl_cluster *cl;
+	const struct zzb_zcl_attr *attr = server_attr(node, ep, cluster, id, &cl);
 	uint32_t v;
 
 	if (attr == NULL) {

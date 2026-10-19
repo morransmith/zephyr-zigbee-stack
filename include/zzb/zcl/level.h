@@ -54,6 +54,8 @@ struct zzb_zcl_level {
 	 * the reset of the node take it.
 	 */
 	uint8_t start_up_default;
+	/** Internal: the transition of CurrentLevel. */
+	struct zzb_zcl_transition transition;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_level_def;

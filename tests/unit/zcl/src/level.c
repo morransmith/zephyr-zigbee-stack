@@ -4,6 +4,7 @@
 #include <zephyr/ztest.h>
 #include <zzb/zcl/level.h>
 
+#include "common/node.h"
 #include "fakes.h"
 
 static void *setup(void)
@@ -61,6 +62,34 @@ static void move_to_level(uint8_t ep, uint8_t level, uint16_t time)
 	send(ep, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL, payload, sizeof(payload));
 }
 
+static void set_u8(uint8_t ep, uint16_t attr, uint8_t value)
+{
+	zassert_ok(zzb_zcl_attr_set(test_node(), ep, ZZB_ZCL_LEVEL, attr, &value));
+}
+
+static void set_u16(uint8_t ep, uint16_t attr, uint16_t value)
+{
+	zassert_ok(zzb_zcl_attr_set(test_node(), ep, ZZB_ZCL_LEVEL, attr, &value));
+}
+
+static bool timer_armed(void)
+{
+	return k_work_delayable_busy_get(&test_node()->zcl.level_timer) != 0;
+}
+
+/* The number of zcl_cb calls for attribute attr of Level Control on ep */
+static int notified(uint8_t ep, uint16_t attr)
+{
+	int n = 0;
+
+	for (int i = 0; i < zcl_cb_calls.count; i++) {
+		n += zcl_cb_calls.ep[i] == ep && zcl_cb_calls.cluster[i] == ZZB_ZCL_LEVEL &&
+		     zcl_cb_calls.attr[i] == attr;
+	}
+
+	return n;
+}
+
 /* ZCL 3.10.2.2, 3.19.2.2: the defaults, CurrentLevel read-only, the writable attributes saved */
 ZTEST(zzb_zcl_level, test_attributes)
 {
@@ -116,6 +145,81 @@ ZTEST(zzb_zcl_level, test_move_to_level)
 		ZZB_ZCL_MALFORMED_COMMAND);
 	command(10, 0x08, NULL, 0, ZZB_ZCL_UNSUP_COMMAND);
 	zassert_equal(level10.current_level, 254);
+}
+
+/* Section 16: a transition steps CurrentLevel every 100 ms and saves only its end */
+ZTEST(zzb_zcl_level, test_transition)
+{
+	move_to_level(10, 100, 0);
+	move_to_level(10, 200, 10);
+	zassert_equal(level10.current_level, 100);
+	zassert_equal(level10.remaining_time, 10);
+	zassert_true(timer_armed());
+
+	k_sleep(K_MSEC(550));
+	zassert_between_inclusive(level10.current_level, 140, 155);
+	zassert_between_inclusive(level10.remaining_time, 4, 6);
+
+	/* The record holds the start value */
+	zassert_ok(reboot());
+	zassert_equal(level10.current_level, 100);
+	zassert_equal(level10.remaining_time, 0);
+	zassert_false(timer_armed());
+
+	reset_fakes();
+	move_to_level(10, 200, 10);
+	k_sleep(K_MSEC(1200));
+	zassert_equal(level10.current_level, 200);
+	zassert_equal(level10.remaining_time, 0);
+	zassert_between_inclusive(notified(10, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 9, 11);
+	zassert_false(timer_armed());
+	zassert_ok(reboot());
+	zassert_equal(level10.current_level, 200);
+}
+
+/* ZCL 3.10.2.3.1: transition time 0xffff takes OnOffTransitionTime */
+ZTEST(zzb_zcl_level, test_on_off_transition_time)
+{
+	set_u16(10, ZZB_ZCL_LEVEL_ON_OFF_TRANSITION_TIME, 5);
+	move_to_level(10, 100, 0xffff);
+	zassert_equal(level10.current_level, 254);
+	zassert_equal(level10.remaining_time, 5);
+	k_sleep(K_MSEC(700));
+	zassert_equal(level10.current_level, 100);
+}
+
+/* Section 16: a value set by the application ends the transition, a new command replaces it */
+ZTEST(zzb_zcl_level, test_transition_ends)
+{
+	move_to_level(10, 100, 10);
+	k_sleep(K_MSEC(250));
+	set_u8(10, ZZB_ZCL_LEVEL_CURRENT_LEVEL, 30);
+	k_sleep(K_MSEC(150));
+	zassert_equal(level10.current_level, 30);
+	zassert_equal(level10.remaining_time, 0);
+	zassert_false(timer_armed());
+
+	move_to_level(10, 100, 10);
+	k_sleep(K_MSEC(250));
+	move_to_level(10, 200, 0);
+	zassert_equal(level10.current_level, 200);
+	zassert_equal(level10.remaining_time, 0);
+	zassert_false(timer_armed());
+}
+
+/* Section 16: the steps run the reporting check */
+ZTEST(zzb_zcl_level, test_transition_reported)
+{
+	static const uint8_t configure[] = {0x00, 0x83, 0x06, 0x00, 0x00, 0x00,
+					    0x20, 0x01, 0x00, 0x00, 0x00, 0x01};
+
+	receive_ep(10, ZZB_ZCL_LEVEL, configure, sizeof(configure));
+	check_frame(0, 10, ZZB_ZCL_LEVEL, (uint8_t[]){0x18, 0x83, 0x07, 0x00}, 4);
+	move_to_level(10, 200, 5);
+	k_sleep(K_MSEC(1100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	zassert_equal(sent[1].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_mem_equal(sent[1].data + 2, ((uint8_t[]){0x0a, 0x00, 0x00, 0x20, 200}), 5);
 }
 
 ZTEST_SUITE(zzb_zcl_level, NULL, setup, before, after, NULL);
