@@ -133,6 +133,14 @@ config ZZB_ZCL_REPORT_COUNT
 	  Attributes whose reports Configure Reporting has set up, on all
 	  endpoints of a node.
 
+config ZZB_ZCL_ALARM_COUNT
+	int "Alarm table entries"
+	range 1 255
+	default 8
+	help
+	  Alarms of all endpoints of a node. A full table replaces its
+	  earliest entry.
+
 config ZZB_ZCL_SCENE_COUNT
 	int "Scene table entries"
 	range 1 255

@@ -174,6 +174,12 @@ struct zzb_zcl_cluster_def {
 	 */
 	void (*recall)(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set,
 		       size_t count, uint32_t transition_ds);
+	/**
+	 * Raises the alarms of the cluster whose conditions last again (ZCL 3.11.2.4.1), on the
+	 * stack thread, or NULL. code is the alarm code of Reset Alarm, or 0xff for Reset All
+	 * Alarms.
+	 */
+	void (*alarm_reset)(struct zzb_node *node, uint8_t ep, void *values, uint8_t code);
 };
 
 /** A cluster on an endpoint. */
@@ -215,6 +221,22 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
  */
 int zzb_zcl_attr_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
 		     const void *value);
+
+/**
+ * @brief Send a cluster-specific command of a client cluster to the bound destinations.
+ *
+ * Runs on the stack thread. The command goes from the client instance of the cluster on the
+ * endpoint to the destinations of its bindings, with Disable Default Response 1. The application
+ * builds the payload; no confirm follows.
+ *
+ * @retval 0 on success.
+ * @retval -ENOENT the endpoint has no client instance of the cluster, or the cluster no binding.
+ * @retval -ENOBUFS no buffer or transmission table entry is free.
+ * @retval -ENOTCONN the node is not on a network.
+ * @retval -EBUSY the network layer runs a procedure, such as a rejoin.
+ */
+int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t cmd,
+		       const uint8_t *payload, size_t len);
 
 #ifdef __cplusplus
 }

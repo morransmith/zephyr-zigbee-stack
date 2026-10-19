@@ -55,6 +55,16 @@ struct zzb_zcl_scene {
 	uint8_t data[CONFIG_ZZB_ZCL_SCENE_DATA_LEN];
 };
 
+/* Entry of the alarm table (ZCL Table 3-66); the time stamp is always 0xffffffff */
+struct zzb_zcl_alarm {
+	bool in_use;
+	/* The earliest entry has the lowest */
+	uint32_t seq;
+	uint8_t ep;
+	uint8_t code;
+	uint16_t cluster;
+};
+
 struct zzb_zcl {
 	/* Decrements IdentifyTime every second while one is not 0 */
 	struct k_work_delayable identify_timer;
@@ -66,6 +76,7 @@ struct zzb_zcl {
 	/* Transaction sequence number of the next frame ZCL originates */
 	uint8_t tsn;
 	struct zzb_zcl_scene scenes[CONFIG_ZZB_ZCL_SCENE_COUNT];
+	struct zzb_zcl_alarm alarms[CONFIG_ZZB_ZCL_ALARM_COUNT];
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -111,6 +122,15 @@ int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
  */
 int zzb_zcl_send_cmd(struct zzb_node *node, uint8_t src_ep, uint16_t dst_addr, uint8_t dst_ep,
 		     uint16_t cluster, uint8_t cmd, const uint8_t *payload, size_t len);
+
+/*
+ * Sends a ZCL frame of type with the command identifier cmd from endpoint ep to the bound
+ * destinations of cluster, with Disable Default Response 1, the direction to the client when
+ * to_client is set and an APS ACK request. Returns an error of zzb_zcl_send().
+ */
+int zzb_zcl_send_bindings(struct zzb_node *node, const struct zzb_endpoint *ep, uint16_t cluster,
+			  enum zzb_zcl_frame_type type, bool to_client, uint8_t cmd,
+			  const uint8_t *payload, size_t len);
 
 /*
  * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload;
@@ -257,6 +277,24 @@ uint8_t zzb_zcl_scene_recall(struct zzb_node *node, uint8_t ep, uint16_t group, 
 
 /* Removes the scenes of group on endpoint ep (ZCL 3.6.2.3.5) */
 void zzb_zcl_scenes_remove_group(struct zzb_node *node, uint8_t ep, uint16_t group);
+
+/*
+ * Enters the alarm code of cluster into the alarm table when endpoint ep has an Alarms server
+ * (ZCL 3.11.2.3), with zcl_cb for AlarmCount when notify is set, and sends it as Alarm to the bound
+ * destinations of the Alarms cluster when send is set
+ */
+void zzb_zcl_alarm_raise(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t code,
+			 bool send, bool notify);
+
+/*
+ * Loads the record zcl/alarm/<index>; -EINVAL for an unknown version or length. A record of an
+ * endpoint without an Alarms server is ignored.
+ */
+int zzb_zcl_alarms_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			void *cb_arg);
+
+/* Clears the alarm table, sets AlarmCount 0 with zcl_cb and deletes the records */
+void zzb_zcl_alarms_reset(struct zzb_node *node);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);
