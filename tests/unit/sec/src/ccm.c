@@ -71,6 +71,27 @@ ZTEST(zzb_ccm, test_annex_c_decrypt)
 	psa_destroy_key(key);
 }
 
+/* A MIC mismatch leaves the ciphertext, so that another key can be tried on the same frame */
+ZTEST(zzb_ccm, test_failed_decryption_keeps_the_ciphertext)
+{
+	static const uint8_t other_key[ZZB_SEC_KEY_LEN] = {0x01};
+	psa_key_id_t wrong = import_key(other_key);
+	psa_key_id_t key = import_key(annex_c_key);
+	uint8_t buf[sizeof(annex_c_c)];
+
+	memcpy(buf, annex_c_c, sizeof(annex_c_c));
+	zassert_equal(zzb_sec_ccm_decrypt(wrong, annex_c_nonce, annex_c_a, sizeof(annex_c_a), buf,
+					  sizeof(buf), 8),
+		      -EBADMSG);
+	zassert_mem_equal(buf, annex_c_c, sizeof(annex_c_c));
+
+	zassert_ok(zzb_sec_ccm_decrypt(key, annex_c_nonce, annex_c_a, sizeof(annex_c_a), buf,
+				       sizeof(buf), 8));
+	zassert_mem_equal(buf, annex_c_m, sizeof(annex_c_m));
+	psa_destroy_key(wrong);
+	psa_destroy_key(key);
+}
+
 /*
  * The frame has security level 0 on air. Decryption must restore level 5 for the MIC check, and
  * encrypting the payload again must give back the captured bytes, level 0 included.

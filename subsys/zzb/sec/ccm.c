@@ -45,7 +45,9 @@ int zzb_sec_ccm_decrypt(psa_key_id_t key, const uint8_t nonce[ZZB_SEC_NONCE_LEN]
 	status = psa_aead_decrypt(key, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, mic_len), nonce,
 				  ZZB_SEC_NONCE_LEN, a, a_len, in, c_len, c, c_len - mic_len,
 				  &out_len);
+	/* PSA may have written to c, and the caller may try another key */
 	if (status == PSA_ERROR_INVALID_SIGNATURE) {
+		memcpy(c, in, c_len);
 		return -EBADMSG;
 	}
 
