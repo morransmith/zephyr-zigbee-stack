@@ -88,7 +88,7 @@ static void init_handler(struct k_work *work)
 			return;
 		}
 
-		req->err = zzb_nwk_fc_start(node);
+		req->err = zzb_fc_start(&node->nwk.fc);
 		if (req->err) {
 			return;
 		}

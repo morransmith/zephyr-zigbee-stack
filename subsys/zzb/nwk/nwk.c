@@ -27,7 +27,7 @@ void zzb_nwk_init(struct zzb_node *node)
 		.short_addr = 0xffff,
 		.seq = sys_rand8_get(),
 	};
-	zzb_nwk_fc_init(node);
+	zzb_fc_init(&node->nwk.fc, node, "fc/nwk");
 	zzb_nwk_ed_timeout_init(node);
 	zzb_nwk_rejoin_init(node);
 }

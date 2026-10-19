@@ -20,7 +20,7 @@ static int load_cb(const char *key, size_t len, settings_read_cb read_cb, void *
 	struct load_ctx *ctx = param;
 
 	if (settings_name_steq(key, "fc/nwk", NULL)) {
-		ctx->err = zzb_nwk_fc_load(ctx->node, len, read_cb, cb_arg);
+		ctx->err = zzb_fc_load(&ctx->node->nwk.fc, len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "nwk/net", NULL)) {
 		ctx->err = zzb_nwk_net_load(ctx->node, len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "nwk/keys", NULL)) {

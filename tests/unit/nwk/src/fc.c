@@ -32,7 +32,7 @@ static void reboot_handler(struct k_work *work)
 	zzb_nwk_init(node);
 	call->err = zzb_settings_load(node);
 	if (call->err == 0) {
-		call->err = zzb_nwk_fc_start(node);
+		call->err = zzb_fc_start(&node->nwk.fc);
 	}
 }
 
@@ -50,7 +50,7 @@ static void take_all_handler(struct k_work *work)
 	struct call *call = CONTAINER_OF(work, struct call, work);
 	uint32_t fc;
 
-	while ((call->err = zzb_nwk_fc_next(node, &fc)) == 0) {
+	while ((call->err = zzb_fc_next(&node->nwk.fc, &fc)) == 0) {
 		call->count++;
 		call->last = fc;
 	}
@@ -60,7 +60,7 @@ static uint32_t next(void)
 {
 	uint32_t fc;
 
-	zassert_ok(zzb_nwk_fc_next(node, &fc));
+	zassert_ok(zzb_fc_next(&node->nwk.fc, &fc));
 	return fc;
 }
 
@@ -150,7 +150,7 @@ ZTEST(zzb_nwk_fc, test_last_counter)
 	zassert_ok(reboot());
 
 	zassert_equal(next(), UINT32_MAX - 1);
-	zassert_equal(zzb_nwk_fc_next(node, &fc), -EOVERFLOW);
+	zassert_equal(zzb_fc_next(&node->nwk.fc, &fc), -EOVERFLOW);
 }
 
 ZTEST(zzb_nwk_fc, test_unknown_record_version)

@@ -139,7 +139,7 @@ ZTEST(zzb_nwk_leave, test_leave_rejected)
 	zassert_equal(zzb_nlme_leave_req(child, false), -ENOTCONN);
 
 	zzb_nwk_init(child);
-	zassert_ok(zzb_nwk_fc_start(child));
+	zassert_ok(zzb_fc_start(&child->nwk.fc));
 	zzb_nlme_set_ext_pan_id(child, EXT_PAN_ID);
 	zzb_nlme_set_short_addr(child, CHILD_SHORT);
 	zzb_nwk_neighbor_add(child, parent->eui64, PARENT_SHORT, ZZB_NWK_REL_PARENT);

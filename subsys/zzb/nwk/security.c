@@ -42,7 +42,7 @@ int zzb_nwk_secure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len)
 		return -EMSGSIZE;
 	}
 
-	err = zzb_nwk_fc_next(node, &aux.frame_counter);
+	err = zzb_fc_next(&node->nwk.fc, &aux.frame_counter);
 	if (err) {
 		return err;
 	}
