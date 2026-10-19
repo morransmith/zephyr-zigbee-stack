@@ -8,6 +8,7 @@
 #include <zephyr/fff.h>
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
+#include <zzb/zcl/alarms.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
@@ -96,6 +97,10 @@ struct recall_calls {
 };
 
 extern struct recall_calls recall_calls;
+
+/* The Alarms servers on endpoints 20 and 21, which share the alarm table */
+extern struct zzb_zcl_alarms alarms20;
+extern struct zzb_zcl_alarms alarms21;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

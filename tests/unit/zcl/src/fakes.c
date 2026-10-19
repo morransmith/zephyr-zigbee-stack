@@ -30,6 +30,8 @@ struct zzb_zcl_on_off on_off3;
 struct test_values values4;
 struct zzb_zcl_scenes scenes4;
 struct recall_calls recall_calls;
+struct zzb_zcl_alarms alarms20;
+struct zzb_zcl_alarms alarms21;
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -270,6 +272,14 @@ static const struct zzb_zcl_cluster ep4_clusters[] = {
 	{.id = SCENE_CLUSTER, .server = true, .values = &values4, .def = &scene_test_def},
 };
 
+static const struct zzb_zcl_cluster ep20_clusters[] = {
+	ZZB_ZCL_ALARMS_SERVER(&alarms20),
+};
+
+static const struct zzb_zcl_cluster ep21_clusters[] = {
+	ZZB_ZCL_ALARMS_SERVER(&alarms21),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -298,6 +308,20 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0xfff0,
 		.clusters = ep4_clusters,
 		.cluster_count = ARRAY_SIZE(ep4_clusters),
+	},
+	{
+		.id = 20,
+		.profile = 0x0104,
+		.device_id = 0x0101,
+		.clusters = ep20_clusters,
+		.cluster_count = ARRAY_SIZE(ep20_clusters),
+	},
+	{
+		.id = 21,
+		.profile = 0x0104,
+		.device_id = 0x0101,
+		.clusters = ep21_clusters,
+		.cluster_count = ARRAY_SIZE(ep21_clusters),
 	},
 };
 

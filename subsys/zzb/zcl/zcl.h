@@ -55,6 +55,16 @@ struct zzb_zcl_scene {
 	uint8_t data[CONFIG_ZZB_ZCL_SCENE_DATA_LEN];
 };
 
+/* Entry of the alarm table (ZCL Table 3-66); the time stamp is always 0xffffffff */
+struct zzb_zcl_alarm {
+	bool in_use;
+	/* The earliest entry has the lowest */
+	uint32_t seq;
+	uint8_t ep;
+	uint8_t code;
+	uint16_t cluster;
+};
+
 struct zzb_zcl {
 	/* Decrements IdentifyTime every second while one is not 0 */
 	struct k_work_delayable identify_timer;
@@ -66,6 +76,7 @@ struct zzb_zcl {
 	/* Transaction sequence number of the next frame ZCL originates */
 	uint8_t tsn;
 	struct zzb_zcl_scene scenes[CONFIG_ZZB_ZCL_SCENE_COUNT];
+	struct zzb_zcl_alarm alarms[CONFIG_ZZB_ZCL_ALARM_COUNT];
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -266,6 +277,16 @@ uint8_t zzb_zcl_scene_recall(struct zzb_node *node, uint8_t ep, uint16_t group, 
 
 /* Removes the scenes of group on endpoint ep (ZCL 3.6.2.3.5) */
 void zzb_zcl_scenes_remove_group(struct zzb_node *node, uint8_t ep, uint16_t group);
+
+/*
+ * Enters the alarm code of cluster into the alarm table when endpoint ep has an Alarms server
+ * (ZCL 3.11.2.3), with zcl_cb for AlarmCount when notify is set
+ */
+void zzb_zcl_alarm_raise(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t code,
+			 bool send, bool notify);
+
+/* Clears the alarm table and sets AlarmCount 0 with zcl_cb */
+void zzb_zcl_alarms_reset(struct zzb_node *node);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);
