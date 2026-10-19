@@ -22,12 +22,16 @@ struct load_ctx {
 static void load_nwk(struct load_ctx *ctx, const char *key, size_t len, settings_read_cb read_cb,
 		     void *cb_arg)
 {
+	const char *index;
+
 	if (settings_name_steq(key, "fc/nwk", NULL)) {
 		ctx->err = zzb_fc_load(&ctx->node->nwk.fc, len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "nwk/net", NULL)) {
 		ctx->err = zzb_nwk_net_load(ctx->node, len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "nwk/keys", NULL)) {
 		ctx->err = zzb_nwk_keys_load(ctx->node, len, read_cb, cb_arg);
+	} else if (settings_name_steq(key, "nwk/addr", &index) && index != NULL) {
+		ctx->err = zzb_nwk_addr_map_load(ctx->node, atoi(index), len, read_cb, cb_arg);
 	}
 }
 

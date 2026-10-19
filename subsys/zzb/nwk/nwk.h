@@ -73,6 +73,13 @@ struct zzb_nwk_key {
 	uint8_t key[ZZB_SEC_KEY_LEN];
 };
 
+/* Entry of nwkAddressMap (R22 Table 3-60) */
+struct zzb_nwk_addr_map {
+	bool in_use;
+	uint64_t ext_addr;
+	uint16_t short_addr;
+};
+
 struct zzb_nib {
 	uint16_t pan_id;
 	uint16_t short_addr;
@@ -87,6 +94,7 @@ struct zzb_nib {
 	/* The slot of nwkActiveKeySeqNumber and the slot written last */
 	uint8_t active_key;
 	uint8_t newest_key;
+	struct zzb_nwk_addr_map addr_map[CONFIG_ZZB_NWK_ADDR_MAP_COUNT];
 };
 
 enum zzb_nwk_relationship {
@@ -223,12 +231,31 @@ bool zzb_nwk_key_pending(const struct zzb_node *node);
  */
 void zzb_nwk_save(struct zzb_node *node);
 
-/* Deletes the records nwk/net and nwk/keys */
+/* Deletes the records nwk/net, nwk/keys and nwk/addr/<i> */
 void zzb_nwk_delete(struct zzb_node *node);
 
 /* Load the records nwk/net and nwk/keys; -EINVAL for an unknown version or length */
 int zzb_nwk_net_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
 int zzb_nwk_keys_load(struct zzb_node *node, size_t len, settings_read_cb read_cb, void *cb_arg);
+
+/*
+ * NLME-SET of the nwkAddressMap entry of ext_addr: updates or adds it and saves its record. Returns
+ * -ENOMEM when the table is full.
+ */
+int zzb_nlme_set_addr_map(struct zzb_node *node, uint64_t ext_addr, uint16_t short_addr);
+
+/* The network address of ext_addr in nwkAddressMap; -ENOENT without an entry */
+int zzb_nwk_addr_map_find(struct zzb_node *node, uint64_t ext_addr, uint16_t *short_addr);
+
+/* The IEEE address of short_addr in nwkAddressMap, or 0 */
+uint64_t zzb_nwk_addr_map_ext(struct zzb_node *node, uint16_t short_addr);
+
+/* Deletes the records nwk/addr/<i> */
+void zzb_nwk_addr_map_delete(struct zzb_node *node);
+
+/* Loads the record nwk/addr/<index>; -EINVAL for an unknown version or length */
+int zzb_nwk_addr_map_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			  void *cb_arg);
 
 /*
  * NLDE-DATA.request. buf holds the NSDU after ZZB_NLDE_HEADROOM bytes of headroom, and its

@@ -7,6 +7,7 @@ project(zzb_unit_nwk)
 
 target_include_directories(app PRIVATE ${ZEPHYR_ZZB_MODULE_DIR}/subsys/zzb)
 target_sources(app PRIVATE
+  src/addr_map.c
   src/data.c
   src/ed_timeout.c
   src/fakes.c

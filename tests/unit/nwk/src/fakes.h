@@ -80,6 +80,9 @@ int load_record(const char *key, uint8_t *rec, size_t len);
 /* Deletes the NWK records of node 0 */
 void delete_nwk_records(void);
 
+/* Resets the fakes, then does what zzb_node_init() does for NWK on boot for node 0 */
+int nwk_reboot(void);
+
 /* Runs the stack thread until it waits, without advancing the time */
 void run_stack(void);
 

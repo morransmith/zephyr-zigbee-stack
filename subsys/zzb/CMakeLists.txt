@@ -19,6 +19,7 @@ zephyr_library_sources(
 zephyr_library_sources_ifdef(CONFIG_DT_HAS_ESPRESSIF_ESP32_IEEE802154_ENABLED common/eui64_esp32.c)
 zephyr_library_sources_ifdef(CONFIG_ZZB_MAC mac/assoc.c mac/mac.c mac/poll.c mac/scan.c mac/tx.c)
 zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
+  nwk/addr_map.c
   nwk/ed_timeout.c
   nwk/frame.c
   nwk/join.c

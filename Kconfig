@@ -188,6 +188,14 @@ config ZZB_NWK_NETWORK_COUNT
 	int "Networks reported by a network discovery"
 	default 8
 
+config ZZB_NWK_ADDR_MAP_COUNT
+	int "nwkAddressMap entries"
+	range 1 255
+	default 8
+	help
+	  IEEE and network addresses of devices that are not neighbors, such
+	  as the destinations of bindings that finding & binding creates.
+
 config ZZB_NWK_ED_TIMEOUT
 	int "Requested Timeout Enumeration of the End Device Timeout Request"
 	range 0 14
