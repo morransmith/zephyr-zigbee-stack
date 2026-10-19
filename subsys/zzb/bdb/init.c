@@ -137,8 +137,16 @@ void zzb_bdb_rejoin_conf(struct zzb_node *node, uint8_t status)
  */
 void zzb_bdb_nwk_key_ind(struct zzb_node *node)
 {
-	if (node->bdb.state == ZZB_BDB_REJOIN_KEY || node->bdb.state == ZZB_BDB_REJOIN_PAUSE) {
+	switch (node->bdb.state) {
+	case ZZB_BDB_REJOIN_KEY:
+	case ZZB_BDB_REJOIN_PAUSE:
 		rejoined(node);
+		break;
+	case ZZB_BDB_STEER_KEY:
+		zzb_bdb_steering_key_ind(node);
+		break;
+	default:
+		break;
 	}
 }
 

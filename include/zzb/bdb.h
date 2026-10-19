@@ -48,6 +48,18 @@ typedef void (*zzb_bdb_cb_t)(struct zzb_node *node, enum zzb_bdb_event event,
  */
 int zzb_bdb_start(struct zzb_node *node);
 
+/**
+ * @brief Start network steering (BDB 8.1, 8.2).
+ *
+ * A node off a network scans bdbPrimaryChannelSet, then bdbSecondaryChannelSet, joins an open
+ * network and receives the network key. The procedure ends with ZZB_BDB_EVENT_STEERING, which may
+ * come before the call returns.
+ *
+ * @retval 0 on success.
+ * @retval -EBUSY a BDB procedure runs.
+ */
+int zzb_bdb_steering(struct zzb_node *node);
+
 #ifdef __cplusplus
 }
 #endif

@@ -19,6 +19,11 @@ static void timer_handler(struct k_work *work)
 	case ZZB_BDB_REJOIN_PAUSE:
 		zzb_bdb_rejoin_timer(node);
 		break;
+	case ZZB_BDB_STEER_DISCOVERY:
+	case ZZB_BDB_STEER_JOIN:
+	case ZZB_BDB_STEER_KEY:
+		zzb_bdb_steering_timer(node);
+		break;
 	default:
 		break;
 	}
@@ -54,10 +59,25 @@ void zzb_bdb_report(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bd
 	zzb_bdb_notify(node, event, status);
 }
 
+void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,
+				     const struct zzb_nwk_network *networks, size_t count)
+{
+	if (node->bdb.state == ZZB_BDB_STEER_DISCOVERY) {
+		zzb_bdb_steering_discovery_conf(node, status, networks, count);
+	}
+}
+
 void zzb_nlme_join_conf(struct zzb_node *node, uint8_t status)
 {
-	if (node->bdb.state == ZZB_BDB_REJOIN) {
+	switch (node->bdb.state) {
+	case ZZB_BDB_REJOIN:
 		zzb_bdb_rejoin_conf(node, status);
+		break;
+	case ZZB_BDB_STEER_JOIN:
+		zzb_bdb_steering_join_conf(node, status);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -90,4 +110,9 @@ static int call(struct zzb_node *node, int (*fn)(struct zzb_node *node))
 int zzb_bdb_start(struct zzb_node *node)
 {
 	return call(node, zzb_bdb_initialize);
+}
+
+int zzb_bdb_steering(struct zzb_node *node)
+{
+	return call(node, zzb_bdb_steer);
 }

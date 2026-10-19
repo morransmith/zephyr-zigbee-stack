@@ -4,11 +4,13 @@
 #define ZZB_SUBSYS_BDB_BDB_H_
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <zephyr/kernel.h>
 #include <zzb/bdb.h>
 
 struct zzb_node;
+struct zzb_nwk_network;
 
 /* Delay before an NLME request that returned -EBUSY is issued again */
 #define ZZB_BDB_RETRY_MS 1000
@@ -35,6 +37,10 @@ enum zzb_bdb_state {
 	ZZB_BDB_REJOIN_KEY,
 	/* The pause before the next rejoin series */
 	ZZB_BDB_REJOIN_PAUSE,
+	/* Network steering: the discovery, the association and the network key */
+	ZZB_BDB_STEER_DISCOVERY,
+	ZZB_BDB_STEER_JOIN,
+	ZZB_BDB_STEER_KEY,
 };
 
 struct zzb_bdb {
@@ -47,6 +53,15 @@ struct zzb_bdb {
 	uint8_t step;
 	uint32_t pause_ms;
 	bool reported;
+	/* Steering: vDoPrimaryScan FALSE, the networks of the discovery and the next one to try */
+	bool secondary;
+	const struct zzb_nwk_network *networks;
+	size_t network_count;
+	size_t next_network;
+	/* Steering: the network joined, and the networks whose key did not arrive */
+	uint64_t ext_pan_id;
+	uint64_t failed[CONFIG_ZZB_NWK_NETWORK_COUNT];
+	size_t failed_count;
 	struct k_work_delayable timer;
 };
 
@@ -75,5 +90,13 @@ void zzb_bdb_rejoin_conf(struct zzb_node *node, uint8_t status);
 
 /* Called by ZDO after NLME-SET of a network key from a Transport Key */
 void zzb_bdb_nwk_key_ind(struct zzb_node *node);
+
+/* BDB 8.1, 8.2 */
+int zzb_bdb_steer(struct zzb_node *node);
+void zzb_bdb_steering_timer(struct zzb_node *node);
+void zzb_bdb_steering_discovery_conf(struct zzb_node *node, uint8_t status,
+				     const struct zzb_nwk_network *networks, size_t count);
+void zzb_bdb_steering_join_conf(struct zzb_node *node, uint8_t status);
+void zzb_bdb_steering_key_ind(struct zzb_node *node);
 
 #endif /* ZZB_SUBSYS_BDB_BDB_H_ */
