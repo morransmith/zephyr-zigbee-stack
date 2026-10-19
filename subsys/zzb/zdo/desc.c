@@ -44,23 +44,20 @@ static void error_rsp(struct zzb_node *node, const struct zzb_zdo_req *req, uint
 	zzb_zdo_respond(node, req, rsp, 3 + zeros);
 }
 
-static const struct zzb_endpoint *find_endpoint(const struct zzb_node *node, uint8_t id)
+/* Writes the count and the IDs of the server or the client instances of ep */
+static uint8_t *put_clusters(uint8_t *p, const struct zzb_endpoint *ep, bool server)
 {
-	for (size_t i = 0; i < node->device->endpoint_count; i++) {
-		if (node->device->endpoints[i].id == id) {
-			return &node->device->endpoints[i];
+	uint8_t *count = p++;
+
+	*count = 0;
+	for (int i = 0; i < ep->cluster_count; i++) {
+		if (ep->clusters[i].server != server) {
+			continue;
 		}
-	}
 
-	return NULL;
-}
-
-static uint8_t *put_clusters(uint8_t *p, const uint16_t *clusters, uint8_t count)
-{
-	*p++ = count;
-	for (int i = 0; i < count; i++) {
-		sys_put_le16(clusters[i], p);
+		sys_put_le16(ep->clusters[i].id, p);
 		p += 2;
+		(*count)++;
 	}
 
 	return p;
@@ -75,8 +72,8 @@ static size_t put_simple_desc(uint8_t *desc, const struct zzb_endpoint *ep)
 	sys_put_le16(ep->profile, p);
 	sys_put_le16(ep->device_id, p + 2);
 	p[4] = ep->device_version;
-	p = put_clusters(p + 5, ep->in_clusters, ep->in_cluster_count);
-	p = put_clusters(p, ep->out_clusters, ep->out_cluster_count);
+	p = put_clusters(p + 5, ep, true);
+	p = put_clusters(p, ep, false);
 	return p - desc;
 }
 
@@ -149,14 +146,14 @@ void zzb_zdo_serve_simple_desc(struct zzb_node *node, const struct zzb_zdo_req *
 		return;
 	}
 
-	ep = find_endpoint(node, id);
+	ep = zzb_node_endpoint(node, id);
 	if (ep == NULL) {
 		error_rsp(node, req, ZZB_ZDP_NOT_ACTIVE, 1);
 		return;
 	}
 
 	/* A descriptor beyond apscMaxDescriptorSize gets no response */
-	if (8 + 2 * (ep->in_cluster_count + ep->out_cluster_count) > MAX_DESC_LEN) {
+	if (8 + 2 * ep->cluster_count > MAX_DESC_LEN) {
 		return;
 	}
 
@@ -189,12 +186,15 @@ void zzb_zdo_serve_active_ep(struct zzb_node *node, const struct zzb_zdo_req *re
 	zzb_zdo_respond(node, req, rsp, len);
 }
 
-/* Whether one of the count clusters of the request list is in clusters */
-static bool any_cluster(const uint8_t *list, uint8_t count, const uint16_t *clusters, uint8_t n)
+/* Whether one of the count clusters of the request list is a server or a client instance of ep */
+static bool any_cluster(const uint8_t *list, uint8_t count, const struct zzb_endpoint *ep,
+			bool server)
 {
 	for (int i = 0; i < count; i++) {
-		for (int j = 0; j < n; j++) {
-			if (sys_get_le16(list + 2 * i) == clusters[j]) {
+		for (int j = 0; j < ep->cluster_count; j++) {
+			const struct zzb_zcl_cluster *cl = &ep->clusters[j];
+
+			if (cl->server == server && cl->id == sys_get_le16(list + 2 * i)) {
 				return true;
 			}
 		}
@@ -211,8 +211,7 @@ static bool matches(const struct zzb_endpoint *ep, uint16_t profile, const uint8
 		return false;
 	}
 
-	return any_cluster(in, in_count, ep->in_clusters, ep->in_cluster_count) ||
-	       any_cluster(out, out_count, ep->out_clusters, ep->out_cluster_count);
+	return any_cluster(in, in_count, ep, true) || any_cluster(out, out_count, ep, false);
 }
 
 /* R22 2.4.4.2.7 */

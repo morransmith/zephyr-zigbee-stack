@@ -24,12 +24,13 @@ static void before(void *fixture)
 	reboot(true);
 }
 
-/* NLME-RESET, the APS and ZDO state, and bdbNodeIsOnANetwork FALSE */
+/* NLME-RESET, the APS, ZDO and ZCL state, and bdbNodeIsOnANetwork FALSE */
 static void check_reset(enum zzb_bdb_event event, enum zzb_bdb_status status)
 {
 	zassert_equal(zzb_nlme_reset_req_fake.call_count, 1);
 	zassert_equal(zzb_aps_reset_fake.call_count, 1);
 	zassert_equal(zzb_zdo_init_fake.call_count, 1);
+	zassert_equal(zzb_zcl_reset_fake.call_count, 1);
 	zassert_equal(events.count, 1);
 	zassert_equal(events.event, event);
 	zassert_equal(events.status, status);

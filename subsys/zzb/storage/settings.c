@@ -9,9 +9,10 @@
 #include "common/node.h"
 #include "nwk/nwk.h"
 #include "storage/settings.h"
+#include "zcl/zcl.h"
 
-/* Room for zzb/<n>/nwk/keys, zzb/<n>/aps/key/<i> and zzb/<n>/aps/bind/<i> */
-#define NAME_LEN 24
+/* Room for zzb/<n>/aps/bind/<i> and zzb/<n>/zcl/<ep>/<cluster>/<attr> */
+#define NAME_LEN 32
 
 struct load_ctx {
 	struct zzb_node *node;
@@ -46,6 +47,16 @@ static void load_aps(struct load_ctx *ctx, const char *key, size_t len, settings
 	}
 }
 
+static void load_zcl(struct load_ctx *ctx, const char *key, size_t len, settings_read_cb read_cb,
+		     void *cb_arg)
+{
+	const char *next;
+
+	if (settings_name_steq(key, "zcl", &next) && next != NULL) {
+		ctx->err = zzb_zcl_attr_load(ctx->node, next, len, read_cb, cb_arg);
+	}
+}
+
 static int load_cb(const char *key, size_t len, settings_read_cb read_cb, void *cb_arg, void *param)
 {
 	struct load_ctx *ctx = param;
@@ -56,6 +67,10 @@ static int load_cb(const char *key, size_t len, settings_read_cb read_cb, void *
 
 	if (IS_ENABLED(CONFIG_ZZB_APS)) {
 		load_aps(ctx, key, len, read_cb, cb_arg);
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_ZCL)) {
+		load_zcl(ctx, key, len, read_cb, cb_arg);
 	}
 
 	/* Loading stops at the first error */

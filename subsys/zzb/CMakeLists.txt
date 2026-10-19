@@ -31,7 +31,10 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
   nwk/status.c
 )
 if(CONFIG_ZZB_NWK OR CONFIG_ZZB_APS)
-  zephyr_library_sources(common/fc.c storage/settings.c)
+  zephyr_library_sources(common/fc.c)
+endif()
+if(CONFIG_ZZB_NWK OR CONFIG_ZZB_APS OR CONFIG_ZZB_ZCL)
+  zephyr_library_sources(storage/settings.c)
 endif()
 zephyr_library_sources_ifdef(CONFIG_ZZB_APS
   aps/ack_dup.c
@@ -51,5 +54,14 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZDO
   zdo/zdo.c
 )
 zephyr_library_sources_ifdef(CONFIG_ZZB_BDB bdb/bdb.c bdb/init.c bdb/reset.c bdb/steering.c bdb/tclk.c)
+zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
+  zcl/attr.c
+  zcl/clusters/basic.c
+  zcl/clusters/identify.c
+  zcl/clusters/on_off.c
+  zcl/foundation.c
+  zcl/frame.c
+  zcl/zcl.c
+)
 zephyr_library_sources_ifdef(CONFIG_IEEE802154_RAW_MODE radio/port.c radio/raw.c)
 zephyr_library_sources_ifdef(CONFIG_NET_L2_CUSTOM_IEEE802154 radio/port.c radio/custom_l2.c)

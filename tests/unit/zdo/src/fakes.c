@@ -26,10 +26,18 @@ DEFINE_FAKE_VOID_FUNC(zzb_zdo_node_desc_conf, struct zzb_node *, uint8_t, uint16
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsme_bind_req, struct zzb_node *, const struct zzb_aps_binding *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsme_unbind_req, struct zzb_node *,
 		       const struct zzb_aps_binding *);
+DEFINE_FAKE_VOID_FUNC(zzb_zcl_data_ind, struct zzb_node *, struct net_buf *,
+		      const struct zzb_apsde_ind *);
 
 struct frame_copy sent[8];
 struct set_nwk_key_calls set_nwk_key;
 struct zzb_aps_binding binding;
+
+static void zcl_data_ind_drop(struct zzb_node *node, struct net_buf *buf,
+			      const struct zzb_apsde_ind *ind)
+{
+	net_buf_unref(buf);
+}
 
 static int bind_copy(struct zzb_node *node, const struct zzb_aps_binding *arg)
 {
@@ -45,10 +53,19 @@ void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_L
 }
 
 /* Basic, Identify and On/Off servers of an On/Off Light */
-static const uint16_t light_in[] = {0x0000, 0x0003, 0x0006};
+static const struct zzb_zcl_cluster light[] = {
+	{.id = 0x0000, .server = true},
+	{.id = 0x0003, .server = true},
+	{.id = 0x0006, .server = true},
+};
 
-/* On/Off client of an On/Off Light Switch */
-static const uint16_t switch_out[] = {0x0006};
+/* Basic and Identify servers, Identify and On/Off clients of an On/Off Light Switch */
+static const struct zzb_zcl_cluster light_switch[] = {
+	{.id = 0x0000, .server = true},
+	{.id = 0x0003, .server = true},
+	{.id = 0x0003},
+	{.id = 0x0006},
+};
 
 static const struct zzb_endpoint endpoints[] = {
 	{
@@ -56,15 +73,15 @@ static const struct zzb_endpoint endpoints[] = {
 		.profile = 0x0104,
 		.device_id = 0x0100,
 		.device_version = 1,
-		.in_clusters = light_in,
-		.in_cluster_count = ARRAY_SIZE(light_in),
+		.clusters = light,
+		.cluster_count = ARRAY_SIZE(light),
 	},
 	{
 		.id = 2,
 		.profile = 0x0104,
 		.device_id = 0x0103,
-		.out_clusters = switch_out,
-		.out_cluster_count = ARRAY_SIZE(switch_out),
+		.clusters = light_switch,
+		.cluster_count = ARRAY_SIZE(light_switch),
 	},
 };
 
@@ -120,12 +137,14 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_zdo_node_desc_conf);
 	RESET_FAKE(zzb_apsme_bind_req);
 	RESET_FAKE(zzb_apsme_unbind_req);
+	RESET_FAKE(zzb_zcl_data_ind);
 	FFF_RESET_HISTORY();
 	set_nwk_key = (struct set_nwk_key_calls){0};
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
 	zzb_apsme_bind_req_fake.custom_fake = bind_copy;
 	zzb_apsme_unbind_req_fake.custom_fake = bind_copy;
+	zzb_zcl_data_ind_fake.custom_fake = zcl_data_ind_drop;
 	binding = (struct zzb_aps_binding){0};
 	zzb_nlme_get_short_addr_fake.return_val = NODE_ADDR;
 	/* Receiver on when idle, allocate address */

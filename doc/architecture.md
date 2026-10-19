@@ -30,7 +30,7 @@ subsys/zzb/
   aps/      aps.c frame.c apsde.c ack_dup.c keys.c security.c cmd.c binding.c group.c tunnel.c
   zdo/      zdo.c server.c desc.c mgmt.c client.c
   bdb/      bdb.c init.c steering.c tclk.c reset.c fb.c formation.c
-  zcl/      frame.c attr.c foundation.c report.c clusters/
+  zcl/      zcl.c frame.c attr.c foundation.c report.c clusters/
   tc/       trust center
   storage/  settings.c
   shell/    debug shell
@@ -61,11 +61,11 @@ All stack state is in `struct zzb_node`, passed explicitly to every function, as
 
 Kconfig selects capabilities: `CONFIG_ZZB_ROUTER_CAPABLE`, `CONFIG_ZZB_COORDINATOR_CAPABLE`, `CONFIG_ZZB_TRUST_CENTER`. The role and the sleepy flag are runtime properties of each node, so one test binary holds an end device, a router and a trust center.
 
-The device definition (endpoints, clusters, attribute storage) is passed to `zzb_node_init()`. The stack does not use global iterable sections.
+The device definition (endpoints, cluster instances, attribute storage) is passed to `zzb_node_init()`. The stack does not use global iterable sections.
 
-`struct zzb_node_config` points to a `struct zzb_device`: the manufacturer code, the power source and the endpoints in ascending order of endpoint ID, each with the fields of its simple descriptor (profile, device ID, device version, input and output cluster IDs). The node keeps the pointer, so the definition must outlive the node. With `CONFIG_ZZB_ZDO`, `zzb_node_init()` returns `-EINVAL` without one. The application keeps every simple descriptor within apscMaxDescriptorSize (64 octets, 28 clusters); the stack does not check it. ZCL (milestone 12) replaces the cluster ID lists with cluster instances. `zzb_node_init()` loads the settings records of the node with `settings_load_subtree_direct("zzb/<n>")`, where n is the index of the node in the pool, and passes each key to its layer. The stack registers no settings handler, so a `settings_load()` call of the application does not reach a node before it exists.
+`struct zzb_node_config` points to a `struct zzb_device`: the manufacturer code, the power source and the endpoints in ascending order of endpoint ID, each with its profile, device ID, device version and cluster instances (section 16). The node keeps the pointer, so the definition must outlive the node. With `CONFIG_ZZB_ZDO` or `CONFIG_ZZB_ZCL`, `zzb_node_init()` returns `-EINVAL` without one. The application keeps every simple descriptor within apscMaxDescriptorSize (64 octets, 28 clusters); the stack does not check it. The node reaches the value structs of its clusters through the definition, so two nodes in one binary need two definitions. `zzb_node_init()` loads the settings records of the node with `settings_load_subtree_direct("zzb/<n>")`, where n is the index of the node in the pool, and passes each key to its layer. The stack registers no settings handler, so a `settings_load()` call of the application does not reach a node before it exists.
 
-`struct zzb_node_config` also holds the BDB event callback of the application (section 13), which may be NULL. The node keeps it next to the device definition.
+`struct zzb_node_config` also holds the BDB event callback of the application (section 13) and the ZCL callbacks (section 16), which may be NULL. The node keeps them next to the device definition.
 
 The `net_buf` pool and the PSA key cache are shared by all nodes.
 
@@ -86,11 +86,12 @@ The `net_buf` pool and the PSA key cache are shared by all nodes.
 - Information bases (MAC PIB, NIB, AIB) are structs inside `struct zzb_node`. Only the owning layer writes them; other layers read them through getters, which correspond to the GET primitives.
 - NWK security uses the network key set in the NIB (`nwkSecurityMaterialSet`, R22 4.3.3) and does not read APS tables. A received network key reaches NWK as APSME-TRANSPORT-KEY.indication, then ZDO, then NLME-SET.
 - BDB is part of the ZDO application object. It calls NLME, APSME, the ZDO client and ZCL Identify. ZDO calls BDB when a network key or a trust center link key arrives and when Mgmt_Leave_req has been answered (section 13).
+- ZDO passes the frames of application endpoints to ZCL with `zzb_zcl_data_ind()`, and the reset of the node calls `zzb_zcl_reset()` (section 16). Tests that turn ZCL off define both.
 - The ZDO server reads the neighbor, route and binding tables directly for Mgmt_Lqi_req, Mgmt_Rtg_req and Mgmt_Bind_req.
 - Data polling is in NWK (NLME-SYNC and a poll scheduler). Fast poll is a reference-counted hold, taken by the APS ACK wait, ZDO and ZCL transactions, BDB procedures and OTA.
 - Calls between stack layers are direct function calls. A `.request` primitive is defined in the layer that serves it; `.confirm` and `.indication` primitives are defined in the layer above and called directly by the layer below.
-- Function pointers are used where several implementations exist at runtime: radio drivers (`struct ieee802154_radio_api`), the local trust center (`node->tc`, NULL when not built), application callbacks.
-- Unit tests replace adjacent layers by link-time substitution with the FFF bundled with Zephyr (`zephyr/fff.h`): a test links the sources of the layer under test and defines fakes with the names of the neighbor layer's functions. Zephyr links libzzb with `--whole-archive`, so each layer has a Kconfig option that removes it from the build. `CONFIG_ZZB_MAC` defaults to y when a radio backend is enabled; the glue tests turn it off because they fake `zzb_radio_rx()` and `zzb_radio_tx_done()`. `CONFIG_ZZB_NWK` defaults to the value of `CONFIG_ZZB_MAC`; the MAC tests turn it off, and the NWK tests turn it on with the MAC off. `CONFIG_ZZB_APS` defaults to the value of `CONFIG_ZZB_NWK`; the NWK tests turn it off, and the APS tests turn it on with NWK off. `CONFIG_ZZB_ZDO` defaults to the value of `CONFIG_ZZB_APS`; the APS tests turn it off, and the ZDO tests turn it on with APS off. `CONFIG_ZZB_BDB` defaults to the value of `CONFIG_ZZB_ZDO`; the ZDO tests turn it off, and the BDB tests turn it on with ZDO off. ZCL gets its option when it is added.
+- Function pointers are used where several implementations exist at runtime: radio drivers (`struct ieee802154_radio_api`), the local trust center (`node->tc`, NULL when not built), the hooks of ZCL cluster definitions, application callbacks.
+- Unit tests replace adjacent layers by link-time substitution with the FFF bundled with Zephyr (`zephyr/fff.h`): a test links the sources of the layer under test and defines fakes with the names of the neighbor layer's functions. Zephyr links libzzb with `--whole-archive`, so each layer has a Kconfig option that removes it from the build. `CONFIG_ZZB_MAC` defaults to y when a radio backend is enabled; the glue tests turn it off because they fake `zzb_radio_rx()` and `zzb_radio_tx_done()`. `CONFIG_ZZB_NWK` defaults to the value of `CONFIG_ZZB_MAC`; the MAC tests turn it off, and the NWK tests turn it on with the MAC off. `CONFIG_ZZB_APS` defaults to the value of `CONFIG_ZZB_NWK`; the NWK tests turn it off, and the APS tests turn it on with NWK off. `CONFIG_ZZB_ZDO` defaults to the value of `CONFIG_ZZB_APS`; the APS tests turn it off, and the ZDO tests turn it on with APS off. `CONFIG_ZZB_BDB` defaults to the value of `CONFIG_ZZB_ZDO`; the ZDO tests turn it off, and the BDB tests turn it on with ZDO off. `CONFIG_ZZB_ZCL` defaults to the value of `CONFIG_ZZB_BDB`; the BDB tests turn it off, and the ZCL tests turn it on with BDB off.
 
 ## 6. Tables
 
@@ -98,7 +99,7 @@ The `net_buf` pool and the PSA key cache are shared by all nodes.
 |---|---|
 | MAC | PIB, TX queue, indirect queue, mirror of the driver frame-pending table |
 | NWK | neighbor table (parent and children as entries with relationship, timeout, keepalive, incoming frame counter), network descriptors of the last discovery, `nwkAddressMap`, route table, route discovery table, broadcast transaction table, route record table, network keys (two), group ID table |
-| APS | device key-pair table (key attributes, link key type, incoming frame counter), trust center IEEE address, duplicate rejection table, transmission table, binding table; group table (when a use case requires it) |
+| APS | device key-pair table (key attributes, link key type, incoming frame counter), trust center IEEE address, duplicate rejection table, transmission table, binding table; group table (milestone 13) |
 | ZDO | descriptors generated from the device definition, transaction table |
 | ZCL | reporting slots |
 
@@ -145,7 +146,7 @@ The esp32 driver returns 0 from `tx()` after a CCA failure and after a missing A
 Frame pending on the parent side:
 
 - nrf5: `IEEE802154_CONFIG_AUTO_ACK_FPB` with `IEEE802154_FPB_ADDR_MATCH_ZIGBEE` and the `IEEE802154_CONFIG_ACK_FPB` table. In Zigbee mode the table lists short addresses without pending data; data requests from extended addresses always get the bit set.
-- esp32: the driver returns `-ENOTSUP` for both settings and sets frame pending on every ACK to a data request. When a data request arrives with `ack_fpb` set and nothing is queued for the child, the MAC sends a zero-length data frame without ACK request, so the child can sleep (802.15.4-2011 5.1.6.3). The same rule covers table races on nrf5. The upstream fix maps both settings to `esp_ieee802154_set_pending_mode(ESP_IEEE802154_AUTO_PENDING_ZIGBEE)` and `esp_ieee802154_add_pending_addr()`, adds the custom-L2 branch to the driver, and returns `-EBUSY` and `-ENOMSG` from `tx()`; it is part of milestone 15. Software emulation of auto-ACK is not possible within the ACK turnaround time.
+- esp32: the driver returns `-ENOTSUP` for both settings and sets frame pending on every ACK to a data request. When a data request arrives with `ack_fpb` set and nothing is queued for the child, the MAC sends a zero-length data frame without ACK request, so the child can sleep (802.15.4-2011 5.1.6.3). The same rule covers table races on nrf5. The upstream fix maps both settings to `esp_ieee802154_set_pending_mode(ESP_IEEE802154_AUTO_PENDING_ZIGBEE)` and `esp_ieee802154_add_pending_addr()`, adds the custom-L2 branch to the driver, and returns `-EBUSY` and `-ENOMSG` from `tx()`; it is part of milestone 19. Software emulation of auto-ACK is not possible within the ACK turnaround time.
 
 The stack holds the EUI-64 as a `uint64_t` and converts it at the frame codec, the radio filter and the hardware sources. EUI-64 source, first match wins:
 
@@ -180,7 +181,7 @@ The nrf5 driver sets its EUI-64 only in its iface init, which raw mode does not 
 - Association (802.15.4 5.1.3.1): the association request and its data request use the first header form of R22 Tables D-1 and D-2, with source PAN ID 0xffff and the extended source address. The data request follows macResponseWaitTime after the ACK of the request. After any failure macPANId is 0xffff again.
 - Data poll (802.15.4 5.1.6.3): after an ACK with frame pending, the MAC waits for a data frame from the polled coordinator. A zero-length frame or the end of the wait gives NO_DATA. MLME-POLL.confirm precedes MCPS-DATA.indication. The frame pending bit of the received frame reaches NWK in the frame metadata, and NWK decides whether to poll again.
 - Outside these procedures, data frames with a payload produce MCPS-DATA.indication. Zero-length data frames, beacons and commands are dropped.
-- The receiver stays on between polls until milestone 14.
+- The receiver stays on between polls until milestone 18.
 - MLME-SET of macPANId, macShortAddress and phyCurrentChannel (`zzb_mlme_set_pan_id()`, `zzb_mlme_set_short_addr()`, `zzb_mlme_set_channel()`) writes the PIB and the radio. `zzb_mlme_set_channel()` returns `-EBUSY` during an MLME procedure, since the end of a scan restores the channel. MLME-GET of macCoordExtendedAddress (`zzb_mlme_get_coord_ext_addr()`) gives NWK the IEEE address of the parent after an association. MLME-RESET is not implemented (section 10, Leave and reset).
 
 | Time | Definition | Value at 2.4 GHz |
@@ -193,7 +194,7 @@ The 2011 text of the macMaxFrameTotalWaitTime formula has 2^macMinBE in its seco
 
 ## 10. NWK
 
-`CONFIG_ZZB_NWK` builds `nwk/`, `common/fc.c` and `storage/settings.c`. It selects `CONFIG_SETTINGS`; the application enables the settings backend (section 15). Milestone 8 implements the end device side of join, rejoin, leave and the End Device Timeout; the parent side is part of the router (milestone 15).
+`CONFIG_ZZB_NWK` builds `nwk/`, `common/fc.c` and `storage/settings.c`. It selects `CONFIG_SETTINGS`; the application enables the settings backend (section 15). Milestone 8 implements the end device side of join, rejoin, leave and the End Device Timeout; the parent side is part of the router (milestone 19).
 
 ### Frame codec
 
@@ -211,7 +212,7 @@ The 2011 text of the macMaxFrameTotalWaitTime formula has 2^macMinBE in its seco
 - `zzb_nlme_set_channel(node, channel, update_id)` is NLME-SET of the channel of nwkMacInterfaceTable and of nwkUpdateId, which ZDO calls for a channel change (section 12). It returns `-EINVAL` for a channel outside 11 to 26 and `-EBUSY` while an NLME procedure runs. It calls MLME-SET of the channel first and writes the NIB and saves the NWK records only when that succeeds, so an MLME error (`-EBUSY` during a poll) does not leave the NIB on a channel other than the channel of the radio.
 - NLME-GET: `zzb_nlme_get_short_addr()`, `zzb_nlme_get_ext_pan_id()` and `zzb_nlme_get_capability()` give ZDO nwkNetworkAddress, nwkExtendedPANID and nwkCapabilityInformation.
 - `zzb_nwk_key_pending(node)` tells APS whether the network key is pending, the joined and unauthorized state of R22 4.4.1.2.
-- A neighbor table entry holds the extended address, network address, device type, relationship, LQI and two incoming frame counters, one per key slot (R22 4.3.1.2 bounds the counters by the number of keys times the number of neighbors). The discovery fields of R22 Table 3-64 are the parsed beacon payload (`struct zzb_nwk_beacon`), the PAN ID, the channel, permit joining and potential parent. The device type is coordinator when the beacon has the PAN Coordinator bit of the Superframe Specification set, otherwise router. RxOnWhenIdle, timeout and keepalive describe children and come with the router (milestone 15). The table has `CONFIG_ZZB_NEIGHBOR_COUNT` entries (default 16); add returns NULL when it is full.
+- A neighbor table entry holds the extended address, network address, device type, relationship, LQI and two incoming frame counters, one per key slot (R22 4.3.1.2 bounds the counters by the number of keys times the number of neighbors). The discovery fields of R22 Table 3-64 are the parsed beacon payload (`struct zzb_nwk_beacon`), the PAN ID, the channel, permit joining and potential parent. The device type is coordinator when the beacon has the PAN Coordinator bit of the Superframe Specification set, otherwise router. RxOnWhenIdle, timeout and keepalive describe children and come with the router (milestone 19). The table has `CONFIG_ZZB_NEIGHBOR_COUNT` entries (default 16); add returns NULL when it is full.
 - `zzb_nwk_neighbor_find_short()` skips entries with relationship none, which come from beacons, so the next hop of NLDE-DATA and the LQI update use only the parent and children.
 
 ### Frame security
@@ -222,21 +223,21 @@ Two functions secure and unsecure in place a buffer whose data starts at the NWK
 - Incoming: the auxiliary header must have key identifier 1 and the extended nonce, otherwise `-EINVAL`. A frame counter of 2^32-1 or below the stored counter gives `-EALREADY`. The key slot is found by the key sequence number and the neighbor by the source address of the auxiliary header; a missing slot or neighbor gives `-ENOENT`. A MIC mismatch gives `-EBADMSG`. After verification the counter of the slot is set to the received counter + 1.
 - During a rejoin the candidate parent may be known only from its beacon, with extended address 0. A frame whose MAC source is the short address of that candidate is then verified against the candidate entry, which takes the source address of the auxiliary header after the MIC check (R22 3.6.1.9.2). Outside a rejoin, frames from devices without a neighbor entry are dropped; an end device receives a broadcast relayed by another router again from its parent.
 - A frame secured with the key of the slot written last, when that slot is not active, makes that key active (R22 4.3.1.2 step 7) and saves the key record. A frame secured with the older key does not switch back.
-- R22 4.3.1.2 step 8 (unauthenticated child) is part of the router (milestone 15).
+- R22 4.3.1.2 step 8 (unauthenticated child) is part of the router (milestone 19).
 
 ### Data service
 
 - `zzb_nlde_data_req(node, buf, dst_addr, radius, secure)` takes the NSDU after `ZZB_NLDE_HEADROOM` bytes of headroom and the NSDU handle in the frame metadata. It returns `-ENOTCONN` while the node has no network address or no parent, `-EBUSY` while an NLME procedure runs, and `-EINVAL` for a handle from 0xf0, which NWK command frames use. The header has frame type data, discover route 1 for unicast and 0 for broadcast, end device initiator set on an end device whose nwkParentInformation is not 0 (R22 3.3.1.1.9), and no IEEE address fields. Radius 0 selects the default radius.
 - The MAC destination is the neighbor whose network address is the NWK destination, otherwise the parent. Unicast frames request a MAC ACK. A broadcast from an end device is a MAC unicast to the parent without ACK request (R22 3.6.5).
 - Security and MCPS-DATA.request errors are returned by the request, which then leaves the buffer with the caller. MCPS-DATA.confirm produces `zzb_nlde_data_conf(node, handle, status)` with the MAC status.
-- Received data frames addressed to the node, to 0xffff or to 0xfffd (the receiver stays on until milestone 14) produce `zzb_nlde_data_ind(node, buf, dst_addr, src_addr, security_use)` with the NSDU in the buffer and the LQI in the metadata. Frames with the network address of the node as source are dropped, and an end device drops frames with the end device initiator bit (R22 3.6.2.2). Command frames go to the command handlers below. Every received frame updates the LQI of the neighbor whose network address matches the MAC source address.
-- There is no broadcast transaction table until milestone 16. A repeated secured frame from the parent is rejected by the incoming frame counter check.
+- Received data frames addressed to the node, to 0xffff or to 0xfffd (the receiver stays on until milestone 18) produce `zzb_nlde_data_ind(node, buf, dst_addr, src_addr, security_use)` with the NSDU in the buffer and the LQI in the metadata. Frames with the network address of the node as source are dropped, and an end device drops frames with the end device initiator bit (R22 3.6.2.2). Command frames go to the command handlers below. Every received frame updates the LQI of the neighbor whose network address matches the MAC source address.
+- There is no broadcast transaction table until milestone 20. A repeated secured frame from the parent is rejected by the incoming frame counter check.
 - `zzb_nlde_data_conf()` and `zzb_nlde_data_ind()` are defined by APS. Tests that turn APS off define them.
 
 ### Command frames
 
 - NWK command frames are sent through the same function as NLDE-DATA frames. Their MSDU handle is 0xf0 | command identifier; `zzb_mcps_data_conf()` passes other handles to `zzb_nlde_data_conf()`. Command frames have discover route 0 (R22 3.3.1.1.3), the source IEEE address, and the destination IEEE address when it is known.
-- An end device handles the rejoin response, leave, End Device Timeout Response and network status commands and drops the others. The network status reply 0x13 to an unknown unicast command (R22 3.6.13) comes with the router (milestone 15); R21 devices do not send it either.
+- An end device handles the rejoin response, leave, End Device Timeout Response and network status commands and drops the others. The network status reply 0x13 to an unknown unicast command (R22 3.6.13) comes with the router (milestone 19); R21 devices do not send it either.
 
 ### Unsecured frames
 
@@ -267,7 +268,7 @@ R22 3.6.2.2:
 
 ### Join
 
-- `zzb_nlme_join_req(node, ext_pan_id, method, channels, duration, capability, secure)` takes method `ZZB_NWK_JOIN_ASSOC` (0x00) or `ZZB_NWK_JOIN_REJOIN` (0x02). It returns `-EINVAL` for extended PAN ID 0, and `-ENOTSUP` for orphaning, a channel change, the router device type (until milestone 15) and RxOnWhenIdle 0 (until milestone 14, since the Transport Key and the rejoin response then need polling). Every join first sets nwkParentInformation to 0 (R22 3.2.2.13.3) and stops the keepalive.
+- `zzb_nlme_join_req(node, ext_pan_id, method, channels, duration, capability, secure)` takes method `ZZB_NWK_JOIN_ASSOC` (0x00) or `ZZB_NWK_JOIN_REJOIN` (0x02). It returns `-EINVAL` for extended PAN ID 0, and `-ENOTSUP` for orphaning, a channel change, the router device type (until milestone 19) and RxOnWhenIdle 0 (until milestone 18, since the Transport Key and the rejoin response then need polling). Every join first sets nwkParentInformation to 0 (R22 3.2.2.13.3) and stops the keepalive.
 - Association (R22 3.6.1.4.1): channels and duration are ignored, since the channel comes from the neighbor entry and BDB 8.2 passes 0; R22 3.2.2.13.3 requires a single channel. The request returns `-EALREADY` on a node on a network (R22 INVALID_REQUEST) and `-ENETUNREACH` without a candidate (R22 NOT_PERMITTED). MLME-ASSOCIATE goes to the channel, PAN ID and short address of the candidate. After a failure the next candidate is tried; without one the confirm carries the last MAC status. On success the candidate becomes the parent with the extended address from MLME-GET of macCoordExtendedAddress, the other entries are removed, the NIB takes the PAN ID and address that the MAC already holds, and the key becomes pending. Nothing is saved until the key arrives.
 - Rejoin (R22 3.6.1.4.2): an active scan of channels, or of the channel of the network when channels is 0 (BDB 7.1 passes 0). Only beacons with the requested extended PAN ID are used. The NIB PAN ID and the MAC channel are set to those of the candidate. The source address is nwkNetworkAddress; when it is not valid, a random address from 0x0001 to 0xfff7 is written to the NIB and the MAC, since the rejoin response is addressed to it. The rejoin request has radius 1, the source IEEE address, the destination IEEE address when the candidate's is known, NWK security when secure, and the capability with allocate address 0 (stochastic addressing).
 - After the confirm of the rejoin request with SUCCESS, NWK waits macResponseWaitTime (491.52 ms) for the rejoin response; a response that arrives before the confirm is accepted too. The response must come from the candidate, with the EUI-64 of the node as destination IEEE address, the IEEE address of the candidate as source when it is known, status SUCCESS and an address below 0xfff8. While a rejoin runs, all other frames are dropped.
@@ -301,7 +302,7 @@ While the node has a parent and no NLME procedure runs, NO_ACK in MCPS-DATA.conf
 
 `CONFIG_ZZB_APS` builds `aps/`, `common/fc.c` and `storage/settings.c` and selects `CONFIG_SETTINGS`. Milestone 9 implements the end device side: data service, acknowledgements, retransmissions, duplicate rejection, link-key security and the key commands a joining device exchanges with the trust center.
 
-- The binding table serves ZDO Bind/Unbind and APSDE-DATA with binding (milestone 10). The group table is added when a use case requires it; until then received group-addressed frames are dropped. Tunnel, Update Device and Remove Device are part of the router (milestone 16).
+- The binding table serves ZDO Bind/Unbind and APSDE-DATA with binding (milestone 10). The group table comes with the Groups and Scenes servers (milestone 13); until then received group-addressed frames are dropped. Tunnel, Update Device and Remove Device are part of the router (milestone 20).
 - Application link keys are excluded: Request Key asks only for the trust center link key, and a received application link key is dropped.
 - The primitives are internal and run on the stack thread, as in NWK. The `zzb_apsde_data_conf()`, `zzb_apsde_data_ind()`, `zzb_apsme_transport_key_ind()` and `zzb_apsme_switch_key_ind()` callbacks are defined by ZDO (section 12). `zzb_apsme_confirm_key_ind()` is defined by BDB (section 13). The public tier 1 API (section 18) is not part of milestone 10.
 
@@ -406,13 +407,13 @@ The end device processes the commands a trust center sends (R22 4.4.1.3, 4.4.1.5
 - ZDO frames use endpoint 0 and profile 0x0000, and their ASDU starts with the transaction sequence number (TSN). A response copies the TSN of the request, has the request cluster with bit 15 set and goes to the network source of the request (destination address mode 0x02).
 - The TSN is one counter per node with a random initial value; it advances with every frame ZDO originates (requests, Device_annce).
 - Every unicast ZDO frame requests an APS acknowledgement (R23 2.4.2.8.4). R22 requires one only on the replies to broadcast discovery requests (R22 2.4.2.1); the R23 rule includes that case and treats all frames alike. Broadcast frames go without. ZDO frames have NWK security only; requests secured with a link key are accepted too.
-- ASDU handles: 0xfe for Mgmt_Leave_rsp, 0xff for the other ZDO frames; values below 0xfe belong to the application (ZCL). APSDE-DATA.confirm with handle 0xff is ignored.
+- ASDU handles: 0xfe for Mgmt_Leave_rsp, 0xff for the other ZDO frames; values below 0xfe belong to the application, and ZCL responses use 0xfd (section 16). APSDE-DATA.confirm with handles other than 0xfe is ignored.
 - A frame that cannot be sent (no buffer, an APSDE-DATA error) is dropped; the requester repeats its request.
 - `ZZB_APS_MAX_ASDU` (82) is the longest ASDU of a unicast frame with NWK security only (section 7). The node descriptor and the record count of the management responses use it.
 
 ### Reception
 
-- `zzb_apsde_data_ind()` passes frames to endpoint 0 with profile 0x0000 and a non-empty ASDU to ZDO. Frames to the application endpoints and to the broadcast endpoint 0xff are dropped until ZCL (milestone 12).
+- `zzb_apsde_data_ind()` passes frames to endpoint 0 with profile 0x0000 and a non-empty ASDU to ZDO. Frames with another destination endpoint go to ZCL (section 16).
 - A request is a broadcast when its network destination is a broadcast address. No error status answers a broadcast request (R22 2.4.4.1).
 - Broadcasts of the requests R22 allows only as unicast are dropped: Node_Desc, Power_Desc, Simple_Desc, Active_EP (R22 2.4.2.1), Bind, Unbind, Mgmt_Lqi, Mgmt_Bind and Mgmt_Leave.
 - A unicast request without a handler gets a response of the TSN and NOT_SUPPORTED (0x84); such a broadcast is dropped (R22 2.4.4.1). A supported request with a short payload is dropped.
@@ -443,6 +444,7 @@ Descriptors (R22 2.3.2, 2.4.4.2):
 
 - The power descriptor reports current power mode 0 (receiver synchronized with RxOnWhenIdle), the power source of the device definition as available and current source, and level 100 % (0xc). The battery level comes with the Power Configuration cluster (milestone 14).
 - Node_Desc_req, Power_Desc_req and Active_EP_req for another network address get INV_REQUESTTYPE without a descriptor; Active_EP_rsp then has count 0. Active_EP_rsp lists the endpoints in the order of the device definition.
+- A simple descriptor lists the server instances of the endpoint as input clusters and the client instances as output clusters, in the order of the endpoint.
 - Simple_Desc_req: endpoint 0 or 0xff gives INVALID_EP, then another network address INV_REQUESTTYPE, then an endpoint not in the device definition NOT_ACTIVE, all with length 0 (R22 2.4.4.2.5). A descriptor longer than apscMaxDescriptorSize gets no response.
 - Match_Desc_req (R22 2.4.4.2.7) for the network address of the node or a broadcast address matches an endpoint whose profile equals the requested one, or any profile when the request has 0xffff, and which has an input cluster of the request input list or an output cluster of the request output list. A request for another address gets INV_REQUESTTYPE as unicast, with the network address and match length 0 as in Figure 2-70 (the text of 2.4.4.2.7 omits the address), and is dropped as broadcast. Without a match a broadcast gets no response and a unicast gets SUCCESS with match length 0. A SUCCESS response carries the network address of the node, also for a broadcast address in the request.
 
@@ -453,7 +455,7 @@ Bindings (R22 2.4.3.2.2, 2.4.3.2.3):
 
 Management (R22 2.4.3.3, 2.4.4.4):
 
-- Mgmt_Lqi_rsp lists the neighbor entries with a relationship. A record holds nwkExtendedPANID, the extended address (0xffffffffffffffff when unknown), the network address, the device type, RxOnWhenIdle (1 for a coordinator or router, 2 unknown for an end device), the relationship, permit joining 2 (unknown), the depth (0 for the coordinator, from the beacon for a router) and the LQI. The NWK record does not store the depth, so after a reboot a router parent is reported with depth 0; the router (milestone 15) needs the depth of its parent for its own beacon and stores it.
+- Mgmt_Lqi_rsp lists the neighbor entries with a relationship. A record holds nwkExtendedPANID, the extended address (0xffffffffffffffff when unknown), the network address, the device type, RxOnWhenIdle (1 for a coordinator or router, 2 unknown for an end device), the relationship, permit joining 2 (unknown), the depth (0 for the coordinator, from the beacon for a router) and the LQI. The NWK record does not store the depth, so after a reboot a router parent is reported with depth 0; the router (milestone 19) needs the depth of its parent for its own beacon and stores it.
 - Mgmt_Bind_rsp lists the binding entries with the EUI-64 of the node as source address; an empty table gives SUCCESS with zero counts and no list.
 - Both responses hold as many whole records from the start index as fit in `ZZB_APS_MAX_ASDU`: 3 neighbor records, or 3 bindings with an IEEE destination. A start index past the end gives SUCCESS with list count 0. R22 Table 2-129 limits the neighbor records to two, a value derived from the 802.15.4-2003 frame size.
 - Mgmt_Permit_Joining_req, mandatory (R22 Table 2-126), gets INVALID_REQUEST (0xc2) as unicast, the NLME-PERMIT-JOINING.confirm status of an end device (R22 3.2.2.7.3).
@@ -536,7 +538,7 @@ int zzb_bdb_reset(struct zzb_node *node);
 - On the CC2531 the network key arrived 130 ms after the association and 616 ms after a trust center rejoin.
 - bdbNodeJoinLinkKeyType is 0x00 until install codes (milestone 13) and is not kept.
 - bdbNodeIsOnANetwork has no record. `zzb_bdb_init()`, called by `zzb_node_init()` after the settings are loaded, sets it when nwkExtendedPANID is not 0. Step 11 of BDB 8.2 sets it, and the reset clears it. NWK writes `nwk/net` when the network key arrives and deletes it at a leave and at NLME-RESET (section 10), so the record and the attribute change together. A node that loses power during the trust center link key exchange is on the network with key A after the reboot.
-- The capability of an association has allocate address, receiver on when idle (until milestone 14), and mains power (bit 2) when the power source of the device definition includes `ZZB_POWER_MAINS`. ZHA reads this bit from Device_annce. A rejoin uses nwkCapabilityInformation.
+- The capability of an association has allocate address, receiver on when idle (until milestone 18), and mains power (bit 2) when the power source of the device definition includes `ZZB_POWER_MAINS`. ZHA reads this bit from Device_annce. A rejoin uses nwkCapabilityInformation.
 
 ### Common rules
 
@@ -592,8 +594,9 @@ BDB 10.2.5 with method 0:
   - NLME-RESET, which deletes the NWK records;
   - `zzb_aps_reset()`;
   - `zzb_zdo_init()`, which clears the transactions of the ZDO client and a pending channel change of Mgmt_NWK_Update_req;
+  - `zzb_zcl_reset()`, which restores the defaults of the ZCL attributes and deletes their records (section 16);
   - bdbNodeIsOnANetwork FALSE, the BDB procedure and timer cancelled.
-  - The frame counter records stay (BDB 9). ZCL adds its records with milestone 12.
+  - The frame counter records stay (BDB 9).
 - `zzb_bdb_reset()` (BDB 9.5) on a node on a network issues NLME-LEAVE without rejoin, and its confirm resets the node and reports LEFT.
   - `-EBUSY` from NLME-LEAVE is returned and changes nothing: NWK runs a procedure, such as a leave requested by the parent, which ends with its own indication.
   - Another error (no parent, no key) or a node off a network resets the node at once and reports LEFT.
@@ -613,7 +616,7 @@ CCM functions take a `psa_key_id_t`. The PSA key cache in `sec/key_cache.c` serv
 
 Keys are stored as arrays: two network keys and N link-key pairs. The trust center is identified by `apsTrustCenterAddress` (IEEE address). Code must not assume that the trust center is the parent. Frames to the trust center go to network address 0x0000, since R22 4.6.2.2 places the trust center on the coordinator in a centralized network.
 
-Outgoing frame counters: one for NWK and one for APS, global to the node, both implemented by `common/fc.c`. The NWK counter must survive factory reset, leave and joining another network (R22 4.3.4). Both are persisted as a watermark under `zzb/<n>/fc/nwk` and `zzb/<n>/fc/aps`: a version byte (1) followed by the watermark, little-endian, 4 bytes. The reset of the node (section 13) erases `zzb/<n>/nwk` and `zzb/<n>/aps`, and `zzb/<n>/zcl` from milestone 12, and keeps `zzb/<n>/fc`.
+Outgoing frame counters: one for NWK and one for APS, global to the node, both implemented by `common/fc.c`. The NWK counter must survive factory reset, leave and joining another network (R22 4.3.4). Both are persisted as a watermark under `zzb/<n>/fc/nwk` and `zzb/<n>/fc/aps`: a version byte (1) followed by the watermark, little-endian, 4 bytes. The reset of the node (section 13) erases `zzb/<n>/nwk`, `zzb/<n>/aps` and `zzb/<n>/zcl` and keeps `zzb/<n>/fc`.
 
 - On boot: counter = watermark, then `zzb_node_init()` saves watermark + `CONFIG_ZZB_FRAME_COUNTER_JUMP` (default 1024). It returns the error if the save fails or the record has an unknown version or length.
 - At runtime: when the counter reaches watermark - JUMP/2, a work item on the stack queue saves counter + JUMP and moves the watermark when the save succeeds. After a failed save, the next secured frame schedules the save again. While the counter equals the watermark, securing a frame fails with `-EBUSY`; a counter of 2^32-1 fails with `-EOVERFLOW` (R22 4.3.1.1 step 1).
@@ -657,16 +660,92 @@ APS records, little-endian:
 - APS saves the trust center address in `zzb_apsme_set_tc_addr()`, and an entry when `zzb_apsme_set_tc_addr()` or `zzb_apsme_set_link_key()` adds or changes it or a Confirm Key verifies it. `zzb_apsme_bind_req()` saves a binding entry, `zzb_apsme_unbind_req()` deletes it. Save errors are ignored. `zzb_aps_reset()` deletes the records.
 - A record with an unknown version or length makes `zzb_node_init()` return `-EINVAL`.
 
-## 16. ZCL data model
+ZCL records, little-endian:
 
-- Attribute metadata is constant and declared with macros: cluster ID, attribute ID, type, access, flags, offset into the storage struct.
-- Attribute values live in a struct per cluster instance, declared by the application. The endpoint list is part of the device definition passed to `zzb_node_init()`.
-- `BUILD_ASSERT` checks attribute types against storage field sizes.
-- Simple_Desc_rsp and Active_EP_rsp are generated from the same tables. Cluster macros add the mandatory attributes, including ClusterRevision (0xFFFD).
-- The application changes attributes with `zzb_zcl_attr_set()`. The call is marshaled to the stack thread and runs the reportable-change check and the settings save. Other threads must not write the storage structs.
-- An optional per-cluster callback validates remote writes.
-- ZCL is a Kconfig option. An NCP build leaves ZCL to the host.
-- Cluster tables may be generated from the project-chip/zap ZCL XML (`zcl-builtin/silabs`, Apache-2.0, ZCL rev 8) and checked against zigbee-herdsman `src/zspec/zcl` (MIT).
+| Key | Contents | Length |
+|---|---|---|
+| `zzb/<n>/zcl/<ep>/<cluster>/<attr>` | version (1) and the value of a non-volatile attribute in its ZCL encoding; the endpoint in decimal, the cluster and attribute IDs in 4 hexadecimal digits | 1 + value |
+
+- ZCL saves a non-volatile attribute at every change. Save errors are ignored. `zzb_zcl_reset()` deletes the records.
+- A record with an unknown version or length makes `zzb_node_init()` return `-EINVAL`. A record of an endpoint, cluster or attribute that the device definition does not have is ignored.
+- Settings keys are built in a 32-byte buffer; `zzb/<n>/zcl/254/0006/4003` has 23 characters for n below 10.
+
+## 16. ZCL
+
+`CONFIG_ZZB_ZCL` builds `zcl/` and selects `CONFIG_SETTINGS`. An NCP build leaves ZCL to the host. Milestone 12 implements the commands that read, write and discover attributes, the Default Response, and the Basic, Identify and On/Off servers with the attributes and commands that the DTL requires for the On/Off Light.
+
+| File | Contents |
+|---|---|
+| `zcl.c` | init, start, reset, reception, lookup of endpoints and clusters, responses, timers |
+| `frame.c` | ZCL header codec and data type lengths |
+| `attr.c` | attribute lookup and value encoding, `zcl_cb`, records, `zzb_zcl_attr_set()` |
+| `foundation.c` | global commands |
+| `clusters/` | `basic.c`, `identify.c`, `on_off.c` |
+
+### Data model
+
+- `include/zzb/zcl.h` declares the attribute descriptor, the cluster definition, the cluster instance, the callbacks and `zzb_zcl_attr_set()`. `include/zzb/zcl/<cluster>.h` declares the value struct and the instance macro of a cluster of the stack. `zzb.h` includes `zzb/zcl.h`.
+- An attribute descriptor holds the attribute ID, the data type, flags and the offset of the field in the value struct. The flags are read, write and report access (ZCL 2.3.4.4), constant and non-volatile. A constant attribute, such as ClusterRevision or ZCLVersion, holds its value in place of the offset. `ZZB_ZCL_ATTR(id, type, flags, struct, field)` checks the size of the field against the type with `ZERO_OR_COMPILE_ERROR()`, since `BUILD_ASSERT` cannot stand in an initializer. `ZZB_ZCL_ATTR_CONST(id, type, value)` declares a constant. Attribute tables are in ascending order of attribute ID.
+- Storage types: bool, map8, uint8 and enum8 in one byte, uint16 in two, a character string as `const char *` and an octet string as `const uint8_t *` pointing at its length octet. Strings are read-only, and NULL reads as an empty string. Other types are added with the clusters that use them.
+- A cluster definition holds the attribute table and optional hooks: `init` sets the defaults before the records are loaded, `start` runs after loading, `reset` restores the defaults at the reset of the node, `cmd` processes a cluster-specific command, `check` validates a remote write and `changed` follows every change of a value. The stack defines its clusters; an application can define its own.
+- A cluster instance holds the cluster ID, server or client, the value struct and the definition, which is NULL for a cluster without attributes and commands. The definition is a separate object because a macro in a public header cannot take the size of a table defined in a source file. `ZZB_ZCL_ON_OFF_SERVER(&values)` and the macros of the other clusters build an instance and check the type of the value struct.
+- An endpoint lists its cluster instances. Its simple descriptor has the server instances as input clusters and the client instances as output clusters (section 12).
+- The value structs belong to the application and are written only on the stack thread. The application reads them in the callbacks and changes them with `zzb_zcl_attr_set()`, which runs on the stack thread through `zzb_call_sync()`. It returns `-ENOENT` for an unknown endpoint, cluster or attribute and `-EINVAL` for a constant, a string or a value that `check` rejects; it saves a non-volatile attribute and calls `changed`.
+- `zcl_cb(node, ep, cluster, attr)` in `struct zzb_node_config` is called on the stack thread when a remote command, a write, a timer of the stack or the reset of the node gives an attribute a new value. `zzb_zcl_attr_set()` and `zzb_node_init()` do not call it.
+- `zcl_effect_cb(node, ep, cluster, effect, variant)` receives the fields of Trigger Effect and Off With Effect as received, before the `zcl_cb` calls of the same command. The application uses the default variant for a variant it does not support (ZCL 3.5.2.3.3.2, 3.8.2.3.4.2).
+- The cluster tables are written by hand from ZCL rev 8. They may later be generated from the project-chip/zap ZCL XML (`zcl-builtin/silabs`, Apache-2.0) and checked against zigbee-herdsman `src/zspec/zcl` (MIT).
+
+### Reception
+
+- ZDO passes frames with a destination endpoint other than 0 to `zzb_zcl_data_ind()`. ZCL accepts an endpoint of the device definition with the profile of the endpoint or 0xffff, and the broadcast endpoint 0xff, whose frame goes to every endpoint with the cluster (ZCL 2.3.2.1). Other frames, frames shorter than the ZCL header and frames with a reserved frame type are dropped.
+- Direction 0 addresses a server instance, direction 1 a client instance.
+- The Default Response (ZCL 2.5.12.2) answers only a NWK unicast to an endpoint other than 0xff (ZCL 2.3.2.1), and never a received Default Response. It carries SUCCESS when Disable Default Response is 0, and an error status in every case:
+  - UNSUPPORTED_CLUSTER (0xc3) when the endpoint has no instance for the cluster and the direction;
+  - UNSUP_COMMAND (0x81) for a manufacturer-specific frame, with the manufacturer-specific bit and the received manufacturer code (ZCL 2.5.12.1.1), and for an unknown global or cluster-specific command, including received responses and the reporting commands;
+  - MALFORMED_COMMAND (0x80) for a payload shorter than its fixed fields. Octets after them are ignored (ZCL 2.3.2).
+- Read, Write and Discover Attributes responses and Identify Query Response are also sent for broadcasts; item 3 of ZCL 2.3.2.1 is read as excluding error responses only. Write Attributes No Response gets no frame (ZCL 2.5.6.3).
+- A response has Disable Default Response 1, the opposite direction and the TSN of the request. It goes to the network source and the source endpoint of the request, from the endpoint that processed it and with the profile of that endpoint. It has NWK security only, an APS ACK request as unicast, as ZDO frames (section 12), and ASDU handle 0xfd, whose confirm is ignored. Requests with APS security are processed, and their responses go without it. The buffer reserves the headroom of a ZDO frame, so an ASDU holds up to `ZZB_APS_MAX_ASDU` (82) bytes.
+- A command that its effect on receipt discards (Identify Query while not identifying, On With Recall Global Scene with GlobalSceneControl TRUE, On With Timed Off refused by Accept Only When On) follows the general rule and gets SUCCESS when Disable Default Response is 0. zigpy waits for the Default Response of a cluster command.
+
+### Foundation commands
+
+- Read Attributes (ZCL 2.5.1.3): an unknown attribute gets UNSUPPORTED_ATTRIBUTE. A record whose value does not fit gets INSUFFICIENT_SPACE in 3 bytes, and the next attributes are still processed; the response ends where 3 bytes do not fit. An odd last octet is ignored.
+- Write Attributes (ZCL 2.5.3.3) first parses every record by the length of the type in the record. A truncated record or a type of unknown length gives MALFORMED_COMMAND, and nothing is written. The checks run in the order UNSUPPORTED_ATTRIBUTE, INVALID_DATA_TYPE, READ_ONLY, INVALID_VALUE (a bool other than 0 and 1, a value that `check` rejects). The response lists the status and attribute ID of each failed record, or one SUCCESS record without an ID.
+- Write Attributes Undivided (ZCL 2.5.4) checks every record; when one fails, nothing is written and the response lists the failed records. Write Attributes No Response (ZCL 2.5.6) writes the records that pass the checks. `zcl_cb` is called after all records are written.
+- Discover Attributes (ZCL 2.5.13) lists the attributes from the start ID, at most the requested number and 26, the number of records that fit in 82 bytes. Discovery complete is 1 when no attribute follows the last one listed.
+- The data type lengths cover the fixed-length types of ZCL Table 2-11 and the four string types, so a write record of any attribute can be skipped.
+- Configure Reporting and Read Reporting Configuration get UNSUP_COMMAND until milestone 13. This departs from ZCL 2.5, which requires them for clusters with mandatory reportable attributes such as OnOff (ZCL 3.8.2.7). ZHA logs the failure and continues the configuration.
+- Not implemented: Discover Commands, Discover Attributes Extended, structured read and write (no attribute has a structured type), manufacturer-specific attributes and commands.
+
+### Basic
+
+- ClusterRevision 3, ZCLVersion 8. The attributes are those that the DTL requires for the On/Off Light: ApplicationVersion, StackVersion, HWVersion, ManufacturerName, ModelIdentifier, DateCode, PowerSource, GenericDeviceClass, GenericDeviceType, ProductCode, ProductURL and SWBuildID, all read-only and set by the application. GenericDeviceClass and GenericDeviceType default to 0xff in ZCL, while a zeroed struct means lighting and incandescent, so the application sets them.
+- Reset to Factory Defaults (optional) is not implemented.
+
+### Identify
+
+- ClusterRevision 2. The Identify command, a write and `zzb_zcl_attr_set()` set IdentifyTime. A timer of the node decrements every IdentifyTime above 0 once a second, with `zcl_cb`, and is not armed while all are 0. The tick is shared, so the first decrement of an instance that started later can come early.
+- Identify Query: with IdentifyTime above 0, Identify Query Response with the remaining time goes as unicast to the source of the query, also of a broadcast query (ZCL 3.5.2.3.2.1).
+- Trigger Effect goes to `zcl_effect_cb` and changes no attribute.
+
+### On/Off
+
+- ClusterRevision 2. Attributes: OnOff (read, report, non-volatile), GlobalSceneControl, OnTime, OffWaitTime and StartUpOnOff (writable, non-volatile; 0x00, 0x01, 0x02 and 0xff, other values give INVALID_VALUE). The value struct also holds `start_up_default`, the factory value of StartUpOnOff (MS in ZCL), which the application sets and the stack does not change, and internal fields.
+- Commands (ZCL 3.8.2.3):
+  - Off: OnOff 0, OnTime 0.
+  - On: OnOff 1, GlobalSceneControl TRUE, and OffWaitTime 0 when OnTime is 0.
+  - Toggle: as On when off; OnOff 0 and OnTime 0 when on.
+  - Off With Effect: with GlobalSceneControl TRUE, the global scene takes OnOff, GlobalSceneControl becomes FALSE, OnOff 0 and OnTime 0; otherwise OnOff 0.
+  - On With Recall Global Scene: discarded with GlobalSceneControl TRUE. Otherwise OnOff takes the global scene, GlobalSceneControl becomes TRUE, and OffWaitTime 0 when OnTime is 0. The global scene is kept in RAM until the Scenes cluster (milestone 13).
+  - On With Timed Off (ZCL 3.8.2.3.6.4): discarded with Accept Only When On while off. While off with OffWaitTime above 0, OffWaitTime takes the minimum of itself and the field. Otherwise OnTime takes the maximum of itself and the field, OffWaitTime the field, OnOff 1 and GlobalSceneControl TRUE. When both are below 0xffff, the update starts.
+- The update runs only after On With Timed Off, as ZCL 3.8.2.3.6.4 describes it; a write of OnTime does not start it. Every 0.1 s it decrements OnTime while on, and at 0 sets OffWaitTime 0 and OnOff 0; while off it decrements OffWaitTime. It ends when both are 0. One timer of the node serves all instances and is not armed without an update.
+- StartUpOnOff is applied once in `zzb_node_init()` after the records are loaded, without `zcl_cb`: 0x00 and 0x01 set OnOff, 0x02 inverts it and saves the result, 0xff and the reserved values keep the loaded value. Without records StartUpOnOff is `start_up_default` and OnOff 0.
+
+### Initialization and reset
+
+- `zzb_node_init()` calls `zzb_zcl_init()` after `zzb_zdo_init()`; it cancels the timers and calls the `init` hooks. The settings are loaded next (section 15), and `zzb_zcl_start()` calls the `start` hooks after the frame counters have started and before `zzb_bdb_init()`.
+- `zzb_zcl_reset()`, called by the reset of the node (section 13), calls the `reset` hooks and then deletes the records. The hooks set the defaults in the same way as a remote change, so the timers stop and `zcl_cb` reports every value that changes: OnOff, IdentifyTime, OnTime and OffWaitTime become 0, GlobalSceneControl TRUE and StartUpOnOff `start_up_default`. StartUpOnOff is not applied, since the reset is not a power-up.
+- Groups and Scenes, which the DTL also requires for the On/Off Light, come with milestone 13.
 
 ## 17. Sleepy end device and power management
 
@@ -675,17 +754,17 @@ APS records, little-endian:
 - ESP32-C6/H2: `CONFIG_PM` and `CONFIG_IEEE802154_ESP32_SLEEP_ENABLE`. With sleep enabled the driver does not report `IEEE802154_RX_ON_WHEN_IDLE`, so the MAC opens the post-poll receive window itself: `start()`, wait up to macMaxFrameTotalWaitTime when the ACK had frame pending set, `stop()`.
 - A zero-length data frame from the parent means no pending data; the device returns to sleep.
 - Poll rate (BDB 6.8): at most 3 s between polls while a response is expected, during joining and during finding & binding. A parent holds a buffered frame for 7.5 s.
-- An End Device Timeout Request follows every join and rejoin, and the keepalive method comes from the parent information field of the response (section 10). Milestone 14 chooses a timeout longer than the slow poll interval.
+- An End Device Timeout Request follows every join and rejoin, and the keepalive method comes from the parent information field of the response (section 10). Milestone 18 chooses a timeout longer than the slow poll interval.
 - Parent loss, reported by NWK after a keepalive failure or `CONFIG_ZZB_NWK_PARENT_FAILURES` failed transmissions (section 10): BDB rejoins securely on the current channel, then securely on all channels, then with a trust center rejoin, and repeats the series with a growing pause (section 13). This also recovers from a channel change missed while asleep.
 
 ## 18. Extension points for coordinator and trust center
 
 - Join, rejoin and leave are split into joiner-side and parent-side files sharing the frame codecs. Parent-side files are compiled with `zephyr_library_sources_ifdef(CONFIG_ZZB_ROUTER_CAPABLE ...)`. Small branches use `IS_ENABLED()`; functions contain no `#ifdef`.
 - The parent has one "device joined" path. It sends APS Update Device to a remote trust center, or calls the local trust center through `node->tc` ops, which are NULL when `CONFIG_ZZB_TRUST_CENTER` is off. Children of the trust center itself never produce an Update Device frame on air. Received Request Key and Verify Key commands use the same dispatch.
-- APS Tunnel is part of the router (milestone 16): a remote trust center reaches a joining grandchild through it.
+- APS Tunnel is part of the router (milestone 20): a remote trust center reaches a joining grandchild through it.
 - Public API tiers: (1) raw APSDE and endpoint registration with a raw handler; (2) ZDO client; (3) ZCL and BDB. An NCP build uses tiers 1 and 2 plus configuration get/set.
 - Export and import of keys, frame counters and the device table are defined together with persistence, because zigpy relies on network backup and restore.
-- NCP framing is independent of the transport (UART, USB CDC, TCP). Protocol candidates: ZBOSS NCP (zigpy-zboss exists), Z-Stack MT/ZNP (zigpy-znp exists), or a new protocol with a new zigpy radio library. The choice is made at milestone 20.
+- NCP framing is independent of the transport (UART, USB CDC, TCP). Protocol candidates: ZBOSS NCP (zigpy-zboss exists), Z-Stack MT/ZNP (zigpy-znp exists), or a new protocol with a new zigpy radio library. The choice is made at milestone 24.
 
 ## 19. Reference code
 
@@ -706,28 +785,29 @@ No C implementation of AES-MMO or install code key derivation under a permissive
 
 - Unit tests: ztest on `native_sim/native/64`; CI also runs `native_sim` (32-bit) to catch pointer-size errors.
 - Crypto and codec tests use R22 Annex C vectors, BDB 10.1 install code examples and frames captured from real networks. The first frames come from the Ziggurat and zigbee-rs test suites (listed in `NOTICE`) and from a test network whose network key may be published. MAC frames missing from these sources are built from the IEEE 802.15.4-2011 figures and R22 Tables D-1 to D-3.
-- Multi-node integration tests: fake radio devices implementing `ieee802154_radio_api` (`tests/common/fake_radio.c`), connected by an in-process medium. Each fake radio is a net device for the custom-L2 backend with its own `net_if`, since the raw backend serves one port. The medium has a link matrix, delivers a frame only to radios on the same channel and filters by PAN ID and destination address; frame loss is added with the router MAC (milestone 15). It logs every frame with `LOG_HEXDUMP_DBG`. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
+- Multi-node integration tests: fake radio devices implementing `ieee802154_radio_api` (`tests/common/fake_radio.c`), connected by an in-process medium. Each fake radio is a net device for the custom-L2 backend with its own `net_if`, since the raw backend serves one port. The medium has a link matrix, delivers a frame only to radios on the same channel and filters by PAN ID and destination address; frame loss is added with the router MAC (milestone 19). It logs every frame with `LOG_HEXDUMP_DBG`. The MAC calls the radio API in the same way as on hardware. native_sim time is simulated, so timer behavior is deterministic.
 - A test can replace the interface of a fake radio by a callback, which receives the frames the radio accepts and returns the frame pending bit of the ACK, and can send frames from that radio with `fake_radio_send()`.
 - `tests/glue/raw` tests the radio port in raw mode against FFF fakes of the radio API: TX modes, software CSMA-CA, status mapping, frame pending from the ACK and the RX copy. `tests/glue/custom_l2` tests the custom-L2 backend with two fake radios.
 - `tests/unit/mac` tests the device MAC in raw mode against FFF fakes of the radio API. The `tx()` fake plays the parent: it returns the ACK through `ieee802154_handle_ack()`, with frame pending when the test sets it, and injects replies with `net_recv_data()`. It simulates frame loss by withholding the ACK.
 - `tests/unit/nwk` tests NWK with the MAC and APS turned off, against FFF fakes of MCPS, MLME and the NLDE and NLME callbacks. Node 1 plays the parent: the test builds its frames, secured commands included, with the NWK send functions and passes the frames caught by the MCPS fake to node 0.
 - `tests/unit/aps` tests APS with NWK and ZDO turned off, against FFF fakes of NLDE-DATA.request, the NWK functions APS reads and the APSDE and APSME callbacks. Node 0 has the destination address of the captured Transport Key and node 1 its source address. Node 1 plays the trust center and secures its frames with `zzb_aps_secure()` and explicit keys.
-- `tests/unit/zdo` tests ZDO with BDB, APS and NWK turned off, against FFF fakes of APSDE-DATA.request, the APSME, NLME and BDB functions ZDO calls and the confirm of the ZDO client. The test fills the neighbor and binding tables of the node directly, passes requests to `zzb_apsde_data_ind()` and confirms to `zzb_apsde_data_conf()`, and checks the frames caught by the APSDE fake.
-- `tests/unit/bdb` tests BDB with ZDO, APS and NWK turned off, against FFF fakes of the NLME, APSME and ZDO client functions BDB calls. The event callback of the test records the events. The test calls the NLME, APSME and ZDO callbacks of BDB directly; the pauses and timeouts run in kernel time.
-- `tests/build/radio` is a build-only consumer application. It enables the module with NVS as the settings backend and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. A second scenario builds nrf52840dk with the custom-L2 backend. The application passes the `zephyr,ieee802154` chosen device, a device definition with one endpoint and a BDB callback to `zzb_node_init()`, and calls `zzb_bdb_start()` when BDB is built; native_sim has no radio and builds no layer from the MAC up.
+- `tests/unit/zdo` tests ZDO with BDB, ZCL, APS and NWK turned off, against FFF fakes of APSDE-DATA.request, the APSME, NLME, BDB and ZCL functions ZDO calls and the confirm of the ZDO client. Its endpoints have cluster instances without definitions. The test fills the neighbor and binding tables of the node directly, passes requests to `zzb_apsde_data_ind()` and confirms to `zzb_apsde_data_conf()`, and checks the frames caught by the APSDE fake.
+- `tests/unit/bdb` tests BDB with ZDO, ZCL, APS and NWK turned off, against FFF fakes of the NLME, APSME, ZDO client and ZCL functions BDB calls. The event callback of the test records the events. The test calls the NLME, APSME and ZDO callbacks of BDB directly; the pauses and timeouts run in kernel time.
+- `tests/unit/zcl` tests ZCL with BDB, ZDO, APS and NWK turned off, against an FFF fake of APSDE-DATA.request. The test passes frames to `zzb_zcl_data_ind()`, checks the frames caught by the fake, and defines a cluster of its own with `ZZB_ZCL_ATTR()` for the foundation commands. The records use NVS on the flash simulator; a reboot is `zzb_zcl_init()`, loading the settings and `zzb_zcl_start()`. The timers run in kernel time.
+- `tests/build/radio` is a build-only consumer application. It enables the module with NVS as the settings backend and, on nrf52840dk and ESP32-C6/H2, also the 802.15.4 driver in raw mode. A second scenario builds nrf52840dk with the custom-L2 backend. The application passes the `zephyr,ieee802154` chosen device, a device definition with one endpoint (Basic, Identify and On/Off servers when ZCL is built) and a BDB callback to `zzb_node_init()`, and calls `zzb_bdb_start()` when BDB is built; native_sim has no radio and builds no layer from the MAC up.
 - CI runs on Woodpecker (`.woodpecker/build.yaml`): twister runs the tests on `native_sim` and `native_sim/native/64` and only builds the hardware targets.
 - `tests/common/scripted_tc.c` plays the trust center side of join sequences captured with a sniffer from EZSP and Z-Stack coordinators on a test network with a known network key.
 - Reboot and power-loss tests run on NVS over the flash simulator, kept in RAM with `--flash_in_ram` so that every run starts with erased flash; the node is destroyed and re-initialized. In the NWK tests a reboot is a second `zzb_nwk_init()` followed by loading the settings.
 - A test asserts that no timer is armed while a sleepy node is idle.
 - `tests/integration/nwk_data` runs two nodes on fake radios with the custom-L2 backend. Node 1 is a child of node 0; the test sets up both with NLME-SET and the neighbor table functions and, with APS turned off, sends APS frames built by hand.
 - `tests/integration/nwk_join` runs one node on fake radio 1 against a parent scripted in `tests/common/parent.c` on fake radio 0. The script answers inside the `tx()` of the child: a beacon to a beacon request, an association response to the data request, the End Device Timeout Response and rejoin responses, and it secures and checks frames with the `sec/` functions. Frames it sends on its own, such as a leave request, are built on the stack thread with `zzb_call_sync()`, since a PSA key ID is valid only there. The parent also plays the trust center: after the association it sends the network key in a Transport Key secured with the key-transport key of the preconfigured key, and the APS suite runs the trust center link key exchange, acknowledgements in both directions, a retransmission, a duplicate and a network key switch. ZDO is turned off, and the APS callbacks of the test set apsTrustCenterAddress, the network key, the active key and the link key, as ZDO and BDB do. Every test starts with NLME-RESET, `zzb_aps_reset()` and a join, because ztest orders tests by name. All secured frames use the keys of `ci/check-frame-log.sh`; frames with a wrong MIC stay in the unit tests.
-- `tests/integration/bdb` runs the whole stack on fake radio 1 against the same parent, which also answers Node_Desc_req with a stack compliance revision set by the test, logs the ZDO frames of the node, sends Mgmt_Leave_req and changes its channel. In this test the parent sends the network key itself, from a work item on the stack queue 130 ms after the association response or an unsecured rejoin response: the fake radio filters by the addresses a radio has when the frame is sent, and the node has no short address before it processes the association response. The scenarios are steering with and without the trust center link key exchange, a reboot with the rejoin of BDB 7.1, Mgmt_Leave_req with the reset, and a parent that moves to another channel. A reboot initializes NWK, APS, ZDO and BDB again and loads the settings on the stack thread.
+- `tests/integration/bdb` runs the whole stack on fake radio 1 against the same parent, which also answers Node_Desc_req with a stack compliance revision set by the test, logs the ZDO frames of the node, sends Mgmt_Leave_req and changes its channel. In this test the parent sends the network key itself, from a work item on the stack queue 130 ms after the association response or an unsecured rejoin response: the fake radio filters by the addresses a radio has when the frame is sent, and the node has no short address before it processes the association response. The scenarios are steering with and without the trust center link key exchange, a reboot with the rejoin of BDB 7.1, Mgmt_Leave_req with the reset, a parent that moves to another channel, and ZCL: the parent reads Basic attributes and toggles On/Off. The parent sends and logs ZCL frames as bytes, since `nwk_join` builds it without ZCL. A reboot initializes NWK, APS, ZDO, ZCL and BDB again and loads the settings on the stack thread.
 - text2pcap and tshark decode the frame log of the medium and check MICs, as a decoder independent of the stack. The CI step `frame-log` runs after `native_sim` in the `antrea/tshark` image (Ubuntu 24.04, tshark 4.2.2), pinned by digest. `ci/check-frame-log.sh` takes the hexdumps of the medium from `handler.log`, builds a pcap with `text2pcap -l 230` (IEEE 802.15.4 without FCS) and decodes it with the test network keys and link keys; tshark derives the key-transport and key-load keys itself. The step fails if the log holds no frame with security, or a frame with NWK or APS security has fewer decrypted keys (`zbee.sec.key`) than auxiliary headers (`zbee.sec.key_id`). An APS ACK with APS security may have one key fewer, since tshark does not decrypt its empty payload.
-- Hardware interoperability: joining ZHA with EZSP and Z-Stack coordinators from milestone 11; current measurement from milestone 14. Milestone 11 runs Home Assistant with ZHA in Docker on the host, with the CC2531 as Z-Stack coordinator.
+- Hardware interoperability: joining ZHA with EZSP and Z-Stack coordinators from milestone 11; current measurement from milestone 18. Milestone 11 runs Home Assistant with ZHA in Docker on the host, with the CC2531 as Z-Stack coordinator.
 
 ## 21. Milestones
 
-Each milestone is one feature branch with its tests.
+Each milestone is one feature branch with its tests. Milestones 14 to 17 cover the device types of the DTL, including the types of its Annexes C to H that cannot be certified.
 
 1. Skeleton: `west.yml`, module files, Kconfig, CMake, CI with twister on native_sim and build-only nrf52840dk and ESP32-C6/H2 targets (`west blobs fetch hal_espressif`).
 2. Common: buffer pool and metadata, stack work queue, request marshaling, timers, `zzb_node_init()`, EUI-64 provider.
@@ -740,15 +820,19 @@ Each milestone is one feature branch with its tests.
 9. APS end device: APSDE, ACK, retries with a new frame counter, duplicate rejection, link-key security, Transport Key, Request Key, Verify Key, Confirm Key, Switch Key, key-pair table, persistence of the trust center address and link keys; NLME-SET of the active network key; NWK reserves the MAC header of its frames instead of the longest one; the frame counter moves to `common/`; the scripted parent of `nwk_join` plays the trust center.
 10. ZDO server (Node_Desc, Power_Desc, Simple_Desc, Active_EP, Match_Desc, IEEE_addr/NWK_addr, Mgmt_Leave, Bind/Unbind with the binding table, Mgmt_Lqi, Mgmt_Bind, Mgmt_Permit_Joining, Mgmt_NWK_Update channel change), Node_Desc_req client with a transaction table, Device_annce; the device definition with endpoints; APSDE-DATA to bound destinations; NLME-GET for ZDO and NLME-SET of the channel. The Node Descriptor server mask reports stack compliance revision 22: the TCLK exchange sends Request Key only after Node_Desc_rsp from the trust center reports revision 21 or later (BDB 10.2.5).
 11. BDB end device: the public BDB API with an event callback, initialization and boot rejoin (7.1), steering (8.1, 8.2) with Mgmt_Permit_Joining_req, TCLK exchange (10.2.5), resets (chapter 9) including the reset after Mgmt_Leave_req (9.4), the rejoin series with a growing pause after parent loss; the NLME and Confirm Key callbacks, Device_annce after a join, a rejoin and an address change; NLME-RESET deletes the NWK records; ZDO frames on air in an integration test. Interop: join ZHA (Home Assistant in Docker with the CC2531 as Z-Stack coordinator; EZSP when an adapter is available) and stay joined across reboot.
-12. ZCL foundation (read, write, discover attributes, default response), attribute macros, Basic, Identify, On/Off servers. Interop: ZHA creates the entity.
-13. Attribute reporting with persistence; finding & binding (BDB 8.4, 8.5); install codes (BDB 6.4, 10.1).
-14. Sleepy end device: poll scheduler with holds, radio off between polls, timeout negotiation, Power Configuration and Poll Control clusters.
-15. Router, part 1: MAC coordinator functions (beacons, association response, indirect queue, frame-pending table), stochastic address allocation, child aging and End Device Timeout server, permit join, Parent_annce; esp32 driver patch; frame loss in the fake medium.
-16. Router, part 2: route discovery, link status, broadcast transaction table with passive ACK, many-to-one routes, route record, source-route relay, APS Update Device and Tunnel.
-17. OTA Upgrade client with MCUboot (`flash_img`, `boot_request_upgrade()`).
-18. Coordinator: network formation (energy scan, PAN ID selection), concentrator and source route table, network manager.
-19. Trust center (BDB 10.3): key generation with `psa_generate_random()`, join and rejoin policy, network key update and switch, per-entry storage.
-20. NCP; Green Power proxy basic.
+12. ZCL foundation (read, write, discover attributes, default response), attribute macros, Basic, Identify and On/Off servers with the attributes and commands that the DTL requires for the On/Off Light except Groups and Scenes; StartUpOnOff with persistence; the ZCL callbacks of the application; endpoints with cluster instances. Interop: ZHA creates the entity.
+13. Attribute reporting with persistence; finding & binding (BDB 8.4, 8.5); install codes (BDB 6.4, 10.1); Groups and Scenes servers with the APS group table, which the DTL requires for the On/Off Light.
+14. Lighting device types of the DTL (0x0100 to 0x010e) and lighting controllers (0x0800 to 0x0850): Level Control for Lighting, Color Control, Illuminance Measurement, Illuminance Level Sensing, Occupancy Sensing, Power Configuration, Device Temperature Configuration and Ballast Configuration servers; the ZCL client API for commands to bound destinations, used by switches and controllers.
+15. Closures (Window Covering 0x0202, Window Covering Controller 0x0203) and HVAC (0x0300 to 0x0308): Window Covering, Thermostat, Fan Control, Pump Configuration and Control, Temperature, Pressure and Flow Measurement servers. Shade and Shade Controller are deprecated and excluded.
+16. Intruder alarm systems (0x0400 to 0x0403): IAS Zone with enrollment, IAS ACE, IAS WD.
+17. Generic device types (0x0000 to 0x0053): On/Off Switch Configuration, Door Lock, Binary Input, Time, Metering, Meter Identification, Electrical Measurement, Power Profile and the EN50523 appliance clusters. The Range Extender comes with the router.
+18. Sleepy end device: poll scheduler with holds, radio off between polls, timeout negotiation, Poll Control cluster.
+19. Router, part 1: MAC coordinator functions (beacons, association response, indirect queue, frame-pending table), stochastic address allocation, child aging and End Device Timeout server, permit join, Parent_annce; esp32 driver patch; frame loss in the fake medium; the Range Extender device type.
+20. Router, part 2: route discovery, link status, broadcast transaction table with passive ACK, many-to-one routes, route record, source-route relay, APS Update Device and Tunnel.
+21. OTA Upgrade client with MCUboot (`flash_img`, `boot_request_upgrade()`).
+22. Coordinator: network formation (energy scan, PAN ID selection), concentrator and source route table, network manager.
+23. Trust center (BDB 10.3): key generation with `psa_generate_random()`, join and rejoin policy, network key update and switch, per-entry storage.
+24. NCP; Green Power proxy basic.
 
 ## 22. Risks
 

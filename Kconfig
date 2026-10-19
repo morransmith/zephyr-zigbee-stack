@@ -24,7 +24,10 @@ config ZZB_BUF_COUNT
 
 config ZZB_WORKQ_STACK_SIZE
 	int "Stack thread stack size"
-	default 2048
+	default 4096
+	help
+	  The thread uses up to 2568 bytes on ESP32-H2, measured with an
+	  application callback that calls printk().
 
 config ZZB_WORKQ_PRIORITY
 	int "Stack thread cooperative priority"
@@ -103,6 +106,16 @@ config ZZB_BDB
 	  Base Device Behavior: initialization, network steering, the trust
 	  center link key exchange and the resets. Tests that fake BDB turn it
 	  off.
+
+config ZZB_ZCL
+	bool "ZCL"
+	default ZZB_BDB
+	select SETTINGS
+	help
+	  Zigbee Cluster Library: the foundation commands and the Basic,
+	  Identify and On/Off servers on the application endpoints. The
+	  application enables a settings backend for the non-volatile
+	  attributes. Tests that fake ZCL turn it off.
 
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"

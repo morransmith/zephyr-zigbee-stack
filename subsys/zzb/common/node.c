@@ -12,6 +12,7 @@
 #include "mac/mac.h"
 #include "nwk/nwk.h"
 #include "storage/settings.h"
+#include "zcl/zcl.h"
 
 static struct zzb_node nodes[CONFIG_ZZB_NODE_COUNT];
 
@@ -25,6 +26,17 @@ struct init_req {
 int zzb_node_index(const struct zzb_node *node)
 {
 	return node - nodes;
+}
+
+const struct zzb_endpoint *zzb_node_endpoint(const struct zzb_node *node, uint8_t id)
+{
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		if (node->device->endpoints[i].id == id) {
+			return &node->device->endpoints[i];
+		}
+	}
+
+	return NULL;
 }
 
 static struct zzb_node *free_node(void)
@@ -55,7 +67,8 @@ static void init_handler(struct k_work *work)
 	uint64_t eui64 = req->cfg->eui64;
 
 	if ((IS_ENABLED(CONFIG_ZZB_MAC) && req->cfg->radio == NULL) ||
-	    (IS_ENABLED(CONFIG_ZZB_ZDO) && req->cfg->device == NULL)) {
+	    ((IS_ENABLED(CONFIG_ZZB_ZDO) || IS_ENABLED(CONFIG_ZZB_ZCL)) &&
+	     req->cfg->device == NULL)) {
 		req->err = -EINVAL;
 		return;
 	}
@@ -77,6 +90,8 @@ static void init_handler(struct k_work *work)
 		.eui64 = eui64,
 		.device = req->cfg->device,
 		.bdb_cb = req->cfg->bdb_cb,
+		.zcl_cb = req->cfg->zcl_cb,
+		.zcl_effect_cb = req->cfg->zcl_effect_cb,
 	};
 
 	if (IS_ENABLED(CONFIG_ZZB_MAC)) {
@@ -98,7 +113,12 @@ static void init_handler(struct k_work *work)
 		zzb_zdo_init(node);
 	}
 
-	if (IS_ENABLED(CONFIG_ZZB_NWK) || IS_ENABLED(CONFIG_ZZB_APS)) {
+	if (IS_ENABLED(CONFIG_ZZB_ZCL)) {
+		zzb_zcl_init(node);
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_NWK) || IS_ENABLED(CONFIG_ZZB_APS) ||
+	    IS_ENABLED(CONFIG_ZZB_ZCL)) {
 		req->err = zzb_settings_load(node);
 		if (req->err) {
 			return;
@@ -117,6 +137,10 @@ static void init_handler(struct k_work *work)
 		if (req->err) {
 			return;
 		}
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_ZCL)) {
+		zzb_zcl_start(node);
 	}
 
 	/* BDB reads the network that NWK has loaded */

@@ -2,6 +2,9 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
+#include <zzb/zcl/basic.h>
+#include <zzb/zcl/identify.h>
+#include <zzb/zcl/on_off.h>
 #include <zzb/zzb.h>
 
 #include "aps/aps.h"
@@ -13,6 +16,7 @@
 #include "nwk/nwk.h"
 #include "parent.h"
 #include "storage/settings.h"
+#include "zcl/zcl.h"
 #include "zdo/zdo.h"
 
 #define PARENT_ADDR  0x0000
@@ -37,16 +41,50 @@ static void record_event(struct zzb_node *node, enum zzb_bdb_event event,
 	events.status = status;
 }
 
+/* The calls of zcl_cb */
+static struct {
+	int count;
+	uint8_t ep;
+	uint16_t cluster;
+	uint16_t attr;
+} changes;
+
+static void record_change(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
+{
+	changes.count++;
+	changes.ep = ep;
+	changes.cluster = cluster;
+	changes.attr = attr;
+}
+
+static struct zzb_zcl_basic basic = {
+	.manufacturer_name = "zzb",
+	.model_id = "bdb",
+	.power_source = 0x01,
+	.generic_device_class = 0xff,
+	.generic_device_type = 0xff,
+};
+
+static struct zzb_zcl_identify identify;
+
+static struct zzb_zcl_on_off on_off = {
+	.start_up_default = ZZB_ZCL_START_UP_PREVIOUS,
+};
+
 /* Basic, Identify and On/Off servers of an On/Off Light (Home Automation profile) */
-static const uint16_t light_in[] = {0x0000, 0x0003, 0x0006};
+static const struct zzb_zcl_cluster light[] = {
+	ZZB_ZCL_BASIC_SERVER(&basic),
+	ZZB_ZCL_IDENTIFY_SERVER(&identify),
+	ZZB_ZCL_ON_OFF_SERVER(&on_off),
+};
 
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
 		.profile = 0x0104,
 		.device_id = 0x0100,
-		.in_clusters = light_in,
-		.in_cluster_count = ARRAY_SIZE(light_in),
+		.clusters = light,
+		.cluster_count = ARRAY_SIZE(light),
 	},
 };
 
@@ -83,6 +121,7 @@ static void reboot_handler(struct k_work *work)
 	zzb_nwk_init(child);
 	zzb_aps_init(child);
 	zzb_zdo_init(child);
+	zzb_zcl_init(child);
 	call->err = zzb_settings_load(child);
 	if (call->err == 0) {
 		call->err = zzb_fc_start(&child->nwk.fc);
@@ -92,6 +131,7 @@ static void reboot_handler(struct k_work *work)
 		call->err = zzb_fc_start(&child->aps.fc);
 	}
 
+	zzb_zcl_start(child);
 	zzb_bdb_init(child);
 }
 
@@ -110,6 +150,7 @@ static void *setup(void)
 		.radio = fake_radios[1],
 		.device = &device,
 		.bdb_cb = record_event,
+		.zcl_cb = record_change,
 	};
 
 	fake_radio_reset();
@@ -218,6 +259,38 @@ ZTEST(zzb_bdb_integration, test_parent_moves_to_another_channel)
 	zassert_equal(parent_log.rejoin_reqs, 1);
 	zassert_equal(parent_log.device_annces, 2);
 	zassert_equal(child->nwk.nib.channel, 20);
+}
+
+/* The interview read of zigpy, then Toggle from the coordinator */
+ZTEST(zzb_bdb_integration, test_zcl)
+{
+	static const uint8_t read[] = {0x00, 0x10, 0x00, 0x04, 0x00, 0x05, 0x00};
+	static const uint8_t read_rsp[] = {0x18, 0x10, 0x01, 0x04, 0x00, 0x00, 0x42, 0x03, 'z', 'z',
+					   'b',  0x05, 0x00, 0x00, 0x42, 0x03, 'b',  'd',  'b'};
+	static const uint8_t toggle[] = {0x01, 0x11, 0x02};
+	static const uint8_t default_rsp[] = {0x18, 0x11, 0x0b, 0x02, 0x00};
+
+	steer();
+	changes.count = 0;
+	parent_send_zcl(ZZB_ZCL_BASIC, read, sizeof(read));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_frames, 1);
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_BASIC);
+	zassert_equal(parent_log.zcl_src_ep, 1);
+	zassert_equal(parent_log.zcl_dst_ep, 1);
+	zassert_equal(parent_log.zcl_len, sizeof(read_rsp));
+	zassert_mem_equal(parent_log.zcl, read_rsp, sizeof(read_rsp));
+
+	parent_send_zcl(ZZB_ZCL_ON_OFF, toggle, sizeof(toggle));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_frames, 2);
+	zassert_equal(parent_log.zcl_len, sizeof(default_rsp));
+	zassert_mem_equal(parent_log.zcl, default_rsp, sizeof(default_rsp));
+	zassert_true(on_off.on_off);
+	zassert_equal(changes.count, 1);
+	zassert_equal(changes.ep, 1);
+	zassert_equal(changes.cluster, ZZB_ZCL_ON_OFF);
+	zassert_equal(changes.attr, ZZB_ZCL_ON_OFF_ON_OFF);
 }
 
 ZTEST_SUITE(zzb_bdb_integration, NULL, setup, before, NULL, NULL);
