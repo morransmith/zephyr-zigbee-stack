@@ -272,5 +272,6 @@ void zzb_zcl_reset(struct zzb_node *node)
 
 	/* After the reset hooks, which may have armed the reporting timer */
 	zzb_zcl_report_reset(node);
+	zzb_zcl_scenes_delete(node);
 	zzb_zcl_attr_delete(node);
 }

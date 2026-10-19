@@ -4,10 +4,12 @@
 #include <stdint.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/printk.h>
 #include <zzb/zcl/scenes.h>
 
 #include "aps/aps.h"
 #include "common/node.h"
+#include "storage/settings.h"
 #include "zcl/frame.h"
 #include "zcl/zcl.h"
 
@@ -37,6 +39,12 @@
 
 /* Group ID, scene ID and transition time of Add Scene */
 #define ADD_FIELDS_LEN 5
+
+#define RECORD_VERSION 1
+/* Version, endpoint, group, scene ID, transition time and TransitionTime100ms */
+#define RECORD_HDR_LEN 8
+/* Room for zcl/scene/<i> with any int i */
+#define NAME_LEN       22
 
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_SCENES_SCENE_COUNT, ZZB_ZCL_UINT8, 0, struct zzb_zcl_scenes,
@@ -99,9 +107,34 @@ static void count(struct zzb_node *node, uint8_t ep)
 	set(node, ep, ZZB_ZCL_SCENES_SCENE_COUNT, n);
 }
 
+static void record_name(char name[NAME_LEN], int index)
+{
+	snprintk(name, NAME_LEN, "zcl/scene/%d", index);
+}
+
+/* Writes scene to the entry s and saves it; a failed save is ignored */
+static void put(struct zzb_node *node, struct zzb_zcl_scene *s, const struct zzb_zcl_scene *scene)
+{
+	uint8_t rec[RECORD_HDR_LEN + CONFIG_ZZB_ZCL_SCENE_DATA_LEN] = {RECORD_VERSION, scene->ep};
+	char name[NAME_LEN];
+
+	*s = *scene;
+	sys_put_le16(s->group, rec + 2);
+	rec[4] = s->id;
+	sys_put_le16(s->transition, rec + 5);
+	rec[7] = s->transition_100ms;
+	memcpy(rec + RECORD_HDR_LEN, s->data, s->data_len);
+	record_name(name, s - node->zcl.scenes);
+	zzb_settings_save(node, name, rec, RECORD_HDR_LEN + s->data_len);
+}
+
 static void remove_scene(struct zzb_node *node, struct zzb_zcl_scene *s)
 {
+	char name[NAME_LEN];
+
 	s->in_use = false;
+	record_name(name, s - node->zcl.scenes);
+	zzb_settings_delete(node, name);
 }
 
 /* ZCL 3.7.2.4.1: the range of the group, then the membership of the endpoint */
@@ -216,7 +249,7 @@ static uint8_t add(struct zzb_node *node, uint8_t ep, uint16_t group, uint8_t id
 		return ZZB_ZCL_INSUFFICIENT_SPACE;
 	}
 
-	*s = scene;
+	put(node, s, &scene);
 	count(node, ep);
 	return ZZB_ZCL_SUCCESS;
 }
@@ -409,7 +442,7 @@ static int store_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 			scene.transition_100ms = s->transition_100ms;
 		}
 
-		*s = scene;
+		put(node, s, &scene);
 		count(node, cmd->ep);
 		make_current(node, s);
 	}
@@ -462,7 +495,7 @@ static bool copy(struct zzb_node *node, const struct zzb_zcl_scene *from, uint16
 
 	scene.group = group;
 	scene.id = id;
-	*to = scene;
+	put(node, to, &scene);
 	return true;
 }
 
@@ -637,10 +670,74 @@ static void init(void *values)
 	*(struct zzb_zcl_scenes *)values = (struct zzb_zcl_scenes){0};
 }
 
+/* SceneCount of the loaded table, without zcl_cb */
+static void start(struct zzb_node *node, uint8_t ep, void *values)
+{
+	int n = 0;
+
+	ARRAY_FOR_EACH_PTR(node->zcl.scenes, s) {
+		n += s->in_use && s->ep == ep;
+	}
+
+	zzb_zcl_store(node, ep, ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_SCENE_COUNT, n);
+}
+
+int zzb_zcl_scenes_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			void *cb_arg)
+{
+	uint8_t rec[RECORD_HDR_LEN + CONFIG_ZZB_ZCL_SCENE_DATA_LEN];
+	const struct zzb_endpoint *ep;
+	struct zzb_zcl_scene *s;
+	int err;
+
+	if (index < 0 || index >= ARRAY_SIZE(node->zcl.scenes)) {
+		return 0;
+	}
+
+	if (len < RECORD_HDR_LEN || len > sizeof(rec)) {
+		return -EINVAL;
+	}
+
+	err = zzb_settings_read(len, read_cb, cb_arg, rec, len);
+	if (err) {
+		return err;
+	}
+
+	/* A record of an endpoint without a Scenes server is ignored */
+	ep = zzb_node_endpoint(node, rec[1]);
+	if (ep == NULL || zzb_zcl_find_cluster(ep, ZZB_ZCL_SCENES, true) == NULL) {
+		return 0;
+	}
+
+	s = &node->zcl.scenes[index];
+	*s = (struct zzb_zcl_scene){
+		.in_use = true,
+		.ep = rec[1],
+		.group = sys_get_le16(rec + 2),
+		.id = rec[4],
+		.transition = sys_get_le16(rec + 5),
+		.transition_100ms = rec[7],
+		.data_len = len - RECORD_HDR_LEN,
+	};
+	memcpy(s->data, rec + RECORD_HDR_LEN, s->data_len);
+	return 0;
+}
+
+void zzb_zcl_scenes_delete(struct zzb_node *node)
+{
+	char name[NAME_LEN];
+
+	for (int i = 0; i < ARRAY_SIZE(node->zcl.scenes); i++) {
+		record_name(name, i);
+		zzb_settings_delete(node, name);
+	}
+}
+
 const struct zzb_zcl_cluster_def zzb_zcl_scenes_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
 	.init = init,
+	.start = start,
 	.reset = reset,
 	.cmd = cmd,
 };

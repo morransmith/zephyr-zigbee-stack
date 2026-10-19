@@ -217,6 +217,16 @@ int zzb_zcl_read_reporting(struct zzb_node *node, const struct zzb_zcl_req *req)
  */
 void zzb_zcl_scenes_invalidate(struct zzb_node *node, uint8_t ep, bool notify);
 
+/*
+ * Loads the record zcl/scene/<index>; -EINVAL for an unknown version or length. A record of an
+ * endpoint without a Scenes server is ignored.
+ */
+int zzb_zcl_scenes_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+			void *cb_arg);
+
+/* Deletes the records of the scene table */
+void zzb_zcl_scenes_delete(struct zzb_node *node);
+
 /* Removes the scenes of group on endpoint ep (ZCL 3.6.2.3.5) */
 void zzb_zcl_scenes_remove_group(struct zzb_node *node, uint8_t ep, uint16_t group);
 

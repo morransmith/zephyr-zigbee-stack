@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
+#include <zephyr/settings/settings.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/scenes.h>
@@ -367,6 +369,62 @@ ZTEST(zzb_zcl_scenes, test_copy_scene)
 	command(VIEW_SCENE, (uint8_t[]){0x02, 0x00, 0x01}, 3,
 		(uint8_t[]){0x00, 0x02, 0x00, 0x01, 0x03, 0x00, 0x00, 0x06, 0x00, 0x01, 0x01}, 11);
 	zassert_equal(scenes.scene_count, CONFIG_ZZB_ZCL_SCENE_COUNT);
+}
+
+/* The table survives a reboot; loading it calls no zcl_cb */
+ZTEST(zzb_zcl_scenes, test_table_survives_a_reboot)
+{
+	add_scene(0x0001, 1);
+	command(STORE_SCENE, (uint8_t[]){0x00, 0x00, 0x02}, 3, (uint8_t[]){0x00, 0x00, 0x00, 0x02},
+		4);
+	add_scene(0x0001, 3);
+	command(REMOVE_SCENE, (uint8_t[]){0x01, 0x00, 0x03}, 3, (uint8_t[]){0x00, 0x01, 0x00, 0x03},
+		4);
+	zcl_cb_calls.count = 0;
+	zassert_ok(reboot());
+
+	zassert_equal(scenes.scene_count, 2);
+	zassert_equal(zcl_cb_calls.count, 0);
+	command(VIEW_SCENE, (uint8_t[]){0x01, 0x00, 0x01}, 3,
+		(uint8_t[]){0x00, 0x01, 0x00, 0x01, 0x03, 0x00, 0x00, 0x06, 0x00, 0x01, 0x01}, 11);
+	command(VIEW_SCENE, (uint8_t[]){0x01, 0x00, 0x03}, 3, (uint8_t[]){0x8b, 0x01, 0x00, 0x03},
+		4);
+
+	reset_node();
+	zassert_ok(reboot());
+	zassert_equal(scenes.scene_count, 0);
+}
+
+ZTEST(zzb_zcl_scenes, test_bad_records)
+{
+	/* Endpoint 2, group 0, scene 1, transition time 0, the set of OnOff */
+	uint8_t rec[8 + CONFIG_ZZB_ZCL_SCENE_DATA_LEN + 1] = {2, 2, 0,    0,    1,    0,
+							      0, 0, 0x06, 0x00, 0x01, 0x01};
+
+	zassert_ok(settings_save_one("zzb/0/zcl/scene/0", rec, 12));
+	zassert_equal(reboot(), -EINVAL);
+
+	rec[0] = 1;
+	zassert_ok(settings_save_one("zzb/0/zcl/scene/0", rec, 7));
+	zassert_equal(reboot(), -EINVAL);
+	zassert_ok(settings_save_one("zzb/0/zcl/scene/0", rec, sizeof(rec)));
+	zassert_equal(reboot(), -EINVAL);
+
+	/* A record of an endpoint without a Scenes server, or of an unknown one, is ignored */
+	rec[1] = 1;
+	zassert_ok(settings_save_one("zzb/0/zcl/scene/0", rec, 12));
+	zassert_ok(reboot());
+	zassert_equal(scenes.scene_count, 0);
+	rec[1] = 9;
+	zassert_ok(settings_save_one("zzb/0/zcl/scene/0", rec, 12));
+	zassert_ok(reboot());
+	zassert_equal(scenes.scene_count, 0);
+
+	rec[1] = 2;
+	zassert_ok(settings_save_one("zzb/0/zcl/scene/0", rec, 12));
+	zassert_ok(reboot());
+	zassert_equal(scenes.scene_count, 1);
+	zassert_ok(settings_delete("zzb/0/zcl/scene/0"));
 }
 
 /* The reset of the node clears the table */
