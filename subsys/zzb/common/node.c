@@ -139,6 +139,10 @@ static void init_handler(struct k_work *work)
 		}
 	}
 
+	if (IS_ENABLED(CONFIG_ZZB_ZCL)) {
+		zzb_zcl_start(node);
+	}
+
 	/* BDB reads the network that NWK has loaded */
 	if (IS_ENABLED(CONFIG_ZZB_BDB)) {
 		zzb_bdb_init(node);

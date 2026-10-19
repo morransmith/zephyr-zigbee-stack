@@ -279,6 +279,9 @@ static void reboot_handler(struct k_work *work)
 
 	zzb_zcl_init(test_node());
 	call->err = zzb_settings_load(test_node());
+	if (call->err == 0) {
+		zzb_zcl_start(test_node());
+	}
 }
 
 int reboot(void)

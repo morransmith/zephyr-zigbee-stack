@@ -211,6 +211,21 @@ void zzb_zcl_init(struct zzb_node *node)
 	}
 }
 
+void zzb_zcl_start(struct zzb_node *node)
+{
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		const struct zzb_endpoint *ep = &node->device->endpoints[i];
+
+		for (int j = 0; j < ep->cluster_count; j++) {
+			const struct zzb_zcl_cluster *cl = &ep->clusters[j];
+
+			if (cl->def != NULL && cl->def->start != NULL) {
+				cl->def->start(node, ep->id, cl->values);
+			}
+		}
+	}
+}
+
 void zzb_zcl_reset(struct zzb_node *node)
 {
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {

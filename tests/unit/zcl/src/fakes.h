@@ -135,7 +135,7 @@ void receive_ep(uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_t len);
 /* receive_ep() to endpoint 1 */
 void receive(uint16_t cluster, const uint8_t *asdu, size_t len);
 
-/* Initializes ZCL and loads the settings records of the node again, on the stack thread */
+/* Starts ZCL again from the settings records, as zzb_node_init() does, on the stack thread */
 int reboot(void);
 
 /* Resets the ZCL attributes as the reset of the node does, on the stack thread */

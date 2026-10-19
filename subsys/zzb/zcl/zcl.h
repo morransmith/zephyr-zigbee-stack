@@ -65,6 +65,16 @@ const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep
 /* Cancels the timers and sets the defaults of the attributes before the records are loaded */
 void zzb_zcl_init(struct zzb_node *node);
 
+/*
+ * Writes value to attribute attr of the server cluster on endpoint ep, saves it and calls the
+ * changed hook, without zcl_cb
+ */
+void zzb_zcl_store(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
+		   uint16_t value);
+
+/* Calls the start hooks after the records are loaded */
+void zzb_zcl_start(struct zzb_node *node);
+
 void zzb_zcl_identify_init(struct zzb_node *node);
 
 /* Processes a global command; returns the status of the Default Response or ZZB_ZCL_RESPONDED */

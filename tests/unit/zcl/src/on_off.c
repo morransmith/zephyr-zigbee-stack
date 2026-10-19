@@ -18,6 +18,7 @@ static void *setup(void)
 /* Each test starts off, without records */
 static void before(void *fixture)
 {
+	on_off.start_up_default = ZZB_ZCL_START_UP_PREVIOUS;
 	zassert_ok(reboot());
 	reset_node();
 	reset_fakes();
@@ -130,6 +131,68 @@ ZTEST(zzb_zcl_on_off, test_attributes)
 	check_frame(1, 2, ZZB_ZCL_ON_OFF, write_rsp, sizeof(write_rsp));
 	zassert_false(on_off.on_off);
 	zassert_equal(on_off.on_time, 10);
+}
+
+/* Sets StartUpOnOff and OnOff, then checks OnOff after a reboot */
+static void check_start_up(uint8_t start_up, bool before, bool after)
+{
+	set(ZZB_ZCL_ON_OFF_START_UP, start_up);
+	command(before ? ON : OFF);
+	zassert_ok(reboot());
+	zassert_equal(on_off.on_off, after, "StartUpOnOff 0x%02x", start_up);
+}
+
+/* ZCL 3.8.2.2.5 */
+ZTEST(zzb_zcl_on_off, test_start_up)
+{
+	check_start_up(ZZB_ZCL_START_UP_OFF, true, false);
+	check_start_up(ZZB_ZCL_START_UP_ON, false, true);
+	check_start_up(ZZB_ZCL_START_UP_PREVIOUS, true, true);
+	check_start_up(ZZB_ZCL_START_UP_PREVIOUS, false, false);
+
+	/* The result of the toggle is saved, so the next boot toggles it again */
+	check_start_up(ZZB_ZCL_START_UP_TOGGLE, true, false);
+	zassert_ok(reboot());
+	zassert_true(on_off.on_off);
+
+	/* Only the commands that changed OnOff, none of the boots */
+	zassert_equal(zcl_cb_calls.count, 3);
+}
+
+/* Without a record StartUpOnOff takes the default of the application */
+ZTEST(zzb_zcl_on_off, test_start_up_default)
+{
+	on_off.start_up_default = ZZB_ZCL_START_UP_ON;
+	reset_node();
+	zassert_ok(reboot());
+	zassert_equal(on_off.start_up_on_off, ZZB_ZCL_START_UP_ON);
+	zassert_true(on_off.on_off);
+}
+
+/* The reset restores the default of StartUpOnOff without applying it */
+ZTEST(zzb_zcl_on_off, test_start_up_reset)
+{
+	set(ZZB_ZCL_ON_OFF_START_UP, ZZB_ZCL_START_UP_ON);
+	command(ON);
+	reset_fakes();
+	reset_node();
+	zassert_equal(on_off.start_up_on_off, ZZB_ZCL_START_UP_PREVIOUS);
+	zassert_false(on_off.on_off);
+	check_notified(0, (uint16_t[]){ZZB_ZCL_ON_OFF_ON_OFF, ZZB_ZCL_ON_OFF_START_UP}, 2);
+}
+
+/* ZCL Table 3-46: reserved values are rejected */
+ZTEST(zzb_zcl_on_off, test_start_up_write)
+{
+	static const uint8_t write[] = {0x00, 0x92, 0x02, 0x03, 0x40, 0x30, 0x03};
+	static const uint8_t write_rsp[] = {0x18, 0x92, 0x04, 0x87, 0x03, 0x40};
+	static const uint8_t toggle[] = {0x00, 0x93, 0x02, 0x03, 0x40, 0x30, 0x02};
+
+	receive_ep(2, ZZB_ZCL_ON_OFF, write, sizeof(write));
+	check_frame(0, 2, ZZB_ZCL_ON_OFF, write_rsp, sizeof(write_rsp));
+	receive_ep(2, ZZB_ZCL_ON_OFF, toggle, sizeof(toggle));
+	check_frame(1, 2, ZZB_ZCL_ON_OFF, (uint8_t[]){0x18, 0x93, 0x04, 0x00}, 4);
+	zassert_equal(on_off.start_up_on_off, ZZB_ZCL_START_UP_TOGGLE);
 }
 
 ZTEST_SUITE(zzb_zcl_on_off, NULL, setup, before, after, NULL);

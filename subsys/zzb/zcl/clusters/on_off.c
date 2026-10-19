@@ -22,6 +22,8 @@ static const struct zzb_zcl_attr attrs[] = {
 		     on_time),
 	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_OFF_WAIT_TIME, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE,
 		     struct zzb_zcl_on_off, off_wait_time),
+	ZZB_ZCL_ATTR(ZZB_ZCL_ON_OFF_START_UP, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE | ZZB_ZCL_NV,
+		     struct zzb_zcl_on_off, start_up_on_off),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
 };
 
@@ -72,6 +74,24 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	}
 }
 
+/* ZCL Table 3-46 */
+static uint8_t check(const struct zzb_zcl_attr *attr, uint16_t value)
+{
+	if (attr->id != ZZB_ZCL_ON_OFF_START_UP) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	switch (value) {
+	case ZZB_ZCL_START_UP_OFF:
+	case ZZB_ZCL_START_UP_ON:
+	case ZZB_ZCL_START_UP_TOGGLE:
+	case ZZB_ZCL_START_UP_PREVIOUS:
+		return ZZB_ZCL_SUCCESS;
+	default:
+		return ZZB_ZCL_INVALID_VALUE;
+	}
+}
+
 static void init(void *values)
 {
 	struct zzb_zcl_on_off *v = values;
@@ -80,20 +100,44 @@ static void init(void *values)
 	v->global_scene_control = true;
 	v->on_time = 0;
 	v->off_wait_time = 0;
+	v->start_up_on_off = v->start_up_default;
+}
+
+/* ZCL 3.8.2.2.5; reserved values keep the loaded OnOff */
+static void start(struct zzb_node *node, uint8_t ep, void *values)
+{
+	const struct zzb_zcl_on_off *v = values;
+
+	switch (v->start_up_on_off) {
+	case ZZB_ZCL_START_UP_OFF:
+	case ZZB_ZCL_START_UP_ON:
+		zzb_zcl_store(node, ep, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_ON_OFF, v->start_up_on_off);
+		break;
+	case ZZB_ZCL_START_UP_TOGGLE:
+		zzb_zcl_store(node, ep, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_ON_OFF, !v->on_off);
+		break;
+	default:
+		break;
+	}
 }
 
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
+	const struct zzb_zcl_on_off *v = values;
+
 	set(node, ep, ZZB_ZCL_ON_OFF_ON_OFF, false);
 	set(node, ep, ZZB_ZCL_ON_OFF_GLOBAL_SCENE_CONTROL, true);
 	set(node, ep, ZZB_ZCL_ON_OFF_ON_TIME, 0);
 	set(node, ep, ZZB_ZCL_ON_OFF_OFF_WAIT_TIME, 0);
+	set(node, ep, ZZB_ZCL_ON_OFF_START_UP, v->start_up_default);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_on_off_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
 	.init = init,
+	.start = start,
 	.reset = reset,
 	.cmd = cmd,
+	.check = check,
 };
