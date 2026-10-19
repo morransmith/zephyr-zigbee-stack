@@ -223,6 +223,11 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 {
 	struct zzb_zcl_on_off *v = values;
 
+	/* Level Control applies Off, On and Toggle when they move its level (ZCL Table 3-55) */
+	if (cmd->id <= CMD_TOGGLE && zzb_zcl_level_on_off(node, cmd->ep, cmd->id) == 0) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
 	switch (cmd->id) {
 	case CMD_OFF:
 		off(node, cmd->ep);

@@ -96,6 +96,25 @@ static int notified(uint8_t ep, uint16_t attr)
 	return n;
 }
 
+/* The index of the first zcl_cb call for attribute attr of cluster on ep, or -1 */
+static int first_call(uint8_t ep, uint16_t cluster, uint16_t attr)
+{
+	for (int i = 0; i < zcl_cb_calls.count; i++) {
+		if (zcl_cb_calls.ep[i] == ep && zcl_cb_calls.cluster[i] == cluster &&
+		    zcl_cb_calls.attr[i] == attr) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+/* Sends the On/Off command id to endpoint 11 */
+static void on_off_command(uint8_t id)
+{
+	send(11, ZZB_ZCL_ON_OFF, id, NULL, 0);
+}
+
 /* ZCL 3.10.2.2, 3.19.2.2: the defaults, CurrentLevel read-only, the writable attributes saved */
 ZTEST(zzb_zcl_level, test_attributes)
 {
@@ -359,6 +378,54 @@ ZTEST(zzb_zcl_level, test_with_on_off_stopped)
 	k_sleep(K_MSEC(500));
 	zassert_true(on_off11.on_off);
 	zassert_true(level11.current_level > 1);
+}
+
+/* ZCL Table 3-55: On while off moves the level from 1 back to the level before */
+ZTEST(zzb_zcl_level, test_on)
+{
+	set_u8(11, ZZB_ZCL_LEVEL_CURRENT_LEVEL, 200);
+	set_u16(11, ZZB_ZCL_LEVEL_ON_TRANSITION_TIME, 10);
+	on_off_command(0x01);
+	zassert_true(on_off11.on_off);
+	zassert_equal(level11.current_level, 1);
+	zassert_true(first_call(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_CURRENT_LEVEL) <
+		     first_call(11, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_ON_OFF));
+
+	/* OnTransitionTime is the time from 1 to 254 */
+	zassert_equal(level11.remaining_time, 7);
+	k_sleep(K_MSEC(400));
+	zassert_between_inclusive(level11.current_level, 80, 120);
+	k_sleep(K_MSEC(500));
+	zassert_equal(level11.current_level, 200);
+
+	/* On while on leaves the level */
+	on_off_command(0x01);
+	zassert_equal(level11.current_level, 200);
+	zassert_false(timer_armed());
+}
+
+/* ZCL Table 3-55: Toggle while off moves to OnLevel over OnOffTransitionTime */
+ZTEST(zzb_zcl_level, test_on_level)
+{
+	set_u8(11, ZZB_ZCL_LEVEL_CURRENT_LEVEL, 200);
+	set_u8(11, ZZB_ZCL_LEVEL_ON_LEVEL, 100);
+	set_u16(11, ZZB_ZCL_LEVEL_ON_OFF_TRANSITION_TIME, 5);
+	on_off_command(0x02);
+	zassert_true(on_off11.on_off);
+	zassert_equal(level11.current_level, 1);
+	zassert_equal(level11.remaining_time, 5);
+	k_sleep(K_MSEC(600));
+	zassert_equal(level11.current_level, 100);
+
+	/* Transition time 0 writes the target at once, without the step to 1 */
+	set_on_off(11, ZZB_ZCL_ON_OFF_ON_OFF, false);
+	set_u16(11, ZZB_ZCL_LEVEL_ON_OFF_TRANSITION_TIME, 0);
+	set_u8(11, ZZB_ZCL_LEVEL_ON_LEVEL, 150);
+	reset_fakes();
+	on_off_command(0x01);
+	zassert_true(on_off11.on_off);
+	zassert_equal(level11.current_level, 150);
+	zassert_equal(notified(11, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 1);
 }
 
 ZTEST_SUITE(zzb_zcl_level, NULL, setup, before, after, NULL);

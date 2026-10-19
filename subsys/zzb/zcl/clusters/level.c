@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <stdlib.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
@@ -29,6 +30,11 @@
 
 /* Commands 0x04 to 0x07 are 0x00 to 0x03 with On/Off (ZCL Table 3-59) */
 #define WITH_ON_OFF 0x04
+
+/* Commands of the On/Off server that change the level (ZCL Table 3-55) */
+#define ON_OFF_OFF    0x00
+#define ON_OFF_ON     0x01
+#define ON_OFF_TOGGLE 0x02
 
 /* The change of OnOff at the end of a transition */
 #define END_NONE 0
@@ -294,6 +300,52 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 		stop(node, cmd->ep, values);
 		return ZZB_ZCL_SUCCESS;
 	}
+}
+
+/*
+ * The time of a fade over distance levels: OnTransitionTime or OffTransitionTime as time, which ZCL
+ * gives for the whole range of levels (ZCL 3.10.2.2.11), or OnOffTransitionTime for 0xffff
+ */
+static uint32_t fade_time(const struct zzb_zcl_level *v, uint16_t time, int distance)
+{
+	if (time == 0xffff) {
+		return v->on_off_transition_time;
+	}
+
+	return time * distance / (LEVEL_MAX - LEVEL_MIN);
+}
+
+/* On while off: the level moves from 1 to OnLevel, or with OnLevel 0xff to the level before */
+static void fade_up(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
+{
+	uint8_t level =
+		v->on_level != 0xff ? CLAMP(v->on_level, LEVEL_MIN, LEVEL_MAX) : v->current_level;
+	uint32_t time = fade_time(v, v->on_transition_time, level - LEVEL_MIN);
+
+	if (time > 0) {
+		set(node, ep, ZZB_ZCL_LEVEL_CURRENT_LEVEL, LEVEL_MIN);
+	}
+
+	zzb_zcl_on_off_switch(node, ep, true);
+	move(node, ep, v, level, time, END_NONE);
+}
+
+int zzb_zcl_level_on_off(struct zzb_node *node, uint8_t ep, uint8_t cmd)
+{
+	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
+	const struct zzb_zcl_cluster *cl = e != NULL ? server(e) : NULL;
+
+	if (cl == NULL) {
+		return -ENOENT;
+	}
+
+	/* On while on and Off leave the level */
+	if (cmd == ON_OFF_OFF || on_off_server(node, ep)->on_off) {
+		return -EALREADY;
+	}
+
+	fade_up(node, ep, cl->values);
+	return 0;
 }
 
 static void init(void *values)

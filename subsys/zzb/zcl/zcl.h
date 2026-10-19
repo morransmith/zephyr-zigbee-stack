@@ -182,6 +182,14 @@ void zzb_zcl_level_init(struct zzb_node *node);
 void zzb_zcl_on_off_init(struct zzb_node *node);
 
 /*
+ * Applies Off, On or Toggle, the command cmd of the On/Off server on endpoint ep, to the level of
+ * the Level Control server on ep (ZCL Table 3-55), which also sets OnOff. Returns -ENOENT without
+ * the server and -EALREADY when the level does not change; the On/Off server then applies the
+ * command itself.
+ */
+int zzb_zcl_level_on_off(struct zzb_node *node, uint8_t ep, uint8_t cmd);
+
+/*
  * Sets OnOff of the On/Off server on endpoint ep, if there is one, with the rules of On or Off for
  * GlobalSceneControl, OnTime and OffWaitTime; for Level Control (ZCL 3.8.2.1.1, 3.10.2.1.3)
  */
