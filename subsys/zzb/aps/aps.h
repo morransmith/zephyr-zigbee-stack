@@ -31,6 +31,12 @@ static inline size_t zzb_aps_aux_len(bool ext_nonce)
  */
 #define ZZB_APSDE_HEADROOM (ZZB_NLDE_HEADROOM + ZZB_APS_HDR_MAX_LEN + ZZB_APS_AUX_MAX_LEN)
 
+/* apscAckWaitDuration: 0.05 s * (2 * nwkcMaxDepth) + 0.1 s of security processing */
+#define ZZB_APS_ACK_WAIT_MS 1600
+
+/* apscMaxFrameRetries */
+#define ZZB_APS_MAX_FRAME_RETRIES 3
+
 /* DstAddrMode of APSDE-DATA.request (R22 Table 2-2) */
 enum zzb_aps_addr_mode {
 	ZZB_APS_ADDR_BINDING = 0x00,
@@ -89,6 +95,14 @@ struct zzb_aps_tx {
 	uint8_t handle;
 };
 
+/* Entry of the duplicate rejection table; free once it has expired */
+struct zzb_aps_dup {
+	uint16_t src_addr;
+	uint8_t counter;
+	/* k_uptime_get() at which the entry expires */
+	int64_t expiry;
+};
+
 /* apsTrustCenterAddress until the trust center is known (BDB 10.2.2) */
 #define ZZB_APS_TC_UNKNOWN UINT64_MAX
 
@@ -126,6 +140,7 @@ struct zzb_aps {
 	/* APS counter of the next frame */
 	uint8_t counter;
 	struct zzb_aps_tx tx[CONFIG_ZZB_APS_TX_COUNT];
+	struct zzb_aps_dup dups[CONFIG_ZZB_APS_DUP_COUNT];
 	/* Outgoing APS frame counter, kept by zzb_aps_reset() */
 	struct zzb_fc fc;
 };
@@ -137,8 +152,8 @@ extern const uint8_t zzb_aps_default_tc_link_key[ZZB_SEC_KEY_LEN];
 void zzb_aps_init(struct zzb_node *node);
 
 /*
- * Clears the AIB and the key-pair table and deletes their records. The outgoing frame counter
- * stays.
+ * Clears the AIB, the key-pair table and the duplicate rejection table and deletes the APS
+ * records. The transmission table, the APS counter and the outgoing frame counter stay.
  */
 void zzb_aps_reset(struct zzb_node *node);
 
@@ -176,6 +191,12 @@ void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf,
 			const struct zzb_apsde_ind *ind);
 
 /* Within APS */
+
+/* Whether a frame from src_addr with counter was received before (R22 2.2.8.4.2) */
+bool zzb_aps_dup_check(struct zzb_node *node, uint16_t src_addr, uint8_t counter);
+
+/* Enters a frame in the duplicate rejection table, replacing the entry that expires first */
+void zzb_aps_dup_add(struct zzb_node *node, uint16_t src_addr, uint8_t counter);
 
 /* The key that removed the APS security of a frame */
 struct zzb_aps_sec {

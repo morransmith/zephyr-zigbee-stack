@@ -321,6 +321,56 @@ ZTEST(zzb_aps_data, test_link_key_secured_indication)
 	zassert_mem_equal(data_ind.data, asdu, sizeof(asdu));
 }
 
+/* R22 2.2.8.4.2: a frame received again with the same source and APS counter is a duplicate */
+ZTEST(zzb_aps_data, test_duplicate_is_delivered_once)
+{
+	static const uint8_t frame[] = {0x00, 0x01, 0x06, 0x00, 0x04, 0x01, 0x02, 0x60, 0x01};
+	struct net_buf *buf;
+
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	zassert_equal(zzb_apsde_data_ind_fake.call_count, 1);
+
+	/* The same counter from another source */
+	buf = zzb_buf_alloc(K_NO_WAIT);
+	net_buf_add_mem(buf, frame, sizeof(frame));
+	zzb_nlde_data_ind(node, buf, CHILD_ADDR, 0x2222, true);
+	zassert_equal(zzb_apsde_data_ind_fake.call_count, 2);
+}
+
+/* An entry lives apscAckWaitDuration * (apscMaxFrameRetries + 1) */
+ZTEST(zzb_aps_data, test_duplicate_entry_expires)
+{
+	static const uint8_t frame[] = {0x00, 0x01, 0x06, 0x00, 0x04, 0x01, 0x02, 0x61, 0x01};
+
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	k_sleep(K_MSEC(6300));
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	zassert_equal(zzb_apsde_data_ind_fake.call_count, 1);
+
+	k_sleep(K_MSEC(200));
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	zassert_equal(zzb_apsde_data_ind_fake.call_count, 2);
+}
+
+/* A full table replaces the entry that expires first */
+ZTEST(zzb_aps_data, test_full_duplicate_table)
+{
+	uint8_t frame[] = {0x00, 0x01, 0x06, 0x00, 0x04, 0x01, 0x02, 0x70, 0x01};
+
+	for (int i = 0; i <= CONFIG_ZZB_APS_DUP_COUNT; i++) {
+		frame[7] = 0x70 + i;
+		receive(frame, sizeof(frame), CHILD_ADDR, true);
+		k_sleep(K_MSEC(10));
+	}
+
+	frame[7] = 0x71;
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	frame[7] = 0x70;
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	zassert_equal(zzb_apsde_data_ind_fake.call_count, CONFIG_ZZB_APS_DUP_COUNT + 2);
+}
+
 ZTEST(zzb_aps_data, test_dropped_frames)
 {
 	static const uint8_t data[] = {0x00, 0x01, 0x06, 0x00, 0x04, 0x01, 0x02, 0x57, 0x01};

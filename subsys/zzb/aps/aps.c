@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <string.h>
 #include <zephyr/net_buf.h>
 #include <zephyr/random/random.h>
 
@@ -21,6 +22,7 @@ void zzb_aps_reset(struct zzb_node *node)
 	node->aps.aib = (struct zzb_aib){
 		.tc_addr = ZZB_APS_TC_UNKNOWN,
 	};
+	memset(node->aps.dups, 0, sizeof(node->aps.dups));
 	zzb_aps_delete(node);
 }
 
@@ -83,10 +85,12 @@ void zzb_nlde_data_ind(struct zzb_node *node, struct net_buf *buf, uint16_t dst_
 	struct zzb_aps_hdr hdr;
 	int hdr_len = rx_frame(node, buf, src_addr, security_use, &hdr);
 
-	if (hdr_len < 0 || hdr.type != ZZB_APS_FRAME_DATA) {
+	if (hdr_len < 0 || hdr.type != ZZB_APS_FRAME_DATA ||
+	    zzb_aps_dup_check(node, src_addr, hdr.counter)) {
 		net_buf_unref(buf);
 		return;
 	}
 
+	zzb_aps_dup_add(node, src_addr, hdr.counter);
 	deliver(node, buf, &hdr, hdr_len, dst_addr, src_addr);
 }

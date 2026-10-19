@@ -34,6 +34,7 @@ if(CONFIG_ZZB_NWK OR CONFIG_ZZB_APS)
   zephyr_library_sources(common/fc.c storage/settings.c)
 endif()
 zephyr_library_sources_ifdef(CONFIG_ZZB_APS
+  aps/ack_dup.c
   aps/aps.c
   aps/apsde.c
   aps/frame.c
