@@ -23,15 +23,25 @@ static const struct zzb_device device = {
 	.endpoint_count = ARRAY_SIZE(endpoints),
 };
 
+static void bdb_event(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bdb_status status)
+{
+}
+
 int main(void)
 {
 	/* native_sim has no radio and builds no MAC */
 	const struct zzb_node_config cfg = {
 		.radio = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_ieee802154)),
 		.device = &device,
+		.bdb_cb = bdb_event,
 	};
 	struct zzb_node *node;
-
 	/* Keeps the EUI-64 sources in the image, so their linking is checked */
-	return zzb_node_init(&cfg, &node);
+	int err = zzb_node_init(&cfg, &node);
+
+	if (err || !IS_ENABLED(CONFIG_ZZB_BDB)) {
+		return err;
+	}
+
+	return zzb_bdb_start(node);
 }

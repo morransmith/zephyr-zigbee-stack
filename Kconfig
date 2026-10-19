@@ -96,6 +96,14 @@ config ZZB_ZDO
 	  Zigbee device object: the ZDO server, the ZDO client and the processing
 	  of the APS key indications. Tests that fake ZDO turn it off.
 
+config ZZB_BDB
+	bool "BDB"
+	default ZZB_ZDO
+	help
+	  Base Device Behavior: initialization, network steering, the trust
+	  center link key exchange and the resets. Tests that fake BDB turn it
+	  off.
+
 config ZZB_ZDO_TRANSACTION_COUNT
 	int "ZDO client transactions"
 	range 1 32

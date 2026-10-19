@@ -8,6 +8,7 @@
 #include <zzb/zzb.h>
 
 #include "aps/aps.h"
+#include "bdb/bdb.h"
 #include "mac/mac.h"
 #include "nwk/nwk.h"
 #include "radio/port.h"
@@ -17,11 +18,13 @@ struct zzb_node {
 	bool in_use;
 	uint64_t eui64;
 	const struct zzb_device *device;
+	zzb_bdb_cb_t bdb_cb;
 	struct zzb_radio_port port;
 	struct zzb_mac mac;
 	struct zzb_nwk nwk;
 	struct zzb_aps aps;
 	struct zzb_zdo zdo;
+	struct zzb_bdb bdb;
 };
 
 /* Index of the node in the pool */
