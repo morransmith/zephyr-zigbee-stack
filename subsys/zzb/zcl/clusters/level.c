@@ -31,14 +31,14 @@
 /* Commands 0x04 to 0x07 are 0x00 to 0x03 with On/Off (ZCL Table 3-59) */
 #define WITH_ON_OFF 0x04
 
-/* Commands of the On/Off server that change the level (ZCL Table 3-55) */
-#define ON_OFF_OFF    0x00
+/* On and Toggle of the On/Off cluster (ZCL Table 3-47); Off is the other command */
 #define ON_OFF_ON     0x01
 #define ON_OFF_TOGGLE 0x02
 
-/* The change of OnOff at the end of a transition */
+/* The change of OnOff at the end of a transition: none, OnOff FALSE, the end of the fade of Off */
 #define END_NONE 0
 #define END_OFF  1
+#define END_FADE 2
 
 /* The fields of Move to Level, Move, Step and Stop before OptionsMask, in octets (ZCL 3.10.2.3) */
 static const uint8_t fields_len[] = {3, 2, 4, 0};
@@ -116,14 +116,22 @@ static void remaining(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_le
 		       zzb_zcl_transition_remaining(&v->transition));
 }
 
-/* Applies the change of OnOff at the end of a transition */
+/*
+ * Applies the change of OnOff at the end of a transition. The fade of Off restores the stored
+ * level with OnLevel 0xff (ZCL Table 3-55).
+ */
 static void finish(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
 {
 	uint8_t end = v->end;
 
 	v->end = END_NONE;
-	if (end == END_OFF) {
-		zzb_zcl_on_off_switch(node, ep, false);
+	if (end == END_NONE) {
+		return;
+	}
+
+	zzb_zcl_on_off_switch(node, ep, false);
+	if (end == END_FADE && v->on_level == 0xff) {
+		set(node, ep, ZZB_ZCL_LEVEL_CURRENT_LEVEL, v->stored_level);
 	}
 }
 
@@ -315,14 +323,24 @@ static uint32_t fade_time(const struct zzb_zcl_level *v, uint16_t time, int dist
 	return time * distance / (LEVEL_MAX - LEVEL_MIN);
 }
 
-/* On while off: the level moves from 1 to OnLevel, or with OnLevel 0xff to the level before */
-static void fade_up(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
+/*
+ * On while off: the level is stored and moves from 1 to OnLevel, or with OnLevel 0xff to the
+ * stored level. During the fade of Off it moves back to the stored level (ZCL 3.10.2.1.1).
+ */
+static void fade_up(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v, bool fading)
 {
-	uint8_t level =
-		v->on_level != 0xff ? CLAMP(v->on_level, LEVEL_MIN, LEVEL_MAX) : v->current_level;
-	uint32_t time = fade_time(v, v->on_transition_time, level - LEVEL_MIN);
+	uint8_t from = fading ? v->current_level : LEVEL_MIN;
+	uint8_t level;
+	uint32_t time;
 
-	if (time > 0) {
+	if (!fading) {
+		v->stored_level = v->current_level;
+	}
+
+	level = fading || v->on_level == 0xff ? v->stored_level
+					      : CLAMP(v->on_level, LEVEL_MIN, LEVEL_MAX);
+	time = fade_time(v, v->on_transition_time, abs(level - from));
+	if (time > 0 && !fading) {
 		set(node, ep, ZZB_ZCL_LEVEL_CURRENT_LEVEL, LEVEL_MIN);
 	}
 
@@ -330,21 +348,50 @@ static void fade_up(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
 	move(node, ep, v, level, time, END_NONE);
 }
 
+/*
+ * Off while on: the level is stored and moves to 1, and OnOff becomes FALSE at the end. OnTime
+ * becomes 0 at once, so that its timer does not turn the light off during the fade.
+ */
+static void fade_down(struct zzb_node *node, uint8_t ep, struct zzb_zcl_level *v)
+{
+	uint32_t time = fade_time(v, v->off_transition_time, abs(v->current_level - LEVEL_MIN));
+
+	v->stored_level = v->current_level;
+	zzb_zcl_set(node, ep, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_ON_TIME, 0);
+
+	/* At once, with OnLevel 0xff the level would return to itself */
+	move(node, ep, v, time == 0 && v->on_level == 0xff ? v->stored_level : LEVEL_MIN, time,
+	     END_FADE);
+}
+
 int zzb_zcl_level_on_off(struct zzb_node *node, uint8_t ep, uint8_t cmd)
 {
 	const struct zzb_endpoint *e = zzb_node_endpoint(node, ep);
 	const struct zzb_zcl_cluster *cl = e != NULL ? server(e) : NULL;
+	struct zzb_zcl_level *v;
+	bool on, fading, up;
 
 	if (cl == NULL) {
 		return -ENOENT;
 	}
 
-	/* On while on and Off leave the level */
-	if (cmd == ON_OFF_OFF || on_off_server(node, ep)->on_off) {
+	v = cl->values;
+	on = on_off_server(node, ep)->on_off;
+	fading = moving(cl) != NULL && v->end == END_FADE;
+	up = cmd == ON_OFF_ON || (cmd == ON_OFF_TOGGLE && (!on || fading));
+
+	/* On while on and Off while off leave the level */
+	if (up == on && !fading) {
 		return -EALREADY;
 	}
 
-	fade_up(node, ep, cl->values);
+	/* Off during the fade of Off is ignored */
+	if (up) {
+		fade_up(node, ep, v, fading);
+	} else if (!fading) {
+		fade_down(node, ep, v);
+	}
+
 	return 0;
 }
 

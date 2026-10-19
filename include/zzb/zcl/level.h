@@ -58,6 +58,8 @@ struct zzb_zcl_level {
 	struct zzb_zcl_transition transition;
 	/** Internal: the change of OnOff at the end of the transition. */
 	uint8_t end;
+	/** Internal: the level that On and Off store (ZCL Table 3-55). */
+	uint8_t stored_level;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_level_def;

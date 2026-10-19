@@ -428,4 +428,77 @@ ZTEST(zzb_zcl_level, test_on_level)
 	zassert_equal(notified(11, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 1);
 }
 
+/* ZCL Table 3-55: Off fades to 1 and turns off at the end; with OnLevel 0xff the level returns */
+ZTEST(zzb_zcl_level, test_off)
+{
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, (uint8_t[]){200, 0, 0}, 3);
+
+	/* At once only OnOff changes */
+	reset_fakes();
+	on_off_command(0x00);
+	zassert_false(on_off11.on_off);
+	zassert_equal(level11.current_level, 200);
+	zassert_equal(notified(11, ZZB_ZCL_LEVEL_CURRENT_LEVEL), 0);
+	on_off_command(0x01);
+
+	set_on_off(11, ZZB_ZCL_ON_OFF_ON_TIME, 30);
+	set_u16(11, ZZB_ZCL_LEVEL_OFF_TRANSITION_TIME, 10);
+	reset_fakes();
+
+	/* OnTime becomes 0 at once, OnOff at the end */
+	on_off_command(0x00);
+	zassert_true(on_off11.on_off);
+	zassert_equal(on_off11.on_time, 0);
+	zassert_equal(level11.remaining_time, 7);
+	k_sleep(K_MSEC(400));
+	zassert_true(on_off11.on_off);
+	zassert_between_inclusive(level11.current_level, 80, 120);
+	k_sleep(K_MSEC(500));
+	zassert_false(on_off11.on_off);
+	zassert_equal(level11.current_level, 200);
+	zassert_equal(zcl_cb_calls.attr[zcl_cb_calls.count - 2], ZZB_ZCL_ON_OFF_ON_OFF);
+	zassert_equal(zcl_cb_calls.cluster[zcl_cb_calls.count - 1], ZZB_ZCL_LEVEL);
+	zassert_equal(zcl_cb_calls.attr[zcl_cb_calls.count - 1], ZZB_ZCL_LEVEL_CURRENT_LEVEL);
+
+	/* Off while off leaves the level */
+	on_off_command(0x00);
+	zassert_false(timer_armed());
+
+	/* With OnLevel the level stays at 1 */
+	set_u8(11, ZZB_ZCL_LEVEL_ON_LEVEL, 100);
+	on_off_command(0x01);
+	zassert_equal(level11.current_level, 100);
+	on_off_command(0x02);
+	zassert_equal(level11.remaining_time, 3);
+	k_sleep(K_MSEC(400));
+	zassert_false(on_off11.on_off);
+	zassert_equal(level11.current_level, 1);
+}
+
+/* ZCL 3.10.2.1.1: during the fade of Off, On goes back to the stored level and Off is ignored */
+ZTEST(zzb_zcl_level, test_off_interrupted)
+{
+	send(11, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, (uint8_t[]){200, 0, 0}, 3);
+	set_u16(11, ZZB_ZCL_LEVEL_ON_OFF_TRANSITION_TIME, 10);
+	on_off_command(0x00);
+	k_sleep(K_MSEC(300));
+	on_off_command(0x00);
+	zassert_between_inclusive(level11.remaining_time, 6, 8);
+
+	on_off_command(0x02);
+	zassert_true(on_off11.on_off);
+	zassert_equal(level11.remaining_time, 10);
+	k_sleep(K_MSEC(1100));
+	zassert_true(on_off11.on_off);
+	zassert_equal(level11.current_level, 200);
+
+	/* A Level Control command cancels the change of OnOff at the end */
+	on_off_command(0x00);
+	k_sleep(K_MSEC(300));
+	move_to_level(11, 50, 0);
+	k_sleep(K_MSEC(800));
+	zassert_true(on_off11.on_off);
+	zassert_equal(level11.current_level, 50);
+}
+
 ZTEST_SUITE(zzb_zcl_level, NULL, setup, before, after, NULL);
