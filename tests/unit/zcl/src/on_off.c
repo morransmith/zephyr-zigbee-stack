@@ -4,6 +4,7 @@
 #include <zephyr/ztest.h>
 #include <zzb/zcl/on_off.h>
 
+#include "common/node.h"
 #include "fakes.h"
 
 #define OFF                         0x00
@@ -11,6 +12,7 @@
 #define TOGGLE                      0x02
 #define OFF_WITH_EFFECT             0x40
 #define ON_WITH_RECALL_GLOBAL_SCENE 0x41
+#define ON_WITH_TIMED_OFF           0x42
 
 static void *setup(void)
 {
@@ -263,6 +265,86 @@ ZTEST(zzb_zcl_on_off, test_on_with_recall_global_scene)
 	command(ON_WITH_RECALL_GLOBAL_SCENE);
 	zassert_false(on_off.on_off);
 	zassert_true(on_off.global_scene_control);
+}
+
+static void timed_off(uint8_t control, uint16_t on_time, uint16_t off_wait_time)
+{
+	const uint8_t payload[] = {control, on_time & 0xff, on_time >> 8, off_wait_time & 0xff,
+				   off_wait_time >> 8};
+
+	command_with(ON_WITH_TIMED_OFF, payload, sizeof(payload), ZZB_ZCL_SUCCESS);
+}
+
+static bool timer_armed(void)
+{
+	return k_work_delayable_busy_get(&test_node()->zcl.on_off_timer) != 0;
+}
+
+/* ZCL 3.8.2.3.6.4: OnTime counts down in tenths of a second, then the node turns off */
+ZTEST(zzb_zcl_on_off, test_timed_off)
+{
+	timed_off(0x00, 5, 10);
+	zassert_true(on_off.on_off);
+	zassert_equal(on_off.on_time, 5);
+	zassert_equal(on_off.off_wait_time, 10);
+
+	k_sleep(K_MSEC(250));
+	zassert_true(on_off.on_off);
+	zassert_true(on_off.on_time >= 2 && on_off.on_time <= 3);
+
+	reset_fakes();
+	k_sleep(K_MSEC(400));
+	zassert_false(on_off.on_off);
+	zassert_equal(on_off.on_time, 0);
+	zassert_equal(on_off.off_wait_time, 0);
+	zassert_equal(zcl_cb_calls.attr[zcl_cb_calls.count - 1], ZZB_ZCL_ON_OFF_ON_OFF);
+	zassert_false(timer_armed());
+}
+
+/* ZCL 3.8.2.3.6.4: after an Off, OffWaitTime guards against On With Timed Off */
+ZTEST(zzb_zcl_on_off, test_timed_off_guard)
+{
+	timed_off(0x00, 50, 10);
+	command(OFF);
+	zassert_false(on_off.on_off);
+	zassert_equal(on_off.on_time, 0);
+	zassert_true(timer_armed());
+
+	/* Accept Only When On while off */
+	timed_off(0x01, 50, 10);
+	zassert_false(on_off.on_off);
+
+	/* Off with OffWaitTime above 0 takes the smaller OffWaitTime and stays off */
+	timed_off(0x00, 50, 3);
+	zassert_false(on_off.on_off);
+	zassert_equal(on_off.off_wait_time, 3);
+
+	k_sleep(K_MSEC(350));
+	zassert_equal(on_off.off_wait_time, 0);
+	zassert_false(timer_armed());
+
+	timed_off(0x00, 50, 0);
+	zassert_true(on_off.on_off);
+	zassert_equal(on_off.on_time, 50);
+}
+
+/* ZCL 3.8.2.3.6.4: OnTime takes the larger value; 0xffff stops the update */
+ZTEST(zzb_zcl_on_off, test_timed_off_values)
+{
+	set(ZZB_ZCL_ON_OFF_ON_TIME, 30);
+	command(ON);
+	timed_off(0x01, 10, 0);
+	zassert_equal(on_off.on_time, 30);
+	command(OFF);
+
+	set(ZZB_ZCL_ON_OFF_ON_TIME, 0xffff);
+	timed_off(0x00, 5, 5);
+	zassert_true(on_off.on_off);
+	zassert_equal(on_off.on_time, 0xffff);
+	zassert_false(timer_armed());
+
+	command_with(ON_WITH_TIMED_OFF, (uint8_t[]){0x00, 0x05, 0x00, 0x05}, 4,
+		     ZZB_ZCL_MALFORMED_COMMAND);
 }
 
 ZTEST_SUITE(zzb_zcl_on_off, NULL, setup, before, after, NULL);

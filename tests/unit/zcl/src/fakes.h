@@ -79,17 +79,17 @@ extern int cmd_status;
 /* Calls of the changed hook of the test cluster and of zcl_cb, in order */
 struct changed_calls {
 	int count;
-	uint8_t ep[8];
-	uint16_t attr[8];
+	uint8_t ep[64];
+	uint16_t attr[64];
 };
 
 extern struct changed_calls hook_calls;
 
 struct zcl_cb_calls {
 	int count;
-	uint8_t ep[8];
-	uint16_t cluster[8];
-	uint16_t attr[8];
+	uint8_t ep[64];
+	uint16_t cluster[64];
+	uint16_t attr[64];
 };
 
 extern struct zcl_cb_calls zcl_cb_calls;

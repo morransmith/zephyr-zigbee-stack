@@ -23,6 +23,8 @@ struct zzb_node;
 struct zzb_zcl {
 	/* Decrements IdentifyTime every second while one is not 0 */
 	struct k_work_delayable identify_timer;
+	/* Updates OnTime and OffWaitTime every 0.1 s after On With Timed Off */
+	struct k_work_delayable on_off_timer;
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -76,6 +78,7 @@ void zzb_zcl_store(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t
 void zzb_zcl_start(struct zzb_node *node);
 
 void zzb_zcl_identify_init(struct zzb_node *node);
+void zzb_zcl_on_off_init(struct zzb_node *node);
 
 /* Processes a global command; returns the status of the Default Response or ZZB_ZCL_RESPONDED */
 int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);

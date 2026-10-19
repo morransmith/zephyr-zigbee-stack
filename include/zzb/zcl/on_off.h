@@ -44,6 +44,8 @@ struct zzb_zcl_on_off {
 	uint8_t start_up_default;
 	/** Internal: OnOff of the global scene, kept in RAM without the Scenes cluster. */
 	bool global_scene;
+	/** Internal: the update of On With Timed Off runs. */
+	bool timed;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_def;

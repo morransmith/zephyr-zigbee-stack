@@ -195,8 +195,10 @@ void zzb_zcl_init(struct zzb_node *node)
 {
 	/* Safe on the zeroed struct of a new node */
 	k_work_cancel_delayable(&node->zcl.identify_timer);
+	k_work_cancel_delayable(&node->zcl.on_off_timer);
 	node->zcl = (struct zzb_zcl){0};
 	zzb_zcl_identify_init(node);
+	zzb_zcl_on_off_init(node);
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];
