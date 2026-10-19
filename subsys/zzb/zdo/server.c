@@ -65,9 +65,25 @@ static void ieee_addr_req(struct zzb_node *node, const struct zzb_zdo_req *req)
 	own_addr_rsp(node, req, req->payload[2]);
 }
 
+/* Requests R22 allows only as unicast */
+static bool unicast_only(uint16_t cluster)
+{
+	switch (cluster) {
+	case ZZB_ZDP_NODE_DESC_REQ:
+	case ZZB_ZDP_POWER_DESC_REQ:
+		return true;
+	default:
+		return false;
+	}
+}
+
 void zzb_zdo_server(struct zzb_node *node, const struct zzb_zdo_req *req)
 {
 	const uint8_t status = ZZB_ZDP_NOT_SUPPORTED;
+
+	if (req->broadcast && unicast_only(req->cluster)) {
+		return;
+	}
 
 	switch (req->cluster) {
 	case ZZB_ZDP_NWK_ADDR_REQ:
@@ -75,6 +91,12 @@ void zzb_zdo_server(struct zzb_node *node, const struct zzb_zdo_req *req)
 		return;
 	case ZZB_ZDP_IEEE_ADDR_REQ:
 		ieee_addr_req(node, req);
+		return;
+	case ZZB_ZDP_NODE_DESC_REQ:
+		zzb_zdo_serve_node_desc(node, req);
+		return;
+	case ZZB_ZDP_POWER_DESC_REQ:
+		zzb_zdo_serve_power_desc(node, req);
 		return;
 	}
 

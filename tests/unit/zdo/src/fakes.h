@@ -16,6 +16,7 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsme_set_tc_addr, struct zzb_node *, uint64_t);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_set_active_key, struct zzb_node *, uint8_t);
 DECLARE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node *);
+DECLARE_FAKE_VALUE_FUNC(uint8_t, zzb_nlme_get_capability, const struct zzb_node *);
 
 #define NODE_EUI64 0x00124b0001020304ULL
 #define NODE_ADDR  0x5678

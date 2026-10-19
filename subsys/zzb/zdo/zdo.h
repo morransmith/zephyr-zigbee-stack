@@ -17,6 +17,8 @@ struct zzb_node;
 enum zzb_zdp_cluster {
 	ZZB_ZDP_NWK_ADDR_REQ = 0x0000,
 	ZZB_ZDP_IEEE_ADDR_REQ = 0x0001,
+	ZZB_ZDP_NODE_DESC_REQ = 0x0002,
+	ZZB_ZDP_POWER_DESC_REQ = 0x0003,
 };
 
 /* ZDP status values (R22 Table 2-145) */
@@ -61,5 +63,9 @@ void zzb_zdo_respond(struct zzb_node *node, const struct zzb_zdo_req *req, const
 
 /* Processes a request */
 void zzb_zdo_server(struct zzb_node *node, const struct zzb_zdo_req *req);
+
+/* Server of the descriptor requests */
+void zzb_zdo_serve_node_desc(struct zzb_node *node, const struct zzb_zdo_req *req);
+void zzb_zdo_serve_power_desc(struct zzb_node *node, const struct zzb_zdo_req *req);
 
 #endif /* ZZB_SUBSYS_ZDO_ZDO_H_ */

@@ -32,6 +32,12 @@ static inline size_t zzb_aps_aux_len(bool ext_nonce)
  */
 #define ZZB_APSDE_HEADROOM (ZZB_NLDE_HEADROOM + ZZB_APS_HDR_MAX_LEN + ZZB_APS_AUX_MAX_LEN)
 
+/*
+ * Longest ASDU of a unicast frame with NWK security only: 125 bytes less the MAC (9), NWK (8),
+ * auxiliary (14) and APS (8) headers and the MIC (4)
+ */
+#define ZZB_APS_MAX_ASDU 82
+
 /* NSDU handle of the frames APS sends on its own; their confirm is ignored */
 #define ZZB_APS_OWN_HANDLE 0xef
 

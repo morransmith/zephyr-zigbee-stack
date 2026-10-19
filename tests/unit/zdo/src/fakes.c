@@ -16,6 +16,7 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_bu
 DEFINE_FAKE_VALUE_FUNC(int, zzb_apsme_set_tc_addr, struct zzb_node *, uint64_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_set_active_key, struct zzb_node *, uint8_t);
 DEFINE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node *);
+DEFINE_FAKE_VALUE_FUNC(uint8_t, zzb_nlme_get_capability, const struct zzb_node *);
 
 struct frame_copy sent[8];
 struct set_nwk_key_calls set_nwk_key;
@@ -68,11 +69,14 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_apsme_set_tc_addr);
 	RESET_FAKE(zzb_nlme_set_active_key);
 	RESET_FAKE(zzb_nlme_get_short_addr);
+	RESET_FAKE(zzb_nlme_get_capability);
 	FFF_RESET_HISTORY();
 	set_nwk_key = (struct set_nwk_key_calls){0};
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
 	zzb_nlme_get_short_addr_fake.return_val = NODE_ADDR;
+	/* Receiver on when idle, allocate address */
+	zzb_nlme_get_capability_fake.return_val = 0x88;
 }
 
 void check_no_buffer_leak(void)
