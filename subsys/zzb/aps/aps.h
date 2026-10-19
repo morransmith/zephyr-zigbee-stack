@@ -154,9 +154,23 @@ struct zzb_aps_key_pair {
 	uint32_t in_fc;
 };
 
+/* Entry of apsBindingTable (R22 2.2.8.2); the source is the node */
+struct zzb_aps_binding {
+	bool in_use;
+	uint8_t src_ep;
+	uint16_t cluster;
+	/* ZZB_APS_ADDR_GROUP or ZZB_APS_ADDR_EXT */
+	enum zzb_aps_addr_mode dst_mode;
+	/* Group address */
+	uint16_t dst_addr;
+	uint64_t dst_ext;
+	uint8_t dst_ep;
+};
+
 struct zzb_aib {
 	uint64_t tc_addr;
 	struct zzb_aps_key_pair keys[CONFIG_ZZB_APS_KEY_PAIR_COUNT];
+	struct zzb_aps_binding bindings[CONFIG_ZZB_APS_BINDING_COUNT];
 };
 
 struct zzb_aps {
@@ -198,6 +212,16 @@ int zzb_apsme_set_link_key(struct zzb_node *node, uint64_t addr, const uint8_t k
 			   enum zzb_aps_key_attr attr, enum zzb_aps_link_key_type type);
 
 struct zzb_aps_key_pair *zzb_aps_key_pair_find(struct zzb_node *node, uint64_t addr);
+
+/*
+ * APSME-BIND.request (R22 2.2.4.3.1) of a binding with the node as source; in_use is ignored.
+ * Returns 0 also when the entry exists, -EINVAL for a destination address mode other than group
+ * and IEEE address, or -ENOMEM when the table is full.
+ */
+int zzb_apsme_bind_req(struct zzb_node *node, const struct zzb_aps_binding *binding);
+
+/* APSME-UNBIND.request (R22 2.2.4.3.3). Returns -ENOENT without the entry. */
+int zzb_apsme_unbind_req(struct zzb_node *node, const struct zzb_aps_binding *binding);
 
 /*
  * APSME-REQUEST-KEY.request of the trust center link key (R22 4.4.5.1). Returns -EINVAL when

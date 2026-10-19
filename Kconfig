@@ -81,6 +81,14 @@ config ZZB_APS_KEY_PAIR_COUNT
 	  Entries of apsDeviceKeyPairSet. An end device shares a link key only
 	  with the trust center.
 
+config ZZB_APS_BINDING_COUNT
+	int "Binding table entries"
+	range 1 255
+	default 8
+	help
+	  Entries of apsBindingTable. ZDO Bind_req adds them, and APSDE-DATA
+	  with binding sends to them.
+
 config ZZB_FRAME_COUNTER_JUMP
 	int "Outgoing frame counter jump at boot"
 	default 1024
