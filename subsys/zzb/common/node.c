@@ -4,6 +4,7 @@
 #include <zephyr/kernel.h>
 #include <zzb/zzb.h>
 
+#include "aps/aps.h"
 #include "common/eui64.h"
 #include "common/node.h"
 #include "common/queue.h"
@@ -92,6 +93,10 @@ static void init_handler(struct k_work *work)
 		if (req->err) {
 			return;
 		}
+	}
+
+	if (IS_ENABLED(CONFIG_ZZB_APS)) {
+		zzb_aps_init(node);
 	}
 
 	node->in_use = true;
