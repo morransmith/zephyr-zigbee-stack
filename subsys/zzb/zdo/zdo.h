@@ -19,6 +19,9 @@ enum zzb_zdp_cluster {
 	ZZB_ZDP_IEEE_ADDR_REQ = 0x0001,
 	ZZB_ZDP_NODE_DESC_REQ = 0x0002,
 	ZZB_ZDP_POWER_DESC_REQ = 0x0003,
+	ZZB_ZDP_SIMPLE_DESC_REQ = 0x0004,
+	ZZB_ZDP_ACTIVE_EP_REQ = 0x0005,
+	ZZB_ZDP_MATCH_DESC_REQ = 0x0006,
 };
 
 /* ZDP status values (R22 Table 2-145) */
@@ -26,6 +29,8 @@ enum zzb_zdp_status {
 	ZZB_ZDP_SUCCESS = 0x00,
 	ZZB_ZDP_INV_REQUESTTYPE = 0x80,
 	ZZB_ZDP_DEVICE_NOT_FOUND = 0x81,
+	ZZB_ZDP_INVALID_EP = 0x82,
+	ZZB_ZDP_NOT_ACTIVE = 0x83,
 	ZZB_ZDP_NOT_SUPPORTED = 0x84,
 };
 
@@ -67,5 +72,8 @@ void zzb_zdo_server(struct zzb_node *node, const struct zzb_zdo_req *req);
 /* Server of the descriptor requests */
 void zzb_zdo_serve_node_desc(struct zzb_node *node, const struct zzb_zdo_req *req);
 void zzb_zdo_serve_power_desc(struct zzb_node *node, const struct zzb_zdo_req *req);
+void zzb_zdo_serve_simple_desc(struct zzb_node *node, const struct zzb_zdo_req *req);
+void zzb_zdo_serve_active_ep(struct zzb_node *node, const struct zzb_zdo_req *req);
+void zzb_zdo_serve_match_desc(struct zzb_node *node, const struct zzb_zdo_req *req);
 
 #endif /* ZZB_SUBSYS_ZDO_ZDO_H_ */

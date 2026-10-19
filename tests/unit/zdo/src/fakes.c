@@ -28,9 +28,35 @@ void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_L
 	set_nwk_key.seq = seq;
 }
 
+/* Basic, Identify and On/Off servers of an On/Off Light */
+static const uint16_t light_in[] = {0x0000, 0x0003, 0x0006};
+
+/* On/Off client of an On/Off Light Switch */
+static const uint16_t switch_out[] = {0x0006};
+
+static const struct zzb_endpoint endpoints[] = {
+	{
+		.id = 1,
+		.profile = 0x0104,
+		.device_id = 0x0100,
+		.device_version = 1,
+		.in_clusters = light_in,
+		.in_cluster_count = ARRAY_SIZE(light_in),
+	},
+	{
+		.id = 2,
+		.profile = 0x0104,
+		.device_id = 0x0103,
+		.out_clusters = switch_out,
+		.out_cluster_count = ARRAY_SIZE(switch_out),
+	},
+};
+
 static const struct zzb_device device = {
 	.manufacturer_code = 0x1234,
 	.power_source = ZZB_POWER_MAINS,
+	.endpoints = endpoints,
+	.endpoint_count = ARRAY_SIZE(endpoints),
 };
 
 static int apsde_data_req_take(struct zzb_node *node, struct net_buf *buf,

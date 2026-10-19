@@ -71,6 +71,8 @@ static bool unicast_only(uint16_t cluster)
 	switch (cluster) {
 	case ZZB_ZDP_NODE_DESC_REQ:
 	case ZZB_ZDP_POWER_DESC_REQ:
+	case ZZB_ZDP_SIMPLE_DESC_REQ:
+	case ZZB_ZDP_ACTIVE_EP_REQ:
 		return true;
 	default:
 		return false;
@@ -97,6 +99,15 @@ void zzb_zdo_server(struct zzb_node *node, const struct zzb_zdo_req *req)
 		return;
 	case ZZB_ZDP_POWER_DESC_REQ:
 		zzb_zdo_serve_power_desc(node, req);
+		return;
+	case ZZB_ZDP_SIMPLE_DESC_REQ:
+		zzb_zdo_serve_simple_desc(node, req);
+		return;
+	case ZZB_ZDP_ACTIVE_EP_REQ:
+		zzb_zdo_serve_active_ep(node, req);
+		return;
+	case ZZB_ZDP_MATCH_DESC_REQ:
+		zzb_zdo_serve_match_desc(node, req);
 		return;
 	}
 
