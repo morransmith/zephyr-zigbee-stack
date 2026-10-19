@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/device_temp.h>
 
+#include "common/node.h"
 #include "fakes.h"
 
 static void *setup(void)
@@ -33,6 +35,28 @@ static void set_temperature(int16_t t)
 {
 	set(ZZB_ZCL_DEVICE_TEMP_CURRENT_TEMPERATURE, &t);
 }
+
+static void set_threshold(uint16_t attr, int16_t t)
+{
+	set(attr, &t);
+}
+
+static void set_dwell(uint16_t attr, uint32_t seconds)
+{
+	set(attr, &seconds);
+}
+
+static void set_alarm_mask(uint8_t mask)
+{
+	set(ZZB_ZCL_DEVICE_TEMP_ALARM_MASK, &mask);
+}
+
+static bool timer_armed(void)
+{
+	return k_work_delayable_is_pending(&test_node()->zcl.temp_alarm_timer);
+}
+
+static const uint16_t alarm_count[] = {ZZB_ZCL_ALARMS_ALARM_COUNT};
 
 static void check_experienced(int16_t min, int16_t max)
 {
@@ -113,6 +137,124 @@ ZTEST(zzb_zcl_device_temp, test_reportable)
 
 	receive_ep(SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, req, sizeof(req));
 	check_frame(0, SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, rsp, sizeof(rsp));
+}
+
+/*
+ * ZCL 3.4.2.2.2: CurrentTemperature below LowTempThreshold for LowTempDwellTripPoint seconds, or
+ * above HighTempThreshold for HighTempDwellTripPoint seconds, raises alarm 0x00, or 0x01, once. The
+ * timer comes with zcl_cb for AlarmCount, and Alarm goes only with the bit of DeviceTempAlarmMask.
+ */
+ZTEST(zzb_zcl_device_temp, test_alarms)
+{
+	set_threshold(ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_THRESHOLD, 5);
+	set_threshold(ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_THRESHOLD, 40);
+	set_dwell(ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_DWELL_TRIP_POINT, 2);
+	set_dwell(ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_DWELL_TRIP_POINT, 1);
+	set_alarm_mask(0x02);
+
+	set_temperature(3);
+	zassert_true(timer_armed());
+	k_sleep(K_SECONDS(1));
+	/* The dwell runs on while the condition lasts */
+	set_temperature(4);
+	k_sleep(K_MSEC(900));
+	/* Reset Alarm does not raise an alarm whose dwell has not passed */
+	reset_alarm(SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, 0x00);
+	zassert_equal(alarms30.alarm_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(alarm_entries(SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, 0x00), 1);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	check_zcl_cb(SENSOR_EP, ZZB_ZCL_ALARMS, alarm_count, 1);
+	zassert_false(timer_armed());
+
+	set_temperature(45);
+	k_sleep(K_MSEC(1100));
+	check_alarm(0, SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, 0x01);
+	zassert_equal(alarms30.alarm_count, 2);
+
+	/* A condition that ends within the dwell raises nothing and stops the timer */
+	set_temperature(3);
+	k_sleep(K_SECONDS(1));
+	set_temperature(25);
+	zassert_false(timer_armed());
+	zassert_equal(alarms30.alarm_count, 2);
+
+	/* The reset of the node ends the conditions */
+	set_temperature(3);
+	reset_node();
+	zassert_false(timer_armed());
+}
+
+/*
+ * A dwell of 0 raises the alarm at once: without zcl_cb when CurrentTemperature causes it, with
+ * zcl_cb when a write does. A threshold of 0x8000, a dwell of 0xffffff and an unknown temperature
+ * give no alarm.
+ */
+ZTEST(zzb_zcl_device_temp, test_alarms_without_dwell)
+{
+	/* Write Attributes No Response: HighTempDwellTripPoint 0 */
+	static const uint8_t write[] = {0x10, 0x45, 0x05, 0x14, 0x00, 0x22, 0x00, 0x00, 0x00};
+
+	set_threshold(ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_THRESHOLD, 5);
+	set_dwell(ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_DWELL_TRIP_POINT, 0);
+	set_temperature(3);
+	zassert_equal(alarms30.alarm_count, 1);
+	zassert_equal(zcl_cb_calls.count, 0);
+	zassert_false(timer_armed());
+
+	set_temperature(25);
+	set_temperature(INT16_MIN);
+	set_threshold(ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_THRESHOLD, 40);
+	set_temperature(45);
+	zassert_equal(alarms30.alarm_count, 1);
+
+	receive_ep(SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, write, sizeof(write));
+	zassert_equal(alarm_entries(SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, 0x01), 1);
+	check_zcl_cb(SENSOR_EP, ZZB_ZCL_ALARMS, alarm_count, 1);
+
+	set_threshold(ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_THRESHOLD, INT16_MIN);
+	set_temperature(50);
+	zassert_equal(alarms30.alarm_count, 2);
+}
+
+/* ZCL 3.11.2.4.1: Reset Alarm raises a device temperature alarm again while its condition lasts */
+ZTEST(zzb_zcl_device_temp, test_reset_alarm)
+{
+	set_threshold(ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_THRESHOLD, 5);
+	set_dwell(ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_DWELL_TRIP_POINT, 0);
+	set_alarm_mask(0x01);
+	set_temperature(3);
+	check_alarm(0, SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, 0x00);
+
+	reset_alarm(SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, 0x01);
+	zassert_equal(alarms30.alarm_count, 1);
+	reset_alarm(SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, 0x00);
+	zassert_equal(alarms30.alarm_count, 2);
+	check_alarm(1, SENSOR_EP, ZZB_ZCL_DEVICE_TEMP, 0x00);
+	check_zcl_cb(SENSOR_EP, ZZB_ZCL_ALARMS, alarm_count, 1);
+
+	set_alarm_mask(0);
+	reset_all_alarms(SENSOR_EP);
+	zassert_equal(alarms30.alarm_count, 3);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+
+	set_alarm_mask(0x01);
+	set_temperature(25);
+	reset_all_alarms(SENSOR_EP);
+	zassert_equal(alarms30.alarm_count, 3);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+}
+
+/* A condition at boot starts its dwell after the records are loaded */
+ZTEST(zzb_zcl_device_temp, test_alarm_at_boot)
+{
+	set_threshold(ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_THRESHOLD, 5);
+	set_dwell(ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_DWELL_TRIP_POINT, 2);
+	device_temp.current_temperature = 3;
+	zassert_ok(reboot());
+	zassert_true(timer_armed());
+	k_sleep(K_MSEC(2100));
+	zassert_equal(alarms30.alarm_count, 1);
 }
 
 ZTEST_SUITE(zzb_zcl_device_temp, NULL, setup, before, after, NULL);

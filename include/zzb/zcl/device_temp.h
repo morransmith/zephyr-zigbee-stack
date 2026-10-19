@@ -29,7 +29,7 @@ extern "C" {
  * Celsius, INT16_MIN (the non-value 0x8000) when unknown. The application sets
  * current_temperature and over_temp_total_dwell before zzb_node_init() and changes them with
  * zzb_zcl_attr_set(); they are read-only. The stack keeps the other fields; the alarm settings are
- * writable. All but current_temperature are saved.
+ * writable. The attributes other than current_temperature are saved.
  */
 struct zzb_zcl_device_temp {
 	int16_t current_temperature;
@@ -44,6 +44,12 @@ struct zzb_zcl_device_temp {
 	/** Seconds, 0xffffff disables the alarm. */
 	uint32_t low_temp_dwell_trip_point;
 	uint32_t high_temp_dwell_trip_point;
+	/** Internal: bit n while the condition of alarm n lasts. */
+	uint8_t alarm_active;
+	/** Internal: bit n once alarm n is raised during its condition. */
+	uint8_t alarm_raised;
+	/** Internal: k_uptime_get() at the start of the condition of alarm n. */
+	int64_t alarm_since[2];
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_device_temp_def;

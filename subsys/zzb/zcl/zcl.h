@@ -79,6 +79,10 @@ struct zzb_zcl {
 	uint8_t tsn;
 	struct zzb_zcl_scene scenes[CONFIG_ZZB_ZCL_SCENE_COUNT];
 	struct zzb_zcl_alarm alarms[CONFIG_ZZB_ZCL_ALARM_COUNT];
+	/* Raises the mains voltage alarms when their dwell has passed */
+	struct k_work_delayable mains_alarm_timer;
+	/* Raises the device temperature alarms when their dwell has passed */
+	struct k_work_delayable temp_alarm_timer;
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -214,6 +218,9 @@ int zzb_zcl_level_on_off(struct zzb_node *node, uint8_t ep, uint8_t cmd);
  * GlobalSceneControl, OnTime and OffWaitTime; for Level Control (ZCL 3.8.2.1.1, 3.10.2.1.3)
  */
 void zzb_zcl_on_off_switch(struct zzb_node *node, uint8_t ep, bool on_off);
+
+void zzb_zcl_power_config_init(struct zzb_node *node);
+void zzb_zcl_device_temp_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*

@@ -137,11 +137,15 @@ struct alarm_reset_calls {
 
 extern struct alarm_reset_calls alarm_reset_calls;
 
-/* Endpoint 30 has the servers of the power, temperature, ballast and sensing clusters */
+/*
+ * Endpoint 30 has the servers of the power, temperature, ballast and sensing clusters, and an
+ * Alarms server
+ */
 #define SENSOR_EP 30
 
 extern struct zzb_zcl_power_config power_config;
 extern struct zzb_zcl_device_temp device_temp;
+extern struct zzb_zcl_alarms alarms30;
 
 /* The physical levels of the ballast on endpoint 30 */
 #define PHYSICAL_MIN 0x10
@@ -249,5 +253,17 @@ void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_
 
 /* Checks that zcl_cb reported these attributes of cluster on endpoint ep in order, and no other */
 void check_zcl_cb(uint8_t ep, uint16_t cluster, const uint16_t *attrs, int count);
+
+/* Checks that frame i is Alarm with code of cluster from endpoint ep to the bound destinations */
+void check_alarm(int i, uint8_t ep, uint16_t cluster, uint8_t code);
+
+/* The number of entries of the alarm table with ep, cluster and code */
+int alarm_entries(uint8_t ep, uint16_t cluster, uint8_t code);
+
+/* Sends Reset Alarm with code of cluster to ep, without a Default Response */
+void reset_alarm(uint8_t ep, uint16_t cluster, uint8_t code);
+
+/* Sends Reset All Alarms to ep, without a Default Response */
+void reset_all_alarms(uint8_t ep);
 
 #endif /* ZZB_TESTS_UNIT_ZCL_FAKES_H_ */
