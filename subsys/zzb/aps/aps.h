@@ -216,6 +216,13 @@ void zzb_apsde_data_conf(struct zzb_node *node, uint8_t handle, uint8_t status);
 void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf,
 			const struct zzb_apsde_ind *ind);
 
+/*
+ * Defined by ZDO. APSME-TRANSPORT-KEY.indication from src_addr, the source address field of the
+ * command, with a key of ZZB_SEC_KEY_LEN bytes. seq belongs to a network key.
+ */
+void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
+				 enum zzb_aps_key_type type, const uint8_t *key, uint8_t seq);
+
 /* Within APS */
 
 /* Whether a frame from src_addr with counter was received before (R22 2.2.8.4.2) */
@@ -231,6 +238,24 @@ struct zzb_aps_sec {
 	/* NULL for the default trust center link key while the network key is pending */
 	struct zzb_aps_key_pair *pair;
 };
+
+/* A received frame after the removal of its APS security */
+struct zzb_aps_rx {
+	struct zzb_aps_hdr hdr;
+	/* Valid with ZZB_APS_SECURITY in hdr.flags */
+	struct zzb_aps_sec sec;
+	uint16_t dst_addr;
+	uint16_t src_addr;
+	bool nwk_security;
+};
+
+/* Whether a received command passes the security and source checks of section 11 */
+bool zzb_aps_cmd_accept(struct zzb_node *node, const struct zzb_aps_rx *rx,
+			const struct zzb_aps_cmd *cmd);
+
+/* Processes an accepted command */
+void zzb_aps_cmd_process(struct zzb_node *node, const struct zzb_aps_rx *rx,
+			 const struct zzb_aps_cmd *cmd);
 
 /*
  * Builds the ACK of a received frame with header hdr (R22 2.2.5.2.3). It has APS security when the

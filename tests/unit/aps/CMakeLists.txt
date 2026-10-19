@@ -7,6 +7,7 @@ project(zzb_unit_aps)
 
 target_include_directories(app PRIVATE ${ZEPHYR_ZZB_MODULE_DIR}/subsys/zzb)
 target_sources(app PRIVATE
+  src/cmd.c
   src/data.c
   src/fakes.c
   src/frame.c

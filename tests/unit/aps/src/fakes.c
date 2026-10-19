@@ -19,10 +19,13 @@ DEFINE_FAKE_VALUE_FUNC(struct zzb_nwk_neighbor *, zzb_nwk_neighbor_find_ext, str
 DEFINE_FAKE_VOID_FUNC(zzb_apsde_data_conf, struct zzb_node *, uint8_t, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_apsde_data_ind, struct zzb_node *, struct net_buf *,
 		      const struct zzb_apsde_ind *);
+DEFINE_FAKE_VOID_FUNC(zzb_apsme_transport_key_ind, struct zzb_node *, uint64_t,
+		      enum zzb_aps_key_type, const uint8_t *, uint8_t);
 
 struct frame_copy sent[8];
 struct frame_copy data_ind;
 struct zzb_apsde_ind ind;
+uint8_t transported_key[ZZB_SEC_KEY_LEN];
 
 const uint8_t key_b[ZZB_SEC_KEY_LEN] = {
 	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
@@ -54,6 +57,12 @@ static void apsde_data_ind_take(struct zzb_node *node, struct net_buf *buf,
 	net_buf_unref(buf);
 }
 
+static void transport_key_ind_copy(struct zzb_node *node, uint64_t src_addr,
+				   enum zzb_aps_key_type type, const uint8_t *key, uint8_t seq)
+{
+	memcpy(transported_key, key, ZZB_SEC_KEY_LEN);
+}
+
 struct zzb_node *test_node(int index)
 {
 	static const uint64_t eui64[] = {NODE_EUI64, TC_EUI64};
@@ -80,10 +89,12 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nwk_neighbor_find_ext);
 	RESET_FAKE(zzb_apsde_data_conf);
 	RESET_FAKE(zzb_apsde_data_ind);
+	RESET_FAKE(zzb_apsme_transport_key_ind);
 	FFF_RESET_HISTORY();
 
 	zzb_nlde_data_req_fake.custom_fake = nlde_data_req_take;
 	zzb_apsde_data_ind_fake.custom_fake = apsde_data_ind_take;
+	zzb_apsme_transport_key_ind_fake.custom_fake = transport_key_ind_copy;
 }
 
 void check_no_buffer_leak(void)

@@ -34,3 +34,8 @@ void zzb_apsde_data_ind(struct zzb_node *node, struct net_buf *buf, const struct
 {
 	net_buf_unref(buf);
 }
+
+void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
+				 enum zzb_aps_key_type type, const uint8_t *key, uint8_t seq)
+{
+}

@@ -29,14 +29,10 @@ void zzb_aps_reset(struct zzb_node *node)
 	zzb_aps_delete(node);
 }
 
-/*
- * Returns the header length of a frame for the node without APS security, or an error. sec is the
- * key that removed the APS security.
- */
-static int rx_frame(struct zzb_node *node, struct net_buf *buf, uint16_t src_addr,
-		    bool security_use, struct zzb_aps_hdr *hdr, struct zzb_aps_sec *sec)
+/* Returns the header length of a frame for the node without APS security, or an error */
+static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_aps_rx *rx)
 {
-	int hdr_len = zzb_aps_hdr_parse(buf->data, buf->len, hdr);
+	int hdr_len = zzb_aps_hdr_parse(buf->data, buf->len, &rx->hdr);
 	bool link_key;
 	int err;
 
@@ -44,20 +40,20 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, uint16_t src_add
 		return hdr_len;
 	}
 
-	link_key = hdr->flags & ZZB_APS_SECURITY;
+	link_key = rx->hdr.flags & ZZB_APS_SECURITY;
 
 	/* Without a group table no endpoint is a member of a group */
-	if (hdr->delivery == ZZB_APS_DELIVERY_GROUP) {
+	if (rx->hdr.delivery == ZZB_APS_DELIVERY_GROUP) {
 		return -ENOENT;
 	}
 
 	/* Without NWK security only a Transport Key with APS security is accepted (section 11) */
-	if (!security_use && (hdr->type != ZZB_APS_FRAME_CMD || !link_key)) {
+	if (!rx->nwk_security && (rx->hdr.type != ZZB_APS_FRAME_CMD || !link_key)) {
 		return -EACCES;
 	}
 
 	if (link_key) {
-		err = zzb_aps_unsecure(node, buf, hdr_len, src_addr, sec);
+		err = zzb_aps_unsecure(node, buf, hdr_len, rx->src_addr, &rx->sec);
 		if (err) {
 			return err;
 		}
@@ -66,18 +62,34 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, uint16_t src_add
 	return hdr_len;
 }
 
-static void deliver(struct zzb_node *node, struct net_buf *buf, const struct zzb_aps_hdr *hdr,
-		    size_t hdr_len, uint16_t dst_addr, uint16_t src_addr)
+/* ACKs end transmissions here; data frames and accepted commands go on */
+static bool accepted(struct zzb_node *node, struct net_buf *buf, size_t hdr_len,
+		     const struct zzb_aps_rx *rx, struct zzb_aps_cmd *cmd)
+{
+	switch (rx->hdr.type) {
+	case ZZB_APS_FRAME_ACK:
+		zzb_aps_ack_rx(node, &rx->hdr, rx->src_addr);
+		return false;
+	case ZZB_APS_FRAME_CMD:
+		return zzb_aps_cmd_parse(buf->data + hdr_len, buf->len - hdr_len, cmd) > 0 &&
+		       zzb_aps_cmd_accept(node, rx, cmd);
+	default:
+		return true;
+	}
+}
+
+static void deliver(struct zzb_node *node, struct net_buf *buf, const struct zzb_aps_rx *rx,
+		    size_t hdr_len)
 {
 	const struct zzb_apsde_ind ind = {
-		.dst_addr = dst_addr,
-		.dst_ep = hdr->dst_ep,
-		.src_addr = src_addr,
-		.src_ep = hdr->src_ep,
-		.profile = hdr->profile,
-		.cluster = hdr->cluster,
-		.security = (hdr->flags & ZZB_APS_SECURITY) ? ZZB_APS_SECURED_LINK_KEY
-							    : ZZB_APS_SECURED_NWK_KEY,
+		.dst_addr = rx->dst_addr,
+		.dst_ep = rx->hdr.dst_ep,
+		.src_addr = rx->src_addr,
+		.src_ep = rx->hdr.src_ep,
+		.profile = rx->hdr.profile,
+		.cluster = rx->hdr.cluster,
+		.security = (rx->hdr.flags & ZZB_APS_SECURITY) ? ZZB_APS_SECURED_LINK_KEY
+							       : ZZB_APS_SECURED_NWK_KEY,
 	};
 
 	net_buf_pull(buf, hdr_len);
@@ -87,30 +99,35 @@ static void deliver(struct zzb_node *node, struct net_buf *buf, const struct zzb
 void zzb_nlde_data_ind(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr,
 		       uint16_t src_addr, bool security_use)
 {
+	struct zzb_aps_rx rx = {
+		.dst_addr = dst_addr,
+		.src_addr = src_addr,
+		.nwk_security = security_use,
+	};
 	struct net_buf *ack = NULL;
-	struct zzb_aps_hdr hdr;
-	struct zzb_aps_sec sec;
-	int hdr_len = rx_frame(node, buf, src_addr, security_use, &hdr, &sec);
+	struct zzb_aps_cmd cmd;
+	int hdr_len = rx_frame(node, buf, &rx);
 
-	if (hdr_len >= 0 && hdr.type == ZZB_APS_FRAME_ACK) {
-		zzb_aps_ack_rx(node, &hdr, src_addr);
-	}
-
-	if (hdr_len < 0 || hdr.type != ZZB_APS_FRAME_DATA) {
+	if (hdr_len < 0 || !accepted(node, buf, hdr_len, &rx, &cmd)) {
 		net_buf_unref(buf);
 		return;
 	}
 
 	/* Built before the delivery, sent after it (section 11) */
-	if ((hdr.flags & ZZB_APS_ACK_REQ) && !zzb_nwk_is_broadcast(dst_addr)) {
-		ack = zzb_aps_ack_build(node, &hdr, &sec);
+	if ((rx.hdr.flags & ZZB_APS_ACK_REQ) && !zzb_nwk_is_broadcast(dst_addr)) {
+		ack = zzb_aps_ack_build(node, &rx.hdr, &rx.sec);
 	}
 
-	if (zzb_aps_dup_check(node, src_addr, hdr.counter)) {
+	if (zzb_aps_dup_check(node, src_addr, rx.hdr.counter)) {
 		net_buf_unref(buf);
+	} else if (rx.hdr.type == ZZB_APS_FRAME_CMD) {
+		zzb_aps_dup_add(node, src_addr, rx.hdr.counter);
+		/* The command holds no pointers into the frame */
+		net_buf_unref(buf);
+		zzb_aps_cmd_process(node, &rx, &cmd);
 	} else {
-		zzb_aps_dup_add(node, src_addr, hdr.counter);
-		deliver(node, buf, &hdr, hdr_len, dst_addr, src_addr);
+		zzb_aps_dup_add(node, src_addr, rx.hdr.counter);
+		deliver(node, buf, &rx, hdr_len);
 	}
 
 	if (ack != NULL) {

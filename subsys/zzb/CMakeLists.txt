@@ -37,6 +37,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_APS
   aps/ack_dup.c
   aps/aps.c
   aps/apsde.c
+  aps/cmd.c
   aps/frame.c
   aps/keys.c
   aps/security.c
