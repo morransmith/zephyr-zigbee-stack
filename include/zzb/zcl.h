@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <zephyr/sys/util.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,12 +25,70 @@ enum zzb_zcl_type {
 	ZZB_ZCL_STRING = 0x42,
 };
 
+#define ZZB_ZCL_IS_STRING(type) ((type) == ZZB_ZCL_OCTSTR || (type) == ZZB_ZCL_STRING)
+#define ZZB_ZCL_IS_BYTE(type)                                                                      \
+	((type) == ZZB_ZCL_BOOL || (type) == ZZB_ZCL_MAP8 || (type) == ZZB_ZCL_UINT8 ||            \
+	 (type) == ZZB_ZCL_ENUM8)
+
+/** Size of the value struct field of a type; 0 for a type that the stack does not store. */
+#define ZZB_ZCL_STORAGE_SIZE(type)                                                                 \
+	((type) == ZZB_ZCL_UINT16  ? 2                                                             \
+	 : ZZB_ZCL_IS_STRING(type) ? sizeof(void *)                                                \
+				   : ZZB_ZCL_IS_BYTE(type))
+
+/** zzb_zcl_attr.flags; every attribute is readable. */
+#define ZZB_ZCL_WRITE  BIT(0)
+#define ZZB_ZCL_REPORT BIT(1)
+/** The descriptor holds the value of the attribute. */
+#define ZZB_ZCL_CONST  BIT(2)
+
+/**
+ * An attribute. A character string is stored as a const char pointer, an octet string as a const
+ * uint8_t pointer to its length octet; both are read-only, and NULL reads as an empty string.
+ */
+struct zzb_zcl_attr {
+	uint16_t id;
+	uint8_t type;
+	uint8_t flags;
+	union {
+		/** Offset of the field in the value struct. */
+		uint16_t offset;
+		/** Value of a constant attribute. */
+		uint16_t value;
+	};
+};
+
+/**
+ * An attribute stored in the field _field of _struct. BUILD_ASSERT cannot stand in an initializer,
+ * so the size of the field is checked through the offset.
+ */
+#define ZZB_ZCL_ATTR(_id, _type, _flags, _struct, _field)                                          \
+	{                                                                                          \
+		.id = (_id),                                                                       \
+		.type = (_type),                                                                   \
+		.flags = (_flags),                                                                 \
+		.offset = offsetof(_struct, _field) +                                              \
+			  ZERO_OR_COMPILE_ERROR(SIZEOF_FIELD(_struct, _field) ==                   \
+						ZZB_ZCL_STORAGE_SIZE(_type)),                      \
+	}
+
+/** A constant attribute of an integer type of at most 16 bits. */
+#define ZZB_ZCL_ATTR_CONST(_id, _type, _value)                                                     \
+	{                                                                                          \
+		.id = (_id),                                                                       \
+		.type = (_type),                                                                   \
+		.flags = ZZB_ZCL_CONST,                                                            \
+		.value = (_value),                                                                 \
+	}
+
 /** Command status values (ZCL Table 2-12). */
 enum zzb_zcl_status {
 	ZZB_ZCL_SUCCESS = 0x00,
 	ZZB_ZCL_MALFORMED_COMMAND = 0x80,
 	ZZB_ZCL_UNSUP_COMMAND = 0x81,
 	ZZB_ZCL_INVALID_FIELD = 0x85,
+	ZZB_ZCL_UNSUPPORTED_ATTRIBUTE = 0x86,
+	ZZB_ZCL_INSUFFICIENT_SPACE = 0x89,
 	ZZB_ZCL_UNSUPPORTED_CLUSTER = 0xc3,
 };
 
@@ -52,6 +111,9 @@ struct zzb_zcl_cmd {
 
 /** The attributes and commands of a cluster. */
 struct zzb_zcl_cluster_def {
+	/** Attributes in ascending order of ID. */
+	const struct zzb_zcl_attr *attrs;
+	uint8_t attr_count;
 	/**
 	 * Processes a cluster-specific command on the stack thread, or NULL. Returns the status of
 	 * the Default Response or ZZB_ZCL_RESPONDED.

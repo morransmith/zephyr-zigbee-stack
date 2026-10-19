@@ -92,7 +92,11 @@ static int process(struct zzb_node *node, const struct zzb_zcl_req *req)
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}
 
-	if (req->hdr.type == ZZB_ZCL_FRAME_GLOBAL || cl->def == NULL || cl->def->cmd == NULL) {
+	if (req->hdr.type == ZZB_ZCL_FRAME_GLOBAL) {
+		return zzb_zcl_foundation(node, req);
+	}
+
+	if (cl->def == NULL || cl->def->cmd == NULL) {
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}
 

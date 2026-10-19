@@ -28,10 +28,20 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
 /* An On/Off client without a definition on endpoints 1 and 3 */
 #define ON_OFF 0x0006
 
-/* Values of the test cluster */
+/* Values of the test cluster, attributes 0x0000 to 0x0007 in this order */
 struct test_values {
-	uint8_t unused;
+	bool b;
+	uint8_t u8;
+	uint16_t u16;
+	uint8_t e8;
+	uint8_t map8;
+	const char *str;
+	const uint8_t *octstr;
+	const char *null_str;
 };
+
+/* ClusterRevision of the test cluster */
+#define TEST_REVISION 1
 
 extern struct test_values values1;
 extern struct test_values values2;

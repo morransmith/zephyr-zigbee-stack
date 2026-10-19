@@ -29,7 +29,21 @@ static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *
 	return cmd_status;
 }
 
+static const struct zzb_zcl_attr test_attrs[] = {
+	ZZB_ZCL_ATTR(0x0000, ZZB_ZCL_BOOL, 0, struct test_values, b),
+	ZZB_ZCL_ATTR(0x0001, ZZB_ZCL_UINT8, ZZB_ZCL_WRITE, struct test_values, u8),
+	ZZB_ZCL_ATTR(0x0002, ZZB_ZCL_UINT16, ZZB_ZCL_WRITE, struct test_values, u16),
+	ZZB_ZCL_ATTR(0x0003, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE, struct test_values, e8),
+	ZZB_ZCL_ATTR(0x0004, ZZB_ZCL_MAP8, ZZB_ZCL_WRITE, struct test_values, map8),
+	ZZB_ZCL_ATTR(0x0005, ZZB_ZCL_STRING, 0, struct test_values, str),
+	ZZB_ZCL_ATTR(0x0006, ZZB_ZCL_OCTSTR, 0, struct test_values, octstr),
+	ZZB_ZCL_ATTR(0x0007, ZZB_ZCL_STRING, 0, struct test_values, null_str),
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, TEST_REVISION),
+};
+
 static const struct zzb_zcl_cluster_def test_def = {
+	.attrs = test_attrs,
+	.attr_count = ARRAY_SIZE(test_attrs),
 	.cmd = test_cmd,
 };
 
