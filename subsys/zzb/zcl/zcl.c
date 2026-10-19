@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
 #include <zephyr/net_buf.h>
+#include <zephyr/random/random.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
@@ -27,6 +29,30 @@ const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep
 	return NULL;
 }
 
+int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
+		 const struct zzb_zcl_hdr *hdr, const uint8_t *payload, size_t len)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	int err;
+
+	if (buf == NULL) {
+		return -ENOBUFS;
+	}
+
+	/* ZCL frames have no APS security, so the longest ASDU fits */
+	net_buf_reserve(buf, ZZB_NLDE_HEADROOM + ZZB_APS_HDR_MAX_LEN);
+	zzb_zcl_hdr_write(hdr, net_buf_add(buf, zzb_zcl_hdr_len(hdr)));
+	net_buf_add_mem(buf, payload, len);
+	zzb_frame_meta(buf)->handle = ZZB_ZCL_HANDLE;
+
+	err = zzb_apsde_data_req(node, buf, aps);
+	if (err) {
+		net_buf_unref(buf);
+	}
+
+	return err;
+}
+
 void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 		     enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len)
 {
@@ -47,21 +73,8 @@ void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 		.src_ep = req->cmd.ep,
 		.tx_options = ZZB_APS_TX_ACK,
 	};
-	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
 
-	if (buf == NULL) {
-		return;
-	}
-
-	/* ZCL frames have no APS security, so the longest ASDU fits */
-	net_buf_reserve(buf, ZZB_NLDE_HEADROOM + ZZB_APS_HDR_MAX_LEN);
-	zzb_zcl_hdr_write(&hdr, net_buf_add(buf, zzb_zcl_hdr_len(&hdr)));
-	net_buf_add_mem(buf, payload, len);
-	zzb_frame_meta(buf)->handle = ZZB_ZCL_HANDLE;
-
-	if (zzb_apsde_data_req(node, buf, &aps)) {
-		net_buf_unref(buf);
-	}
+	zzb_zcl_send(node, &aps, &hdr, payload, len);
 }
 
 void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
@@ -205,9 +218,13 @@ void zzb_zcl_init(struct zzb_node *node)
 	/* Safe on the zeroed struct of a new node */
 	k_work_cancel_delayable(&node->zcl.identify_timer);
 	k_work_cancel_delayable(&node->zcl.on_off_timer);
-	node->zcl = (struct zzb_zcl){0};
+	k_work_cancel_delayable(&node->zcl.report_timer);
+	node->zcl = (struct zzb_zcl){
+		.tsn = sys_rand8_get(),
+	};
 	zzb_zcl_identify_init(node);
 	zzb_zcl_on_off_init(node);
+	zzb_zcl_report_init(node);
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];
@@ -251,6 +268,8 @@ void zzb_zcl_reset(struct zzb_node *node)
 		}
 	}
 
+	/* The reset hooks may have armed the timer */
 	memset(node->zcl.reports, 0, sizeof(node->zcl.reports));
+	k_work_cancel_delayable(&node->zcl.report_timer);
 	zzb_zcl_attr_delete(node);
 }

@@ -35,6 +35,10 @@ struct zzb_zcl_report {
 	uint16_t last;
 	/* k_uptime_get() at the last report */
 	int64_t sent;
+	/* A change waits for the minimum interval */
+	bool pending;
+	/* k_uptime_get() at which a report refused off a network is tried again, or 0 */
+	int64_t retry;
 };
 
 struct zzb_zcl {
@@ -43,6 +47,10 @@ struct zzb_zcl {
 	/* Updates OnTime and OffWaitTime every 0.1 s after On With Timed Off */
 	struct k_work_delayable on_off_timer;
 	struct zzb_zcl_report reports[CONFIG_ZZB_ZCL_REPORT_COUNT];
+	/* Sends the reports when they are due */
+	struct k_work_delayable report_timer;
+	/* Transaction sequence number of the next frame ZCL originates */
+	uint8_t tsn;
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -56,6 +64,7 @@ struct zzb_zcl {
 #define ZZB_ZCL_CONFIGURE_REPORTING_RSP 0x07
 #define ZZB_ZCL_READ_REPORTING          0x08
 #define ZZB_ZCL_READ_REPORTING_RSP      0x09
+#define ZZB_ZCL_REPORT_ATTRIBUTES       0x0a
 #define ZZB_ZCL_DEFAULT_RSP             0x0b
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES     0x0c
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES_RSP 0x0d
@@ -74,6 +83,13 @@ struct zzb_zcl_req {
 	/* The instance for the cluster and the direction, or NULL */
 	const struct zzb_zcl_cluster *cluster;
 };
+
+/*
+ * Sends a ZCL frame with hdr and the payload through APSDE-DATA with aps. Returns -ENOBUFS without
+ * a buffer or an error of APSDE-DATA.request.
+ */
+int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
+		 const struct zzb_zcl_hdr *hdr, const uint8_t *payload, size_t len);
 
 /*
  * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload;
@@ -101,6 +117,11 @@ void zzb_zcl_start(struct zzb_node *node);
 
 void zzb_zcl_identify_init(struct zzb_node *node);
 void zzb_zcl_on_off_init(struct zzb_node *node);
+void zzb_zcl_report_init(struct zzb_node *node);
+
+/* Marks a report due when the new value of attribute attr of cl on endpoint ep needs one */
+void zzb_zcl_report_check(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+			  uint16_t attr);
 
 /* Processes a global command; returns the status of the Default Response or ZZB_ZCL_RESPONDED */
 int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);

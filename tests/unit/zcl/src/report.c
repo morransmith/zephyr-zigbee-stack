@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 
 #include "common/node.h"
@@ -188,6 +190,163 @@ ZTEST(zzb_zcl_report, test_read_reporting_configuration_fits)
 	receive(TEST_CLUSTER, req, sizeof(req));
 	zassert_equal(sent[0].len, 3 + 4 * 19);
 	zassert_mem_equal(sent[0].data + 3 + 4 * 18, ((uint8_t[]){0x86, 0x00, 0x22, 0x00}), 4);
+}
+
+/* Configures attr of the test cluster on endpoint 1 and forgets the response */
+static void configure(uint16_t attr, uint8_t type, uint16_t min, uint16_t max, uint16_t change)
+{
+	uint8_t req[13] = {0x00, 0x60, 0x06, 0x00};
+	size_t len = type == ZZB_ZCL_BOOL ? 11 : (type == ZZB_ZCL_UINT8 ? 12 : 13);
+
+	sys_put_le16(attr, req + 4);
+	req[6] = type;
+	sys_put_le16(min, req + 7);
+	sys_put_le16(max, req + 9);
+	sys_put_le16(change, req + 11);
+	receive(TEST_CLUSTER, req, len);
+	zassert_equal(sent[zzb_apsde_data_req_fake.call_count - 1].data[3], ZZB_ZCL_SUCCESS);
+	reset_fakes();
+}
+
+static void set(uint16_t attr, uint16_t value)
+{
+	zassert_ok(zzb_zcl_attr_set(test_node(), 1, TEST_CLUSTER, attr, &value));
+}
+
+/* Checks that frame i is a Report Attributes of the test cluster to the bound destinations */
+static void check_report(int i, const uint8_t *records, size_t len)
+{
+	const struct frame_copy *copy = &sent[i];
+
+	zassert_true(zzb_apsde_data_req_fake.call_count > i);
+	zassert_equal(copy->req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(copy->req.src_ep, 1);
+	zassert_equal(copy->req.profile, 0x0104);
+	zassert_equal(copy->req.cluster, TEST_CLUSTER);
+	zassert_equal(copy->req.tx_options, ZZB_APS_TX_ACK);
+	zassert_equal(copy->handle, ZZB_ZCL_HANDLE);
+	zassert_equal(copy->len, 3 + len);
+	zassert_equal(copy->data[0], 0x18);
+	zassert_equal(copy->data[2], 0x0a);
+	zassert_mem_equal(copy->data + 3, records, len);
+}
+
+/* ZCL 2.5.11.2.2: a discrete attribute is reported at any change */
+ZTEST(zzb_zcl_report, test_discrete_change)
+{
+	configure(0x0000, ZZB_ZCL_BOOL, 0, 0, 0);
+	set(0x0000, true);
+	k_sleep(K_MSEC(10));
+	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x01}, 4);
+
+	/* The TSN comes from the counter of the node */
+	set(0x0000, false);
+	k_sleep(K_MSEC(10));
+	check_report(1, (uint8_t[]){0x00, 0x00, 0x10, 0x00}, 4);
+	zassert_equal(sent[1].data[1], (uint8_t)(sent[0].data[1] + 1));
+
+	/* A write of the same value is no change */
+	set(0x0000, false);
+	k_sleep(K_MSEC(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+}
+
+/* ZCL 2.5.11.2.3: an analog attribute is reported when it moves by the reportable change */
+ZTEST(zzb_zcl_report, test_analog_change)
+{
+	configure(0x0002, ZZB_ZCL_UINT16, 0, 0, 5);
+	set(0x0002, 4);
+	k_sleep(K_MSEC(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	set(0x0002, 5);
+	k_sleep(K_MSEC(10));
+	check_report(0, (uint8_t[]){0x02, 0x00, 0x21, 0x05, 0x00}, 5);
+
+	/* Measured from the value of the last report */
+	set(0x0002, 1);
+	k_sleep(K_MSEC(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	set(0x0002, 0);
+	k_sleep(K_MSEC(10));
+	check_report(1, (uint8_t[]){0x02, 0x00, 0x21, 0x00, 0x00}, 5);
+}
+
+/* A change within the minimum interval after the last report waits for its end */
+ZTEST(zzb_zcl_report, test_minimum_interval)
+{
+	configure(0x0000, ZZB_ZCL_BOOL, 2, 0, 0);
+	set(0x0000, true);
+	k_sleep(K_MSEC(1900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x01}, 4);
+
+	k_sleep(K_MSEC(2500));
+	set(0x0000, false);
+	k_sleep(K_MSEC(10));
+	check_report(1, (uint8_t[]){0x00, 0x00, 0x10, 0x00}, 4);
+}
+
+/* ZCL 2.5.11.2.1: a report follows the maximum interval after the last one */
+ZTEST(zzb_zcl_report, test_maximum_interval)
+{
+	values1.b = true;
+	configure(0x0000, ZZB_ZCL_BOOL, 0, 3, 0);
+	k_sleep(K_MSEC(2900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x01}, 4);
+	k_sleep(K_MSEC(3000));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+}
+
+/* ZCL 2.5.11.2.5: attributes of one cluster due at the same time go in one frame */
+ZTEST(zzb_zcl_report, test_one_frame)
+{
+	values1.u8 = 7;
+	configure(0x0000, ZZB_ZCL_BOOL, 0, 2, 0);
+	configure(0x0001, ZZB_ZCL_UINT8, 0, 2, 1);
+	k_sleep(K_MSEC(2100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x00, 0x01, 0x00, 0x20, 0x07}, 8);
+}
+
+/*
+ * Without a binding the report counts as sent. Off a network or during a rejoin it is sent again
+ * after 5 s.
+ */
+ZTEST(zzb_zcl_report, test_send_errors)
+{
+	configure(0x0000, ZZB_ZCL_BOOL, 0, 0, 0);
+	zzb_apsde_data_req_fake.custom_fake = NULL;
+	zzb_apsde_data_req_fake.return_val = -ENOENT;
+	set(0x0000, true);
+	k_sleep(K_MSEC(5100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+
+	zzb_apsde_data_req_fake.return_val = -ENOTCONN;
+	set(0x0000, false);
+	k_sleep(K_MSEC(100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	k_sleep(K_MSEC(5000));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	reset_fakes();
+	k_sleep(K_MSEC(5000));
+	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x00}, 4);
+}
+
+/* No timer runs without a configuration that needs one */
+ZTEST(zzb_zcl_report, test_timer)
+{
+	set(0x0000, true);
+	zassert_false(k_work_delayable_is_pending(&test_node()->zcl.report_timer));
+	configure(0x0000, ZZB_ZCL_BOOL, 0, 0, 0);
+	zassert_false(k_work_delayable_is_pending(&test_node()->zcl.report_timer));
+	configure(0x0000, ZZB_ZCL_BOOL, 0, 10, 0);
+	zassert_true(k_work_delayable_is_pending(&test_node()->zcl.report_timer));
+	reset_node();
+	zassert_false(k_work_delayable_is_pending(&test_node()->zcl.report_timer));
 }
 
 /* The reset of the node clears the table */

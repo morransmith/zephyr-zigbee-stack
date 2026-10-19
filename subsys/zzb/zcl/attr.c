@@ -236,6 +236,8 @@ static void apply(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluste
 	if (cl->def->changed != NULL) {
 		cl->def->changed(node, ep, cl->values, attr->id);
 	}
+
+	zzb_zcl_report_check(node, ep, cl, attr->id);
 }
 
 void zzb_zcl_changed(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,

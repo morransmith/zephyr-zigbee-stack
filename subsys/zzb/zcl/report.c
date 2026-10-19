@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 
 #include "common/node.h"
+#include "common/queue.h"
 #include "zcl/zcl.h"
 
 /* Direction of an attribute reporting configuration record (ZCL 2.5.7.1.2) */
@@ -22,6 +24,9 @@
 #define READ_RSP_RECORD_MAX 11
 
 #define CONFIG_RECORDS_MAX (ZZB_ZCL_MAX_PAYLOAD / RECEIVED_RECORD_LEN)
+
+/* A report that APSDE-DATA refuses off a network or during a rejoin is sent again after this */
+#define RETRY_MS 5000
 
 /* An attribute reporting configuration record (ZCL 2.5.7.1) */
 struct config_record {
@@ -125,6 +130,45 @@ static struct zzb_zcl_report *find(struct zzb_node *node, uint8_t ep, uint16_t c
 	return NULL;
 }
 
+/* The time at which a report of r is due, or INT64_MAX */
+static int64_t due_at(const struct zzb_zcl_report *r)
+{
+	int64_t t = INT64_MAX;
+
+	if (r->retry != 0) {
+		return r->retry;
+	}
+
+	if (r->pending) {
+		t = r->sent + r->min * MSEC_PER_SEC;
+	}
+
+	if (r->max != 0) {
+		t = MIN(t, r->sent + r->max * MSEC_PER_SEC);
+	}
+
+	return t;
+}
+
+static void schedule(struct zzb_node *node)
+{
+	int64_t next = INT64_MAX;
+
+	ARRAY_FOR_EACH_PTR(node->zcl.reports, r) {
+		if (r->in_use) {
+			next = MIN(next, due_at(r));
+		}
+	}
+
+	if (next == INT64_MAX) {
+		k_work_cancel_delayable(&node->zcl.report_timer);
+		return;
+	}
+
+	k_work_reschedule_for_queue(&zzb_workq, &node->zcl.report_timer,
+				    K_MSEC(MAX(next - k_uptime_get(), 0)));
+}
+
 static struct zzb_zcl_report *free_entry(struct zzb_node *node)
 {
 	ARRAY_FOR_EACH_PTR(node->zcl.reports, r) {
@@ -146,6 +190,7 @@ static uint8_t configure(struct zzb_node *node, const struct zzb_zcl_req *req,
 	if (r->max == 0xffff || (r->max == 0 && r->min == 0xffff)) {
 		if (entry != NULL) {
 			entry->in_use = false;
+			schedule(node);
 		}
 
 		return ZZB_ZCL_SUCCESS;
@@ -171,6 +216,7 @@ static uint8_t configure(struct zzb_node *node, const struct zzb_zcl_req *req,
 		.last = zzb_zcl_attr_value(req->cluster, zzb_zcl_attr_find(req->cluster, r->id)),
 		.sent = k_uptime_get(),
 	};
+	schedule(node);
 	return ZZB_ZCL_SUCCESS;
 }
 
@@ -270,4 +316,116 @@ int zzb_zcl_read_reporting(struct zzb_node *node, const struct zzb_zcl_req *req)
 
 	zzb_zcl_respond(node, req, ZZB_ZCL_FRAME_GLOBAL, ZZB_ZCL_READ_REPORTING_RSP, rsp, n);
 	return ZZB_ZCL_RESPONDED;
+}
+
+void zzb_zcl_report_check(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
+			  uint16_t attr)
+{
+	struct zzb_zcl_report *r = cl->server ? find(node, ep, cl->id, attr) : NULL;
+	const struct zzb_zcl_attr *a;
+	uint16_t value;
+
+	if (r == NULL) {
+		return;
+	}
+
+	/* ZCL 2.5.11.2.2, 2.5.11.2.3 */
+	a = zzb_zcl_attr_find(cl, attr);
+	value = zzb_zcl_attr_value(cl, a);
+	if (value == r->last ||
+	    (zzb_zcl_type_analog(a->type) && abs((int)value - r->last) < r->change)) {
+		return;
+	}
+
+	r->pending = true;
+	schedule(node);
+}
+
+/* Sends the due reports of the endpoint and cluster of first in one frame (ZCL 2.5.11.2.5) */
+static void send_reports(struct zzb_node *node, const struct zzb_zcl_report *first, int64_t now)
+{
+	const struct zzb_endpoint *ep = zzb_node_endpoint(node, first->ep);
+	const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(ep, first->cluster, true);
+	const struct zzb_zcl_hdr hdr = {
+		.type = ZZB_ZCL_FRAME_GLOBAL,
+		.flags = ZZB_ZCL_TO_CLIENT | ZZB_ZCL_DISABLE_DEFAULT_RSP,
+		.tsn = node->zcl.tsn++,
+		.cmd = ZZB_ZCL_REPORT_ATTRIBUTES,
+	};
+	const struct zzb_apsde_req aps = {
+		.dst_mode = ZZB_APS_ADDR_BINDING,
+		.profile = ep->profile,
+		.cluster = first->cluster,
+		.src_ep = first->ep,
+		.tx_options = ZZB_APS_TX_ACK,
+	};
+	bool in_frame[CONFIG_ZZB_ZCL_REPORT_COUNT] = {0};
+	uint8_t payload[ZZB_ZCL_MAX_PAYLOAD];
+	size_t n = 0;
+	int err;
+
+	ARRAY_FOR_EACH(node->zcl.reports, i) {
+		const struct zzb_zcl_report *r = &node->zcl.reports[i];
+		const struct zzb_zcl_attr *attr = zzb_zcl_attr_find(cl, r->attr);
+		int len;
+
+		if (!r->in_use || r->ep != first->ep || r->cluster != first->cluster ||
+		    due_at(r) > now) {
+			continue;
+		}
+
+		/* Attribute ID, data type and value; the next frame takes what does not fit */
+		len = sizeof(payload) - n > 3 ? zzb_zcl_attr_encode(cl, attr, payload + n + 3,
+								    sizeof(payload) - n - 3)
+					      : -ENOSPC;
+		if (len < 0) {
+			break;
+		}
+
+		sys_put_le16(r->attr, payload + n);
+		payload[n + 2] = attr->type;
+		n += 3 + len;
+		in_frame[i] = true;
+	}
+
+	err = zzb_zcl_send(node, &aps, &hdr, payload, n);
+
+	ARRAY_FOR_EACH(node->zcl.reports, i) {
+		struct zzb_zcl_report *r = &node->zcl.reports[i];
+
+		if (!in_frame[i]) {
+			continue;
+		}
+
+		/* Other errors, such as no binding, count as sent */
+		if (err == -ENOTCONN || err == -EBUSY) {
+			r->retry = now + RETRY_MS;
+			continue;
+		}
+
+		r->last = zzb_zcl_attr_value(cl, zzb_zcl_attr_find(cl, r->attr));
+		r->sent = now;
+		r->pending = false;
+		r->retry = 0;
+	}
+}
+
+static void tick(struct k_work *work)
+{
+	struct zzb_node *node =
+		CONTAINER_OF(k_work_delayable_from_work(work), struct zzb_node, zcl.report_timer);
+	int64_t now = k_uptime_get();
+
+	ARRAY_FOR_EACH_PTR(node->zcl.reports, r) {
+		if (r->in_use && due_at(r) <= now) {
+			send_reports(node, r, now);
+		}
+	}
+
+	schedule(node);
+}
+
+void zzb_zcl_report_init(struct zzb_node *node)
+{
+	k_work_init_delayable(&node->zcl.report_timer, tick);
 }
