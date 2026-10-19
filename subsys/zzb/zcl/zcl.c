@@ -52,6 +52,33 @@ int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
 	return err;
 }
 
+int zzb_zcl_send_cmd(struct zzb_node *node, uint8_t src_ep, uint16_t dst_addr, uint8_t dst_ep,
+		     uint16_t cluster, uint8_t cmd, const uint8_t *payload, size_t len)
+{
+	const struct zzb_endpoint *ep = zzb_node_endpoint(node, src_ep);
+	struct zzb_zcl_hdr hdr = {
+		.type = ZZB_ZCL_FRAME_CLUSTER,
+		.flags = ZZB_ZCL_DISABLE_DEFAULT_RSP,
+		.cmd = cmd,
+	};
+	struct zzb_apsde_req aps = {
+		.dst_mode = ZZB_APS_ADDR_SHORT,
+		.dst_addr = dst_addr,
+		.dst_ep = dst_ep,
+		.cluster = cluster,
+		.src_ep = src_ep,
+		.tx_options = zzb_nwk_is_broadcast(dst_addr) ? 0 : ZZB_APS_TX_ACK,
+	};
+
+	if (ep == NULL) {
+		return -ENOENT;
+	}
+
+	hdr.tsn = node->zcl.tsn++;
+	aps.profile = ep->profile;
+	return zzb_zcl_send(node, &aps, &hdr, payload, len);
+}
+
 void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 		     enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len)
 {

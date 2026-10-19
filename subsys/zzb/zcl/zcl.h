@@ -105,6 +105,14 @@ int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
 		 const struct zzb_zcl_hdr *hdr, const uint8_t *payload, size_t len);
 
 /*
+ * Sends the cluster-specific command cmd of a client from endpoint src_ep to dst_addr and dst_ep,
+ * with Disable Default Response 1 and an APS ACK request as unicast. Returns -ENOENT for an unknown
+ * endpoint or an error of zzb_zcl_send().
+ */
+int zzb_zcl_send_cmd(struct zzb_node *node, uint8_t src_ep, uint16_t dst_addr, uint8_t dst_ep,
+		     uint16_t cluster, uint8_t cmd, const uint8_t *payload, size_t len);
+
+/*
  * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload;
  * an error drops it
  */

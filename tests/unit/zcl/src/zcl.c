@@ -1,8 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <zephyr/ztest.h>
 
+#include "common/node.h"
 #include "fakes.h"
+#include "zcl/zcl.h"
 
 static void *setup(void)
 {
@@ -215,6 +218,32 @@ ZTEST(zzb_zcl, test_group_frame)
 	receive_ind(&ind, (uint8_t[]){0x01, 0x3b, 0x02}, 3);
 	zassert_equal(cmd_calls.count, 1);
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
+/* A command of finding & binding: a broadcast without APS ACK, a unicast with it */
+ZTEST(zzb_zcl, test_send_cmd)
+{
+	uint8_t tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_send_cmd(test_node(), 1, 0xffff, 0xff, 0x0003, 0x01, NULL, 0));
+	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_SHORT);
+	zassert_equal(sent[0].req.dst_addr, 0xffff);
+	zassert_equal(sent[0].req.dst_ep, 0xff);
+	zassert_equal(sent[0].req.src_ep, 1);
+	zassert_equal(sent[0].req.profile, 0x0104);
+	zassert_equal(sent[0].req.cluster, 0x0003);
+	zassert_equal(sent[0].req.tx_options, 0);
+	zassert_equal(sent[0].len, 3);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, tsn, 0x01}), 3);
+
+	zassert_ok(zzb_zcl_send_cmd(test_node(), 1, 0x1234, 0x02, 0x0004, 0x05,
+				    (uint8_t[]){0x01, 0x00, 0x00}, 3));
+	zassert_equal(sent[1].req.tx_options, ZZB_APS_TX_ACK);
+	zassert_mem_equal(sent[1].data, ((uint8_t[]){0x11, tsn + 1, 0x05, 0x01, 0x00, 0x00}), 6);
+
+	zassert_equal(zzb_zcl_send_cmd(test_node(), 9, 0xffff, 0xff, 0x0003, 0x01, NULL, 0),
+		      -ENOENT);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
 }
 
 ZTEST_SUITE(zzb_zcl, NULL, setup, before, after, NULL);
