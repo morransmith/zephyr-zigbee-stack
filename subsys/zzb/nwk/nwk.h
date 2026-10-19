@@ -49,6 +49,7 @@ static inline bool zzb_nwk_is_broadcast(uint16_t addr)
 /* NWK layer status values (R22 Table 3-73) */
 enum zzb_nwk_status {
 	ZZB_NWK_STATUS_SUCCESS = 0x00,
+	ZZB_NWK_STATUS_INVALID_REQUEST = 0xc2,
 	ZZB_NWK_STATUS_NOT_PERMITTED = 0xc3,
 	ZZB_NWK_STATUS_NO_NETWORKS = 0xca,
 };

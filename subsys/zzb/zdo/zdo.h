@@ -24,6 +24,9 @@ enum zzb_zdp_cluster {
 	ZZB_ZDP_MATCH_DESC_REQ = 0x0006,
 	ZZB_ZDP_BIND_REQ = 0x0021,
 	ZZB_ZDP_UNBIND_REQ = 0x0022,
+	ZZB_ZDP_MGMT_LQI_REQ = 0x0031,
+	ZZB_ZDP_MGMT_BIND_REQ = 0x0033,
+	ZZB_ZDP_MGMT_PERMIT_JOINING_REQ = 0x0036,
 };
 
 /* ZDP status values (R22 Table 2-145) */
@@ -79,5 +82,10 @@ void zzb_zdo_serve_power_desc(struct zzb_node *node, const struct zzb_zdo_req *r
 void zzb_zdo_serve_simple_desc(struct zzb_node *node, const struct zzb_zdo_req *req);
 void zzb_zdo_serve_active_ep(struct zzb_node *node, const struct zzb_zdo_req *req);
 void zzb_zdo_serve_match_desc(struct zzb_node *node, const struct zzb_zdo_req *req);
+
+/* Server of the management requests */
+void zzb_zdo_serve_mgmt_lqi(struct zzb_node *node, const struct zzb_zdo_req *req);
+void zzb_zdo_serve_mgmt_bind(struct zzb_node *node, const struct zzb_zdo_req *req);
+void zzb_zdo_serve_mgmt_permit_joining(struct zzb_node *node, const struct zzb_zdo_req *req);
 
 #endif /* ZZB_SUBSYS_ZDO_ZDO_H_ */
