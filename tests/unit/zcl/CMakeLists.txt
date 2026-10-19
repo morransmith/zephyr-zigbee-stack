@@ -14,6 +14,7 @@ target_sources(app PRIVATE
   src/frame.c
   src/groups.c
   src/identify.c
+  src/level.c
   src/on_off.c
   src/report.c
   src/scenes.c

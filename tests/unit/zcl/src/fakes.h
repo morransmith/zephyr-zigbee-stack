@@ -11,6 +11,7 @@
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
+#include <zzb/zcl/level.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/scenes.h>
 
@@ -96,6 +97,9 @@ struct recall_calls {
 };
 
 extern struct recall_calls recall_calls;
+
+/* The Level Control server on endpoint 10, without other clusters */
+extern struct zzb_zcl_level level10;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
