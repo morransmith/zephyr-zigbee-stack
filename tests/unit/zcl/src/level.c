@@ -501,4 +501,29 @@ ZTEST(zzb_zcl_level, test_off_interrupted)
 	zassert_equal(level11.current_level, 50);
 }
 
+/* ZCL Table 3-58: StartUpCurrentLevel sets CurrentLevel at the start, without zcl_cb */
+ZTEST(zzb_zcl_level, test_start_up)
+{
+	move_to_level(10, 100, 0);
+	zassert_ok(reboot());
+	zassert_equal(level10.current_level, 100);
+
+	set_u8(10, ZZB_ZCL_LEVEL_START_UP, 0x00);
+	zassert_ok(reboot());
+	zassert_equal(level10.current_level, 1);
+
+	set_u8(10, ZZB_ZCL_LEVEL_START_UP, 0x80);
+	reset_fakes();
+	zassert_ok(reboot());
+	zassert_equal(level10.current_level, 0x80);
+	zassert_equal(zcl_cb_calls.count, 0);
+
+	/* Without records StartUpCurrentLevel is the default of the application */
+	level10.start_up_default = 0x40;
+	reset_node();
+	zassert_ok(reboot());
+	zassert_equal(level10.start_up_current_level, 0x40);
+	zassert_equal(level10.current_level, 0x40);
+}
+
 ZTEST_SUITE(zzb_zcl_level, NULL, setup, before, after, NULL);

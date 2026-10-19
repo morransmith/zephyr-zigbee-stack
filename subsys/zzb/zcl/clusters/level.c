@@ -409,6 +409,19 @@ static void init(void *values)
 	};
 }
 
+/* ZCL Table 3-58: 0x00 sets the minimum, 0xff keeps the loaded level */
+static void start(struct zzb_node *node, uint8_t ep, void *values)
+{
+	const struct zzb_zcl_level *v = values;
+
+	if (v->start_up_current_level == 0xff) {
+		return;
+	}
+
+	zzb_zcl_store(node, ep, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_CURRENT_LEVEL,
+		      CLAMP(v->start_up_current_level, LEVEL_MIN, LEVEL_MAX));
+}
+
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	struct zzb_zcl_level *v = values;
@@ -432,6 +445,7 @@ const struct zzb_zcl_cluster_def zzb_zcl_level_def = {
 	.scene_attrs = scene_attrs,
 	.scene_attr_count = ARRAY_SIZE(scene_attrs),
 	.init = init,
+	.start = start,
 	.reset = reset,
 	.cmd = cmd,
 };

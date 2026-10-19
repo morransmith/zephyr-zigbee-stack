@@ -101,7 +101,10 @@ extern struct recall_calls recall_calls;
 /* The Level Control server on endpoint 10, without other clusters */
 extern struct zzb_zcl_level level10;
 
-/* The Scenes, On/Off and Level Control servers on endpoint 11 */
+/*
+ * The Scenes, On/Off and Level Control servers on endpoint 11. Both Level Control servers have the
+ * factory StartUpCurrentLevel 0xff.
+ */
 extern struct zzb_zcl_scenes scenes11;
 extern struct zzb_zcl_on_off on_off11;
 extern struct zzb_zcl_level level11;

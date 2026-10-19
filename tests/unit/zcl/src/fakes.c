@@ -30,10 +30,10 @@ struct zzb_zcl_on_off on_off3;
 struct test_values values4;
 struct zzb_zcl_scenes scenes4;
 struct recall_calls recall_calls;
-struct zzb_zcl_level level10;
+struct zzb_zcl_level level10 = {.start_up_default = 0xff};
 struct zzb_zcl_scenes scenes11;
 struct zzb_zcl_on_off on_off11;
-struct zzb_zcl_level level11;
+struct zzb_zcl_level level11 = {.start_up_default = 0xff};
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
