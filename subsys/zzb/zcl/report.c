@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <string.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 
@@ -15,6 +16,10 @@
 #define SENT_RECORD_LEN     8
 /* Direction, attribute ID and timeout */
 #define RECEIVED_RECORD_LEN 5
+/* A record of Read Reporting Configuration: direction and attribute ID */
+#define READ_RECORD_LEN     3
+/* Status, direction, attribute ID, data type, intervals and a reportable change of 16 bits */
+#define READ_RSP_RECORD_MAX 11
 
 #define CONFIG_RECORDS_MAX (ZZB_ZCL_MAX_PAYLOAD / RECEIVED_RECORD_LEN)
 
@@ -68,17 +73,13 @@ static int parse_record(const uint8_t *p, size_t len, struct config_record *r)
 	return SENT_RECORD_LEN + change_len;
 }
 
-/* ZCL 2.5.7.3 */
-static uint8_t check_record(const struct zzb_zcl_cluster *cl, const struct config_record *r)
+/* Whether attr can have a configuration; no cluster of the stack receives reports */
+static uint8_t reportable(const struct zzb_zcl_attr *attr, uint8_t direction)
 {
-	const struct zzb_zcl_attr *attr;
-
-	/* No cluster of the stack receives reports */
-	if (r->direction == DIRECTION_RECEIVED) {
+	if (direction == DIRECTION_RECEIVED) {
 		return ZZB_ZCL_UNREPORTABLE_ATTRIBUTE;
 	}
 
-	attr = zzb_zcl_attr_find(cl, r->id);
 	if (attr == NULL) {
 		return ZZB_ZCL_UNSUPPORTED_ATTRIBUTE;
 	}
@@ -86,6 +87,19 @@ static uint8_t check_record(const struct zzb_zcl_cluster *cl, const struct confi
 	/* Only integer values are reported */
 	if (!(attr->flags & ZZB_ZCL_REPORT) || ZZB_ZCL_IS_STRING(attr->type)) {
 		return ZZB_ZCL_UNREPORTABLE_ATTRIBUTE;
+	}
+
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 2.5.7.3 */
+static uint8_t check_record(const struct zzb_zcl_cluster *cl, const struct config_record *r)
+{
+	const struct zzb_zcl_attr *attr = zzb_zcl_attr_find(cl, r->id);
+	uint8_t status = reportable(attr, r->direction);
+
+	if (status != ZZB_ZCL_SUCCESS) {
+		return status;
 	}
 
 	if (r->type != attr->type) {
@@ -202,5 +216,58 @@ int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req 
 	/* ZCL 2.5.8.1: one SUCCESS record without direction and ID when every record succeeded */
 	zzb_zcl_respond(node, req, ZZB_ZCL_FRAME_GLOBAL, ZZB_ZCL_CONFIGURE_REPORTING_RSP, rsp,
 			MAX(n, 1));
+	return ZZB_ZCL_RESPONDED;
+}
+
+/* Writes the response record of the attribute id to p and returns its length (ZCL 2.5.10.1) */
+static size_t read_record(struct zzb_node *node, const struct zzb_zcl_req *req, uint8_t direction,
+			  uint16_t id, uint8_t *p)
+{
+	const struct zzb_zcl_attr *attr = zzb_zcl_attr_find(req->cluster, id);
+	const struct zzb_zcl_report *entry = find(node, req->cmd.ep, req->cmd.cluster, id);
+	size_t len = 9;
+
+	p[0] = reportable(attr, direction);
+	p[1] = direction;
+	sys_put_le16(id, p + 2);
+	if (p[0] == ZZB_ZCL_SUCCESS && entry == NULL) {
+		p[0] = ZZB_ZCL_NOT_FOUND;
+	}
+
+	if (p[0] != ZZB_ZCL_SUCCESS) {
+		return 4;
+	}
+
+	p[4] = attr->type;
+	sys_put_le16(entry->min, p + 5);
+	sys_put_le16(entry->max, p + 7);
+	if (zzb_zcl_type_analog(attr->type)) {
+		sys_put_le16(entry->change, p + 9);
+		len += ZZB_ZCL_STORAGE_SIZE(attr->type);
+	}
+
+	return len;
+}
+
+int zzb_zcl_read_reporting(struct zzb_node *node, const struct zzb_zcl_req *req)
+{
+	const uint8_t *p = req->cmd.payload;
+	uint8_t rsp[ZZB_ZCL_MAX_PAYLOAD];
+	size_t n = 0;
+
+	for (size_t i = 0; i + READ_RECORD_LEN <= req->cmd.len; i += READ_RECORD_LEN) {
+		uint8_t record[READ_RSP_RECORD_MAX];
+		size_t len = read_record(node, req, p[i], sys_get_le16(p + i + 1), record);
+
+		/* ZCL 2.5.10.1: only the records that fit */
+		if (len > sizeof(rsp) - n) {
+			break;
+		}
+
+		memcpy(rsp + n, record, len);
+		n += len;
+	}
+
+	zzb_zcl_respond(node, req, ZZB_ZCL_FRAME_GLOBAL, ZZB_ZCL_READ_REPORTING_RSP, rsp, n);
 	return ZZB_ZCL_RESPONDED;
 }

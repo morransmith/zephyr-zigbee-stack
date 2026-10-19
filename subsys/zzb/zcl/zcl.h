@@ -54,6 +54,8 @@ struct zzb_zcl {
 #define ZZB_ZCL_WRITE_NO_RSP            0x05
 #define ZZB_ZCL_CONFIGURE_REPORTING     0x06
 #define ZZB_ZCL_CONFIGURE_REPORTING_RSP 0x07
+#define ZZB_ZCL_READ_REPORTING          0x08
+#define ZZB_ZCL_READ_REPORTING_RSP      0x09
 #define ZZB_ZCL_DEFAULT_RSP             0x0b
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES     0x0c
 #define ZZB_ZCL_DISCOVER_ATTRIBUTES_RSP 0x0d
@@ -158,6 +160,9 @@ void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t
 
 /* Configure Reporting (ZCL 2.5.7); returns the Default Response status or ZZB_ZCL_RESPONDED */
 int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);
+
+/* Read Reporting Configuration (ZCL 2.5.9); returns ZZB_ZCL_RESPONDED */
+int zzb_zcl_read_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);
