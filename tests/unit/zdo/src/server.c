@@ -7,6 +7,7 @@
 
 #define NWK_ADDR_REQ  0x0000
 #define IEEE_ADDR_REQ 0x0001
+#define DEVICE_ANNCE  0x0013
 #define BIND_REQ      0x0021
 #define UNBIND_REQ    0x0022
 
@@ -148,6 +149,26 @@ ZTEST(zzb_zdo_server, test_rejected_bind_req)
 	receive(BIND_REQ, NODE_ADDR, req, sizeof(req));
 	check_response(2, BIND_REQ | 0x8000, (uint8_t[]){0x32, 0x84}, 2);
 	zassert_equal(zzb_apsme_bind_req_fake.call_count, 0);
+}
+
+/* R22 2.5.4.5.5: Device_annce updates the nwkAddressMap entry of a known IEEE address */
+ZTEST(zzb_zdo_server, test_device_annce)
+{
+	static const uint8_t annce[] = {0x46, 0x22, 0x44, 1, 2, 3, 4, 5, 6, 7, 8, 0x80};
+
+	receive(DEVICE_ANNCE, 0xfffd, annce, sizeof(annce));
+	zassert_equal(zzb_nlme_set_addr_map_fake.call_count, 0);
+
+	zzb_nwk_addr_map_find_fake.return_val = 0;
+	receive(DEVICE_ANNCE, 0xfffd, annce, sizeof(annce));
+	zassert_equal(zzb_nlme_set_addr_map_fake.call_count, 1);
+	zassert_equal(zzb_nlme_set_addr_map_fake.arg1_val, 0x0807060504030201ULL);
+	zassert_equal(zzb_nlme_set_addr_map_fake.arg2_val, 0x4422);
+
+	/* Without the capability octet */
+	receive(DEVICE_ANNCE, 0xfffd, annce, sizeof(annce) - 1);
+	zassert_equal(zzb_nlme_set_addr_map_fake.call_count, 1);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
 }
 
 ZTEST_SUITE(zzb_zdo_server, NULL, setup, before, after, NULL);

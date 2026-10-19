@@ -148,6 +148,22 @@ static void unbind_req(struct zzb_node *node, const struct zzb_zdo_req *req)
 	zzb_zdo_respond(node, req, &rsp, sizeof(rsp));
 }
 
+/* R22 2.5.4.5.5: the nwkAddressMap entry of a known IEEE address takes the new network address */
+static void device_annce(struct zzb_node *node, const struct zzb_zdo_req *req)
+{
+	uint64_t ext_addr;
+	uint16_t addr;
+
+	if (req->len < 11) {
+		return;
+	}
+
+	ext_addr = sys_get_le64(req->payload + 2);
+	if (zzb_nwk_addr_map_find(node, ext_addr, &addr) == 0) {
+		zzb_nlme_set_addr_map(node, ext_addr, sys_get_le16(req->payload));
+	}
+}
+
 /* Requests R22 allows only as unicast */
 static bool unicast_only(uint16_t cluster)
 {
@@ -218,8 +234,10 @@ void zzb_zdo_server(struct zzb_node *node, const struct zzb_zdo_req *req)
 	case ZZB_ZDP_MGMT_NWK_UPDATE_REQ:
 		zzb_zdo_serve_mgmt_nwk_update(node, req);
 		return;
-	/* Without nwkAddressMap a Device_annce changes nothing; an end device drops Parent_annce */
 	case ZZB_ZDP_DEVICE_ANNCE:
+		device_annce(node, req);
+		return;
+	/* An end device drops Parent_annce */
 	case ZZB_ZDP_PARENT_ANNCE:
 		return;
 	}
