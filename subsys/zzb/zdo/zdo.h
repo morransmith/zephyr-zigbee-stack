@@ -69,7 +69,7 @@ struct zzb_zdo {
 	uint8_t tsn;
 	/* Mgmt_Leave_rsp waits for its confirm */
 	bool leave_pending;
-	/* The Rejoin flag of the last Mgmt_Leave_req for the node, which BDB reads */
+	/* The Rejoin flag of the Mgmt_Leave_req whose response waits */
 	bool leave_rejoin;
 	/* Channel change of Mgmt_NWK_Update_req after nwkNetworkBroadcastDeliveryTime */
 	struct k_work_delayable channel_timer;
@@ -151,7 +151,7 @@ void zzb_zdo_client_init(struct zzb_node *node);
 /* Ends the transaction of a received response */
 void zzb_zdo_client(struct zzb_node *node, const struct zzb_zdo_req *rsp);
 
-/* Leaves the network after the confirm of Mgmt_Leave_rsp */
+/* Passes the leave to BDB after the confirm of Mgmt_Leave_rsp */
 void zzb_zdo_leave(struct zzb_node *node);
 
 #endif /* ZZB_SUBSYS_ZDO_ZDO_H_ */

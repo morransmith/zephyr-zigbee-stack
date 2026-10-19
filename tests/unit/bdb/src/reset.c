@@ -117,6 +117,54 @@ ZTEST(zzb_bdb_reset, test_leave_request_with_rejoin)
 	zassert_equal(zzb_nlme_reset_req_fake.call_count, 0);
 }
 
+/* BDB 9.4: ZDO has answered Mgmt_Leave_req */
+ZTEST(zzb_bdb_reset, test_mgmt_leave_resets_the_node)
+{
+	zzb_bdb_leave(node, false);
+	zassert_equal(zzb_nlme_leave_req_fake.call_count, 1);
+	zassert_false(zzb_nlme_leave_req_fake.arg1_val);
+	zassert_equal(events.count, 0);
+
+	zzb_nlme_leave_conf(node, ZZB_MAC_STATUS_NO_ACK);
+	check_reset(ZZB_BDB_EVENT_LEFT, ZZB_BDB_SUCCESS);
+}
+
+ZTEST(zzb_bdb_reset, test_mgmt_leave_with_rejoin)
+{
+	zzb_bdb_leave(node, true);
+	zassert_true(zzb_nlme_leave_req_fake.arg1_val);
+	zzb_nlme_leave_conf(node, ZZB_MAC_STATUS_SUCCESS);
+	run_stack();
+	zassert_equal(zzb_nlme_join_req_fake.call_count, 1);
+
+	zzb_nlme_join_conf(node, ZZB_NWK_STATUS_SUCCESS);
+	zassert_equal(events.event, ZZB_BDB_EVENT_REJOIN);
+	zassert_equal(zzb_nlme_reset_req_fake.call_count, 0);
+}
+
+/* A rejoin started by the failed transmissions of Mgmt_Leave_rsp holds NWK */
+ZTEST(zzb_bdb_reset, test_mgmt_leave_while_nwk_is_busy)
+{
+	zzb_nlme_leave_req_fake.return_val = -EBUSY;
+	zzb_bdb_leave(node, false);
+	k_sleep(K_MSEC(900));
+	zassert_equal(zzb_nlme_leave_req_fake.call_count, 1);
+	zzb_nlme_leave_req_fake.return_val = 0;
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_nlme_leave_req_fake.call_count, 2);
+
+	zzb_nlme_leave_conf(node, ZZB_MAC_STATUS_SUCCESS);
+	check_reset(ZZB_BDB_EVENT_LEFT, ZZB_BDB_SUCCESS);
+}
+
+/* Without a key or a parent NLME-LEAVE gives no confirm */
+ZTEST(zzb_bdb_reset, test_mgmt_leave_without_a_parent)
+{
+	zzb_nlme_leave_req_fake.return_val = -ENOTCONN;
+	zzb_bdb_leave(node, false);
+	check_reset(ZZB_BDB_EVENT_LEFT, ZZB_BDB_SUCCESS);
+}
+
 /* NWK reports a lost parent with parent link failure */
 ZTEST(zzb_bdb_reset, test_leave_of_a_neighbor_is_ignored)
 {

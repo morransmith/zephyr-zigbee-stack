@@ -27,10 +27,34 @@ static int reset_node(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_
 	return 0;
 }
 
-int zzb_bdb_factory_reset(struct zzb_node *node)
+/* The node has left, or cannot send the leave command: a rejoin follows, or the reset */
+static void left(struct zzb_node *node)
 {
 	struct zzb_bdb *bdb = &node->bdb;
-	int err = bdb->on_network ? zzb_nlme_leave_req(node, false) : -ENOTCONN;
+
+	if (bdb->leave_rejoin) {
+		zzb_bdb_rejoin_start(node, ZZB_BDB_EVENT_REJOIN);
+		return;
+	}
+
+	reset_node(node, bdb->event, bdb->leave_status);
+}
+
+/* The leave of the BDB procedure replaces the procedure in progress */
+static void start_leave(struct zzb_node *node, bool rejoin)
+{
+	struct zzb_bdb *bdb = &node->bdb;
+
+	k_work_cancel_delayable(&bdb->timer);
+	bdb->state = ZZB_BDB_LEAVE;
+	bdb->event = ZZB_BDB_EVENT_LEFT;
+	bdb->leave_rejoin = rejoin;
+	bdb->leave_status = ZZB_BDB_SUCCESS;
+}
+
+int zzb_bdb_factory_reset(struct zzb_node *node)
+{
+	int err = node->bdb.on_network ? zzb_nlme_leave_req(node, false) : -ENOTCONN;
 
 	if (err == -EBUSY) {
 		return err;
@@ -41,28 +65,40 @@ int zzb_bdb_factory_reset(struct zzb_node *node)
 		return reset_node(node, ZZB_BDB_EVENT_LEFT, ZZB_BDB_SUCCESS);
 	}
 
-	k_work_cancel_delayable(&bdb->timer);
-	bdb->state = ZZB_BDB_LEAVE;
-	bdb->event = ZZB_BDB_EVENT_LEFT;
-	bdb->leave_rejoin = false;
-	bdb->leave_status = ZZB_BDB_SUCCESS;
+	start_leave(node, false);
 	return 0;
+}
+
+static void leave(struct zzb_node *node)
+{
+	int err = zzb_nlme_leave_req(node, node->bdb.leave_rejoin);
+
+	if (err == -EBUSY) {
+		zzb_bdb_schedule(node, K_MSEC(ZZB_BDB_RETRY_MS));
+		return;
+	}
+
+	if (err) {
+		left(node);
+	}
+}
+
+void zzb_bdb_leave(struct zzb_node *node, bool rejoin)
+{
+	start_leave(node, rejoin);
+	leave(node);
+}
+
+void zzb_bdb_leave_timer(struct zzb_node *node)
+{
+	leave(node);
 }
 
 void zzb_nlme_leave_conf(struct zzb_node *node, uint8_t status)
 {
-	struct zzb_bdb *bdb = &node->bdb;
-
-	if (bdb->state != ZZB_BDB_LEAVE) {
-		return;
+	if (node->bdb.state == ZZB_BDB_LEAVE) {
+		left(node);
 	}
-
-	if (bdb->leave_rejoin) {
-		zzb_bdb_rejoin_start(node, ZZB_BDB_EVENT_REJOIN);
-		return;
-	}
-
-	reset_node(node, bdb->event, bdb->leave_status);
 }
 
 /* BDB 9.3; NWK reports a lost parent with parent link failure */

@@ -24,6 +24,9 @@ static void timer_handler(struct k_work *work)
 	case ZZB_BDB_STEER_KEY:
 		zzb_bdb_steering_timer(node);
 		break;
+	case ZZB_BDB_LEAVE:
+		zzb_bdb_leave_timer(node);
+		break;
 	default:
 		break;
 	}

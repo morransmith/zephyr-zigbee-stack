@@ -107,4 +107,8 @@ void zzb_bdb_steering_key_ind(struct zzb_node *node);
 /* BDB 9.5 */
 int zzb_bdb_factory_reset(struct zzb_node *node);
 
+/* BDB 9.4: called by ZDO after the response to Mgmt_Leave_req with its rejoin flag */
+void zzb_bdb_leave(struct zzb_node *node, bool rejoin);
+void zzb_bdb_leave_timer(struct zzb_node *node);
+
 #endif /* ZZB_SUBSYS_BDB_BDB_H_ */
