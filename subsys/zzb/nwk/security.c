@@ -11,7 +11,7 @@
 #include "sec/ccm.h"
 #include "sec/key_cache.h"
 
-static int key_slot(const struct zzb_nib *nib, uint8_t seq)
+int zzb_nwk_key_slot(const struct zzb_nib *nib, uint8_t seq)
 {
 	for (int i = 0; i < ARRAY_SIZE(nib->keys); i++) {
 		if (nib->keys[i].valid && nib->keys[i].seq == seq) {
@@ -98,7 +98,7 @@ int zzb_nwk_unsecure(struct zzb_node *node, struct net_buf *buf, size_t hdr_len)
 		return -EINVAL;
 	}
 
-	slot = key_slot(nib, aux.key_seq);
+	slot = zzb_nwk_key_slot(nib, aux.key_seq);
 	if (slot < 0) {
 		return slot;
 	}

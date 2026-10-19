@@ -190,6 +190,12 @@ void zzb_nlme_set_ext_pan_id(struct zzb_node *node, uint64_t ext_pan_id);
  */
 void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_LEN], uint8_t seq);
 
+/*
+ * NLME-SET of nwkActiveKeySeqNumber: the key with sequence number seq becomes active. Returns
+ * -ENOENT without such a key.
+ */
+int zzb_nlme_set_active_key(struct zzb_node *node, uint8_t seq);
+
 /* Whether the network key is pending: joined and unauthorized (R22 4.4.1.2 step 2) */
 bool zzb_nwk_key_pending(const struct zzb_node *node);
 
@@ -313,6 +319,9 @@ struct zzb_nwk_neighbor *zzb_nwk_neighbor_find_short(struct zzb_node *node, uint
 struct zzb_nwk_neighbor *zzb_nwk_neighbor_parent(struct zzb_node *node);
 
 /* Within NWK */
+
+/* The slot of the valid network key with sequence number seq, or -ENOENT */
+int zzb_nwk_key_slot(const struct zzb_nib *nib, uint8_t seq);
 
 /*
  * Completes hdr with the source addresses, the sequence number and the end device initiator bit

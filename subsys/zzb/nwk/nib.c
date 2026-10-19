@@ -32,14 +32,13 @@ void zzb_nlme_set_ext_pan_id(struct zzb_node *node, uint64_t ext_pan_id)
 	node->nwk.nib.ext_pan_id = ext_pan_id;
 }
 
-static int key_slot(const struct zzb_nib *nib, uint8_t seq)
+/* The slot of the key with sequence number seq, otherwise the slot a new key replaces */
+static int write_slot(const struct zzb_nib *nib, uint8_t seq)
 {
-	if (nib->keys[0].valid && nib->keys[0].seq == seq) {
-		return 0;
-	}
+	int slot = zzb_nwk_key_slot(nib, seq);
 
-	if (nib->keys[1].valid && nib->keys[1].seq == seq) {
-		return 1;
+	if (slot >= 0) {
+		return slot;
 	}
 
 	/* The first key goes into the active slot */
@@ -53,7 +52,7 @@ static int key_slot(const struct zzb_nib *nib, uint8_t seq)
 void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_LEN], uint8_t seq)
 {
 	struct zzb_nib *nib = &node->nwk.nib;
-	int slot = key_slot(nib, seq);
+	int slot = write_slot(nib, seq);
 
 	nib->keys[slot].valid = true;
 	nib->keys[slot].seq = seq;
@@ -71,6 +70,19 @@ void zzb_nlme_set_nwk_key(struct zzb_node *node, const uint8_t key[ZZB_SEC_KEY_L
 	}
 
 	zzb_nwk_save(node);
+}
+
+int zzb_nlme_set_active_key(struct zzb_node *node, uint8_t seq)
+{
+	int slot = zzb_nwk_key_slot(&node->nwk.nib, seq);
+
+	if (slot < 0) {
+		return slot;
+	}
+
+	node->nwk.nib.active_key = slot;
+	zzb_nwk_save(node);
+	return 0;
 }
 
 bool zzb_nwk_key_pending(const struct zzb_node *node)
