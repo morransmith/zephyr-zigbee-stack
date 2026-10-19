@@ -44,6 +44,8 @@ static void load_aps(struct load_ctx *ctx, const char *key, size_t len, settings
 		ctx->err = zzb_aps_key_load(ctx->node, atoi(index), len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "aps/bind", &index) && index != NULL) {
 		ctx->err = zzb_aps_binding_load(ctx->node, atoi(index), len, read_cb, cb_arg);
+	} else if (settings_name_steq(key, "aps/group", &index) && index != NULL) {
+		ctx->err = zzb_aps_group_load(ctx->node, atoi(index), len, read_cb, cb_arg);
 	}
 }
 

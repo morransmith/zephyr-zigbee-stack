@@ -181,10 +181,18 @@ struct zzb_aps_binding {
 	uint8_t dst_ep;
 };
 
+/* Entry of apsGroupTable: one membership of an endpoint (R22 2.2.8.3.1 allows any form) */
+struct zzb_aps_group {
+	bool in_use;
+	uint16_t group;
+	uint8_t ep;
+};
+
 struct zzb_aib {
 	uint64_t tc_addr;
 	struct zzb_aps_key_pair keys[CONFIG_ZZB_APS_KEY_PAIR_COUNT];
 	struct zzb_aps_binding bindings[CONFIG_ZZB_APS_BINDING_COUNT];
+	struct zzb_aps_group groups[CONFIG_ZZB_APS_GROUP_COUNT];
 };
 
 struct zzb_aps {
@@ -206,9 +214,9 @@ extern const uint8_t zzb_aps_default_tc_link_key[ZZB_SEC_KEY_LEN];
 void zzb_aps_init(struct zzb_node *node);
 
 /*
- * Clears the AIB with the key-pair and binding tables and the duplicate rejection table, and
- * deletes the APS records. The transmission table, the APS counter and the outgoing frame counter
- * stay.
+ * Clears the AIB with the key-pair, binding and group tables and the duplicate rejection table,
+ * and deletes the APS records. The transmission table, the APS counter and the outgoing frame
+ * counter stay.
  */
 void zzb_aps_reset(struct zzb_node *node);
 
@@ -240,6 +248,27 @@ int zzb_apsme_bind_req(struct zzb_node *node, const struct zzb_aps_binding *bind
 
 /* APSME-UNBIND.request (R22 2.2.4.3.3). Returns -ENOENT without the entry. */
 int zzb_apsme_unbind_req(struct zzb_node *node, const struct zzb_aps_binding *binding);
+
+/*
+ * APSME-ADD-GROUP.request (R22 2.2.4.5.1). Returns 0 also when the membership exists, or -ENOMEM
+ * when the table is full.
+ */
+int zzb_apsme_add_group(struct zzb_node *node, uint16_t group, uint8_t ep);
+
+/* APSME-REMOVE-GROUP.request (R22 2.2.4.5.3). Returns -ENOENT without the membership. */
+int zzb_apsme_remove_group(struct zzb_node *node, uint16_t group, uint8_t ep);
+
+/* APSME-REMOVE-ALL-GROUPS.request (R22 2.2.4.5.5) */
+void zzb_apsme_remove_all_groups(struct zzb_node *node, uint8_t ep);
+
+/* Whether endpoint ep is a member of group */
+bool zzb_aps_group_member(struct zzb_node *node, uint16_t group, uint8_t ep);
+
+/* The number of free entries of the group table */
+int zzb_aps_group_capacity(struct zzb_node *node);
+
+/* Copies up to max groups of endpoint ep to groups and returns their number */
+int zzb_aps_groups_of(struct zzb_node *node, uint8_t ep, uint16_t *groups, int max);
 
 /*
  * APSME-REQUEST-KEY.request of the trust center link key (R22 4.4.5.1). Returns -EINVAL when
@@ -379,5 +408,12 @@ void zzb_aps_binding_delete(struct zzb_node *node);
 /* Loads the record aps/bind/<index>; -EINVAL for an unknown version or length */
 int zzb_aps_binding_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
 			 void *cb_arg);
+
+/* Deletes the group records */
+void zzb_aps_group_delete(struct zzb_node *node);
+
+/* Loads the record aps/group/<index>; -EINVAL for an unknown version or length */
+int zzb_aps_group_load(struct zzb_node *node, int index, size_t len, settings_read_cb read_cb,
+		       void *cb_arg);
 
 #endif /* ZZB_SUBSYS_APS_APS_H_ */

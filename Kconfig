@@ -92,6 +92,14 @@ config ZZB_APS_BINDING_COUNT
 	  Entries of apsBindingTable. ZDO Bind_req adds them, and APSDE-DATA
 	  with binding sends to them.
 
+config ZZB_APS_GROUP_COUNT
+	int "Group table entries"
+	range 1 255
+	default 8
+	help
+	  Entries of apsGroupTable, one per group and endpoint. BDB 6.6 asks
+	  for at least 8 memberships on a node that is not a sleepy end device.
+
 config ZZB_ZDO
 	bool "ZDO"
 	default ZZB_APS

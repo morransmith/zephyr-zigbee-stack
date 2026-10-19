@@ -12,6 +12,7 @@ target_sources(app PRIVATE
   src/data.c
   src/fakes.c
   src/frame.c
+  src/group.c
   src/keys.c
   src/security.c
 )

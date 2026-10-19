@@ -43,6 +43,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_APS
   aps/binding.c
   aps/cmd.c
   aps/frame.c
+  aps/group.c
   aps/keys.c
   aps/security.c
 )
