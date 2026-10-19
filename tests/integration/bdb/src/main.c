@@ -92,6 +92,12 @@ static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 };
 
+/* An On/Off Switch, the initiator of finding & binding */
+static const struct zzb_zcl_cluster switch_clusters[] = {
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+	{.id = ZZB_ZCL_ON_OFF},
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -99,6 +105,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0100,
 		.clusters = light,
 		.cluster_count = ARRAY_SIZE(light),
+	},
+	{
+		.id = 2,
+		.profile = 0x0104,
+		.device_id = 0x0000,
+		.clusters = switch_clusters,
+		.cluster_count = ARRAY_SIZE(switch_clusters),
 	},
 };
 
@@ -397,6 +410,73 @@ ZTEST(zzb_bdb_integration, test_group)
 	parent_send_group_zcl(0x0043, ZZB_ZCL_ON_OFF, off, sizeof(off));
 	k_sleep(K_MSEC(100));
 	zassert_true(on_off.on_off);
+}
+
+/* BDB 8.4: the coordinator finds the identifying light, then ends the identification */
+ZTEST(zzb_bdb_integration, test_finding_binding_target)
+{
+	static const uint8_t query[] = {0x01, 0x40, 0x01};
+	static const uint8_t query_rsp[] = {0x19, 0x40, 0x00, 0xb4, 0x00};
+	static const uint8_t identify_off[] = {0x01, 0x41, 0x00, 0x00, 0x00};
+
+	steer();
+	events.count = 0;
+	zassert_ok(zzb_bdb_finding_binding_target(child, 1));
+	parent_send_zcl(ZZB_ZCL_IDENTIFY, query, sizeof(query));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_len, sizeof(query_rsp));
+	zassert_mem_equal(parent_log.zcl, query_rsp, sizeof(query_rsp));
+	zassert_equal(events.count, 0);
+
+	parent_send_zcl(ZZB_ZCL_IDENTIFY, identify_off, sizeof(identify_off));
+	k_sleep(K_MSEC(100));
+	check_event(ZZB_BDB_EVENT_FINDING_BINDING_TARGET, ZZB_BDB_SUCCESS);
+}
+
+/*
+ * BDB 8.5: the switch finds endpoint 1 of the coordinator and binds its On/Off client to the
+ * On/Off server there
+ */
+ZTEST(zzb_bdb_integration, test_finding_binding_initiator)
+{
+	const struct zzb_aps_binding *bindings = child->aps.aib.bindings;
+
+	steer();
+	events.count = 0;
+	zassert_ok(zzb_bdb_finding_binding_initiator(child, 2, 0xffff));
+	k_sleep(K_MSEC(5500));
+	check_event(ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.identify_queries, 1);
+	zassert_equal(parent_log.simple_desc_reqs, 1);
+	zassert_equal(parent_log.ieee_addr_reqs, 1);
+
+	zassert_true(bindings[0].in_use);
+	zassert_equal(bindings[0].src_ep, 2);
+	zassert_equal(bindings[0].cluster, ZZB_ZCL_ON_OFF);
+	zassert_equal(bindings[0].dst_mode, ZZB_APS_ADDR_EXT);
+	zassert_equal(bindings[0].dst_ext, PARENT_EUI64);
+	zassert_equal(bindings[0].dst_ep, 1);
+	zassert_false(bindings[1].in_use);
+}
+
+/* BDB 8.5 step 10: a group binding, then Add Group If Identifying to all devices */
+ZTEST(zzb_bdb_integration, test_finding_binding_initiator_with_a_group)
+{
+	static const uint8_t add_group[] = {0x05, 0x42, 0x00, 0x00};
+
+	steer();
+	events.count = 0;
+	zassert_ok(zzb_bdb_finding_binding_initiator(child, 2, 0x0042));
+	k_sleep(K_MSEC(5500));
+	check_event(ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.ieee_addr_reqs, 0);
+	zassert_equal(child->aps.aib.bindings[0].dst_mode, ZZB_APS_ADDR_GROUP);
+	zassert_equal(child->aps.aib.bindings[0].dst_addr, 0x0042);
+
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_GROUPS);
+	zassert_equal(parent_log.zcl_dst_ep, 0xff);
+	zassert_equal(parent_log.zcl_len, 2 + sizeof(add_group));
+	zassert_mem_equal(parent_log.zcl + 2, add_group, sizeof(add_group));
 }
 
 ZTEST_SUITE(zzb_bdb_integration, NULL, setup, before, NULL, NULL);

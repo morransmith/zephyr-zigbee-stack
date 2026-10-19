@@ -42,6 +42,8 @@ struct parent_log {
 	/* ZDO frames, and the cluster and NWK destination of the last one */
 	int device_annces;
 	int node_desc_reqs;
+	int ieee_addr_reqs;
+	int simple_desc_reqs;
 	int permit_joining_reqs;
 	uint8_t permit_duration;
 	uint8_t tc_significance;
@@ -50,6 +52,7 @@ struct parent_log {
 	uint16_t zdo_dst;
 	/* Frames of application profiles, and the cluster, endpoints and ASDU of the last one */
 	int zcl_frames;
+	int identify_queries;
 	uint16_t zcl_cluster;
 	uint8_t zcl_src_ep;
 	uint8_t zcl_dst_ep;
@@ -64,7 +67,9 @@ extern struct parent_log parent_log;
  * associations with child_addr, End Device Timeout Requests with parent_info, and rejoin
  * requests, and clears parent_log. As the trust center it acknowledges APS data, answers
  * Node_Desc_req with stack compliance revision 22, Request Key with key B and Verify Key with
- * Confirm Key. It does not send the network key on its own.
+ * Confirm Key. It does not send the network key on its own. Its endpoint 1 has Basic, Identify and
+ * On/Off servers, which it reports in Simple_Desc_rsp; it answers IEEE_addr_req, and Identify
+ * Query as an identifying endpoint.
  */
 void parent_start(uint16_t short_addr, uint64_t eui64, uint16_t child_addr, uint8_t parent_info);
 
