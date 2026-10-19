@@ -18,8 +18,11 @@ struct zzb_node;
 /* Auxiliary header of a NWK frame: security control, frame counter, source address, key sequence */
 #define ZZB_NWK_AUX_LEN 14
 
-/* Headroom of NLDE-DATA.request: MAC header, NWK header of a data frame, auxiliary header */
-#define ZZB_NLDE_HEADROOM (ZZB_MAC_HDR_MAX_LEN + 8 + ZZB_NWK_AUX_LEN)
+/*
+ * Headroom of NLDE-DATA.request: MAC header of a NWK frame, NWK header of a data frame, auxiliary
+ * header
+ */
+#define ZZB_NLDE_HEADROOM (ZZB_MAC_DATA_HDR_LEN + 8 + ZZB_NWK_AUX_LEN)
 
 /* MSDU handles from 0xf0 belong to NWK command frames: 0xf0 | command identifier */
 #define ZZB_NWK_CMD_HANDLE 0xf0
@@ -325,7 +328,7 @@ struct zzb_nwk_neighbor *zzb_nwk_neighbor_parent(struct zzb_node *node);
 
 /*
  * Completes hdr with the source addresses, the sequence number and the end device initiator bit
- * and sends it with the payload in buf to the neighbor mac_dst. buf has ZZB_MAC_HDR_MAX_LEN bytes
+ * and sends it with the payload in buf to the neighbor mac_dst. buf has ZZB_MAC_DATA_HDR_LEN bytes
  * of headroom for the MAC header, then room for the NWK and auxiliary headers. On error buf stays
  * with the caller.
  */
