@@ -12,6 +12,7 @@ target_sources(app PRIVATE
   src/fakes.c
   src/foundation.c
   src/frame.c
+  src/groups.c
   src/identify.c
   src/on_off.c
   src/report.c

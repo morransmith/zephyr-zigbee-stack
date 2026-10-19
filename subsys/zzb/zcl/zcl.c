@@ -96,7 +96,7 @@ static void default_rsp(struct zzb_node *node, const struct zzb_zcl_req *req, in
 {
 	const uint8_t rsp[] = {req->hdr.cmd, status};
 
-	if (status == ZZB_ZCL_RESPONDED || !req->unicast) {
+	if (status == ZZB_ZCL_RESPONDED || !req->cmd.unicast) {
 		return;
 	}
 
@@ -146,7 +146,7 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		.cmd.len = len,
 		.hdr = *hdr,
 		.profile = ep->profile,
-		.unicast =
+		.cmd.unicast =
 			!ind->group && !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
 		.cluster =
 			zzb_zcl_find_cluster(ep, ind->cluster, !(hdr->flags & ZZB_ZCL_TO_CLIENT)),

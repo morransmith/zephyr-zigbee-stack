@@ -78,8 +78,6 @@ struct zzb_zcl_req {
 	struct zzb_zcl_hdr hdr;
 	/* The profile of the endpoint */
 	uint16_t profile;
-	/* A NWK unicast to the endpoint, which a Default Response may answer */
-	bool unicast;
 	/* The instance for the cluster and the direction, or NULL */
 	const struct zzb_zcl_cluster *cluster;
 };

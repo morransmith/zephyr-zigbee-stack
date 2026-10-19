@@ -114,6 +114,8 @@ struct zzb_zcl_cmd {
 	uint8_t id;
 	const uint8_t *payload;
 	size_t len;
+	/** The command came as a NWK unicast to the endpoint, which ZCL responses may answer. */
+	bool unicast;
 };
 
 /** The attributes and commands of a cluster. */

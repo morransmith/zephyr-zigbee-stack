@@ -9,6 +9,7 @@
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/on_off.h>
 
@@ -55,7 +56,7 @@ struct test_values {
 extern struct test_values values1;
 extern struct test_values values2;
 
-/* The Basic, Identify and On/Off servers on endpoint 2 */
+/* The Basic, Identify, Groups and On/Off servers on endpoint 2 */
 extern struct zzb_zcl_basic basic;
 extern struct zzb_zcl_identify identify;
 extern struct zzb_zcl_on_off on_off;
@@ -107,7 +108,7 @@ struct effect_calls {
 
 extern struct effect_calls effect_calls;
 
-/* A membership of the APS group table, which the fakes of the group functions keep; ep 0 is free */
+/* A membership of the APS group table, kept by the fakes of the group functions; ep 0 is free */
 struct membership {
 	uint16_t group;
 	uint8_t ep;

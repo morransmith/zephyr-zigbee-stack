@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
 #include <zephyr/fff.h>
 #include <zephyr/ztest.h>
@@ -45,15 +46,82 @@ struct effect_calls effect_calls;
 struct frame_copy sent[8];
 struct membership memberships[CONFIG_ZZB_APS_GROUP_COUNT];
 
-bool zzb_aps_group_member(struct zzb_node *node, uint16_t group, uint8_t ep)
+/* The membership of group and ep, or a free one with ep 0 */
+static struct membership *find_membership(uint16_t group, uint8_t ep)
 {
 	ARRAY_FOR_EACH_PTR(memberships, m) {
-		if (m->ep != 0 && m->group == group && m->ep == ep) {
-			return true;
+		if (m->group == group && m->ep == ep) {
+			return m;
 		}
 	}
 
-	return false;
+	return NULL;
+}
+
+bool zzb_aps_group_member(struct zzb_node *node, uint16_t group, uint8_t ep)
+{
+	return ep != 0 && find_membership(group, ep) != NULL;
+}
+
+int zzb_apsme_add_group(struct zzb_node *node, uint16_t group, uint8_t ep)
+{
+	struct membership *m = find_membership(group, ep);
+
+	if (m == NULL) {
+		m = find_membership(0, 0);
+	}
+
+	if (m == NULL) {
+		return -ENOMEM;
+	}
+
+	*m = (struct membership){.group = group, .ep = ep};
+	return 0;
+}
+
+int zzb_apsme_remove_group(struct zzb_node *node, uint16_t group, uint8_t ep)
+{
+	struct membership *m = find_membership(group, ep);
+
+	if (m == NULL || ep == 0) {
+		return -ENOENT;
+	}
+
+	*m = (struct membership){0};
+	return 0;
+}
+
+void zzb_apsme_remove_all_groups(struct zzb_node *node, uint8_t ep)
+{
+	ARRAY_FOR_EACH_PTR(memberships, m) {
+		if (m->ep == ep) {
+			*m = (struct membership){0};
+		}
+	}
+}
+
+int zzb_aps_group_capacity(struct zzb_node *node)
+{
+	int count = 0;
+
+	ARRAY_FOR_EACH_PTR(memberships, m) {
+		count += m->ep == 0;
+	}
+
+	return count;
+}
+
+int zzb_aps_groups_of(struct zzb_node *node, uint8_t ep, uint16_t *groups, int max)
+{
+	int count = 0;
+
+	ARRAY_FOR_EACH_PTR(memberships, m) {
+		if (m->ep == ep && count < max) {
+			groups[count++] = m->group;
+		}
+	}
+
+	return count;
 }
 
 static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
@@ -139,6 +207,7 @@ static const struct zzb_zcl_cluster ep2_clusters[] = {
 	{.id = TEST_CLUSTER, .server = true, .values = &values2, .def = &test_def},
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
+	ZZB_ZCL_GROUPS_SERVER(),
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 };
 
