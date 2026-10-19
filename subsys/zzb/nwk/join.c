@@ -222,7 +222,7 @@ int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_j
 		return -EINVAL;
 	}
 
-	/* Routers come with milestone 15, and polling for the Transport Key with milestone 14 */
+	/* Routers come with milestone 19, and polling for the Transport Key with milestone 18 */
 	if ((method != ZZB_NWK_JOIN_ASSOC && method != ZZB_NWK_JOIN_REJOIN) ||
 	    (capability & ZZB_NWK_CAP_ROUTER) || !(capability & ZZB_NWK_CAP_RX_ON_IDLE)) {
 		return -ENOTSUP;

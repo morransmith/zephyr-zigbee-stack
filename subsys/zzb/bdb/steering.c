@@ -12,7 +12,7 @@
 /* bdbcMinCommissioningTime */
 #define MIN_COMMISSIONING_TIME_S 180
 
-/* The receiver stays on until milestone 14 */
+/* The receiver stays on until milestone 18 */
 static uint8_t capability(const struct zzb_node *node)
 {
 	uint8_t cap = ZZB_NWK_CAP_ALLOC_ADDR | ZZB_NWK_CAP_RX_ON_IDLE;

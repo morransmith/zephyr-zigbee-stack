@@ -162,7 +162,7 @@ void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_stat
 
 static bool for_node(const struct zzb_nib *nib, const struct zzb_nwk_hdr *hdr)
 {
-	/* The receiver stays on until milestone 14, so 0xfffd is accepted */
+	/* The receiver stays on until milestone 18, so 0xfffd is accepted */
 	return hdr->src != nib->short_addr &&
 	       (hdr->dst == nib->short_addr || hdr->dst == 0xffff || hdr->dst == 0xfffd);
 }
