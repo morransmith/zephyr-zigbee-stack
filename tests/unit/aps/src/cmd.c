@@ -9,6 +9,7 @@
 #include "common/buf.h"
 #include "common/node.h"
 #include "fakes.h"
+#include "sec/hmac.h"
 
 #define CHILD_ADDR  0x1234
 #define ROUTER_ADDR 0x2222
@@ -361,6 +362,104 @@ ZTEST(zzb_aps_cmd, test_rejected_switch_keys)
 	receive_cmd(&switch_key, &how);
 
 	zassert_equal(zzb_apsme_switch_key_ind_fake.call_count, 0);
+}
+
+/* Parses the command of sent frame i, removing its APS security at the trust center */
+static void parse_sent_cmd(int i, struct zzb_aps_hdr *hdr, struct zzb_aps_cmd *cmd)
+{
+	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	struct zzb_aps_sec sec;
+	int hdr_len;
+
+	net_buf_add_mem(buf, sent[i].data, sent[i].len);
+	hdr_len = zzb_aps_hdr_parse(buf->data, buf->len, hdr);
+	zassert_equal(hdr_len, 2);
+	if (hdr->flags & ZZB_APS_SECURITY) {
+		zassert_ok(zzb_aps_unsecure(tc, buf, hdr_len, CHILD_ADDR, &sec));
+		zassert_equal(sec.key_id, ZZB_SEC_KEY_DATA);
+		zassert_equal(sec.src_addr, NODE_EUI64);
+	}
+
+	zassert_true(zzb_aps_cmd_parse(buf->data + hdr_len, buf->len - hdr_len, cmd) > 0);
+	net_buf_unref(buf);
+}
+
+/* BDB 10.2.5 step 7: Request Key under key A; R22 4.4.10 sends commands without ACK request */
+ZTEST(zzb_aps_cmd, test_request_key)
+{
+	uint8_t counter = node->aps.counter;
+	struct zzb_aps_hdr hdr;
+	struct zzb_aps_cmd cmd;
+
+	authorize();
+	zzb_aps_reset(tc);
+	zassert_ok(zzb_apsme_set_link_key(tc, NODE_EUI64, zzb_aps_default_tc_link_key,
+					  ZZB_APS_KEY_PROVISIONAL, ZZB_APS_LINK_KEY_GLOBAL));
+	zassert_ok(zzb_apsme_request_key_req(node, TC_EUI64));
+
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 1);
+	zassert_equal(zzb_nlde_data_req_fake.arg2_val, 0x0000);
+	zassert_true(zzb_nlde_data_req_fake.arg4_val);
+	zassert_equal(sent[0].meta.handle, 0xef);
+	parse_sent_cmd(0, &hdr, &cmd);
+	zassert_equal(hdr.type, ZZB_APS_FRAME_CMD);
+	zassert_equal(hdr.flags, ZZB_APS_SECURITY);
+	zassert_equal(hdr.counter, counter);
+	zassert_equal(node->aps.counter, (uint8_t)(counter + 1));
+	zassert_equal(cmd.id, ZZB_APS_CMD_REQUEST_KEY);
+	zassert_equal(cmd.request_key.type, ZZB_APS_REQUEST_TC_LINK);
+}
+
+ZTEST(zzb_aps_cmd, test_rejected_key_requests)
+{
+	zassert_equal(zzb_apsme_request_key_req(node, TC_EUI64), -EINVAL, "no trust center");
+
+	authorize();
+	zassert_equal(zzb_apsme_request_key_req(node, 0x00124b0000000001ULL), -EINVAL);
+
+	/* R22 4.4.1.1 step 1: an unverified key does not encrypt */
+	zassert_ok(zzb_apsme_set_link_key(node, TC_EUI64, key_b, ZZB_APS_KEY_UNVERIFIED,
+					  ZZB_APS_LINK_KEY_UNIQUE));
+	zassert_equal(zzb_apsme_request_key_req(node, TC_EUI64), -ENOENT);
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 0);
+}
+
+/* BDB 10.2.5 step 11: the hash of key B, without APS security (R22 4.4.7.1.3) */
+ZTEST(zzb_aps_cmd, test_verify_key)
+{
+	uint8_t hash[ZZB_SEC_KEY_LEN];
+	struct zzb_aps_hdr hdr;
+	struct zzb_aps_cmd cmd;
+
+	authorize();
+	zassert_ok(zzb_apsme_set_link_key(node, TC_EUI64, key_b, ZZB_APS_KEY_UNVERIFIED,
+					  ZZB_APS_LINK_KEY_UNIQUE));
+	zassert_ok(zzb_apsme_verify_key_req(node, TC_EUI64, ZZB_APS_KEY_TC_LINK));
+
+	zassert_equal(zzb_nlde_data_req_fake.arg2_val, 0x0000);
+	parse_sent_cmd(0, &hdr, &cmd);
+	zassert_equal(hdr.flags, 0);
+	zassert_equal(cmd.id, ZZB_APS_CMD_VERIFY_KEY);
+	zassert_equal(cmd.verify_key.type, ZZB_APS_KEY_TC_LINK);
+	zassert_equal(cmd.verify_key.src, NODE_EUI64);
+	zassert_ok(zzb_sec_hmac(key_b, 0x03, hash));
+	zassert_mem_equal(cmd.verify_key.hash, hash, ZZB_SEC_KEY_LEN);
+}
+
+ZTEST(zzb_aps_cmd, test_rejected_verify_keys)
+{
+	zassert_equal(zzb_apsme_verify_key_req(node, TC_EUI64, ZZB_APS_KEY_TC_LINK), -EINVAL,
+		      "no trust center");
+
+	authorize();
+	zassert_equal(zzb_apsme_verify_key_req(node, TC_EUI64, ZZB_APS_KEY_NWK), -EINVAL);
+	zassert_equal(zzb_apsme_verify_key_req(node, 0x00124b0000000001ULL, ZZB_APS_KEY_TC_LINK),
+		      -EINVAL);
+
+	zzb_aps_reset(node);
+	node->aps.aib.tc_addr = TC_EUI64;
+	zassert_equal(zzb_apsme_verify_key_req(node, TC_EUI64, ZZB_APS_KEY_TC_LINK), -ENOENT);
+	zassert_equal(zzb_nlde_data_req_fake.call_count, 0);
 }
 
 ZTEST_SUITE(zzb_aps_cmd, NULL, setup, before, after, NULL);

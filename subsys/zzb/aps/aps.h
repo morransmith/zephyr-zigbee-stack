@@ -200,6 +200,20 @@ int zzb_apsme_set_link_key(struct zzb_node *node, uint64_t addr, const uint8_t k
 struct zzb_aps_key_pair *zzb_aps_key_pair_find(struct zzb_node *node, uint64_t addr);
 
 /*
+ * APSME-REQUEST-KEY.request of the trust center link key (R22 4.4.5.1). Returns -EINVAL when
+ * dst_addr is not apsTrustCenterAddress, -ENOENT without a provisional or verified key for it,
+ * -ENOBUFS without a buffer, or an error of zzb_aps_secure() or NLDE-DATA.request.
+ */
+int zzb_apsme_request_key_req(struct zzb_node *node, uint64_t dst_addr);
+
+/*
+ * APSME-VERIFY-KEY.request (R22 4.4.7.1). Returns -EINVAL for a key type other than the trust
+ * center link key or a destination other than apsTrustCenterAddress, -ENOENT without a key for
+ * it, -ENOBUFS without a buffer, or an error of NLDE-DATA.request.
+ */
+int zzb_apsme_verify_key_req(struct zzb_node *node, uint64_t dst_addr, enum zzb_aps_key_type type);
+
+/*
  * APSDE-DATA.request. buf holds the ASDU after the headroom of its headers, at most
  * ZZB_APSDE_HEADROOM, and its metadata the ASDU handle. Returns -ENOTSUP for binding or
  * fragmentation, -EINVAL for an acknowledged broadcast or group
