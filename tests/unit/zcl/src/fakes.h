@@ -13,6 +13,7 @@
 #include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
+#include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/power_config.h>
 #include <zzb/zcl/scenes.h>
@@ -111,6 +112,8 @@ extern struct zzb_zcl_device_temp device_temp;
 #define PHYSICAL_MAX 0xe0
 
 extern struct zzb_zcl_ballast ballast;
+extern struct zzb_zcl_illuminance illuminance;
+extern struct zzb_zcl_illuminance_level illuminance_level;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

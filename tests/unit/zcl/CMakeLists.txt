@@ -20,5 +20,6 @@ target_sources(app PRIVATE
   src/power_config.c
   src/report.c
   src/scenes.c
+  src/sensors.c
   src/zcl.c
 )

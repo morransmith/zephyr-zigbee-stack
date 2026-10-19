@@ -50,6 +50,8 @@ struct zzb_zcl_ballast ballast = {
 	.physical_max_level = PHYSICAL_MAX,
 	.lamp_quantity = 1,
 };
+struct zzb_zcl_illuminance illuminance;
+struct zzb_zcl_illuminance_level illuminance_level;
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -294,6 +296,8 @@ static const struct zzb_zcl_cluster ep30_clusters[] = {
 	ZZB_ZCL_POWER_CONFIG_SERVER(&power_config),
 	ZZB_ZCL_DEVICE_TEMP_SERVER(&device_temp),
 	ZZB_ZCL_BALLAST_SERVER(&ballast),
+	ZZB_ZCL_ILLUMINANCE_SERVER(&illuminance),
+	ZZB_ZCL_ILLUMINANCE_LEVEL_SERVER(&illuminance_level),
 };
 
 static const struct zzb_endpoint endpoints[] = {
