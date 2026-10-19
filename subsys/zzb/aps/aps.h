@@ -31,6 +31,9 @@ static inline size_t zzb_aps_aux_len(bool ext_nonce)
  */
 #define ZZB_APSDE_HEADROOM (ZZB_NLDE_HEADROOM + ZZB_APS_HDR_MAX_LEN + ZZB_APS_AUX_MAX_LEN)
 
+/* NSDU handle of the frames APS sends on its own; their confirm is ignored */
+#define ZZB_APS_OWN_HANDLE 0xef
+
 /* apscAckWaitDuration: 0.05 s * (2 * nwkcMaxDepth) + 0.1 s of security processing */
 #define ZZB_APS_ACK_WAIT_MS 1600
 
@@ -205,6 +208,16 @@ struct zzb_aps_sec {
 	/* NULL for the default trust center link key while the network key is pending */
 	struct zzb_aps_key_pair *pair;
 };
+
+/*
+ * Builds the ACK of a received frame with header hdr (R22 2.2.5.2.3). It has APS security when the
+ * frame had it, with the key in sec. Returns NULL without a buffer or when securing fails.
+ */
+struct net_buf *zzb_aps_ack_build(struct zzb_node *node, const struct zzb_aps_hdr *hdr,
+				  const struct zzb_aps_sec *sec);
+
+/* Sends a frame APS built on its own to dst with NWK security; an error drops it */
+void zzb_aps_send_own(struct zzb_node *node, struct net_buf *buf, uint16_t dst);
 
 /*
  * Secures a frame in place (R22 4.4.1.1). buf holds the APS header of hdr_len bytes with
