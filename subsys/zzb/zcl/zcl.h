@@ -113,6 +113,15 @@ int zzb_zcl_send_cmd(struct zzb_node *node, uint8_t src_ep, uint16_t dst_addr, u
 		     uint16_t cluster, uint8_t cmd, const uint8_t *payload, size_t len);
 
 /*
+ * Sends a ZCL frame of type with the command identifier cmd from endpoint ep to the bound
+ * destinations of cluster, with Disable Default Response 1, the direction to the client when
+ * to_client is set and an APS ACK request. Returns an error of zzb_zcl_send().
+ */
+int zzb_zcl_send_bindings(struct zzb_node *node, const struct zzb_endpoint *ep, uint16_t cluster,
+			  enum zzb_zcl_frame_type type, bool to_client, uint8_t cmd,
+			  const uint8_t *payload, size_t len);
+
+/*
  * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload;
  * an error drops it
  */

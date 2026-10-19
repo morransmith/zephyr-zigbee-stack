@@ -216,6 +216,22 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
 int zzb_zcl_attr_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
 		     const void *value);
 
+/**
+ * @brief Send a cluster-specific command of a client cluster to the bound destinations.
+ *
+ * Runs on the stack thread. The command goes from the client instance of the cluster on the
+ * endpoint to the destinations of its bindings, with Disable Default Response 1. The application
+ * builds the payload; no confirm follows.
+ *
+ * @retval 0 on success.
+ * @retval -ENOENT the endpoint has no client instance of the cluster, or the cluster no binding.
+ * @retval -ENOBUFS no buffer or transmission table entry is free.
+ * @retval -ENOTCONN the node is not on a network.
+ * @retval -EBUSY the network layer runs a procedure, such as a rejoin.
+ */
+int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t cmd,
+		       const uint8_t *payload, size_t len);
+
 #ifdef __cplusplus
 }
 #endif

@@ -737,7 +737,7 @@ ZCL records, little-endian:
 
 | File | Contents |
 |---|---|
-| `zcl.c` | init, start, reset, reception, lookup of endpoints and clusters, responses, timers |
+| `zcl.c` | init, start, reset, reception, lookup of endpoints and clusters, responses, frames to bound destinations, timers |
 | `frame.c` | ZCL header codec and data type lengths |
 | `attr.c` | attribute lookup and value encoding, `zcl_cb`, records, `zzb_zcl_attr_set()` |
 | `foundation.c` | global commands |

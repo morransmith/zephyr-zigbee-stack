@@ -393,19 +393,6 @@ static void send_reports(struct zzb_node *node, const struct zzb_zcl_report *fir
 {
 	const struct zzb_endpoint *ep = zzb_node_endpoint(node, first->ep);
 	const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(ep, first->cluster, true);
-	const struct zzb_zcl_hdr hdr = {
-		.type = ZZB_ZCL_FRAME_GLOBAL,
-		.flags = ZZB_ZCL_TO_CLIENT | ZZB_ZCL_DISABLE_DEFAULT_RSP,
-		.tsn = node->zcl.tsn++,
-		.cmd = ZZB_ZCL_REPORT_ATTRIBUTES,
-	};
-	const struct zzb_apsde_req aps = {
-		.dst_mode = ZZB_APS_ADDR_BINDING,
-		.profile = ep->profile,
-		.cluster = first->cluster,
-		.src_ep = first->ep,
-		.tx_options = ZZB_APS_TX_ACK,
-	};
 	bool in_frame[CONFIG_ZZB_ZCL_REPORT_COUNT] = {0};
 	uint8_t payload[ZZB_ZCL_MAX_PAYLOAD];
 	size_t n = 0;
@@ -435,7 +422,8 @@ static void send_reports(struct zzb_node *node, const struct zzb_zcl_report *fir
 		in_frame[i] = true;
 	}
 
-	err = zzb_zcl_send(node, &aps, &hdr, payload, n);
+	err = zzb_zcl_send_bindings(node, ep, first->cluster, ZZB_ZCL_FRAME_GLOBAL, true,
+				    ZZB_ZCL_REPORT_ATTRIBUTES, payload, n);
 
 	ARRAY_FOR_EACH(node->zcl.reports, i) {
 		struct zzb_zcl_report *r = &node->zcl.reports[i];
