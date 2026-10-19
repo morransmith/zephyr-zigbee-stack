@@ -35,6 +35,31 @@ struct zzb_zcl_alarms alarms21;
 struct test_values values20;
 struct alarm_reset_calls alarm_reset_calls;
 
+struct zzb_zcl_power_config power_config = {
+	.mains_voltage = 2300,
+	.mains_frequency = 25,
+	.battery_voltage = 30,
+	.battery_percentage_remaining = 200,
+	.battery_manufacturer = "zzb",
+	.battery_size = 0x03,
+	.battery_ahr_rating = 250,
+	.battery_quantity = 2,
+	.battery_rated_voltage = 15,
+};
+struct zzb_zcl_device_temp device_temp = {
+	.current_temperature = INT16_MIN,
+};
+struct zzb_zcl_ballast ballast = {
+	.physical_min_level = PHYSICAL_MIN,
+	.physical_max_level = PHYSICAL_MAX,
+	.lamp_quantity = 1,
+};
+struct zzb_zcl_illuminance illuminance;
+struct zzb_zcl_illuminance_level illuminance_level;
+struct zzb_zcl_occupancy occupancy = {
+	.occupancy_sensor_type_bitmap = 0x01,
+};
+
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
 	.stack_version = 2,
@@ -297,6 +322,15 @@ static const struct zzb_zcl_cluster ep21_clusters[] = {
 	ZZB_ZCL_ALARMS_SERVER(&alarms21),
 };
 
+static const struct zzb_zcl_cluster ep30_clusters[] = {
+	ZZB_ZCL_POWER_CONFIG_SERVER(&power_config),
+	ZZB_ZCL_DEVICE_TEMP_SERVER(&device_temp),
+	ZZB_ZCL_BALLAST_SERVER(&ballast),
+	ZZB_ZCL_ILLUMINANCE_SERVER(&illuminance),
+	ZZB_ZCL_ILLUMINANCE_LEVEL_SERVER(&illuminance_level),
+	ZZB_ZCL_OCCUPANCY_SERVER(&occupancy),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -339,6 +373,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0101,
 		.clusters = ep21_clusters,
 		.cluster_count = ARRAY_SIZE(ep21_clusters),
+	},
+	{
+		.id = SENSOR_EP,
+		.profile = 0x0104,
+		.device_id = 0x0108,
+		.clusters = ep30_clusters,
+		.cluster_count = ARRAY_SIZE(ep30_clusters),
 	},
 };
 
@@ -457,6 +498,22 @@ void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_
 	zassert_equal(copy->handle, ZZB_ZCL_HANDLE);
 	zassert_equal(copy->len, len);
 	zassert_mem_equal(copy->data, asdu, len);
+}
+
+void check_zcl_cb(uint8_t ep, uint16_t cluster, const uint16_t *attrs, int count)
+{
+	int n = 0;
+
+	for (int i = 0; i < zcl_cb_calls.count; i++) {
+		if (zcl_cb_calls.ep[i] != ep || zcl_cb_calls.cluster[i] != cluster) {
+			continue;
+		}
+
+		zassert_true(n < count);
+		zassert_equal(zcl_cb_calls.attr[i], attrs[n++]);
+	}
+
+	zassert_equal(n, count);
 }
 
 struct reboot_call {
