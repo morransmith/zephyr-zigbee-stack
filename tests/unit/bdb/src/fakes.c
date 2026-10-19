@@ -16,6 +16,7 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_join_req, struct zzb_node *, uint64_t,
 		       enum zzb_nwk_join_method, uint32_t, uint8_t, uint8_t, bool);
 DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_nlme_get_ext_pan_id, const struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(uint8_t, zzb_nlme_get_capability, const struct zzb_node *);
+DEFINE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_zdo_device_annce_req, struct zzb_node *);
 
 struct event_log events;
@@ -48,11 +49,13 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nlme_join_req);
 	RESET_FAKE(zzb_nlme_get_ext_pan_id);
 	RESET_FAKE(zzb_nlme_get_capability);
+	RESET_FAKE(zzb_nlme_get_short_addr);
 	RESET_FAKE(zzb_zdo_device_annce_req);
 	FFF_RESET_HISTORY();
 	events = (struct event_log){0};
 
 	zzb_nlme_get_capability_fake.return_val = CAPABILITY;
+	zzb_nlme_get_short_addr_fake.return_val = NODE_ADDR;
 }
 
 static void reboot_handler(struct k_work *work)

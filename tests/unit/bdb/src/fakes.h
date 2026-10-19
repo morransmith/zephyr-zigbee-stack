@@ -14,9 +14,11 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_join_req, struct zzb_node *, uint64_t,
 			enum zzb_nwk_join_method, uint32_t, uint8_t, uint8_t, bool);
 DECLARE_FAKE_VALUE_FUNC(uint64_t, zzb_nlme_get_ext_pan_id, const struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(uint8_t, zzb_nlme_get_capability, const struct zzb_node *);
+DECLARE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_device_annce_req, struct zzb_node *);
 
 #define EXT_PAN_ID 0x00124b0000001a62ULL
+#define NODE_ADDR  0x5678
 
 /* nwkCapabilityInformation: allocate address, receiver on when idle, mains power */
 #define CAPABILITY 0x8c

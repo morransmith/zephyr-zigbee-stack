@@ -5,6 +5,7 @@
 #include <zephyr/random/random.h>
 
 #include "aps/aps.h"
+#include "bdb/bdb.h"
 #include "common/buf.h"
 #include "common/node.h"
 #include "nwk/nwk.h"
@@ -70,6 +71,7 @@ void zzb_apsme_transport_key_ind(struct zzb_node *node, uint64_t src_addr,
 
 	if (zzb_apsme_set_tc_addr(node, src_addr) == 0) {
 		zzb_nlme_set_nwk_key(node, key, seq);
+		zzb_bdb_nwk_key_ind(node);
 	}
 }
 

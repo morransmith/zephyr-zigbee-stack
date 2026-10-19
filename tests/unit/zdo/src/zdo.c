@@ -84,11 +84,13 @@ ZTEST(zzb_zdo, test_network_key)
 	zassert_equal(set_nwk_key.count, 1);
 	zassert_equal_ptr(set_nwk_key.key, key);
 	zassert_equal(set_nwk_key.seq, 3);
+	zassert_equal(zzb_bdb_nwk_key_ind_fake.call_count, 1);
 
 	/* Without a key-pair entry for the trust center the key stays unset */
 	zzb_apsme_set_tc_addr_fake.return_val = -ENOMEM;
 	zzb_apsme_transport_key_ind(test_node(), TC_EUI64, ZZB_APS_KEY_NWK, key, 4);
 	zassert_equal(set_nwk_key.count, 1);
+	zassert_equal(zzb_bdb_nwk_key_ind_fake.call_count, 1);
 }
 
 /* BDB decides about a trust center link key (BDB 10.2.6) */

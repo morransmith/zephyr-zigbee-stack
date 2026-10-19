@@ -15,6 +15,8 @@ static void timer_handler(struct k_work *work)
 
 	switch (node->bdb.state) {
 	case ZZB_BDB_REJOIN:
+	case ZZB_BDB_REJOIN_KEY:
+	case ZZB_BDB_REJOIN_PAUSE:
 		zzb_bdb_rejoin_timer(node);
 		break;
 	default:
@@ -37,14 +39,19 @@ void zzb_bdb_schedule(struct zzb_node *node, k_timeout_t delay)
 	k_work_reschedule_for_queue(&zzb_workq, &node->bdb.timer, delay);
 }
 
+void zzb_bdb_notify(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bdb_status status)
+{
+	if (node->bdb_cb != NULL) {
+		node->bdb_cb(node, event, status);
+	}
+}
+
 /* The callback may start the next procedure, so nothing follows it */
 void zzb_bdb_report(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bdb_status status)
 {
 	node->bdb.state = ZZB_BDB_IDLE;
 	k_work_cancel_delayable(&node->bdb.timer);
-	if (node->bdb_cb != NULL) {
-		node->bdb_cb(node, event, status);
-	}
+	zzb_bdb_notify(node, event, status);
 }
 
 void zzb_nlme_join_conf(struct zzb_node *node, uint8_t status)
