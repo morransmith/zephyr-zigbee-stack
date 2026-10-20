@@ -76,6 +76,9 @@ static const struct zzb_device device = {
 	.endpoint_count = ARRAY_SIZE(endpoints),
 };
 
+/* The read of Basic ManufacturerName and ModelIdentifier at the interview of zigpy */
+static const uint8_t read[] = {0x00, 0x10, 0x00, 0x04, 0x00, 0x05, 0x00};
+
 static void check_event(enum zzb_bdb_event event, enum zzb_bdb_status status)
 {
 	zassert_equal(events.count, 1);
@@ -93,6 +96,19 @@ static void steer(void)
 	k_sleep(K_SECONDS(5));
 	check_event(ZZB_BDB_EVENT_STEERING, ZZB_BDB_SUCCESS);
 	events.count = 0;
+}
+
+/* Waits until the parent has count ZCL frames of the child; returns the milliseconds waited */
+static int64_t wait_zcl_frames(int count)
+{
+	int64_t start = k_uptime_get();
+
+	while (parent_log.zcl_frames < count && k_uptime_get() - start < 8000) {
+		k_sleep(K_MSEC(10));
+	}
+
+	zassert_true(parent_log.zcl_frames >= count);
+	return k_uptime_get() - start;
 }
 
 static void *setup(void)
@@ -146,6 +162,58 @@ ZTEST(zzb_sleepy_integration, test_steering)
 	zassert_equal(parent_log.ed_timeout_reqs, 1);
 	zassert_equal(child->nwk.nib.parent_info, ZZB_NWK_PARENT_POLL_KEEPALIVE);
 	zassert_false(fake_radio_rx_on(1));
+}
+
+/* BDB 6.8: one poll per long interval while nothing is expected */
+ZTEST(zzb_sleepy_integration, test_idle_node_polls_at_the_long_interval)
+{
+	int polls;
+
+	steer();
+	polls = parent_log.polls;
+	k_sleep(K_SECONDS(20));
+	zassert_between_inclusive(parent_log.polls - polls, 3, 5);
+}
+
+/*
+ * The interview of zigpy sends each request after the response to the last one. The first one
+ * waits for a poll at the long interval, the next ones arrive during the fast poll after a frame.
+ */
+ZTEST(zzb_sleepy_integration, test_requests_after_a_frame_arrive_fast)
+{
+	uint8_t req[sizeof(read)];
+
+	steer();
+	memcpy(req, read, sizeof(read));
+	parent_send_zcl(ZZB_ZCL_BASIC, req, sizeof(req));
+	zassert_true(wait_zcl_frames(1) <= CONFIG_ZZB_NWK_LONG_POLL_MS + 100);
+	zassert_equal(parent_log.zcl[0], 0x18);
+
+	for (int i = 2; i <= 4; i++) {
+		req[1]++;
+		parent_send_zcl(ZZB_ZCL_BASIC, req, sizeof(req));
+		zassert_true(wait_zcl_frames(i) <= CONFIG_ZZB_NWK_SHORT_POLL_MS + 100);
+		zassert_equal(parent_log.zcl[1], req[1]);
+	}
+}
+
+/* 802.15.4 5.1.6.3: frame pending in the first frame makes the node poll for the second at once */
+ZTEST(zzb_sleepy_integration, test_frame_pending_fetches_the_next_frame)
+{
+	uint8_t second[sizeof(read)];
+	int64_t first;
+
+	steer();
+	memcpy(second, read, sizeof(read));
+	second[1]++;
+	k_sleep(K_SECONDS(4));
+	parent_send_zcl(ZZB_ZCL_BASIC, read, sizeof(read));
+	parent_send_zcl(ZZB_ZCL_BASIC, second, sizeof(second));
+	wait_zcl_frames(1);
+	first = k_uptime_get();
+	wait_zcl_frames(2);
+	zassert_true(k_uptime_get() - first <= 100);
+	zassert_equal(parent_log.zcl[1], second[1]);
 }
 
 ZTEST_SUITE(zzb_sleepy_integration, NULL, setup, before, after, NULL);
