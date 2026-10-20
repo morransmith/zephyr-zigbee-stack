@@ -15,6 +15,7 @@
 #include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
+#include <zzb/zcl/ias_ace.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
@@ -215,6 +216,9 @@ extern struct zzb_zcl_flow flow70;
 extern struct zzb_zcl_humidity humidity70;
 extern struct zzb_zcl_fan fan70;
 extern struct zzb_zcl_pump pump70;
+
+/* Endpoint 90 is an IAS CIE with the IAS ACE server */
+#define CIE_EP 90
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

@@ -72,6 +72,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/device_temp.c
   zcl/clusters/fan.c
   zcl/clusters/groups.c
+  zcl/clusters/ias_ace.c
   zcl/clusters/identify.c
   zcl/clusters/illuminance.c
   zcl/clusters/level.c
