@@ -21,6 +21,7 @@
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/power_config.h>
 #include <zzb/zcl/scenes.h>
+#include <zzb/zcl/window_covering.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
@@ -177,6 +178,11 @@ extern struct zzb_zcl_on_off on_off41;
 extern struct zzb_zcl_level level41;
 extern struct zzb_zcl_color color41;
 
+/* The Window Covering server of a Tilt Blind - Lift and Tilt (type 0x08) on endpoint 50 */
+#define COVERING_EP 50
+
+extern struct zzb_zcl_window_covering covering50;
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
@@ -226,6 +232,18 @@ struct effect_calls {
 };
 
 extern struct effect_calls effect_calls;
+
+/* Calls of zcl_cmd_cb, with copies of the commands and their payloads */
+struct zcl_cmd_calls {
+	int count;
+	struct zzb_zcl_cmd cmd[8];
+	uint8_t payload[8][4];
+};
+
+extern struct zcl_cmd_calls zcl_cmd_calls;
+
+/* The status that zcl_cmd_cb returns, ZZB_ZCL_SUCCESS after reset_fakes() */
+extern uint8_t zcl_cmd_status;
 
 /* A membership of the APS group table, kept by the fakes of the group functions; ep 0 is free */
 struct membership {

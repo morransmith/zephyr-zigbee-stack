@@ -25,6 +25,7 @@ struct zzb_node {
 	zzb_bdb_cb_t bdb_cb;
 	zzb_zcl_cb_t zcl_cb;
 	zzb_zcl_effect_cb_t zcl_effect_cb;
+	zzb_zcl_cmd_cb_t zcl_cmd_cb;
 	struct zzb_radio_port port;
 	struct zzb_mac mac;
 	struct zzb_nwk nwk;
