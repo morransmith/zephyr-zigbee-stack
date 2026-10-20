@@ -7,19 +7,25 @@
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/device_temp.h>
+#include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
+#include <zzb/zcl/measurement.h>
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/power_config.h>
+#include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
+#include <zzb/zcl/thermostat.h>
+#include <zzb/zcl/window_covering.h>
 #include <zzb/zzb.h>
 
 /*
- * An Extended Color Light, a Color Dimmer Switch, a Dimmable Ballast and an Occupancy Sensor
- * (Home Automation profile)
+ * An Extended Color Light, a Color Dimmer Switch, a Dimmable Ballast, an Occupancy Sensor, a Window
+ * Covering, a Window Covering Controller, a Thermostat, a Heating/Cooling Unit, a Pump and a Pump
+ * Controller (Home Automation profile)
  */
 #if defined(CONFIG_ZZB_ZCL)
 static struct zzb_zcl_basic basic = {
@@ -87,6 +93,88 @@ static struct zzb_zcl_occupancy occupancy = {
 	.occupancy_sensor_type_bitmap = 0x01,
 };
 
+static struct zzb_zcl_identify covering_identify;
+static struct zzb_zcl_identify controller_identify;
+static struct zzb_zcl_identify thermostat_identify;
+static struct zzb_zcl_identify unit_identify;
+static struct zzb_zcl_identify pump_identify;
+static struct zzb_zcl_identify pump_controller_identify;
+static struct zzb_zcl_scenes covering_scenes;
+static struct zzb_zcl_scenes pump_scenes;
+
+/* Tilt Blind - Lift and Tilt with closed loop on both axes */
+static struct zzb_zcl_window_covering covering = {
+	.window_covering_type = 0x08,
+	.config_status = 0x1b,
+	.current_position_lift_percentage = 0xff,
+	.current_position_tilt_percentage = 0xff,
+	.installed_closed_limit_lift = 200,
+	.installed_closed_limit_tilt = 900,
+};
+
+static struct zzb_zcl_thermostat thermostat = {
+	.local_temperature = INT16_MIN,
+	.outdoor_temperature = INT16_MIN,
+	.occupancy = 0x01,
+	.abs_min_heat_setpoint_limit = 700,
+	.abs_max_heat_setpoint_limit = 3000,
+	.abs_min_cool_setpoint_limit = 1600,
+	.abs_max_cool_setpoint_limit = 3200,
+	.min_setpoint_dead_band = 25,
+	.control_sequence_of_operation = ZZB_ZCL_SEQUENCE_COOLING_HEATING,
+	.system_mode_default = ZZB_ZCL_SYSTEM_MODE_OFF,
+};
+
+static struct zzb_zcl_thermostat_ui thermostat_ui;
+
+static struct zzb_zcl_fan fan = {
+	.fan_mode_sequence = 0x02,
+};
+
+static struct zzb_zcl_fan unit_fan = {
+	.fan_mode_sequence = 0x00,
+};
+
+static struct zzb_zcl_on_off unit_on_off;
+
+static struct zzb_zcl_temperature temperature = {
+	.measured_value = INT16_MIN,
+	.min_measured_value = INT16_MIN,
+	.max_measured_value = INT16_MIN,
+};
+
+static struct zzb_zcl_humidity humidity = {
+	.measured_value = 0xffff,
+	.min_measured_value = 0xffff,
+	.max_measured_value = 0xffff,
+};
+
+static struct zzb_zcl_on_off pump_on_off;
+static struct zzb_zcl_alarms pump_alarms;
+
+static struct zzb_zcl_pump pump = {
+	.max_pressure = INT16_MIN,
+	.max_speed = 0xffff,
+	.max_flow = 0xffff,
+	.capacity = INT16_MIN,
+	.lifetime_energy_consumed = 0xffffffff,
+};
+
+static struct zzb_zcl_pressure pressure = {
+	.measured_value = INT16_MIN,
+	.min_measured_value = INT16_MIN,
+	.max_measured_value = INT16_MIN,
+	.scaled_value = INT16_MIN,
+	.min_scaled_value = INT16_MIN,
+	.max_scaled_value = INT16_MIN,
+};
+
+static struct zzb_zcl_flow flow = {
+	.measured_value = 0xffff,
+	.min_measured_value = 0xffff,
+	.max_measured_value = 0xffff,
+};
+
 static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
@@ -127,6 +215,63 @@ static const struct zzb_zcl_cluster sensor[] = {
 	ZZB_ZCL_ILLUMINANCE_SERVER(&illuminance),
 	ZZB_ZCL_OCCUPANCY_SERVER(&occupancy),
 	ZZB_ZCL_IDENTIFY_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster covering_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&covering_identify),
+	ZZB_ZCL_GROUPS_SERVER(),
+	ZZB_ZCL_SCENES_SERVER(&covering_scenes),
+	ZZB_ZCL_WINDOW_COVERING_SERVER(&covering),
+};
+
+static const struct zzb_zcl_cluster controller_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&controller_identify),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+	ZZB_ZCL_GROUPS_CLIENT(),
+	ZZB_ZCL_SCENES_CLIENT(),
+	ZZB_ZCL_WINDOW_COVERING_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster thermostat_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&thermostat_identify),
+	ZZB_ZCL_THERMOSTAT_SERVER(&thermostat),
+	ZZB_ZCL_FAN_SERVER(&fan),
+	ZZB_ZCL_THERMOSTAT_UI_SERVER(&thermostat_ui),
+	ZZB_ZCL_TEMPERATURE_SERVER(&temperature),
+	ZZB_ZCL_HUMIDITY_SERVER(&humidity),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+	ZZB_ZCL_FAN_CLIENT(),
+	ZZB_ZCL_HUMIDITY_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster unit_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&unit_identify),
+	ZZB_ZCL_GROUPS_SERVER(),
+	ZZB_ZCL_ON_OFF_SERVER(&unit_on_off),
+	ZZB_ZCL_FAN_SERVER(&unit_fan),
+	ZZB_ZCL_THERMOSTAT_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster pump_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&pump_identify),
+	ZZB_ZCL_GROUPS_SERVER(),
+	ZZB_ZCL_SCENES_SERVER(&pump_scenes),
+	ZZB_ZCL_ON_OFF_SERVER(&pump_on_off),
+	ZZB_ZCL_ALARMS_SERVER(&pump_alarms),
+	ZZB_ZCL_PUMP_SERVER(&pump),
+	ZZB_ZCL_PRESSURE_SERVER(&pressure),
+	ZZB_ZCL_FLOW_SERVER(&flow),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster pump_controller_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&pump_controller_identify),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+	ZZB_ZCL_ON_OFF_CLIENT(),
+	ZZB_ZCL_PUMP_CLIENT(),
+	ZZB_ZCL_TEMPERATURE_CLIENT(),
+	ZZB_ZCL_PRESSURE_CLIENT(),
+	ZZB_ZCL_FLOW_CLIENT(),
 };
 #else
 /* native_sim builds no ZCL, so the definitions of the stack clusters do not exist */
@@ -171,6 +316,63 @@ static const struct zzb_zcl_cluster sensor[] = {
 	{.id = ZZB_ZCL_OCCUPANCY, .server = true},
 	{.id = ZZB_ZCL_IDENTIFY},
 };
+
+static const struct zzb_zcl_cluster covering_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_GROUPS, .server = true},
+	{.id = ZZB_ZCL_SCENES, .server = true},
+	{.id = ZZB_ZCL_WINDOW_COVERING, .server = true},
+};
+
+static const struct zzb_zcl_cluster controller_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+	{.id = ZZB_ZCL_GROUPS},
+	{.id = ZZB_ZCL_SCENES},
+	{.id = ZZB_ZCL_WINDOW_COVERING},
+};
+
+static const struct zzb_zcl_cluster thermostat_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_THERMOSTAT, .server = true},
+	{.id = ZZB_ZCL_FAN, .server = true},
+	{.id = ZZB_ZCL_THERMOSTAT_UI, .server = true},
+	{.id = ZZB_ZCL_TEMPERATURE, .server = true},
+	{.id = ZZB_ZCL_HUMIDITY, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+	{.id = ZZB_ZCL_FAN},
+	{.id = ZZB_ZCL_HUMIDITY},
+};
+
+static const struct zzb_zcl_cluster unit_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_GROUPS, .server = true},
+	{.id = ZZB_ZCL_ON_OFF, .server = true},
+	{.id = ZZB_ZCL_FAN, .server = true},
+	{.id = ZZB_ZCL_THERMOSTAT},
+};
+
+static const struct zzb_zcl_cluster pump_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_GROUPS, .server = true},
+	{.id = ZZB_ZCL_SCENES, .server = true},
+	{.id = ZZB_ZCL_ON_OFF, .server = true},
+	{.id = ZZB_ZCL_ALARMS, .server = true},
+	{.id = ZZB_ZCL_PUMP, .server = true},
+	{.id = ZZB_ZCL_PRESSURE, .server = true},
+	{.id = ZZB_ZCL_FLOW, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+};
+
+static const struct zzb_zcl_cluster pump_controller_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+	{.id = ZZB_ZCL_ON_OFF},
+	{.id = ZZB_ZCL_PUMP},
+	{.id = ZZB_ZCL_TEMPERATURE},
+	{.id = ZZB_ZCL_PRESSURE},
+	{.id = ZZB_ZCL_FLOW},
+};
 #endif
 
 static const struct zzb_endpoint endpoints[] = {
@@ -206,6 +408,54 @@ static const struct zzb_endpoint endpoints[] = {
 		.clusters = sensor,
 		.cluster_count = ARRAY_SIZE(sensor),
 	},
+	{
+		.id = 5,
+		.profile = 0x0104,
+		.device_id = 0x0202,
+		.device_version = 1,
+		.clusters = covering_clusters,
+		.cluster_count = ARRAY_SIZE(covering_clusters),
+	},
+	{
+		.id = 6,
+		.profile = 0x0104,
+		.device_id = 0x0203,
+		.device_version = 1,
+		.clusters = controller_clusters,
+		.cluster_count = ARRAY_SIZE(controller_clusters),
+	},
+	{
+		.id = 7,
+		.profile = 0x0104,
+		.device_id = 0x0301,
+		.device_version = 1,
+		.clusters = thermostat_clusters,
+		.cluster_count = ARRAY_SIZE(thermostat_clusters),
+	},
+	{
+		.id = 8,
+		.profile = 0x0104,
+		.device_id = 0x0300,
+		.device_version = 1,
+		.clusters = unit_clusters,
+		.cluster_count = ARRAY_SIZE(unit_clusters),
+	},
+	{
+		.id = 9,
+		.profile = 0x0104,
+		.device_id = 0x0303,
+		.device_version = 1,
+		.clusters = pump_clusters,
+		.cluster_count = ARRAY_SIZE(pump_clusters),
+	},
+	{
+		.id = 10,
+		.profile = 0x0104,
+		.device_id = 0x0304,
+		.device_version = 1,
+		.clusters = pump_controller_clusters,
+		.cluster_count = ARRAY_SIZE(pump_controller_clusters),
+	},
 };
 
 static const struct zzb_device device = {
@@ -233,6 +483,12 @@ static void zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint
 {
 }
 
+/* The window covering has no motor here */
+static uint8_t zcl_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return ZZB_ZCL_SUCCESS;
+}
+
 int main(void)
 {
 	/* native_sim has no radio and builds no MAC */
@@ -242,6 +498,7 @@ int main(void)
 		.bdb_cb = bdb_event,
 		.zcl_cb = zcl_changed,
 		.zcl_effect_cb = zcl_effect,
+		.zcl_cmd_cb = zcl_cmd,
 	};
 	struct zzb_node *node;
 	/* Keeps the EUI-64 sources in the image, so their linking is checked */

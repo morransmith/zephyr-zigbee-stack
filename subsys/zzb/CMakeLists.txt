@@ -70,14 +70,21 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/basic.c
   zcl/clusters/color.c
   zcl/clusters/device_temp.c
+  zcl/clusters/fan.c
   zcl/clusters/groups.c
   zcl/clusters/identify.c
   zcl/clusters/illuminance.c
   zcl/clusters/level.c
+  zcl/clusters/measurement.c
   zcl/clusters/occupancy.c
   zcl/clusters/on_off.c
   zcl/clusters/power_config.c
+  zcl/clusters/pump.c
   zcl/clusters/scenes.c
+  zcl/clusters/schedule.c
+  zcl/clusters/thermostat.c
+  zcl/clusters/thermostat_ui.c
+  zcl/clusters/window_covering.c
   zcl/foundation.c
   zcl/frame.c
   zcl/report.c

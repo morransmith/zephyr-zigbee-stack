@@ -13,14 +13,19 @@
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/device_temp.h>
+#include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
+#include <zzb/zcl/measurement.h>
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/power_config.h>
+#include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
+#include <zzb/zcl/thermostat.h>
+#include <zzb/zcl/window_covering.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
@@ -50,9 +55,9 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, u
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
- * Values of the test cluster, attributes 0x0000 to 0x000b in this order; 0x0000 to 0x0002 and
- * 0x0008 are reportable, 0x0002 and 0x0008 to 0x000a are saved, 0x000b is read-only. The reset sets
- * 0x0001 and 0x0002 to 0.
+ * Values of the test cluster, attributes 0x0000 to 0x000d in this order; 0x0000 to 0x0002, 0x0008
+ * and 0x000c are reportable, 0x0002, 0x0008 to 0x000a, 0x000c and 0x000d are saved, 0x000b is
+ * read-only. The reset sets 0x0001 and 0x0002 to 0.
  */
 struct test_values {
 	bool b;
@@ -67,6 +72,8 @@ struct test_values {
 	uint32_t u24;
 	uint32_t map32;
 	uint16_t map16;
+	int8_t i8;
+	uint32_t u32;
 };
 
 /* ClusterRevision of the test cluster */
@@ -175,6 +182,37 @@ extern struct zzb_zcl_on_off on_off41;
 extern struct zzb_zcl_level level41;
 extern struct zzb_zcl_color color41;
 
+/* The Scenes and Window Covering servers of a Tilt Blind - Lift and Tilt (0x08) on endpoint 50 */
+#define COVERING_EP 50
+
+extern struct zzb_zcl_scenes scenes50;
+extern struct zzb_zcl_window_covering covering50;
+
+/*
+ * Endpoint 60 is a Thermostat with the Scenes, Thermostat and Thermostat User Interface
+ * Configuration servers and a Thermostat client. The Thermostat server has the absolute limits of
+ * ZCL Table 6-11, MinSetpointDeadBand 2.5 degrees Celsius, ControlSequenceOfOperation 4, Occupancy
+ * 1 and the factory SystemMode Auto.
+ */
+#define THERMOSTAT_EP 60
+
+extern struct zzb_zcl_scenes scenes60;
+extern struct zzb_zcl_thermostat thermostat60;
+extern struct zzb_zcl_thermostat_ui thermostat_ui60;
+
+/*
+ * Endpoint 70 has the measurement servers, a Fan Control server with FanModeSequence 0x02 and a
+ * Pump Configuration and Control server; endpoint 71 has the clients of these clusters
+ */
+#define HVAC_EP 70
+
+extern struct zzb_zcl_temperature temperature70;
+extern struct zzb_zcl_pressure pressure70;
+extern struct zzb_zcl_flow flow70;
+extern struct zzb_zcl_humidity humidity70;
+extern struct zzb_zcl_fan fan70;
+extern struct zzb_zcl_pump pump70;
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
@@ -224,6 +262,18 @@ struct effect_calls {
 };
 
 extern struct effect_calls effect_calls;
+
+/* Calls of zcl_cmd_cb, with copies of the commands and their payloads */
+struct zcl_cmd_calls {
+	int count;
+	struct zzb_zcl_cmd cmd[8];
+	uint8_t payload[8][4];
+};
+
+extern struct zcl_cmd_calls zcl_cmd_calls;
+
+/* The status that zcl_cmd_cb returns, ZZB_ZCL_SUCCESS after reset_fakes() */
+extern uint8_t zcl_cmd_status;
 
 /* A membership of the APS group table, kept by the fakes of the group functions; ep 0 is free */
 struct membership {

@@ -128,10 +128,10 @@ config ZZB_ZCL
 config ZZB_ZCL_REPORT_COUNT
 	int "Reporting table entries"
 	range 1 255
-	default 8
+	default 16
 	help
 	  Attributes whose reports Configure Reporting has set up, on all
-	  endpoints of a node.
+	  endpoints of a node. ZHA configures 11 reports on a Thermostat.
 
 config ZZB_ZCL_ALARM_COUNT
 	int "Alarm table entries"
@@ -157,6 +157,15 @@ config ZZB_ZCL_SCENE_DATA_LEN
 	  The extension field sets of a scene, each with the cluster ID, the
 	  length and the values. The sets of the On/Off, Level Control and
 	  Color Control servers take 4, 4 and 16 bytes.
+
+config ZZB_ZCL_SCHEDULE_TRANSITIONS
+	int "Weekly schedule transitions per day"
+	range 1 10
+	default 4
+	help
+	  Transitions of each day of the weekly schedule of a Thermostat
+	  server. NumberOfDailyTransitions reports this number and
+	  NumberOfWeeklyTransitions seven times it.
 
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"

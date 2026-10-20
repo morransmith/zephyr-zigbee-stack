@@ -18,12 +18,16 @@ target_sources(app PRIVATE
   src/foundation.c
   src/frame.c
   src/groups.c
+  src/hvac.c
   src/identify.c
   src/level.c
   src/on_off.c
   src/power_config.c
   src/report.c
   src/scenes.c
+  src/schedule.c
   src/sensors.c
+  src/thermostat.c
+  src/window_covering.c
   src/zcl.c
 )
