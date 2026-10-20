@@ -32,12 +32,12 @@ struct zzb_zcl_report {
 	uint16_t max;
 	/* Reportable change of an analog attribute */
 	uint16_t change;
-	/* The value of the last report */
-	uint32_t last;
-	/* k_uptime_get() at the last report */
-	int64_t sent;
 	/* A change waits for the minimum interval */
 	bool pending;
+	/* The value of the last report */
+	uint64_t last;
+	/* k_uptime_get() at the last report */
+	int64_t sent;
 	/* k_uptime_get() at which a report refused off a network is tried again, or 0 */
 	int64_t retry;
 };
