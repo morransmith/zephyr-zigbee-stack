@@ -81,6 +81,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/measurement.c
   zcl/clusters/occupancy.c
   zcl/clusters/on_off.c
+  zcl/clusters/on_off_switch_config.c
   zcl/clusters/power_config.c
   zcl/clusters/pump.c
   zcl/clusters/scenes.c

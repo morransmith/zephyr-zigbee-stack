@@ -24,6 +24,7 @@
 #include <zzb/zcl/measurement.h>
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/on_off_switch_config.h>
 #include <zzb/zcl/power_config.h>
 #include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
@@ -250,6 +251,14 @@ extern struct zzb_zcl_ias_wd wd86;
 /* Endpoint 90 is an IAS CIE with the IAS ACE server, endpoint 91 a keypad with the client */
 #define CIE_EP    90
 #define KEYPAD_EP 91
+
+/*
+ * Endpoint 120 is an On/Off Switch with the On/Off Switch Configuration server, SwitchType 0x01,
+ * and the On/Off client
+ */
+#define SWITCH_EP 120
+
+extern struct zzb_zcl_on_off_switch_config switch120;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

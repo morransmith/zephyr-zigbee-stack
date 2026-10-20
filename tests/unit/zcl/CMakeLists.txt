@@ -11,6 +11,7 @@ target_sources(app PRIVATE
   src/attr.c
   src/ballast.c
   src/basic.c
+  src/binary_input.c
   src/client.c
   src/color.c
   src/device_temp.c

@@ -531,6 +531,13 @@ static const struct zzb_zcl_cluster ep91_clusters[] = {
 	ZZB_ZCL_IAS_ACE_CLIENT(),
 };
 
+struct zzb_zcl_on_off_switch_config switch120 = {.switch_type = 0x01};
+
+static const struct zzb_zcl_cluster ep120_clusters[] = {
+	ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SERVER(&switch120),
+	ZZB_ZCL_ON_OFF_CLIENT(),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -692,6 +699,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0401,
 		.clusters = ep91_clusters,
 		.cluster_count = ARRAY_SIZE(ep91_clusters),
+	},
+	{
+		.id = SWITCH_EP,
+		.profile = 0x0104,
+		.device_id = 0x0000,
+		.clusters = ep120_clusters,
+		.cluster_count = ARRAY_SIZE(ep120_clusters),
 	},
 };
 
