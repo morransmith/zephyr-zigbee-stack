@@ -700,14 +700,18 @@ static void start(struct zzb_node *node, uint8_t ep, void *values)
 	}
 }
 
-/* The reset of the node restarts the query interval, to endpoint 1 of the trust center */
+/*
+ * The reset of the node ends a download without a frame and restarts the query interval, to
+ * endpoint 1 of the trust center
+ */
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
+	const struct zzb_endpoint *e = first(node);
 	struct zzb_zcl_ota *v = values;
 
-	if (first(node)->id == ep) {
+	if (e->id == ep) {
 		v->server_ep = SERVER_EP;
-		arm(node, v, INTERVAL);
+		end(node, e);
 	}
 }
 

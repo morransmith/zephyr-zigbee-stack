@@ -78,7 +78,7 @@ static void record_ota_cb(struct zzb_node *node)
 /* The query interval in milliseconds */
 #define INTERVAL_MS (CONFIG_ZZB_ZCL_OTA_QUERY_INTERVAL * 60000LL)
 
-/* A node other than the trust center, which runs the OTA server */
+/* A node other than the trust center, whose commands the client ignores */
 #define OTHER_ADDR 0x1234
 
 /* The file version of the image that the server offers */
@@ -459,10 +459,9 @@ static void *setup(void)
 	return NULL;
 }
 
-/* Each test starts with the defaults; zzb_zcl_init() ends a download of the test before */
+/* Each test starts with the defaults */
 static void before(void *fixture)
 {
-	zassert_ok(reboot_ota());
 	reset_ota();
 	reset_fakes();
 	build_file();
@@ -1104,6 +1103,30 @@ ZTEST(zzb_zcl_ota, test_end_rsp_ignored)
 	k_sleep(K_MSEC(10));
 	zassert_equal(ota_cb_calls, 0);
 	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
+}
+
+/*
+ * Section 16: the reset of the node ends a download without a frame and restores the defaults with
+ * zcl_cb, and the client downloads again from offset 0
+ */
+ZTEST(zzb_zcl_ota, test_reset_download)
+{
+	static const uint16_t end_attrs[] = {0x0006, 0x0001, 0x0004, 0x0008};
+
+	offer(wait_query());
+	serve(BLOCK);
+	reset_frames();
+	zcl_cb_calls = (struct zcl_cb_calls){0};
+	reset_ota();
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	check_normal();
+	check_zcl_cb(OTA_EP, ZZB_ZCL_OTA, end_attrs, ARRAY_SIZE(end_attrs));
+	zassert_false(held());
+
+	notify(REQUESTER_ADDR, REQUESTER_EP, NODE_ADDR, OTA_EP, (uint8_t[]){0x00, 0x64}, 2);
+	offer(check_query(0, REQUESTER_EP));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_block_req(0, 0);
 }
 
 ZTEST_SUITE(zzb_zcl_ota, NULL, setup, before, after, teardown);
