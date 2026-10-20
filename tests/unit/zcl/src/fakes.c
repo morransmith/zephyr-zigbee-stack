@@ -287,6 +287,13 @@ static const struct zzb_zcl_attr test_attrs[] = {
 	ZZB_ZCL_ATTR(0x000d, ZZB_ZCL_UINT32, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u32),
 	ZZB_ZCL_ATTR(0x000e, ZZB_ZCL_ENUM16, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, e16),
 	ZZB_ZCL_ATTR(0x000f, ZZB_ZCL_EUI64, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, eui64),
+	ZZB_ZCL_ATTR(0x0010, ZZB_ZCL_INT24, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT | ZZB_ZCL_NV,
+		     struct test_values, i24),
+	ZZB_ZCL_ATTR(0x0011, ZZB_ZCL_INT32, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, i32),
+	ZZB_ZCL_ATTR(0x0012, ZZB_ZCL_UTC, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, utc),
+	ZZB_ZCL_ATTR(0x0013, ZZB_ZCL_UINT48, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT | ZZB_ZCL_NV,
+		     struct test_values, u48),
+	ZZB_ZCL_ATTR(0x0014, ZZB_ZCL_UINT56, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u56),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, TEST_REVISION),
 };
 

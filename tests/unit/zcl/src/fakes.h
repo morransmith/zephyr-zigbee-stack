@@ -60,9 +60,9 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, u
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
- * Values of the test cluster, attributes 0x0000 to 0x000f in this order; 0x0000 to 0x0002, 0x0008
- * and 0x000c are reportable, 0x0002, 0x0008 to 0x000a and 0x000c to 0x000f are saved, 0x000b is
- * read-only. The reset sets 0x0001, 0x0002 and 0x000f to 0.
+ * Values of the test cluster, attributes 0x0000 to 0x0014 in this order; 0x0000 to 0x0002, 0x0008,
+ * 0x000c, 0x0010 and 0x0013 are reportable, 0x0002, 0x0008 to 0x000a and 0x000c to 0x0014 are
+ * saved, 0x000b is read-only. The reset sets 0x0001, 0x0002 and 0x000f to 0.
  */
 struct test_values {
 	bool b;
@@ -81,6 +81,11 @@ struct test_values {
 	uint32_t u32;
 	uint16_t e16;
 	uint64_t eui64;
+	int32_t i24;
+	int32_t i32;
+	uint32_t utc;
+	uint64_t u48;
+	uint64_t u56;
 };
 
 /* ClusterRevision of the test cluster */

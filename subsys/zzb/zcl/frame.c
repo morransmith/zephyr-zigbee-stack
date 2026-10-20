@@ -156,7 +156,8 @@ uint64_t zzb_zcl_value_get(uint8_t type, const uint8_t *p)
 		value = value << 8 | p[i];
 	}
 
-	return value;
+	/* An int24 fills the 32 bits of its field */
+	return type == ZZB_ZCL_INT24 ? (uint32_t)sign_extend(value, 23) : value;
 }
 
 void zzb_zcl_value_put(uint8_t type, uint64_t value, uint8_t *p)

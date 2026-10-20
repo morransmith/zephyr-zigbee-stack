@@ -104,7 +104,10 @@ static uint8_t check_value(const struct zzb_zcl_cluster *cl, const struct zzb_zc
 			   uint64_t value)
 {
 	if ((attr->type == ZZB_ZCL_BOOL && value > 1) ||
-	    (attr->type == ZZB_ZCL_UINT24 && value > 0xffffff)) {
+	    (attr->type == ZZB_ZCL_UINT24 && value > BIT_MASK(24)) ||
+	    (attr->type == ZZB_ZCL_INT24 && sign_extend(value, 23) != (int32_t)value) ||
+	    (attr->type == ZZB_ZCL_UINT48 && value > BIT64_MASK(48)) ||
+	    (attr->type == ZZB_ZCL_UINT56 && value > BIT64_MASK(56))) {
 		return ZZB_ZCL_INVALID_VALUE;
 	}
 

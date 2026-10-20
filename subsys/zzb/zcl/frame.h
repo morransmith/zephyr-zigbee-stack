@@ -55,7 +55,7 @@ bool zzb_zcl_type_analog(uint8_t type);
 /* Returns the length of a type of fixed length (ZCL Table 2-11), or -ENOTSUP */
 int zzb_zcl_type_len(uint8_t type);
 
-/* The little-endian value of an integer type of up to 8 octets at p */
+/* The little-endian value of an integer type of up to 8 octets at p; an int24 has 32 bits */
 uint64_t zzb_zcl_value_get(uint8_t type, const uint8_t *p);
 
 /* Writes value in the length of an integer type of up to 8 octets to p */

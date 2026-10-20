@@ -21,6 +21,9 @@ static void *setup(void)
 #define RECORD_U32   "zzb/0/zcl/1/0f00/000d"
 #define RECORD_E16   "zzb/0/zcl/1/0f00/000e"
 #define RECORD_EUI64 "zzb/0/zcl/1/0f00/000f"
+#define RECORD_I24   "zzb/0/zcl/1/0f00/0010"
+#define RECORD_U48   "zzb/0/zcl/1/0f00/0013"
+#define RECORD_U56   "zzb/0/zcl/1/0f00/0014"
 
 /* Every test starts without the record, since ztest orders tests by name */
 static void before(void *fixture)
@@ -35,6 +38,11 @@ static void before(void *fixture)
 	zassert_ok(settings_delete(RECORD_U32));
 	zassert_ok(settings_delete(RECORD_E16));
 	zassert_ok(settings_delete(RECORD_EUI64));
+	zassert_ok(settings_delete(RECORD_I24));
+	zassert_ok(settings_delete("zzb/0/zcl/1/0f00/0011"));
+	zassert_ok(settings_delete("zzb/0/zcl/1/0f00/0012"));
+	zassert_ok(settings_delete(RECORD_U48));
+	zassert_ok(settings_delete(RECORD_U56));
 }
 
 static void after(void *fixture)
@@ -94,6 +102,70 @@ ZTEST(zzb_zcl_attr, test_wide_types)
 	zassert_equal(values1.u32, 0x01020304);
 	zassert_equal(values1.e16, 0x0015);
 	zassert_equal(values1.eui64, 0x1122334455667788);
+}
+
+/* Section 16: an int24 is sign-extended in its field; uint48 and uint56 have 64-bit fields */
+ZTEST(zzb_zcl_attr, test_long_types)
+{
+	static const uint8_t req[] = {
+		0x00, 0x64, 0x02, 0x10, 0x00, 0x2a, 0xfe, 0xff, 0xff, 0x11, 0x00, 0x2b, 0xfd, 0xff,
+		0xff, 0xff, 0x12, 0x00, 0xe2, 0x78, 0x56, 0x34, 0x12, 0x13, 0x00, 0x25, 0x06, 0x05,
+		0x04, 0x03, 0x02, 0x01, 0x14, 0x00, 0x26, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01};
+	static const uint8_t read[] = {0x00, 0x65, 0x00, 0x10, 0x00, 0x13, 0x00, 0x14, 0x00};
+	static const uint8_t rsp[] = {0x18, 0x65, 0x01, 0x10, 0x00, 0x00, 0x2a, 0xfe,
+				      0xff, 0xff, 0x13, 0x00, 0x00, 0x25, 0x06, 0x05,
+				      0x04, 0x03, 0x02, 0x01, 0x14, 0x00, 0x00, 0x26,
+				      0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01};
+	uint8_t rec[9];
+
+	receive(TEST_CLUSTER, req, sizeof(req));
+	zassert_equal(values1.i24, -2);
+	zassert_equal(values1.i32, -3);
+	zassert_equal(values1.utc, 0x12345678);
+	zassert_equal(values1.u48, 0x010203040506);
+	zassert_equal(values1.u56, 0x01020304050607);
+	zassert_equal(settings_load_one(RECORD_I24, rec, sizeof(rec)), 4);
+	zassert_mem_equal(rec, ((uint8_t[]){0x01, 0xfe, 0xff, 0xff}), 4);
+	zassert_equal(settings_load_one(RECORD_U48, rec, sizeof(rec)), 7);
+	zassert_equal(settings_load_one(RECORD_U56, rec, sizeof(rec)), 8);
+
+	receive(TEST_CLUSTER, read, sizeof(read));
+	check_frame(1, 1, TEST_CLUSTER, rsp, sizeof(rsp));
+
+	values1 = (struct test_values){0};
+	zassert_ok(reboot());
+	zassert_equal(values1.i24, -2);
+	zassert_equal(values1.i32, -3);
+	zassert_equal(values1.utc, 0x12345678);
+	zassert_equal(values1.u48, 0x010203040506);
+	zassert_equal(values1.u56, 0x01020304050607);
+}
+
+/* zzb_zcl_attr_set() takes int32_t for int24 and uint64_t for uint48 and uint56 */
+ZTEST(zzb_zcl_attr, test_attr_set_long_types)
+{
+	struct zzb_node *node = test_node();
+	int32_t i24 = -0x800000;
+	uint64_t u48 = 0xffffffffffff;
+	uint64_t u56 = 0xffffffffffffff;
+
+	zassert_ok(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0010, &i24));
+	zassert_ok(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0013, &u48));
+	zassert_ok(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0014, &u56));
+	zassert_equal(values1.i24, -0x800000);
+	zassert_equal(values1.u48, 0xffffffffffff);
+	zassert_equal(values1.u56, 0xffffffffffffff);
+	zassert_equal(hook_calls.count, 3);
+
+	i24 = 0x800000;
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0010, &i24), -EINVAL);
+	i24 = -0x800001;
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0010, &i24), -EINVAL);
+	u48++;
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0013, &u48), -EINVAL);
+	u56++;
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0014, &u56), -EINVAL);
+	zassert_equal(hook_calls.count, 3);
 }
 
 /* The check hook gets the value struct of the instance on the endpoint */

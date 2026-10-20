@@ -24,12 +24,17 @@ enum zzb_zcl_type {
 	ZZB_ZCL_UINT16 = 0x21,
 	ZZB_ZCL_UINT24 = 0x22,
 	ZZB_ZCL_UINT32 = 0x23,
+	ZZB_ZCL_UINT48 = 0x25,
+	ZZB_ZCL_UINT56 = 0x26,
 	ZZB_ZCL_INT8 = 0x28,
 	ZZB_ZCL_INT16 = 0x29,
+	ZZB_ZCL_INT24 = 0x2a,
+	ZZB_ZCL_INT32 = 0x2b,
 	ZZB_ZCL_ENUM8 = 0x30,
 	ZZB_ZCL_ENUM16 = 0x31,
 	ZZB_ZCL_OCTSTR = 0x41,
 	ZZB_ZCL_STRING = 0x42,
+	ZZB_ZCL_UTC = 0xe2,
 	ZZB_ZCL_EUI64 = 0xf0,
 };
 
@@ -42,16 +47,23 @@ enum zzb_zcl_type {
 	((type) == ZZB_ZCL_MAP16 || (type) == ZZB_ZCL_UINT16 || (type) == ZZB_ZCL_INT16 ||         \
 	 (type) == ZZB_ZCL_ENUM16)
 
+#define ZZB_ZCL_IS_DWORD(type)                                                                     \
+	((type) == ZZB_ZCL_MAP32 || (type) == ZZB_ZCL_UINT24 || (type) == ZZB_ZCL_UINT32 ||        \
+	 (type) == ZZB_ZCL_INT24 || (type) == ZZB_ZCL_INT32 || (type) == ZZB_ZCL_UTC)
+
+#define ZZB_ZCL_IS_QWORD(type)                                                                     \
+	((type) == ZZB_ZCL_UINT48 || (type) == ZZB_ZCL_UINT56 || (type) == ZZB_ZCL_EUI64)
+
 /**
  * Size of the value struct field of a type; 0 for a type that the stack does not store. A uint24
- * has a field of 4 octets.
+ * and an int24 have a field of 4 octets, a uint48 and a uint56 a field of 8.
  */
 #define ZZB_ZCL_STORAGE_SIZE(type)                                                                 \
-	((type) == ZZB_ZCL_EUI64 ? 8                                                               \
-	 : (type) == ZZB_ZCL_MAP32 || (type) == ZZB_ZCL_UINT24 || (type) == ZZB_ZCL_UINT32 ? 4     \
-	 : ZZB_ZCL_IS_WORD(type)                             ? 2                                   \
-	 : ZZB_ZCL_IS_STRING(type)                           ? sizeof(void *)                      \
-							     : ZZB_ZCL_IS_BYTE(type))
+	(ZZB_ZCL_IS_QWORD(type)    ? 8                                                             \
+	 : ZZB_ZCL_IS_DWORD(type)  ? 4                                                             \
+	 : ZZB_ZCL_IS_WORD(type)   ? 2                                                             \
+	 : ZZB_ZCL_IS_STRING(type) ? sizeof(void *)                                                \
+				   : ZZB_ZCL_IS_BYTE(type))
 
 /** zzb_zcl_attr.flags; every attribute is readable. */
 #define ZZB_ZCL_WRITE  BIT(0)
@@ -64,8 +76,9 @@ enum zzb_zcl_type {
 /**
  * An attribute. A character string is stored as a const char pointer, an octet string as a const
  * uint8_t pointer to its length octet; both are read-only, and NULL reads as an empty string. An
- * EUI64 is stored as a uint64_t; it is not reportable, not in a scene extension field set, and a
- * write of it does not call the check hook.
+ * int24 is stored sign-extended in an int32_t. A uint48, uint56 or EUI64 is stored as a uint64_t;
+ * it is not in a scene extension field set, and a write of it does not call the check hook. An
+ * EUI64 is not reportable.
  */
 struct zzb_zcl_attr {
 	uint16_t id;
@@ -253,8 +266,9 @@ typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_
  *
  * Runs on the stack thread. value points to a value of the type of the field: uint8_t, int8_t or
  * bool for the one-octet types, uint16_t or int16_t for the two-octet types, uint32_t for
- * ZZB_ZCL_UINT24, ZZB_ZCL_UINT32 and ZZB_ZCL_MAP32. A non-volatile attribute is saved. zcl_cb is
- * not called.
+ * ZZB_ZCL_UINT24, ZZB_ZCL_UINT32, ZZB_ZCL_MAP32 and ZZB_ZCL_UTC, int32_t for ZZB_ZCL_INT24 and
+ * ZZB_ZCL_INT32, uint64_t for ZZB_ZCL_UINT48 and ZZB_ZCL_UINT56. A non-volatile attribute is
+ * saved. zcl_cb is not called.
  *
  * @retval 0 on success.
  * @retval -ENOENT the node has no server cluster with the attribute on the endpoint.
