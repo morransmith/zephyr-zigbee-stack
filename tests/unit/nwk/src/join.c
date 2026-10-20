@@ -108,6 +108,8 @@ static void before(void *fixture)
 
 static void after(void *fixture)
 {
+	node->sleepy = false;
+	zzb_nwk_init(node);
 	check_no_buffer_leak();
 }
 
@@ -344,6 +346,25 @@ ZTEST(zzb_nwk_join, test_association_join)
 	zassert_equal(join(EPID_A, CAPABILITY), -EALREADY);
 }
 
+/* The sleepy child polls its parent after the association (R22 Table 3-62) */
+ZTEST(zzb_nwk_join, test_association_with_the_receiver_off_when_idle)
+{
+	node->sleepy = true;
+	discover_routers();
+	zassert_ok(join(EPID_A, ZZB_NWK_CAP_ALLOC_ADDR));
+	zassert_equal(zzb_mlme_assoc_req_fake.arg3_val, ZZB_NWK_CAP_ALLOC_ADDR);
+
+	zzb_mlme_get_coord_ext_addr_fake.return_val = PARENT_EUI64;
+	zzb_mlme_assoc_conf(node, CHILD_SHORT, ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(zzb_nlme_join_conf_fake.arg1_val, ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(node->nwk.nib.capability, ZZB_NWK_CAP_ALLOC_ADDR);
+
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_LONG_POLL_MS + 100));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	zassert_equal(poll_coord.pan_id, PAN_A);
+	zassert_equal(poll_coord.short_addr, 0x1111);
+}
+
 ZTEST(zzb_nwk_join, test_failed_association_tries_the_next_parent)
 {
 	discover_routers();
@@ -377,7 +398,6 @@ ZTEST(zzb_nwk_join, test_join_request_rejected)
 	zassert_equal(join(0, CAPABILITY), -EINVAL);
 	zassert_equal(zzb_nlme_join_req(node, EPID_A, 0x01, 0, 0, CAPABILITY, false), -ENOTSUP);
 	zassert_equal(join(EPID_A, CAPABILITY | ZZB_NWK_CAP_ROUTER), -ENOTSUP);
-	zassert_equal(join(EPID_A, ZZB_NWK_CAP_ALLOC_ADDR), -ENOTSUP);
 
 	/* The coordinator has no capacity for end devices, and network B was not heard */
 	zassert_equal(join(EPID_A, CAPABILITY), -ENETUNREACH);

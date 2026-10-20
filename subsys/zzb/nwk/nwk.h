@@ -314,10 +314,10 @@ void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,
 /*
  * NLME-JOIN.request. An association uses the neighbor entries of the last discovery and ignores
  * channels and duration. A rejoin scans channels, or the channel of the network when channels is
- * 0. Returns -EINVAL for extended PAN ID 0, -ENOTSUP for another method, the router device type or
- * a receiver off when idle, -EBUSY while an NLME procedure runs, -EALREADY for an association on
- * a network, -ENETUNREACH for an association without a suitable parent, -ENOENT for a secure
- * rejoin without a network key, or an error of MLME-ASSOCIATE.request or MLME-SCAN.request.
+ * 0. Returns -EINVAL for extended PAN ID 0, -ENOTSUP for another method or the router device type,
+ * -EBUSY while an NLME procedure runs, -EALREADY for an association on a network, -ENETUNREACH for
+ * an association without a suitable parent, -ENOENT for a secure rejoin without a network key, or
+ * an error of MLME-ASSOCIATE.request or MLME-SCAN.request.
  */
 int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_join_method method,
 		      uint32_t channels, uint8_t duration, uint8_t capability, bool secure);

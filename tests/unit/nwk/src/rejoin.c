@@ -395,6 +395,11 @@ ZTEST(zzb_nwk_rejoin, test_rejoin_request_rejected)
 	zassert_equal(rejoin(true), -EBUSY);
 	zzb_mlme_scan_conf(child, ZZB_MAC_STATUS_NO_BEACON);
 
+	/* A sleepy end device rejoins with the receiver off when idle */
+	zassert_ok(zzb_nlme_join_req(child, EXT_PAN_ID, ZZB_NWK_JOIN_REJOIN, 0, 0,
+				     ZZB_NWK_CAP_ALLOC_ADDR, true));
+	zzb_mlme_scan_conf(child, ZZB_MAC_STATUS_NO_BEACON);
+
 	/* A secure rejoin needs the network key */
 	zzb_nwk_init(child);
 	zassert_equal(rejoin(true), -ENOENT);
