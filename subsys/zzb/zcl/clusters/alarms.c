@@ -14,12 +14,11 @@
 /* ClusterRevision (ZCL 3.11.1.1) */
 #define REVISION 1
 
-/* Time stamp of an alarm without a Time server (ZCL Table 3-66) */
-#define NO_TIME 0xffffffff
-
 #define RECORD_VERSION 1
-/* Version, sequence number, endpoint, alarm code and cluster */
-#define RECORD_LEN     9
+/* Version, sequence number, endpoint, alarm code, cluster and time stamp */
+#define RECORD_LEN     13
+/* A record of an earlier build, without the time stamp */
+#define OLD_RECORD_LEN 9
 /* Room for zcl/alarm/<i> with any int i */
 #define NAME_LEN       22
 
@@ -67,6 +66,7 @@ static void save(struct zzb_node *node, const struct zzb_zcl_alarm *a)
 	rec[5] = a->ep;
 	rec[6] = a->code;
 	sys_put_le16(a->cluster, rec + 7);
+	sys_put_le32(a->time, rec + 9);
 	record_name(name, a - node->zcl.alarms);
 	zzb_settings_save(node, name, rec, sizeof(rec));
 }
@@ -156,6 +156,7 @@ void zzb_zcl_alarm_raise(struct zzb_node *node, uint8_t ep, uint16_t cluster, ui
 		.ep = ep,
 		.code = code,
 		.cluster = cluster,
+		.time = zzb_zcl_clock_utc(node),
 	};
 	save(node, entry);
 	count(node, replaced, notify);
@@ -214,7 +215,7 @@ static int get_alarm(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	rsp[0] = ZZB_ZCL_SUCCESS;
 	rsp[1] = a->code;
 	sys_put_le16(a->cluster, rsp + 2);
-	sys_put_le32(NO_TIME, rsp + 4);
+	sys_put_le32(a->time, rsp + 4);
 	remove_entry(node, a);
 	count(node, cmd->ep, true);
 	zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_ALARMS_GET_ALARM_RSP, rsp, sizeof(rsp));
@@ -289,7 +290,8 @@ int zzb_zcl_alarms_load(struct zzb_node *node, int index, size_t len, settings_r
 		return 0;
 	}
 
-	err = zzb_settings_read(len, read_cb, cb_arg, rec, sizeof(rec));
+	err = zzb_settings_read(len, read_cb, cb_arg, rec,
+				len == OLD_RECORD_LEN ? OLD_RECORD_LEN : RECORD_LEN);
 	if (err) {
 		return err;
 	}
@@ -304,6 +306,7 @@ int zzb_zcl_alarms_load(struct zzb_node *node, int index, size_t len, settings_r
 		.ep = rec[5],
 		.code = rec[6],
 		.cluster = sys_get_le16(rec + 7),
+		.time = len == RECORD_LEN ? sys_get_le32(rec + 9) : 0xffffffff,
 	};
 	return 0;
 }

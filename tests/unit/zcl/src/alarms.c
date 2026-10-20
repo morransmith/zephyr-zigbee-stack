@@ -261,6 +261,19 @@ ZTEST(zzb_zcl_alarms, test_table_survives_a_reboot)
 	zassert_equal(alarms20.alarm_count, 0);
 }
 
+/* ZCL Table 3-66: the time stamp is the UTC time of the clock of the node; it is saved */
+ZTEST(zzb_zcl_alarms, test_time_stamp)
+{
+	static const uint8_t rsp[] = {0x00, 0x10, 0x01, 0x00, 0x78, 0x56, 0x34, 0x12};
+	uint8_t rec[16];
+
+	zzb_zcl_clock_set(test_node(), 0x12345678, 3600);
+	alarm(20, 0x10);
+	zassert_equal(settings_load_one("zzb/0/zcl/alarm/0", rec, sizeof(rec)), 13);
+	zassert_ok(reboot());
+	get_alarm_rsp(20, rsp, sizeof(rsp));
+}
+
 ZTEST(zzb_zcl_alarms, test_bad_records)
 {
 	/* Sequence number 5, endpoint 20, alarm code 0x10 of cluster 0x0001 */
@@ -283,6 +296,7 @@ ZTEST(zzb_zcl_alarms, test_bad_records)
 	zassert_ok(reboot());
 	zassert_false(test_node()->zcl.alarms[0].in_use);
 
+	/* A record of 9 octets from an earlier build has no time stamp */
 	rec[5] = 20;
 	zassert_ok(settings_save_one("zzb/0/zcl/alarm/0", rec, sizeof(rec)));
 	zassert_ok(reboot());

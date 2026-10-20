@@ -74,6 +74,8 @@ struct zzb_zcl_alarm {
 	uint8_t ep;
 	uint8_t code;
 	uint16_t cluster;
+	/* UTC time of the clock of the node, 0xffffffff without time (ZCL Table 3-66) */
+	uint32_t time;
 };
 
 struct zzb_zcl {
