@@ -240,6 +240,8 @@ struct changed_calls {
 	int count;
 	uint8_t ep[64];
 	uint16_t attr[64];
+	/* The source endpoint of node->zcl.received at the call of the hook, 0 when NULL */
+	uint8_t src_ep[64];
 };
 
 extern struct changed_calls hook_calls;

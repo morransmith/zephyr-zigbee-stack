@@ -291,6 +291,27 @@ ZTEST(zzb_zcl, test_send_cmd)
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
 }
 
+/* A hook sees the frame being processed; a change by the application has none */
+ZTEST(zzb_zcl, test_received)
+{
+	const struct zzb_apsde_ind ind = {
+		.dst_addr = NODE_ADDR,
+		.dst_ep = 1,
+		.src_addr = REQUESTER_ADDR,
+		.src_ep = 0x0b,
+		.profile = 0x0104,
+		.cluster = TEST_CLUSTER,
+	};
+	uint8_t u8 = 0x35;
+
+	values1.u8 = 0;
+	receive_ind(&ind, (uint8_t[]){0x10, 0x3c, 0x02, 0x01, 0x00, 0x20, 0x34}, 7);
+	zassert_ok(zzb_zcl_attr_set(test_node(), 1, TEST_CLUSTER, 0x0001, &u8));
+	zassert_equal(hook_calls.count, 2);
+	zassert_equal(hook_calls.src_ep[0], 0x0b);
+	zassert_equal(hook_calls.src_ep[1], 0);
+}
+
 /* A command of a server to an IEEE address, as IAS Zone sends to its CIE */
 ZTEST(zzb_zcl, test_send_ext)
 {

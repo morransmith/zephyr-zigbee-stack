@@ -88,6 +88,8 @@ struct zzb_zcl {
 	struct k_work_delayable temp_alarm_timer;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;
+	/* The frame being processed, for the hooks; NULL outside the processing of a frame */
+	const struct zzb_zcl_cmd *received;
 };
 
 /* Global command identifiers (ZCL Table 2-3) */

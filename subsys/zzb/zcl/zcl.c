@@ -321,7 +321,9 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		return;
 	}
 
+	node->zcl.received = &req.cmd;
 	status = process(node, &req);
+	node->zcl.received = NULL;
 
 	/* ZCL 2.5.6.3 */
 	if (hdr->type == ZZB_ZCL_FRAME_GLOBAL && hdr->cmd == ZZB_ZCL_WRITE_NO_RSP) {

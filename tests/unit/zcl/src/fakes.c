@@ -216,6 +216,8 @@ static void test_changed(struct zzb_node *node, uint8_t ep, void *values, uint16
 	zassert_true(hook_calls.count < ARRAY_SIZE(hook_calls.attr));
 	zassert_equal_ptr(values, ep == 1 ? &values1 : &values2);
 	hook_calls.ep[hook_calls.count] = ep;
+	hook_calls.src_ep[hook_calls.count] =
+		node->zcl.received != NULL ? node->zcl.received->src_ep : 0;
 	hook_calls.attr[hook_calls.count++] = attr;
 }
 
