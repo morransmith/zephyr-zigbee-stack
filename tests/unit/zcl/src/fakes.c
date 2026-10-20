@@ -395,6 +395,18 @@ static const struct zzb_zcl_cluster ep41_clusters[] = {
 	ZZB_ZCL_COLOR_SERVER(&color41),
 };
 
+struct zzb_zcl_temperature temperature70;
+struct zzb_zcl_pressure pressure70;
+struct zzb_zcl_flow flow70;
+struct zzb_zcl_humidity humidity70;
+
+static const struct zzb_zcl_cluster ep70_clusters[] = {
+	ZZB_ZCL_TEMPERATURE_SERVER(&temperature70),
+	ZZB_ZCL_PRESSURE_SERVER(&pressure70),
+	ZZB_ZCL_FLOW_SERVER(&flow70),
+	ZZB_ZCL_HUMIDITY_SERVER(&humidity70),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -479,6 +491,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x010c,
 		.clusters = ep41_clusters,
 		.cluster_count = ARRAY_SIZE(ep41_clusters),
+	},
+	{
+		.id = HVAC_EP,
+		.profile = 0x0104,
+		.device_id = 0x0303,
+		.clusters = ep70_clusters,
+		.cluster_count = ARRAY_SIZE(ep70_clusters),
 	},
 };
 

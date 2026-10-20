@@ -17,6 +17,7 @@
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
+#include <zzb/zcl/measurement.h>
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/power_config.h>
@@ -176,6 +177,14 @@ extern struct zzb_zcl_color color40;
 extern struct zzb_zcl_on_off on_off41;
 extern struct zzb_zcl_level level41;
 extern struct zzb_zcl_color color41;
+
+/* Endpoint 70 has the Temperature, Pressure, Flow and Relative Humidity Measurement servers */
+#define HVAC_EP 70
+
+extern struct zzb_zcl_temperature temperature70;
+extern struct zzb_zcl_pressure pressure70;
+extern struct zzb_zcl_flow flow70;
+extern struct zzb_zcl_humidity humidity70;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
