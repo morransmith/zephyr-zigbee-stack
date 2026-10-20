@@ -22,6 +22,7 @@ DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_nlme_get_ext_pan_id, const struct zzb_node 
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_set_channel, struct zzb_node *, uint8_t, uint8_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nwk_addr_map_find, struct zzb_node *, uint64_t, uint16_t *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_set_addr_map, struct zzb_node *, uint64_t, uint16_t);
+DEFINE_FAKE_VOID_FUNC(zzb_nwk_poll_hold, struct zzb_node *, enum zzb_nwk_hold, bool);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_nwk_key_ind, struct zzb_node *);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_leave, struct zzb_node *, bool);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_tc_link_key_ind, struct zzb_node *, uint64_t, const uint8_t *);
@@ -157,6 +158,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nlme_set_channel);
 	RESET_FAKE(zzb_nwk_addr_map_find);
 	RESET_FAKE(zzb_nlme_set_addr_map);
+	RESET_FAKE(zzb_nwk_poll_hold);
 	RESET_FAKE(zzb_bdb_nwk_key_ind);
 	RESET_FAKE(zzb_bdb_leave);
 	RESET_FAKE(zzb_bdb_tc_link_key_ind);

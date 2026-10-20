@@ -30,6 +30,7 @@ static void before(void *fixture)
 
 static void after(void *fixture)
 {
+	child->sleepy = false;
 	check_no_buffer_leak();
 }
 
@@ -83,6 +84,21 @@ ZTEST(zzb_nwk_ed_timeout, test_request_follows_the_network_key)
 	zassert_equal(cmd.id, ZZB_NWK_CMD_ED_TIMEOUT_REQ);
 	zassert_equal(cmd.ed_timeout_req.timeout, CONFIG_ZZB_NWK_ED_TIMEOUT);
 	zassert_equal(cmd.ed_timeout_req.config, 0);
+}
+
+/* The scheduler polls macResponseWaitTime after the request instead of the long interval */
+ZTEST(zzb_nwk_ed_timeout, test_sleepy_node_polls_for_the_response)
+{
+	child->sleepy = true;
+	zzb_nwk_poll_start(child);
+	receive_key();
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
+
+	k_sleep(K_MSEC(400));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	zassert_equal(poll_coord.short_addr, PARENT_SHORT);
 }
 
 /* A key update on the network sends no request */
@@ -207,6 +223,38 @@ ZTEST(zzb_nwk_ed_timeout, test_keepalive_without_response_reports_parent_link_fa
 	/* The keepalive has stopped */
 	k_sleep(K_MSEC(2 * PERIOD_MS));
 	zassert_equal(zzb_mcps_data_req_fake.call_count, 2);
+}
+
+/* A response 1.5 x macResponseWaitTime after the request, fetched by the poll, is accepted */
+ZTEST(zzb_nwk_ed_timeout, test_sleepy_keepalive_takes_a_response_after_the_poll)
+{
+	child->sleepy = true;
+	receive_rsp(0x00, 0x02, parent->eui64);
+	k_sleep(K_MSEC(PERIOD_MS + 50));
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
+
+	k_sleep(K_MSEC(600));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+	k_sleep(K_MSEC(100));
+	receive_rsp(0x00, 0x02, parent->eui64);
+	k_sleep(K_MSEC(400));
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+}
+
+ZTEST(zzb_nwk_ed_timeout, test_sleepy_keepalive_waits_twice_the_response_time)
+{
+	child->sleepy = true;
+	receive_rsp(0x00, 0x02, parent->eui64);
+	k_sleep(K_MSEC(PERIOD_MS + 50));
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
+
+	/* 2 x macResponseWaitTime, 983.04 ms */
+	k_sleep(K_MSEC(800));
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 1);
+	zassert_equal(zzb_nlme_nwk_status_ind_fake.arg1_val, 0x09);
 }
 
 ZTEST(zzb_nwk_ed_timeout, test_failed_keepalive_response_reports_parent_link_failure)

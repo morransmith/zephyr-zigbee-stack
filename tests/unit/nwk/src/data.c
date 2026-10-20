@@ -56,6 +56,7 @@ static void before(void *fixture)
 
 static void after(void *fixture)
 {
+	child->sleepy = false;
 	check_no_buffer_leak();
 }
 
@@ -270,6 +271,35 @@ ZTEST(zzb_nwk_data, test_multicast)
 	hdr.type = ZZB_NWK_FRAME_CMD;
 	receive_cmd(child, parent, &hdr, &status);
 	zassert_equal(zzb_nlme_nwk_status_ind_fake.call_count, 0);
+}
+
+/* R22 Table 3-69 and 3.6.6: 0xfffd and multicast frames go to devices with macRxOnWhenIdle TRUE */
+ZTEST(zzb_nwk_data, test_sleepy_node_drops_frames_to_receivers_on_when_idle)
+{
+	struct zzb_nwk_hdr hdr = {
+		.type = ZZB_NWK_FRAME_DATA,
+		.flags = ZZB_NWK_SECURITY,
+		.dst = 0xfffd,
+		.src = PARENT_SHORT,
+		.radius = 1,
+	};
+
+	child->sleepy = true;
+	receive_frame(child, parent, &hdr, nsdu, sizeof(nsdu));
+	hdr.flags |= ZZB_NWK_MULTICAST;
+	hdr.dst = 0x0001;
+	receive_frame(child, parent, &hdr, nsdu, sizeof(nsdu));
+	zassert_equal(zzb_nlde_data_ind_fake.call_count, 0);
+
+	hdr.flags = ZZB_NWK_SECURITY;
+	hdr.dst = 0xffff;
+	receive_frame(child, parent, &hdr, nsdu, sizeof(nsdu));
+	zassert_equal(zzb_nlde_data_ind_fake.call_count, 1);
+	zassert_equal(zzb_nlde_data_ind_fake.arg2_val, 0xffff);
+	hdr.dst = CHILD_SHORT;
+	receive_frame(child, parent, &hdr, nsdu, sizeof(nsdu));
+	zassert_equal(zzb_nlde_data_ind_fake.call_count, 2);
+	zassert_equal(zzb_nlde_data_ind_fake.arg2_val, CHILD_SHORT);
 }
 
 /* R22 3.6.2.2 step 1 */

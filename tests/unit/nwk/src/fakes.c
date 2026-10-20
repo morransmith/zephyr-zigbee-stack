@@ -39,6 +39,7 @@ struct frame_copy sent[8];
 struct frame_copy data_ind;
 struct zzb_mac_addr assoc_coord;
 struct zzb_mac_addr poll_coord;
+uint8_t receive_flags;
 
 static void copy_frame(struct frame_copy *copy, struct net_buf *buf)
 {
@@ -112,6 +113,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nlme_leave_conf);
 	RESET_FAKE(zzb_nlme_leave_ind);
 	FFF_RESET_HISTORY();
+	receive_flags = 0;
 
 	zzb_mcps_data_req_fake.custom_fake = mcps_data_req_take;
 	zzb_nlde_data_ind_fake.custom_fake = nlde_data_ind_take;
@@ -223,6 +225,7 @@ static void deliver(struct zzb_node *node, struct net_buf *buf, uint16_t src)
 		.short_addr = src,
 	};
 	meta->lqi = 200;
+	meta->flags = receive_flags;
 	zzb_mcps_data_ind(node, buf);
 }
 

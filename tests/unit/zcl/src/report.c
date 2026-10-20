@@ -240,6 +240,8 @@ ZTEST(zzb_zcl_report, test_discrete_change)
 	set(0x0000, true);
 	k_sleep(K_MSEC(10));
 	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x01}, 4);
+	/* A report expects no response, so a sleepy node does not poll fast */
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 0);
 
 	/* The TSN comes from the counter of the node */
 	set(0x0000, false);

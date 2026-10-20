@@ -22,6 +22,7 @@ void zzb_zdo_init(struct zzb_node *node)
 	};
 	zzb_zdo_mgmt_init(node);
 	zzb_zdo_client_init(node);
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_ZDO, false);
 }
 
 int zzb_zdo_send(struct zzb_node *node, uint16_t dst, uint16_t cluster, uint8_t tsn,

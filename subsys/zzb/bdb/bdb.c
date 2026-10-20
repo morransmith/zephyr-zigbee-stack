@@ -2,6 +2,7 @@
 
 #include <zephyr/kernel.h>
 #include <zzb/bdb.h>
+#include <zzb/zzb.h>
 
 #include "bdb/bdb.h"
 #include "common/node.h"
@@ -47,11 +48,40 @@ void zzb_bdb_init(struct zzb_node *node)
 	};
 	k_work_init_delayable(&node->bdb.timer, timer_handler);
 	zzb_bdb_fb_init(node);
+	zzb_bdb_update_hold(node);
 }
 
 void zzb_bdb_schedule(struct zzb_node *node, k_timeout_t delay)
 {
 	k_work_reschedule_for_queue(&zzb_workq, &node->bdb.timer, delay);
+}
+
+static bool waits_for_frames(enum zzb_bdb_state state)
+{
+	switch (state) {
+	case ZZB_BDB_REJOIN_KEY:
+	case ZZB_BDB_STEER_KEY:
+	case ZZB_BDB_TCLK_NODE_DESC:
+	case ZZB_BDB_TCLK_REQUEST_KEY:
+	case ZZB_BDB_TCLK_VERIFY_KEY:
+		return true;
+	default:
+		return false;
+	}
+}
+
+void zzb_bdb_update_hold(struct zzb_node *node)
+{
+	const struct zzb_bdb *bdb = &node->bdb;
+	bool fb = bdb->fb_target_ep != 0 || bdb->fb.ep != 0;
+
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_BDB, waits_for_frames(bdb->state) || fb);
+}
+
+void zzb_bdb_set_state(struct zzb_node *node, enum zzb_bdb_state state)
+{
+	node->bdb.state = state;
+	zzb_bdb_update_hold(node);
 }
 
 void zzb_bdb_notify(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bdb_status status)
@@ -64,9 +94,24 @@ void zzb_bdb_notify(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bd
 /* The callback may start the next procedure, so nothing follows it */
 void zzb_bdb_report(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bdb_status status)
 {
-	node->bdb.state = ZZB_BDB_IDLE;
+	zzb_bdb_set_state(node, ZZB_BDB_IDLE);
 	k_work_cancel_delayable(&node->bdb.timer);
 	zzb_bdb_notify(node, event, status);
+}
+
+uint8_t zzb_bdb_capability(const struct zzb_node *node)
+{
+	uint8_t cap = ZZB_NWK_CAP_ALLOC_ADDR;
+
+	if (!node->sleepy) {
+		cap |= ZZB_NWK_CAP_RX_ON_IDLE;
+	}
+
+	if (node->device != NULL && (node->device->power_source & ZZB_POWER_MAINS)) {
+		cap |= ZZB_NWK_CAP_MAINS;
+	}
+
+	return cap;
 }
 
 void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,

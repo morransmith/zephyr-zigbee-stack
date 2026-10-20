@@ -3,6 +3,7 @@
 #ifndef ZZB_INCLUDE_ZZB_ZZB_H_
 #define ZZB_INCLUDE_ZZB_ZZB_H_
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <zephyr/sys/util_macro.h>
@@ -70,6 +71,11 @@ struct zzb_node_config {
 	 */
 	const uint8_t *install_code;
 	size_t install_code_len;
+	/**
+	 * Sleepy end device: the receiver is off outside MAC procedures, and the node polls its
+	 * parent. The radio driver must support IEEE802154_RX_ON_WHEN_IDLE.
+	 */
+	bool sleepy;
 };
 
 /**
@@ -89,7 +95,8 @@ struct zzb_node_config {
  * @retval -ENOMEM all CONFIG_ZZB_NODE_COUNT nodes are in use.
  * @retval -ENODEV cfg->eui64 is 0 and the hardware provides no EUI-64, or the custom-L2 backend
  *                 finds no interface for cfg->radio.
- * @retval -ENOTSUP the radio driver does not wait for the ACK in tx().
+ * @retval -ENOTSUP the radio driver does not wait for the ACK in tx(), or cfg->sleepy is set and
+ *                  the driver does not report IEEE802154_RX_ON_WHEN_IDLE.
  * @retval -EIO the radio does not start.
  */
 int zzb_node_init(const struct zzb_node_config *cfg, struct zzb_node **node);

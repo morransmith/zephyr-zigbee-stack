@@ -115,4 +115,34 @@ ZTEST(zzb_mac_assoc, test_association_failures_reset_pan_id)
 	}
 }
 
+/* The receiver is also on for macResponseWaitTime between the requests */
+ZTEST(zzb_mac_assoc, test_sleepy_node_receives_during_the_association)
+{
+	static const struct {
+		const uint8_t *reply;
+		enum zzb_mac_status status;
+	} cases[] = {
+		{.reply = assoc_rsp, .status = ZZB_MAC_STATUS_SUCCESS},
+		{.reply = assoc_rsp_full, .status = ZZB_MAC_STATUS_PAN_AT_CAPACITY},
+	};
+
+	ARRAY_FOR_EACH_PTR(cases, c) {
+		mac_before(NULL);
+		mac_init_sleepy();
+		set_reply(c->reply, sizeof(assoc_rsp));
+
+		/* Capability: allocate address, receiver off when idle */
+		zassert_ok(zzb_mlme_assoc_req(node, 15, &coord, 0x80));
+		k_sleep(K_MSEC(600));
+
+		zassert_equal(zzb_mlme_assoc_conf_fake.arg2_val, c->status, "case %d", c - cases);
+		zassert_equal(sent_count, 2);
+		zassert_true(sent[0].radio.rx_on_when_idle);
+		zassert_true(sent[1].radio.rx_on_when_idle);
+		zassert_false(radio.rx_on_when_idle, "case %d", c - cases);
+		zassert_false(radio.started, "case %d", c - cases);
+		mac_after(NULL);
+	}
+}
+
 ZTEST_SUITE(zzb_mac_assoc, NULL, mac_setup, mac_before, mac_after, NULL);

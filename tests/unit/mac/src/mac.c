@@ -18,6 +18,21 @@ ZTEST(zzb_mac, test_init_binds_radio_and_programs_filters)
 	zassert_true(radio.started);
 }
 
+ZTEST(zzb_mac, test_sleepy_init_turns_the_receiver_off)
+{
+	mac_init_sleepy();
+
+	zassert_false(radio.rx_on_when_idle);
+	zassert_false(radio.started);
+}
+
+ZTEST(zzb_mac, test_sleepy_init_needs_rx_on_when_idle)
+{
+	node->sleepy = true;
+
+	zassert_equal(zzb_mac_init(node, radio_dev), -ENOTSUP);
+}
+
 ZTEST(zzb_mac, test_init_without_radio_is_invalid)
 {
 	const struct zzb_node_config cfg = {
@@ -94,6 +109,20 @@ ZTEST(zzb_mac, test_set_channel)
 	zassert_equal(node->mac.channel, 20);
 	zassert_equal(radio.channel, 20);
 	zassert_true(radio.started);
+}
+
+/* esp32 applies the channel only when it starts */
+ZTEST(zzb_mac, test_set_channel_leaves_a_sleepy_radio_stopped)
+{
+	int starts;
+
+	mac_init_sleepy();
+	starts = radio_start_fake.call_count;
+
+	zassert_ok(zzb_mlme_set_channel(node, 20));
+	zassert_equal(radio.channel, 20);
+	zassert_equal(radio_start_fake.call_count, starts + 1);
+	zassert_false(radio.started);
 }
 
 /* The end of the scan would restore the channel set during it */

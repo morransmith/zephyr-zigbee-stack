@@ -428,6 +428,20 @@ ZTEST(zzb_zcl_time, test_client_request)
 	check_bound_request(1, tsn);
 }
 
+/* A sleepy node polls fast for the response to a sent request, not after a request not sent */
+ZTEST(zzb_zcl_time, test_client_poll_fast)
+{
+	start_tsn();
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 1);
+	zassert_equal_ptr(zzb_nwk_poll_fast_fake.arg0_val, time_node);
+
+	zzb_apsde_data_req_fake.custom_fake = NULL;
+	zzb_apsde_data_req_fake.return_val = -ENOTCONN;
+	k_sleep(K_SECONDS(61));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 1);
+}
+
 /* Without a binding the request goes to endpoint 1 of the coordinator, where zigpy-znp has Time */
 ZTEST(zzb_zcl_time, test_client_without_binding)
 {

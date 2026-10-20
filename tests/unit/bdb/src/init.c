@@ -6,6 +6,7 @@
 #include <zzb/bdb.h>
 
 #include "bdb/bdb.h"
+#include "common/node.h"
 #include "fakes.h"
 #include "nwk/nwk.h"
 
@@ -70,6 +71,17 @@ ZTEST(zzb_bdb_init, test_start_rejoins)
 	check_event(ZZB_BDB_EVENT_INIT, ZZB_BDB_SUCCESS);
 }
 
+/* A changed sleepy flag applies at the next rejoin */
+ZTEST(zzb_bdb_init, test_sleepy_node_rejoins_with_the_receiver_off)
+{
+	node->sleepy = true;
+	zassert_ok(zzb_bdb_start(node));
+	run_stack();
+	node->sleepy = false;
+	zassert_equal(zzb_nlme_join_req_fake.call_count, 1);
+	zassert_equal(zzb_nlme_join_req_fake.arg5_val, SLEEPY_CAPABILITY);
+}
+
 /* The MAC refuses a scan while its TX FIFO holds frames */
 ZTEST(zzb_bdb_init, test_busy_rejoin_is_repeated)
 {
@@ -112,17 +124,20 @@ ZTEST(zzb_bdb_init, test_trust_center_rejoin_after_failed_secure_rejoins)
 	check_event(ZZB_BDB_EVENT_INIT, ZZB_BDB_SUCCESS);
 }
 
-/* apsSecurityTimeOutPeriod, then the pause before the next series */
+/* apsSecurityTimeOutPeriod, then the pause before the next series, which holds nothing */
 ZTEST(zzb_bdb_init, test_network_key_does_not_arrive)
 {
 	zassert_ok(zzb_bdb_start(node));
 	fail_two_steps();
+	zassert_false(held());
 	zzb_nlme_join_conf(node, ZZB_NWK_STATUS_SUCCESS);
+	zassert_true(held());
 
 	k_sleep(K_MSEC(1600));
 	zassert_equal(events.count, 0);
 	k_sleep(K_MSEC(200));
 	check_event(ZZB_BDB_EVENT_INIT, ZZB_BDB_NO_NETWORK);
+	zassert_false(held());
 
 	k_sleep(K_MSEC(29800));
 	zassert_equal(zzb_nlme_join_req_fake.call_count, 3);

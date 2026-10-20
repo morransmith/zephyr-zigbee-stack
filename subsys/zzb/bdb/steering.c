@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
-#include <zzb/zzb.h>
 
 #include "aps/aps.h"
 #include "bdb/bdb.h"
@@ -9,23 +8,11 @@
 #include "nwk/nwk.h"
 #include "zdo/zdo.h"
 
-/* The receiver stays on until milestone 18 */
-static uint8_t capability(const struct zzb_node *node)
-{
-	uint8_t cap = ZZB_NWK_CAP_ALLOC_ADDR | ZZB_NWK_CAP_RX_ON_IDLE;
-
-	if (node->device != NULL && (node->device->power_source & ZZB_POWER_MAINS)) {
-		cap |= ZZB_NWK_CAP_MAINS;
-	}
-
-	return cap;
-}
-
 static void discover(struct zzb_node *node);
 
 static void scan(struct zzb_node *node, bool secondary)
 {
-	node->bdb.state = ZZB_BDB_STEER_DISCOVERY;
+	zzb_bdb_set_state(node, ZZB_BDB_STEER_DISCOVERY);
 	node->bdb.secondary = secondary;
 	discover(node);
 }
@@ -83,7 +70,7 @@ static void join_next(struct zzb_node *node)
 {
 	struct zzb_bdb *bdb = &node->bdb;
 
-	bdb->state = ZZB_BDB_STEER_JOIN;
+	zzb_bdb_set_state(node, ZZB_BDB_STEER_JOIN);
 	while (bdb->next_network < bdb->network_count) {
 		const struct zzb_nwk_network *network = &bdb->networks[bdb->next_network];
 		int err;
@@ -94,7 +81,7 @@ static void join_next(struct zzb_node *node)
 		}
 
 		err = zzb_nlme_join_req(node, network->ext_pan_id, ZZB_NWK_JOIN_ASSOC, 0, 0,
-					capability(node), false);
+					zzb_bdb_capability(node), false);
 		if (err == -EBUSY) {
 			zzb_bdb_schedule(node, K_MSEC(ZZB_BDB_RETRY_MS));
 			return;
@@ -196,7 +183,7 @@ void zzb_bdb_steering_join_conf(struct zzb_node *node, uint8_t status)
 		return;
 	}
 
-	node->bdb.state = ZZB_BDB_STEER_KEY;
+	zzb_bdb_set_state(node, ZZB_BDB_STEER_KEY);
 	zzb_bdb_schedule(node, K_MSEC(ZZB_BDB_KEY_WAIT_MS));
 }
 

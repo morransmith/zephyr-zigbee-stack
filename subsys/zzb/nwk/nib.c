@@ -222,6 +222,7 @@ int zzb_nwk_net_load(struct zzb_node *node, size_t len, settings_read_cb read_cb
 	zzb_mlme_set_short_addr(node, nib->short_addr);
 	zzb_mlme_set_channel(node, nib->channel);
 	zzb_nwk_keepalive_resume(node);
+	zzb_nwk_poll_start(node);
 	return 0;
 }
 

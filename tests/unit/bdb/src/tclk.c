@@ -73,8 +73,10 @@ ZTEST(zzb_bdb_tclk, test_trust_center_link_key_exchange)
 {
 	zassert_equal(zzb_zdo_node_desc_req_fake.call_count, 1);
 	zassert_equal(zzb_zdo_node_desc_req_fake.arg1_val, 0x0000);
+	zassert_true(held());
 	receive_node_desc(SERVER_MASK_R22);
 
+	zassert_true(held());
 	zassert_equal(zzb_apsme_request_key_req_fake.call_count, 1);
 	zassert_equal(zzb_apsme_request_key_req_fake.arg1_val, TC_EUI64);
 	zzb_bdb_tc_link_key_ind(node, TC_EUI64, key_b);
@@ -88,9 +90,11 @@ ZTEST(zzb_bdb_tclk, test_trust_center_link_key_exchange)
 	zassert_equal(zzb_apsme_verify_key_req_fake.arg1_val, TC_EUI64);
 	zassert_equal(zzb_apsme_verify_key_req_fake.arg2_val, ZZB_APS_KEY_TC_LINK);
 	zassert_equal(events.count, 0);
+	zassert_true(held());
 	zzb_apsme_confirm_key_ind(node, ZZB_APS_STATUS_SUCCESS, TC_EUI64, ZZB_APS_KEY_TC_LINK);
 	zassert_equal(zzb_zdo_mgmt_permit_joining_req_fake.call_count, 1);
 	check_steering(ZZB_BDB_SUCCESS);
+	zassert_false(held());
 
 	/* A repeated Confirm Key belongs to no procedure */
 	zzb_apsme_confirm_key_ind(node, ZZB_APS_STATUS_SUCCESS, TC_EUI64, ZZB_APS_KEY_TC_LINK);

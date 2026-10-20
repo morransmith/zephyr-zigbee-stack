@@ -97,6 +97,21 @@ ZTEST(zzb_mac_tx, test_frames_are_sent_in_order)
 	}
 }
 
+/* The driver transmits from sleep */
+ZTEST(zzb_mac_tx, test_sleepy_node_sends_with_the_receiver_off)
+{
+	mac_init_sleepy();
+
+	send(1);
+	run_stack();
+
+	zassert_equal(sent_count, 1);
+	zassert_false(sent[0].radio.started);
+	zassert_false(sent[0].radio.rx_on_when_idle);
+	zassert_false(radio.started);
+	zassert_equal(zzb_mcps_data_conf_fake.arg2_val, ZZB_MAC_STATUS_SUCCESS);
+}
+
 ZTEST(zzb_mac_tx, test_oversized_frame_is_rejected)
 {
 	static const uint8_t long_msdu[103];

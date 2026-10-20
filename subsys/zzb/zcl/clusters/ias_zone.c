@@ -9,6 +9,7 @@
 #include "aps/aps.h"
 #include "common/node.h"
 #include "common/queue.h"
+#include "nwk/nwk.h"
 #include "storage/settings.h"
 #include "zcl/zcl.h"
 
@@ -92,14 +93,20 @@ static int send_to_cie(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_i
 				ZZB_ZCL_IAS_ZONE, id, payload, len);
 }
 
-/* ZCL 8.2.2.3.2 */
+/* ZCL 8.2.2.3.2; a sleepy zone polls fast for Zone Enroll Response */
 static int enroll_request(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_ias_zone *v)
 {
 	uint8_t payload[4];
+	int err;
 
 	sys_put_le16(v->zone_type, payload);
 	sys_put_le16(node->device->manufacturer_code, payload + 2);
-	return send_to_cie(node, ep, v, ZZB_ZCL_IAS_ZONE_ENROLL_REQ, payload, sizeof(payload));
+	err = send_to_cie(node, ep, v, ZZB_ZCL_IAS_ZONE_ENROLL_REQ, payload, sizeof(payload));
+	if (err == 0) {
+		zzb_nwk_poll_fast(node);
+	}
+
+	return err;
 }
 
 /*

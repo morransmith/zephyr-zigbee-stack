@@ -51,7 +51,7 @@ static void start_leave(struct zzb_node *node, bool rejoin, enum zzb_bdb_event e
 	struct zzb_bdb *bdb = &node->bdb;
 
 	k_work_cancel_delayable(&bdb->timer);
-	bdb->state = ZZB_BDB_LEAVE;
+	zzb_bdb_set_state(node, ZZB_BDB_LEAVE);
 	bdb->event = event;
 	bdb->leave_rejoin = rejoin;
 	bdb->leave_status = status;

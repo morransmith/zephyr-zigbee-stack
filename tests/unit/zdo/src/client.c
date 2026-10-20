@@ -241,4 +241,38 @@ ZTEST(zzb_zdo_client, test_ieee_addr_req)
 	zassert_equal(zzb_nlme_set_addr_map_fake.call_count, 1);
 }
 
+/* Whether the last call of the zzb_nwk_poll_hold() fake set the hold of ZDO */
+static bool held(void)
+{
+	return zzb_nwk_poll_hold_fake.arg1_val == ZZB_NWK_HOLD_ZDO &&
+	       zzb_nwk_poll_hold_fake.arg2_val;
+}
+
+/* A sleepy node fetches the response from its parent at the short poll interval (section 5) */
+ZTEST(zzb_zdo_client, test_transactions_hold_the_poll_rate)
+{
+	uint8_t tsn = node->zdo.tsn;
+
+	zassert_ok(zzb_zdo_node_desc_req(node, TC_ADDR));
+	zassert_true(held());
+	receive_node_desc_rsp(tsn, TC_ADDR, 0x00, 17);
+	zassert_false(held());
+
+	/* The hold lasts until the last transaction ends */
+	zassert_ok(zzb_zdo_ieee_addr_req(node, 0x2222));
+	k_sleep(K_MSEC(1000));
+	zassert_ok(zzb_zdo_node_desc_req(node, TC_ADDR));
+	k_sleep(K_MSEC(4100));
+	zassert_equal(zzb_zdo_ieee_addr_conf_fake.arg1_val, 0x85);
+	zassert_true(held());
+	k_sleep(K_MSEC(1000));
+	zassert_equal(zzb_zdo_node_desc_conf_fake.arg1_val, 0x85);
+	zassert_false(held());
+
+	/* The init of ZDO clears the table without a confirm */
+	zassert_ok(zzb_zdo_node_desc_req(node, TC_ADDR));
+	zzb_zdo_init(node);
+	zassert_false(held());
+}
+
 ZTEST_SUITE(zzb_zdo_client, NULL, setup, before, after, NULL);

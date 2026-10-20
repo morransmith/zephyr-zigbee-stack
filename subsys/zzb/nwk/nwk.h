@@ -169,6 +169,8 @@ struct zzb_nwk {
 	bool join_secure;
 	/* Waits for the rejoin response */
 	struct k_work_delayable timer;
+	/* A sleepy node has polled the candidate for the rejoin response */
+	bool rejoin_polled;
 	/* PAN ID, network address and channel before a rejoin, restored when it fails */
 	uint16_t prev_pan_id;
 	uint16_t prev_short_addr;
@@ -185,6 +187,14 @@ struct zzb_nwk {
 	bool ed_timeout_wait;
 	/* Consecutive transmissions to the parent without an ACK */
 	uint8_t parent_failures;
+	/* Polls the parent of a sleepy node */
+	struct k_work_delayable poll_timer;
+	uint32_t long_poll_ms;
+	uint32_t short_poll_ms;
+	/* k_uptime_get() of the last poll and of the end of zzb_nwk_poll_fast() */
+	int64_t poll_last;
+	int64_t fast_poll_end;
+	uint8_t poll_holds;
 };
 
 /* Clears the NWK state. The NIB has no PAN ID, no network address and a random sequence number. */
@@ -224,6 +234,23 @@ uint8_t zzb_nlme_get_capability(const struct zzb_node *node);
 
 /* Whether the network key is pending: joined and unauthorized (R22 4.4.1.2 step 2) */
 bool zzb_nwk_key_pending(const struct zzb_node *node);
+
+/* The layers that hold the fast poll rate of a sleepy node */
+enum zzb_nwk_hold {
+	ZZB_NWK_HOLD_APS = BIT(0),
+	ZZB_NWK_HOLD_ZDO = BIT(1),
+	ZZB_NWK_HOLD_BDB = BIT(2),
+	ZZB_NWK_HOLD_ZCL = BIT(3),
+};
+
+/* Sets or clears the hold of a layer; the node polls at the short interval while one is set */
+void zzb_nwk_poll_hold(struct zzb_node *node, enum zzb_nwk_hold hold, bool on);
+
+/* The node polls at the short interval for CONFIG_ZZB_NWK_FAST_POLL_MS from now */
+void zzb_nwk_poll_fast(struct zzb_node *node);
+
+/* Poll intervals of a sleepy node, set by Poll Control */
+void zzb_nwk_set_poll_intervals(struct zzb_node *node, uint32_t long_ms, uint32_t short_ms);
 
 /*
  * Saves the records nwk/net and nwk/keys while the node is on a network and its key is not
@@ -308,10 +335,10 @@ void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,
 /*
  * NLME-JOIN.request. An association uses the neighbor entries of the last discovery and ignores
  * channels and duration. A rejoin scans channels, or the channel of the network when channels is
- * 0. Returns -EINVAL for extended PAN ID 0, -ENOTSUP for another method, the router device type or
- * a receiver off when idle, -EBUSY while an NLME procedure runs, -EALREADY for an association on
- * a network, -ENETUNREACH for an association without a suitable parent, -ENOENT for a secure
- * rejoin without a network key, or an error of MLME-ASSOCIATE.request or MLME-SCAN.request.
+ * 0. Returns -EINVAL for extended PAN ID 0, -ENOTSUP for another method or the router device type,
+ * -EBUSY while an NLME procedure runs, -EALREADY for an association on a network, -ENETUNREACH for
+ * an association without a suitable parent, -ENOENT for a secure rejoin without a network key, or
+ * an error of MLME-ASSOCIATE.request or MLME-SCAN.request.
  */
 int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_join_method method,
 		      uint32_t channels, uint8_t duration, uint8_t capability, bool secure);
@@ -410,6 +437,17 @@ void zzb_nwk_leave_conf(struct zzb_node *node, enum zzb_mac_status status);
 /* Handles a received leave command from the MAC source mac_src */
 void zzb_nwk_leave_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 		      const struct zzb_nwk_cmd *cmd, uint16_t mac_src);
+
+/* MLME-POLL.request to addr with the PAN ID of the NIB */
+int zzb_nwk_poll(struct zzb_node *node, uint16_t addr);
+
+void zzb_nwk_poll_init(struct zzb_node *node);
+
+/* Starts the polls of a sleepy node with a parent, the first after one interval */
+void zzb_nwk_poll_start(struct zzb_node *node);
+
+/* Polls the parent of a sleepy node after delay, unless the next poll is due earlier */
+void zzb_nwk_poll_after(struct zzb_node *node, k_timeout_t delay);
 
 void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 

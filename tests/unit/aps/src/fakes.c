@@ -22,6 +22,8 @@ DEFINE_FAKE_VALUE_FUNC(struct zzb_nwk_neighbor *, zzb_nwk_neighbor_find_ext, str
 		       uint64_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nwk_addr_map_find, struct zzb_node *, uint64_t, uint16_t *);
 DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_nwk_addr_map_ext, struct zzb_node *, uint16_t);
+DEFINE_FAKE_VOID_FUNC(zzb_nwk_poll_hold, struct zzb_node *, enum zzb_nwk_hold, bool);
+DEFINE_FAKE_VOID_FUNC(zzb_nwk_poll_fast, struct zzb_node *);
 DEFINE_FAKE_VOID_FUNC(zzb_apsde_data_conf, struct zzb_node *, uint8_t, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_apsde_data_ind, struct zzb_node *, struct net_buf *,
 		      const struct zzb_apsde_ind *);
@@ -111,6 +113,8 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nwk_neighbor_find_ext);
 	RESET_FAKE(zzb_nwk_addr_map_find);
 	RESET_FAKE(zzb_nwk_addr_map_ext);
+	RESET_FAKE(zzb_nwk_poll_hold);
+	RESET_FAKE(zzb_nwk_poll_fast);
 	RESET_FAKE(zzb_apsde_data_conf);
 	RESET_FAKE(zzb_apsde_data_ind);
 	RESET_FAKE(zzb_apsme_transport_key_ind);

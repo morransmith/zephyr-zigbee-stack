@@ -51,13 +51,17 @@ ZTEST(zzb_bdb_fb, test_target)
 	/* Steering and the other procedures stay available */
 	zassert_ok(zzb_bdb_steering(node));
 	events.count = 0;
+	zassert_true(held());
 
 	zzb_bdb_identify_end(node, OTHER_EP);
 	zassert_equal(events.count, 0);
 	zzb_bdb_identify_end(node, IDENTIFY_EP);
 	check_event(ZZB_BDB_EVENT_FINDING_BINDING_TARGET, ZZB_BDB_SUCCESS);
+	zassert_false(held());
 
 	zassert_ok(zzb_bdb_finding_binding_target(node, IDENTIFY_EP));
+	reboot(true);
+	zassert_false(held());
 }
 
 ZTEST(zzb_bdb_fb, test_target_without_an_identify_server)
@@ -158,6 +162,7 @@ ZTEST(zzb_bdb_fb, test_initiator_without_respondents)
 ZTEST(zzb_bdb_fb, test_initiator)
 {
 	query(0xffff);
+	zassert_true(held());
 	zzb_bdb_identify_query_rsp(node, OTHER_EP, RESPONDENT, 1);
 	zzb_bdb_identify_query_rsp(node, OTHER_EP, RESPONDENT, 1);
 	zzb_bdb_identify_query_rsp(node, OTHER_EP, RESPONDENT, 2);
@@ -186,6 +191,7 @@ ZTEST(zzb_bdb_fb, test_initiator)
 	check_binding(2, 0x0006, 2);
 	check_event(ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR, ZZB_BDB_SUCCESS);
 	zassert_equal(zzb_zcl_send_cmd_fake.call_count, 1);
+	zassert_false(held());
 }
 
 /* BDB 8.5 step 6, and respondents whose IEEE address or profile does not fit */

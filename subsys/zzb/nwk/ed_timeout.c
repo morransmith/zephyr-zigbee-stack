@@ -38,17 +38,6 @@ static int send_request(struct zzb_node *node, const struct zzb_nwk_neighbor *pa
 	return zzb_nwk_send_cmd(node, &hdr, &cmd, parent->short_addr, true);
 }
 
-static int poll(struct zzb_node *node, const struct zzb_nwk_neighbor *parent)
-{
-	const struct zzb_mac_addr coord = {
-		.mode = ZZB_MAC_ADDR_SHORT,
-		.pan_id = node->nwk.nib.pan_id,
-		.short_addr = parent->short_addr,
-	};
-
-	return zzb_mlme_poll_req(node, &coord);
-}
-
 static void fail(struct zzb_node *node)
 {
 	zzb_nwk_keepalive_stop(node);
@@ -77,7 +66,7 @@ static void keepalive_handler(struct k_work *work)
 	}
 
 	if (!nwk->ed_timeout_due && (nwk->nib.parent_info & ZZB_NWK_PARENT_POLL_KEEPALIVE)) {
-		arm(node, poll(node, parent) ? RETRY_DELAY : PERIOD);
+		arm(node, zzb_nwk_poll(node, parent->short_addr) ? RETRY_DELAY : PERIOD);
 		return;
 	}
 
@@ -86,10 +75,13 @@ static void keepalive_handler(struct k_work *work)
 		return;
 	}
 
+	/* A sleepy node fetches the response with this poll */
+	zzb_nwk_poll_after(node, K_USEC(ZZB_MAC_RESPONSE_WAIT_US));
+
 	/* Only a keepalive waits for the response (R22 3.6.10.3) */
 	if (!nwk->ed_timeout_due) {
 		nwk->ed_timeout_wait = true;
-		arm(node, K_USEC(ZZB_MAC_RESPONSE_WAIT_US));
+		arm(node, K_USEC((node->sleepy ? 2 : 1) * ZZB_MAC_RESPONSE_WAIT_US));
 	}
 
 	nwk->ed_timeout_due = false;

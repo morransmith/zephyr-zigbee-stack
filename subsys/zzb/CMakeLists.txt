@@ -27,6 +27,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
   nwk/neighbor.c
   nwk/nib.c
   nwk/nwk.c
+  nwk/poll.c
   nwk/rejoin.c
   nwk/security.c
   nwk/status.c
@@ -91,6 +92,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/occupancy.c
   zcl/clusters/on_off.c
   zcl/clusters/on_off_switch_config.c
+  zcl/clusters/poll_control.c
   zcl/clusters/power_config.c
   zcl/clusters/power_profile.c
   zcl/clusters/pump.c

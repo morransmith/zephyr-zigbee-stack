@@ -256,6 +256,13 @@ int zzb_apsme_bind_req(struct zzb_node *node, const struct zzb_aps_binding *bind
 int zzb_apsme_unbind_req(struct zzb_node *node, const struct zzb_aps_binding *binding);
 
 /*
+ * Whether a binding of ep and cluster has an IEEE destination that resolves to addr as with
+ * zzb_aps_resolve_ext() and the destination endpoint src_ep. Group bindings do not count.
+ */
+bool zzb_aps_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t addr,
+		   uint8_t src_ep);
+
+/*
  * APSME-ADD-GROUP.request (R22 2.2.4.5.1). Returns 0 also when the membership exists, or -ENOMEM
  * when the table is full.
  */

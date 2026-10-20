@@ -63,6 +63,7 @@ static void before(void *fixture)
 
 static void after(void *fixture)
 {
+	child->sleepy = false;
 	check_no_buffer_leak();
 }
 
@@ -226,6 +227,73 @@ ZTEST(zzb_nwk_rejoin, test_rejoin_tries_the_next_candidate)
 	zassert_equal(zzb_mlme_set_pan_id_fake.arg1_val, PAN_ID);
 	zassert_equal(zzb_mlme_set_channel_fake.arg1_val, CHANNEL);
 	zassert_equal(zzb_nwk_neighbor_parent(child)->ext_addr, parent->eui64);
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 0);
+}
+
+/* R22 3.6.1.4.2: the candidate sends the response indirectly to a sleepy node */
+ZTEST(zzb_nwk_rejoin, test_sleepy_node_polls_for_the_response)
+{
+	child->sleepy = true;
+	zassert_ok(rejoin(true));
+	notify_beacon(child, &parent_beacon, PAN_ID, PARENT_SHORT, CHANNEL, SF_COORD, 150);
+	end_scan();
+	check_request(0, PARENT_SHORT, parent->eui64, CHILD_SHORT);
+
+	k_sleep(K_MSEC(400));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	zassert_equal(poll_coord.mode, ZZB_MAC_ADDR_SHORT);
+	zassert_equal(poll_coord.pan_id, PAN_ID);
+	zassert_equal(poll_coord.short_addr, PARENT_SHORT);
+	zassert_equal(zzb_nlme_join_conf_fake.call_count, 0);
+
+	respond(CHILD_SHORT, 0x00, child->eui64);
+	check_conf(ZZB_NWK_STATUS_SUCCESS);
+}
+
+/* Each candidate is polled once, one macResponseWaitTime after its request */
+ZTEST(zzb_nwk_rejoin, test_sleepy_node_polls_each_candidate)
+{
+	child->sleepy = true;
+	zassert_ok(rejoin(true));
+	notify_beacon(child, &parent_beacon, PAN_ID, PARENT_SHORT, CHANNEL, SF_COORD, 150);
+	notify_beacon(child, &router_beacon, PAN_ID + 1, NEW_SHORT, 20, SF_ROUTER, 100);
+	end_scan();
+	check_request(0, PARENT_SHORT, parent->eui64, CHILD_SHORT);
+
+	k_sleep(K_MSEC(600));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	k_sleep(K_MSEC(300));
+	zassert_equal(zzb_mcps_data_req_fake.call_count, 1);
+	k_sleep(K_MSEC(200));
+	check_request(1, NEW_SHORT, 0, CHILD_SHORT);
+
+	k_sleep(K_MSEC(400));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 2);
+	zassert_equal(poll_coord.pan_id, PAN_ID + 1);
+	zassert_equal(poll_coord.short_addr, NEW_SHORT);
+
+	k_sleep(K_MSEC(300));
+	zassert_equal(zzb_nlme_join_conf_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	check_conf(ZZB_NWK_STATUS_NOT_PERMITTED);
+}
+
+ZTEST(zzb_nwk_rejoin, test_sleepy_node_without_a_poll_fails_the_candidate)
+{
+	child->sleepy = true;
+	zzb_mlme_poll_req_fake.return_val = -EBUSY;
+	zassert_ok(rejoin(true));
+	notify_beacon(child, &parent_beacon, PAN_ID, PARENT_SHORT, CHANNEL, SF_COORD, 150);
+	end_scan();
+	check_request(0, PARENT_SHORT, parent->eui64, CHILD_SHORT);
+
+	k_sleep(K_MSEC(600));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	check_conf(ZZB_NWK_STATUS_NOT_PERMITTED);
 }
 
 ZTEST(zzb_nwk_rejoin, test_failed_transmission_tries_the_next_candidate)
@@ -393,6 +461,11 @@ ZTEST(zzb_nwk_rejoin, test_rejoin_request_rejected)
 		      -ENOTSUP);
 	zassert_ok(rejoin(true));
 	zassert_equal(rejoin(true), -EBUSY);
+	zzb_mlme_scan_conf(child, ZZB_MAC_STATUS_NO_BEACON);
+
+	/* A sleepy end device rejoins with the receiver off when idle */
+	zassert_ok(zzb_nlme_join_req(child, EXT_PAN_ID, ZZB_NWK_JOIN_REJOIN, 0, 0,
+				     ZZB_NWK_CAP_ALLOC_ADDR, true));
 	zzb_mlme_scan_conf(child, ZZB_MAC_STATUS_NO_BEACON);
 
 	/* A secure rejoin needs the network key */

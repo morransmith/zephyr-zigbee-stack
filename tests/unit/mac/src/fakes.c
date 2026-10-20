@@ -17,12 +17,15 @@
 DEFINE_FFF_GLOBALS;
 
 FAKE_VALUE_FUNC(enum ieee802154_hw_caps, radio_get_caps, const struct device *);
-FAKE_VALUE_FUNC(int, radio_start, const struct device *);
+DEFINE_FAKE_VALUE_FUNC(int, radio_start, const struct device *);
+FAKE_VALUE_FUNC(int, radio_stop, const struct device *);
 FAKE_VALUE_FUNC(int, radio_set_channel, const struct device *, uint16_t);
 FAKE_VALUE_FUNC(int, radio_filter, const struct device *, bool, enum ieee802154_filter_type,
 		const struct ieee802154_filter *);
 FAKE_VALUE_FUNC(int, radio_tx, const struct device *, enum ieee802154_tx_mode, struct net_pkt *,
 		struct net_buf *);
+FAKE_VALUE_FUNC(int, radio_configure, const struct device *, enum ieee802154_config_type,
+		const struct ieee802154_config *);
 DEFINE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
 DEFINE_FAKE_VOID_FUNC(zzb_mcps_data_ind, struct zzb_node *, struct net_buf *);
 DEFINE_FAKE_VOID_FUNC(zzb_mlme_scan_conf, struct zzb_node *, enum zzb_mac_status);
@@ -34,9 +37,11 @@ DEFINE_FAKE_VOID_FUNC(zzb_mlme_beacon_notify_ind, struct zzb_node *, struct net_
 static const struct ieee802154_radio_api radio_api = {
 	.get_capabilities = radio_get_caps,
 	.start = radio_start,
+	.stop = radio_stop,
 	.set_channel = radio_set_channel,
 	.filter = radio_filter,
 	.tx = radio_tx,
+	.configure = radio_configure,
 };
 
 DEVICE_DEFINE(test_radio, "test_radio", NULL, NULL, NULL, NULL, POST_KERNEL,
@@ -73,6 +78,23 @@ static void beacon_notify_ind_fake(struct zzb_node *n, struct net_buf *buf, uint
 static int start_fake(const struct device *dev)
 {
 	radio.started = true;
+	return 0;
+}
+
+static int stop_fake(const struct device *dev)
+{
+	radio.started = false;
+	return 0;
+}
+
+static int configure_fake(const struct device *dev, enum ieee802154_config_type type,
+			  const struct ieee802154_config *config)
+{
+	if (type != IEEE802154_CONFIG_RX_ON_WHEN_IDLE) {
+		return -ENOTSUP;
+	}
+
+	radio.rx_on_when_idle = config->rx_on_when_idle;
 	return 0;
 }
 
@@ -159,9 +181,11 @@ static void reset_fakes(void)
 {
 	RESET_FAKE(radio_get_caps);
 	RESET_FAKE(radio_start);
+	RESET_FAKE(radio_stop);
 	RESET_FAKE(radio_set_channel);
 	RESET_FAKE(radio_filter);
 	RESET_FAKE(radio_tx);
+	RESET_FAKE(radio_configure);
 	RESET_FAKE(zzb_mcps_data_conf);
 	RESET_FAKE(zzb_mcps_data_ind);
 	RESET_FAKE(zzb_mlme_scan_conf);
@@ -171,12 +195,15 @@ static void reset_fakes(void)
 	FFF_RESET_HISTORY();
 	radio_get_caps_fake.return_val = IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_CSMA;
 	radio_start_fake.custom_fake = start_fake;
+	radio_stop_fake.custom_fake = stop_fake;
 	radio_set_channel_fake.custom_fake = set_channel_fake;
 	radio_filter_fake.custom_fake = filter_fake;
 	radio_tx_fake.custom_fake = tx_fake;
+	radio_configure_fake.custom_fake = configure_fake;
 	zzb_mcps_data_ind_fake.custom_fake = data_ind_fake;
 	zzb_mlme_beacon_notify_ind_fake.custom_fake = beacon_notify_ind_fake;
-	radio = (struct radio_state){0};
+	/* nrf5 and esp32 start with RxOnWhenIdle TRUE */
+	radio = (struct radio_state){.rx_on_when_idle = true};
 	sent_count = 0;
 	parent = (struct parent){0};
 }
@@ -200,6 +227,14 @@ void *mac_setup(void)
 void mac_before(void *fixture)
 {
 	reset_fakes();
+	node->sleepy = false;
+	zassert_ok(zzb_mac_init(node, radio_dev));
+}
+
+void mac_init_sleepy(void)
+{
+	node->sleepy = true;
+	radio_get_caps_fake.return_val |= IEEE802154_RX_ON_WHEN_IDLE;
 	zassert_ok(zzb_mac_init(node, radio_dev));
 }
 
@@ -210,6 +245,10 @@ void mac_after(void *fixture)
 	zassert_equal(node->mac.op, ZZB_MAC_OP_NONE);
 	zassert_false(k_work_delayable_is_pending(&node->mac.timer));
 	zassert_true(k_fifo_is_empty(&node->mac.tx_fifo));
+	if (!node->sleepy) {
+		zassert_equal(radio_configure_fake.call_count, 0);
+		zassert_equal(radio_stop_fake.call_count, 0);
+	}
 
 	ARRAY_FOR_EACH(bufs, i) {
 		bufs[i] = zzb_buf_alloc(K_NO_WAIT);

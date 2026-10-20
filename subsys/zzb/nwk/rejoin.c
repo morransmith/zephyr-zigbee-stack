@@ -65,6 +65,7 @@ static int send_request(struct zzb_node *node, struct zzb_nwk_neighbor *nb)
 	int err;
 
 	nwk->candidate = nb;
+	nwk->rejoin_polled = false;
 	zzb_nlme_set_pan_id(node, nb->pan_id);
 	err = zzb_mlme_set_channel(node, nb->channel);
 	if (err) {
@@ -105,10 +106,22 @@ static void timer_handler(struct k_work *work)
 {
 	struct zzb_node *node =
 		CONTAINER_OF(k_work_delayable_from_work(work), struct zzb_node, nwk.timer);
+	struct zzb_nwk *nwk = &node->nwk;
 
-	if (node->nwk.op == ZZB_NWK_OP_REJOIN && node->nwk.candidate != NULL) {
-		fail_candidate(node);
+	if (nwk->op != ZZB_NWK_OP_REJOIN || nwk->candidate == NULL) {
+		return;
 	}
+
+	/* The candidate sends the response indirectly to a sleepy node (R22 3.6.1.4.2) */
+	if (node->sleepy && !nwk->rejoin_polled &&
+	    zzb_nwk_poll(node, nwk->candidate->short_addr) == 0) {
+		nwk->rejoin_polled = true;
+		k_work_reschedule_for_queue(&zzb_workq, &nwk->timer,
+					    K_USEC(ZZB_MAC_RESPONSE_WAIT_US));
+		return;
+	}
+
+	fail_candidate(node);
 }
 
 void zzb_nwk_rejoin_init(struct zzb_node *node)

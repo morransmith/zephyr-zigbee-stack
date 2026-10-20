@@ -63,7 +63,11 @@ struct zzb_mac {
 	struct zzb_mac_addr coord;
 };
 
-/* Binds the node to radio, programs the address filters and starts the radio */
+/*
+ * Binds the node to radio, programs the address filters and starts the radio, which a sleepy node
+ * stops again. Returns -ENOTSUP for a sleepy node whose radio does not report
+ * IEEE802154_RX_ON_WHEN_IDLE.
+ */
 int zzb_mac_init(struct zzb_node *node, const struct device *radio);
 
 /*
@@ -136,12 +140,13 @@ void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_ma
 #define ZZB_MAC_MAX_FRAME_TOTAL_WAIT_US 157536
 
 /*
- * Allocates the command buffer for op, or returns -EBUSY while another procedure runs, or for a
- * scan or an association while the TX FIFO holds frames
+ * Allocates the command buffer for op and sets RxOnWhenIdle TRUE on a sleepy node, or returns
+ * -EBUSY while another procedure runs, or for a scan or an association while the TX FIFO holds
+ * frames
  */
 int zzb_mac_start_op(struct zzb_node *node, enum zzb_mac_op op);
 
-/* Releases the command buffer and ends the procedure */
+/* Releases the command buffer and ends the procedure; a sleepy node stops the radio */
 void zzb_mac_end_op(struct zzb_node *node);
 
 /* Sends cmd from the command buffer; its confirm reaches zzb_mac_cmd_done() */
@@ -152,7 +157,10 @@ void zzb_mac_cmd_done(struct zzb_node *node, enum zzb_mac_status status, bool fr
 void zzb_mac_set_radio_pan_id(struct zzb_node *node, uint16_t pan_id);
 void zzb_mac_set_radio_short_addr(struct zzb_node *node, uint16_t short_addr);
 
-/* Sets the channel and restarts RX, since esp32 applies a new channel only then */
+/*
+ * Sets the channel and restarts RX, since esp32 applies a new channel only then. Outside an MLME
+ * procedure a sleepy node then sets RxOnWhenIdle FALSE and stops the radio.
+ */
 int zzb_mac_set_radio_channel(struct zzb_node *node, uint8_t channel);
 
 /* Short address once one is assigned, otherwise the extended address (802.15.4 5.1.6.1) */

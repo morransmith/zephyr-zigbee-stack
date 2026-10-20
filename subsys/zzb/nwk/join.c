@@ -222,9 +222,9 @@ int zzb_nlme_join_req(struct zzb_node *node, uint64_t ext_pan_id, enum zzb_nwk_j
 		return -EINVAL;
 	}
 
-	/* Routers come with milestone 19, and polling for the Transport Key with milestone 18 */
+	/* Routers come with milestone 19 */
 	if ((method != ZZB_NWK_JOIN_ASSOC && method != ZZB_NWK_JOIN_REJOIN) ||
-	    (capability & ZZB_NWK_CAP_ROUTER) || !(capability & ZZB_NWK_CAP_RX_ON_IDLE)) {
+	    (capability & ZZB_NWK_CAP_ROUTER)) {
 		return -ENOTSUP;
 	}
 
@@ -278,6 +278,7 @@ void zzb_nwk_become_child(struct zzb_node *node, struct zzb_nwk_neighbor *parent
 	nib->pan_id = parent->pan_id;
 	nib->update_id = parent->beacon.update_id;
 	nib->channel = parent->channel;
+	zzb_nwk_poll_start(node);
 }
 
 void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_mac_status status)

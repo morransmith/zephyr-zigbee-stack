@@ -141,7 +141,8 @@ static uint8_t test_mode(uint8_t duration, uint8_t level)
 
 /*
  * ZCL 8.2.2.1.3: the write of IAS_CIE_Address starts auto-enroll-request to the source endpoint of
- * the write, and Zone Enroll Response with Success enrolls the zone
+ * the write, and Zone Enroll Response with Success enrolls the zone. A sleepy zone polls fast for
+ * the response.
  */
 ZTEST(zzb_zcl_ias_zone, test_enroll_request)
 {
@@ -157,6 +158,8 @@ ZTEST(zzb_zcl_ias_zone, test_enroll_request)
 	check_zone_cmd(1, ZZB_ZCL_IAS_ZONE_ENROLL_REQ, (uint8_t[]){0x15, 0x00, 0x34, 0x12}, 4);
 	zassert_equal(sent[1].data[1], next);
 	check_enrollment(0x00, 0xff);
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 1);
+	zassert_equal_ptr(zzb_nwk_poll_fast_fake.arg0_val, test_node());
 
 	reset_fakes();
 	zassert_equal(enroll_response(0x00, 5), ZZB_ZCL_SUCCESS);
@@ -240,7 +243,7 @@ ZTEST(zzb_zcl_ias_zone, test_not_authorized)
 	zassert_equal(enroll_response(0x00, 3), ZZB_ZCL_NOT_AUTHORIZED);
 }
 
-/* ZCL 8.2.2.3.1: a change of ZoneStatus of an enrolled zone */
+/* ZCL 8.2.2.3.1: a change of ZoneStatus of an enrolled zone; no response follows */
 ZTEST(zzb_zcl_ias_zone, test_notification)
 {
 	enroll();
@@ -249,6 +252,7 @@ ZTEST(zzb_zcl_ias_zone, test_notification)
 	check_zone_cmd(0, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
 		       (uint8_t[]){0x05, 0x00, 0x00, 0x05, 0x00, 0x00}, 6);
 	zassert_false(timer_armed());
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 0);
 
 	set_status(0x0005);
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
