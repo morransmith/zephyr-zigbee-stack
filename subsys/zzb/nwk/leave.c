@@ -14,6 +14,7 @@ void zzb_nwk_reset(struct zzb_node *node)
 
 	zzb_nwk_keepalive_stop(node);
 	k_work_cancel_delayable(&nwk->timer);
+	k_work_cancel_delayable(&nwk->poll_timer);
 	nwk->nib = (struct zzb_nib){
 		.seq = seq,
 	};

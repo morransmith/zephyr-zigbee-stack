@@ -3,6 +3,7 @@
 #ifndef ZZB_INCLUDE_ZZB_ZZB_H_
 #define ZZB_INCLUDE_ZZB_ZZB_H_
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <zephyr/sys/util_macro.h>
@@ -70,6 +71,11 @@ struct zzb_node_config {
 	 */
 	const uint8_t *install_code;
 	size_t install_code_len;
+	/**
+	 * Sleepy end device: the receiver is off outside MAC procedures, and the node polls its
+	 * parent. The radio driver must support IEEE802154_RX_ON_WHEN_IDLE.
+	 */
+	bool sleepy;
 };
 
 /**

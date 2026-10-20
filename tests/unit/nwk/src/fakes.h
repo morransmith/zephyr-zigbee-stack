@@ -93,6 +93,9 @@ void parse_sent_cmd(int i, struct zzb_node *receiver, struct zzb_nwk_hdr *hdr,
 /* Initializes both nodes and makes child the child of parent on the test network */
 void pair_nodes(struct zzb_node *child, struct zzb_node *parent);
 
+/* MAC flags of the frames that receive() and receive_frame() pass; reset_fakes() clears them */
+extern uint8_t receive_flags;
+
 /* Passes frame to node as MCPS-DATA.indication from the MAC source address src */
 void receive(struct zzb_node *node, const uint8_t *frame, size_t len, uint16_t src);
 

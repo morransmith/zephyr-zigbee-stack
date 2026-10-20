@@ -248,4 +248,21 @@ config ZZB_NWK_PARENT_FAILURES
 	  the MAC retries, before NLME-NWK-STATUS.indication reports parent
 	  link failure.
 
+config ZZB_NWK_LONG_POLL_MS
+	int "Poll interval of a sleepy end device in milliseconds"
+	range 1 1802240000
+	default 5000
+	help
+	  Interval between polls while no layer waits for frames, the default
+	  LongPollInterval of Poll Control. A parent keeps a frame for a
+	  sleepy child for 7.5 s (BDB 6.8).
+
+config ZZB_NWK_SHORT_POLL_MS
+	int "Fast poll interval of a sleepy end device in milliseconds"
+	range 1 16383750
+	default 500
+	help
+	  Interval between polls while a layer waits for frames, the default
+	  ShortPollInterval of Poll Control.
+
 endif # ZZB

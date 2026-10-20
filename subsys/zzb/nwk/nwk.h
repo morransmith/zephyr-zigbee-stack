@@ -185,6 +185,12 @@ struct zzb_nwk {
 	bool ed_timeout_wait;
 	/* Consecutive transmissions to the parent without an ACK */
 	uint8_t parent_failures;
+	/* Polls the parent of a sleepy node */
+	struct k_work_delayable poll_timer;
+	uint32_t long_poll_ms;
+	uint32_t short_poll_ms;
+	/* k_uptime_get() of the last poll */
+	int64_t poll_last;
 };
 
 /* Clears the NWK state. The NIB has no PAN ID, no network address and a random sequence number. */
@@ -413,6 +419,17 @@ void zzb_nwk_leave_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 
 /* MLME-POLL.request to addr with the PAN ID of the NIB */
 int zzb_nwk_poll(struct zzb_node *node, uint16_t addr);
+
+/* Poll intervals of a sleepy node, set by Poll Control */
+void zzb_nwk_set_poll_intervals(struct zzb_node *node, uint32_t long_ms, uint32_t short_ms);
+
+void zzb_nwk_poll_init(struct zzb_node *node);
+
+/* Starts the polls of a sleepy node with a parent, the first after one interval */
+void zzb_nwk_poll_start(struct zzb_node *node);
+
+/* Polls the parent of a sleepy node at once */
+void zzb_nwk_poll_now(struct zzb_node *node);
 
 void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 

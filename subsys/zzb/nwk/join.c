@@ -278,6 +278,7 @@ void zzb_nwk_become_child(struct zzb_node *node, struct zzb_nwk_neighbor *parent
 	nib->pan_id = parent->pan_id;
 	nib->update_id = parent->beacon.update_id;
 	nib->channel = parent->channel;
+	zzb_nwk_poll_start(node);
 }
 
 void zzb_mlme_assoc_conf(struct zzb_node *node, uint16_t short_addr, enum zzb_mac_status status)

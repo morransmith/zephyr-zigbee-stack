@@ -21,6 +21,7 @@ void zzb_nwk_init(struct zzb_node *node)
 	/* Safe on the zeroed struct of a new node */
 	k_work_cancel_delayable(&node->nwk.keepalive);
 	k_work_cancel_delayable(&node->nwk.timer);
+	k_work_cancel_delayable(&node->nwk.poll_timer);
 	node->nwk = (struct zzb_nwk){0};
 	node->nwk.nib = (struct zzb_nib){
 		.pan_id = 0xffff,
@@ -30,6 +31,7 @@ void zzb_nwk_init(struct zzb_node *node)
 	zzb_fc_init(&node->nwk.fc, node, "fc/nwk");
 	zzb_nwk_ed_timeout_init(node);
 	zzb_nwk_rejoin_init(node);
+	zzb_nwk_poll_init(node);
 }
 
 int zzb_nwk_send(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_hdr *hdr,
@@ -273,7 +275,13 @@ static void rx_cmd(struct zzb_node *node, struct net_buf *buf, const struct zzb_
 void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf)
 {
 	struct zzb_nwk_hdr hdr;
-	int hdr_len = rx_frame(node, buf, &hdr);
+	int hdr_len;
+
+	if (zzb_frame_meta(buf)->flags & ZZB_FRAME_PENDING) {
+		zzb_nwk_poll_now(node);
+	}
+
+	hdr_len = rx_frame(node, buf, &hdr);
 
 	if (hdr_len < 0 || zzb_nwk_addr_conflict(node, &hdr)) {
 		net_buf_unref(buf);

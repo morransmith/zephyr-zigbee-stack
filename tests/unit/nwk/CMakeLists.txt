@@ -17,6 +17,7 @@ target_sources(app PRIVATE
   src/leave.c
   src/neighbor.c
   src/nib.c
+  src/poll.c
   src/rejoin.c
   src/security.c
   src/status.c

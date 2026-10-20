@@ -1,6 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <zephyr/kernel.h>
+
 #include "common/node.h"
+#include "common/queue.h"
+#include "common/timer.h"
 #include "mac/mac.h"
 #include "nwk/nwk.h"
 
@@ -13,4 +17,64 @@ int zzb_nwk_poll(struct zzb_node *node, uint16_t addr)
 	};
 
 	return zzb_mlme_poll_req(node, &coord);
+}
+
+static void schedule(struct zzb_node *node)
+{
+	struct zzb_nwk *nwk = &node->nwk;
+	int64_t delay = nwk->poll_last + nwk->long_poll_ms - k_uptime_get();
+
+	if (!node->sleepy || zzb_nwk_neighbor_parent(node) == NULL) {
+		return;
+	}
+
+	zzb_timer_arm(&nwk->poll_timer, K_MSEC(MAX(delay, 0)));
+}
+
+static void poll_handler(struct k_work *work)
+{
+	struct zzb_node *node =
+		CONTAINER_OF(k_work_delayable_from_work(work), struct zzb_node, nwk.poll_timer);
+	struct zzb_nwk_neighbor *parent = zzb_nwk_neighbor_parent(node);
+
+	if (parent == NULL) {
+		return;
+	}
+
+	node->nwk.poll_last = k_uptime_get();
+	/* A busy MAC runs a keepalive poll, which fetches the same frames */
+	if (node->nwk.op == ZZB_NWK_OP_NONE) {
+		(void)zzb_nwk_poll(node, parent->short_addr);
+	}
+
+	schedule(node);
+}
+
+void zzb_nwk_poll_init(struct zzb_node *node)
+{
+	struct zzb_nwk *nwk = &node->nwk;
+
+	k_work_init_delayable(&nwk->poll_timer, poll_handler);
+	nwk->long_poll_ms = CONFIG_ZZB_NWK_LONG_POLL_MS;
+	nwk->short_poll_ms = CONFIG_ZZB_NWK_SHORT_POLL_MS;
+}
+
+void zzb_nwk_set_poll_intervals(struct zzb_node *node, uint32_t long_ms, uint32_t short_ms)
+{
+	node->nwk.long_poll_ms = long_ms;
+	node->nwk.short_poll_ms = short_ms;
+	schedule(node);
+}
+
+void zzb_nwk_poll_start(struct zzb_node *node)
+{
+	node->nwk.poll_last = k_uptime_get();
+	schedule(node);
+}
+
+void zzb_nwk_poll_now(struct zzb_node *node)
+{
+	if (node->sleepy && zzb_nwk_neighbor_parent(node) != NULL) {
+		zzb_timer_arm(&node->nwk.poll_timer, K_NO_WAIT);
+	}
 }
