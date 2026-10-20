@@ -40,10 +40,26 @@ ZTEST(zzb_zcl_client, test_send_bound)
 	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, tsn, 0x40, 0x00, 0x01}), 5);
 }
 
-/* Endpoint 2 has only the On/Off server, endpoint 1 no instance of cluster 0x0008 */
-ZTEST(zzb_zcl_client, test_send_bound_without_client)
+/*
+ * A server instance sends to the client when the endpoint has no client of the cluster; endpoint 3
+ * has both
+ */
+ZTEST(zzb_zcl_client, test_send_bound_server)
 {
-	zassert_equal(zzb_zcl_send_bound(test_node(), 2, ON_OFF, 0x02, NULL, 0), -ENOENT);
+	uint8_t tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_send_bound(test_node(), 2, ON_OFF, 0x40, NULL, 0));
+	zassert_ok(zzb_zcl_send_bound(test_node(), 3, ON_OFF, 0x40, NULL, 0));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	zassert_equal(sent[0].req.src_ep, 2);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x19, tsn, 0x40}), 3);
+	zassert_equal(sent[1].req.src_ep, 3);
+	zassert_mem_equal(sent[1].data, ((uint8_t[]){0x11, tsn + 1, 0x40}), 3);
+}
+
+/* Endpoint 1 has no instance of cluster 0x0008 */
+ZTEST(zzb_zcl_client, test_send_bound_without_instance)
+{
 	zassert_equal(zzb_zcl_send_bound(test_node(), 1, 0x0008, 0x02, NULL, 0), -ENOENT);
 	zassert_equal(zzb_zcl_send_bound(test_node(), 9, ON_OFF, 0x02, NULL, 0), -ENOENT);
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);

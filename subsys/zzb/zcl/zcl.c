@@ -116,14 +116,22 @@ static void send_bound_handler(struct k_work *work)
 {
 	struct send_bound_req *req = CONTAINER_OF(work, struct send_bound_req, work);
 	const struct zzb_endpoint *ep = zzb_node_endpoint(req->node, req->ep);
+	bool to_client;
 
-	if (ep == NULL || zzb_zcl_find_cluster(ep, req->cluster, false) == NULL) {
+	if (ep == NULL) {
 		req->err = -ENOENT;
 		return;
 	}
 
-	req->err = zzb_zcl_send_bindings(req->node, ep, req->cluster, ZZB_ZCL_FRAME_CLUSTER, false,
-					 req->cmd, req->payload, req->len);
+	/* The client instance sends when the endpoint has both */
+	to_client = zzb_zcl_find_cluster(ep, req->cluster, false) == NULL;
+	if (to_client && zzb_zcl_find_cluster(ep, req->cluster, true) == NULL) {
+		req->err = -ENOENT;
+		return;
+	}
+
+	req->err = zzb_zcl_send_bindings(req->node, ep, req->cluster, ZZB_ZCL_FRAME_CLUSTER,
+					 to_client, req->cmd, req->payload, req->len);
 }
 
 int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t cmd,

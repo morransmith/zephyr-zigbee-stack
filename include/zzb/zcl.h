@@ -278,14 +278,15 @@ int zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, ui
 			const uint8_t *payload, size_t len);
 
 /**
- * @brief Send a cluster-specific command of a client cluster to the bound destinations.
+ * @brief Send a cluster-specific command of a cluster to the bound destinations.
  *
  * Runs on the stack thread. The command goes from the client instance of the cluster on the
- * endpoint to the destinations of its bindings, with Disable Default Response 1. The application
- * builds the payload; no confirm follows.
+ * endpoint, or from the server instance, with the direction to the client, when the endpoint has no
+ * client instance, to the destinations of its bindings, with Disable Default Response 1. The
+ * application builds the payload; no confirm follows.
  *
  * @retval 0 on success.
- * @retval -ENOENT the endpoint has no client instance of the cluster, or the cluster no binding.
+ * @retval -ENOENT the endpoint has no instance of the cluster, or the cluster no binding.
  * @retval -ENOBUFS no buffer or transmission table entry is free.
  * @retval -ENOTCONN the node is not on a network.
  * @retval -EBUSY the network layer runs a procedure, such as a rejoin.
