@@ -9,6 +9,7 @@
 
 #include "common/node.h"
 #include "fakes.h"
+#include "zcl/zcl.h"
 
 /* The values that the application set on endpoints 100 and 101 */
 static struct zzb_zcl_door_lock factory;
@@ -22,12 +23,19 @@ static void *setup(void)
 	return NULL;
 }
 
-/* Each test starts with the values of fakes.c, the defaults and without records */
+/*
+ * Each test starts with the values of fakes.c, the defaults and without records, and without the
+ * events, which the fake of APSDE-DATA.request would catch
+ */
 static void before(void *fixture)
 {
 	reset_node();
 	lock100 = factory;
 	lock101 = factory101;
+	lock100.rf_operation_event_mask = 0;
+	lock100.manual_operation_event_mask = 0;
+	lock100.rf_programming_event_mask = 0;
+	lock101.manual_operation_event_mask = 0;
 	reset_fakes();
 }
 
@@ -274,15 +282,20 @@ ZTEST(zzb_zcl_door_lock, test_respond)
 
 /*
  * Sends the command id with the payload after reset_fakes() and returns the status of its
- * response, which is its only frame
+ * response. The frames after the response go to the bound destinations: events, no Default
+ * Response.
  */
 static uint8_t status_of(uint8_t id, const uint8_t *payload, size_t len)
 {
 	reset_fakes();
 	command(id, payload, len);
-	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_true(zzb_apsde_data_req_fake.call_count > 0);
 	zassert_equal(sent[0].len, 4);
 	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x19, tsn, id}), 3);
+	for (int i = 1; i < zzb_apsde_data_req_fake.call_count; i++) {
+		zassert_equal(sent[i].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	}
+
 	return sent[0].data[3];
 }
 
@@ -771,6 +784,144 @@ ZTEST(zzb_zcl_door_lock, test_relock_reset)
 	zassert_false(timer_armed());
 	k_sleep(K_MSEC(1100));
 	zassert_equal(zcl_cmd_calls.count, 2);
+}
+
+/* Checks that frame i is the event id with the payload to the bound destinations of endpoint 100 */
+static void check_event(int i, uint8_t id, const uint8_t *payload, size_t len)
+{
+	const struct frame_copy *copy = &sent[i];
+
+	zassert_true(zzb_apsde_data_req_fake.call_count > i);
+	zassert_equal(copy->req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(copy->req.src_ep, DOOR_LOCK_EP);
+	zassert_equal(copy->req.cluster, ZZB_ZCL_DOOR_LOCK);
+	zassert_equal(copy->len, 3 + len);
+	zassert_equal(copy->data[0], 0x19);
+	zassert_equal(copy->data[2], id);
+	zassert_mem_equal(copy->data + 3, payload, len);
+}
+
+/*
+ * ZCL 7.3.2.16.27, Table 7-31: Lock Door and Unlock Door that zcl_cmd_cb accepts send Operation
+ * Event Notification with source RF, codes 1 and 2, the user of the code or 0xffff, the code with
+ * 0xff octets while SendPINOverTheAir is FALSE, LocalTime, 0xffffffff without time, and an empty
+ * Data, when the bit of the code in RFOperationEventMask is set
+ */
+ZTEST(zzb_zcl_door_lock, test_operation_events)
+{
+	static const uint8_t lock[] = {0x01, 0x01, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0xff, 0x00};
+	static const uint8_t unlock[] = {0x01, 0x02, 0x01, 0x00, 0x04, 0xff, 0xff,
+					 0xff, 0xff, 0xf8, 0x11, 0x00, 0x00, 0x00};
+	static const uint8_t toggle[] = {0x01, 0x02, 0x01, 0x00, 0x04, 0x31, 0x32,
+					 0x33, 0x34, 0xf8, 0x11, 0x00, 0x00, 0x00};
+
+	add_user(1, ZZB_ZCL_DOOR_LOCK_USER_ENABLED, ZZB_ZCL_DOOR_LOCK_USER_UNRESTRICTED, "1234");
+	lock100.rf_operation_event_mask = 0xffff;
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, NULL, 0, ZZB_ZCL_SUCCESS);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_event(1, ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION, lock, sizeof(lock));
+
+	zzb_zcl_clock_set(test_node(), 1000, 3600);
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR, code, sizeof(code), ZZB_ZCL_SUCCESS);
+	check_event(3, ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION, unlock, sizeof(unlock));
+
+	lock100.send_pin_over_the_air = true;
+	operate(ZZB_ZCL_DOOR_LOCK_TOGGLE, code, sizeof(code), ZZB_ZCL_SUCCESS);
+	check_event(5, ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION, toggle, sizeof(toggle));
+
+	/* A refused command and a cleared bit send none */
+	reset_fakes();
+	zcl_cmd_status = ZZB_ZCL_FAILURE;
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, NULL, 0, ZZB_ZCL_FAILURE);
+	zcl_cmd_status = ZZB_ZCL_SUCCESS;
+	lock100.rf_operation_event_mask = 0xfffd;
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, NULL, 0, ZZB_ZCL_SUCCESS);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+}
+
+/*
+ * Table 7-31: a refusal for a wrong code sends code 3 for Lock Door and 5 for Unlock Door with
+ * user 0xffff and the received code
+ */
+ZTEST(zzb_zcl_door_lock, test_wrong_code_events)
+{
+	static const uint8_t lock[] = {0x01, 0x03, 0xff, 0xff, 0x04, 0xff, 0xff,
+				       0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00};
+	static const uint8_t unlock[] = {0x01, 0x05, 0xff, 0xff, 0x00,
+					 0xff, 0xff, 0xff, 0xff, 0x00};
+
+	lock100.rf_operation_event_mask = BIT(3) | BIT(5);
+	lock100.require_pin_for_rf_operation = true;
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	check_event(1, ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION, lock, sizeof(lock));
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, (uint8_t[]){0x0a, 0x00}, 2, ZZB_ZCL_FAILURE);
+	check_event(3, ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION, unlock, sizeof(unlock));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
+}
+
+/* Table 7-32: the relock sends AutoLock, code 0x0a with source Manual, with bit 6 */
+ZTEST(zzb_zcl_door_lock, test_auto_lock_event)
+{
+	static const uint8_t auto_lock[] = {0x02, 0x0a, 0xff, 0xff, 0x00,
+					    0xff, 0xff, 0xff, 0xff, 0x00};
+
+	lock100.manual_operation_event_mask = BIT(6);
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, (uint8_t[]){0x01, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(1100));
+	check_relock(1, DOOR_LOCK_EP);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_event(1, ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION, auto_lock,
+		    sizeof(auto_lock));
+
+	lock100.manual_operation_event_mask = 0xffbf;
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, (uint8_t[]){0x01, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(1100));
+	zassert_equal(zcl_cmd_calls.count, 4);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+}
+
+/*
+ * ZCL 7.3.2.16.28, Table 7-37: Set PIN Code sends Programming Event Notification with code 2 for a
+ * new user and 4 for a changed one, Clear PIN Code and Clear All PIN Codes with code 3, the last
+ * with user 0xffff, when the bit of the code in RFProgrammingEventMask is set. The fields are the
+ * user ID, the code, the user type and status, LocalTime and an empty Data.
+ */
+ZTEST(zzb_zcl_door_lock, test_programming_events)
+{
+	static const uint8_t added[] = {0x01, 0x02, 0x01, 0x00, 0x04, 0xff, 0xff, 0xff,
+					0xff, 0x00, 0x01, 0xff, 0xff, 0xff, 0xff, 0x00};
+	static const uint8_t changed[] = {0x01, 0x04, 0x01, 0x00, 0x05, 0xff, 0xff, 0xff, 0xff,
+					  0xff, 0x03, 0x03, 0xff, 0xff, 0xff, 0xff, 0x00};
+	static const uint8_t deleted[] = {0x01, 0x03, 0x01, 0x00, 0x05, 0x35, 0x36, 0x37, 0x38,
+					  0x39, 0x03, 0x03, 0xff, 0xff, 0xff, 0xff, 0x00};
+	static const uint8_t all[] = {0x01, 0x03, 0xff, 0xff, 0x00, 0x00,
+				      0x00, 0xff, 0xff, 0xff, 0xff, 0x00};
+
+	lock100.rf_programming_event_mask = 0xffff;
+	zassert_equal(set_pin(1, 1, 0, "1234"), 0);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_event(1, ZZB_ZCL_DOOR_LOCK_PROGRAMMING_EVENT_NOTIFICATION, added, sizeof(added));
+	zassert_equal(set_pin(1, 3, 3, "56789"), 0);
+	check_event(1, ZZB_ZCL_DOOR_LOCK_PROGRAMMING_EVENT_NOTIFICATION, changed, sizeof(changed));
+
+	lock100.send_pin_over_the_air = true;
+	zassert_equal(clear_pin(1), 0);
+	check_event(1, ZZB_ZCL_DOOR_LOCK_PROGRAMMING_EVENT_NOTIFICATION, deleted, sizeof(deleted));
+	zassert_equal(status_of(ZZB_ZCL_DOOR_LOCK_CLEAR_ALL_PIN_CODES, NULL, 0), 0);
+	check_event(1, ZZB_ZCL_DOOR_LOCK_PROGRAMMING_EVENT_NOTIFICATION, all, sizeof(all));
+
+	/* A failure, the other commands and a cleared bit send none */
+	lock100.rf_programming_event_mask = BIT(2);
+	zassert_equal(set_pin(8, 1, 0, "1234"), 1);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(set_pin(2, 1, 0, "1234"), 0);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS, 2, 3), 0);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(set_pin(2, 1, 0, "4321"), 0);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(clear_pin(2), 0);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
 }
 
 ZTEST_SUITE(zzb_zcl_door_lock, NULL, setup, before, after, NULL);

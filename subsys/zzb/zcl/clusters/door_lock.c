@@ -33,6 +33,17 @@
 /* Tamper Alarm - wrong code entry limit (ZCL Table 7-22) */
 #define ALARM_WRONG_CODES 0x04
 
+/* The user ID of an event without a user (ZCL 7.3.2.16.5) */
+#define NO_USER 0xffff
+
+/* Source, code and user ID before the code of an event */
+#define EVENT_HDR_LEN  4
+/* LocalTime and Data after the other fields of an event */
+#define EVENT_TAIL_LEN 5
+
+/* The bit of AutoLock in ManualOperationEventMask (ZCL Table 7-32) */
+#define AUTO_LOCK_BIT 6
+
 #define RECORD_VERSION 1
 /* Version, user status, user type, code length and code */
 #define RECORD_LEN     (4 + ZZB_ZCL_DOOR_LOCK_PIN_MAX)
@@ -176,8 +187,11 @@ static bool duplicate(const struct zzb_zcl_door_lock *v, int id, const uint8_t *
 	return false;
 }
 
-/* The ID of the user with the code, status 1 and a type other than 4 (ZCL 7.3.2.13.4), or -1 */
-static int code_user(const struct zzb_zcl_door_lock *v, const uint8_t *code, size_t len)
+/*
+ * The ID of the user with the code, status 1 and a type other than 4 (ZCL 7.3.2.13.4), or
+ * NO_USER
+ */
+static uint16_t code_user(const struct zzb_zcl_door_lock *v, const uint8_t *code, size_t len)
 {
 	for (int i = 0; i < ARRAY_SIZE(v->users); i++) {
 		const struct zzb_zcl_door_lock_user *u = &v->users[i];
@@ -188,7 +202,7 @@ static int code_user(const struct zzb_zcl_door_lock *v, const uint8_t *code, siz
 		}
 	}
 
-	return -1;
+	return NO_USER;
 }
 
 /*
@@ -206,6 +220,63 @@ static size_t put_code(uint8_t *p, const struct zzb_zcl_door_lock *v, const uint
 	}
 
 	return 1 + len;
+}
+
+/*
+ * Writes LocalTime and an empty Data at p, after the other fields of the event id in payload, and
+ * sends the event to the bound destinations of the server on ep; errors are ignored
+ */
+static void send_event(struct zzb_node *node, uint8_t ep, uint8_t id, const uint8_t *payload,
+		       uint8_t *p)
+{
+	sys_put_le32(zzb_zcl_clock_local(node), p);
+	p[4] = 0;
+	zzb_zcl_send_bindings(node, zzb_node_endpoint(node, ep), ZZB_ZCL_DOOR_LOCK,
+			      ZZB_ZCL_FRAME_CLUSTER, true, id, payload,
+			      p + EVENT_TAIL_LEN - payload);
+}
+
+/*
+ * Sends Operation Event Notification (ZCL 7.3.2.16.27) of an RF command with code, user and the
+ * received code of len octets, when the bit of code in RFOperationEventMask is set (ZCL Table 7-31)
+ */
+static void rf_operation_event(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_door_lock *v,
+			       uint8_t code, uint16_t user, const uint8_t *pin, size_t len)
+{
+	/* The received code is shorter than an ASDU */
+	uint8_t payload[EVENT_HDR_LEN + 1 + ZZB_APS_MAX_ASDU + EVENT_TAIL_LEN] = {
+		ZZB_ZCL_DOOR_LOCK_SOURCE_RF, code};
+
+	if (!(v->rf_operation_event_mask & BIT(code))) {
+		return;
+	}
+
+	sys_put_le16(user, payload + 2);
+	send_event(node, ep, ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION, payload,
+		   payload + EVENT_HDR_LEN + put_code(payload + EVENT_HDR_LEN, v, pin, len));
+}
+
+/*
+ * Sends Programming Event Notification (ZCL 7.3.2.16.28) of an RF command with code for user id
+ * with the values u, when the bit of code in RFProgrammingEventMask is set (ZCL Table 7-37)
+ */
+static void rf_programming_event(struct zzb_node *node, uint8_t ep,
+				 const struct zzb_zcl_door_lock *v, uint8_t code, uint16_t id,
+				 const struct zzb_zcl_door_lock_user *u)
+{
+	uint8_t payload[EVENT_HDR_LEN + 1 + ZZB_ZCL_DOOR_LOCK_PIN_MAX + 2 + EVENT_TAIL_LEN] = {
+		ZZB_ZCL_DOOR_LOCK_SOURCE_RF, code};
+	uint8_t *p;
+
+	if (!(v->rf_programming_event_mask & BIT(code))) {
+		return;
+	}
+
+	sys_put_le16(id, payload + 2);
+	p = payload + EVENT_HDR_LEN + put_code(payload + EVENT_HDR_LEN, v, u->code, u->len);
+	p[0] = u->type;
+	p[1] = u->status;
+	send_event(node, ep, ZZB_ZCL_DOOR_LOCK_PROGRAMMING_EVENT_NOTIFICATION, payload, p + 2);
 }
 
 /* The values of the Door Lock server on ep, or NULL */
@@ -260,7 +331,10 @@ static void relock_after(struct zzb_node *node, struct zzb_zcl_door_lock *v, uin
 	schedule(node);
 }
 
-/* Passes Lock Door without a payload to zcl_cmd_cb and ignores its status */
+/*
+ * Passes Lock Door without a payload to zcl_cmd_cb, ignores its status and sends AutoLock with the
+ * user ID of no user and an empty code, with bit 6 of ManualOperationEventMask (ZCL Table 7-32)
+ */
 static void relock(struct zzb_node *node, uint8_t ep, struct zzb_zcl_door_lock *v)
 {
 	const struct zzb_zcl_cmd cmd = {
@@ -269,12 +343,18 @@ static void relock(struct zzb_node *node, uint8_t ep, struct zzb_zcl_door_lock *
 		.id = ZZB_ZCL_DOOR_LOCK_LOCK_DOOR,
 		.server = true,
 	};
+	uint8_t payload[EVENT_HDR_LEN + 1 + EVENT_TAIL_LEN] = {
+		ZZB_ZCL_DOOR_LOCK_SOURCE_MANUAL, ZZB_ZCL_DOOR_LOCK_OPERATION_AUTO_LOCK, 0xff, 0xff};
 
 	v->relock = 0;
 	zzb_zcl_app_cmd(node, &cmd);
+	if (v->manual_operation_event_mask & BIT(AUTO_LOCK_BIT)) {
+		send_event(node, ep, ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION, payload,
+			   payload + EVENT_HDR_LEN + 1);
+	}
 }
 
-/* The end of a lockout clears the count of wrong codes */
+/* Relocks at the deadlines and ends the lockouts, which clears the count of wrong codes */
 static void tick(struct k_work *work)
 {
 	struct zzb_node *node = CONTAINER_OF(k_work_delayable_from_work(work), struct zzb_node,
@@ -341,8 +421,10 @@ static int operate(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	struct zzb_zcl_req req = *CONTAINER_OF(cmd, struct zzb_zcl_req, cmd);
 	size_t off = cmd->id == ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT ? TIMEOUT_LEN : 0;
 	const uint8_t *code = cmd->payload + off + 1;
+	uint16_t user;
 	int field = 0;
 	int status;
+	bool lock;
 	int len;
 
 	if (cmd->len > off) {
@@ -361,27 +443,38 @@ static int operate(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 
 	/* The code without its length octet; a missing code is empty */
 	len = MAX(field - 1, 0);
-	if (v->require_pin_for_rf_operation && code_user(v, code, len) < 0) {
+	user = code_user(v, code, len);
+	req.cmd.id = resolve(cmd, v);
+	lock = req.cmd.id == ZZB_ZCL_DOOR_LOCK_LOCK_DOOR;
+	if (v->require_pin_for_rf_operation && user == NO_USER) {
 		status = respond(node, cmd, ZZB_ZCL_FAILURE);
+		rf_operation_event(node, cmd->ep, v,
+				   lock ? ZZB_ZCL_DOOR_LOCK_OPERATION_LOCK_INVALID_CODE
+					: ZZB_ZCL_DOOR_LOCK_OPERATION_UNLOCK_INVALID_CODE,
+				   NO_USER, code, len);
 		wrong_code(node, cmd->ep, v);
 		return status;
 	}
 
 	/* A right code clears the count, which only wrong codes raise */
 	v->wrong_codes = 0;
-	req.cmd.id = resolve(cmd, v);
 	req.cmd.payload = cmd->payload + off;
 	req.cmd.len = field;
 	status = zzb_zcl_app_cmd(node, &req.cmd);
-	if (status == ZZB_ZCL_SUCCESS && cmd->id == ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT) {
+	if (status != ZZB_ZCL_SUCCESS) {
+		return status == ZZB_ZCL_RESPONDED ? status : respond(node, cmd, ZZB_ZCL_FAILURE);
+	}
+
+	if (cmd->id == ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT) {
 		relock_after(node, v, sys_get_le16(cmd->payload));
 	}
 
-	if (status == ZZB_ZCL_RESPONDED) {
-		return status;
-	}
-
-	return respond(node, cmd, status == ZZB_ZCL_SUCCESS ? ZZB_ZCL_SUCCESS : ZZB_ZCL_FAILURE);
+	status = respond(node, cmd, ZZB_ZCL_SUCCESS);
+	rf_operation_event(node, cmd->ep, v,
+			   lock ? ZZB_ZCL_DOOR_LOCK_OPERATION_LOCK
+				: ZZB_ZCL_DOOR_LOCK_OPERATION_UNLOCK,
+			   user, code, len);
+	return status;
 }
 
 /* ZCL 7.3.2.15.7; a code length of 0xff is the empty string */
@@ -390,6 +483,8 @@ static int set_pin_code(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 {
 	const uint8_t *pin = cmd->payload + SET_PIN_CODE_LEN;
 	struct zzb_zcl_door_lock_user *u;
+	uint8_t event;
+	int status;
 	int field;
 	int len;
 	int id;
@@ -416,6 +511,9 @@ static int set_pin_code(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	}
 
 	u = &v->users[id];
+	event = u->status == ZZB_ZCL_DOOR_LOCK_USER_AVAILABLE
+			? ZZB_ZCL_DOOR_LOCK_PROGRAMMING_PIN_ADDED
+			: ZZB_ZCL_DOOR_LOCK_PROGRAMMING_PIN_CHANGED;
 	*u = (struct zzb_zcl_door_lock_user){
 		.status = cmd->payload[2],
 		.type = cmd->payload[3],
@@ -423,7 +521,9 @@ static int set_pin_code(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	};
 	memcpy(u->code, pin + 1, len);
 	save(node, cmd->ep, v, id);
-	return respond(node, cmd, PASS);
+	status = respond(node, cmd, PASS);
+	rf_programming_event(node, cmd->ep, v, event, id, u);
+	return status;
 }
 
 /*
@@ -475,6 +575,8 @@ static int get_user(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 static int clear_pin_code(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 			  struct zzb_zcl_door_lock *v)
 {
+	struct zzb_zcl_door_lock_user deleted;
+	int status;
 	int id;
 
 	if (cmd->len < 2) {
@@ -486,9 +588,13 @@ static int clear_pin_code(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 		return respond(node, cmd, FAIL);
 	}
 
+	deleted = v->users[id];
 	v->users[id] = (struct zzb_zcl_door_lock_user){0};
 	save(node, cmd->ep, v, id);
-	return respond(node, cmd, PASS);
+	status = respond(node, cmd, PASS);
+	rf_programming_event(node, cmd->ep, v, ZZB_ZCL_DOOR_LOCK_PROGRAMMING_PIN_DELETED, id,
+			     &deleted);
+	return status;
 }
 
 /* Makes every user of the server on ep available and deletes the records */
@@ -498,6 +604,20 @@ static void clear_users(struct zzb_node *node, uint8_t ep, struct zzb_zcl_door_l
 		v->users[i] = (struct zzb_zcl_door_lock_user){0};
 		save(node, ep, v, i);
 	}
+}
+
+/* ZCL 7.3.2.15.10; the event has the user ID of no user and the values of an available user */
+static int clear_all_pin_codes(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			       struct zzb_zcl_door_lock *v)
+{
+	static const struct zzb_zcl_door_lock_user available;
+	int status;
+
+	clear_users(node, cmd->ep, v);
+	status = respond(node, cmd, PASS);
+	rf_programming_event(node, cmd->ep, v, ZZB_ZCL_DOOR_LOCK_PROGRAMMING_PIN_DELETED, NO_USER,
+			     &available);
+	return status;
 }
 
 /* ZCL 7.3.2.15.11; an available user takes Set PIN Code instead */
@@ -561,8 +681,7 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	case ZZB_ZCL_DOOR_LOCK_CLEAR_PIN_CODE:
 		return clear_pin_code(node, cmd, v);
 	case ZZB_ZCL_DOOR_LOCK_CLEAR_ALL_PIN_CODES:
-		clear_users(node, cmd->ep, v);
-		return respond(node, cmd, PASS);
+		return clear_all_pin_codes(node, cmd, v);
 	case ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS:
 		return set_user_status(node, cmd, v);
 	case ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE:

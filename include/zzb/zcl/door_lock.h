@@ -65,6 +65,10 @@ extern "C" {
 #define ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE_RSP       0x14
 #define ZZB_ZCL_DOOR_LOCK_GET_USER_TYPE_RSP       0x15
 
+/** Events that the server generates (ZCL Table 7-27). */
+#define ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION   0x20
+#define ZZB_ZCL_DOOR_LOCK_PROGRAMMING_EVENT_NOTIFICATION 0x21
+
 /** LockState (ZCL Table 7-9). */
 enum zzb_zcl_door_lock_state {
 	ZZB_ZCL_DOOR_LOCK_NOT_FULLY_LOCKED = 0x00,
@@ -97,6 +101,46 @@ enum zzb_zcl_door_lock_user_type {
 	ZZB_ZCL_DOOR_LOCK_USER_MASTER = 0x03,
 	ZZB_ZCL_DOOR_LOCK_USER_NON_ACCESS = 0x04,
 	ZZB_ZCL_DOOR_LOCK_USER_NOT_SUPPORTED = 0xff,
+};
+
+/** Operation Event Source and Program Event Source (ZCL Tables 7-28 and 7-34). */
+enum zzb_zcl_door_lock_event_source {
+	ZZB_ZCL_DOOR_LOCK_SOURCE_KEYPAD = 0x00,
+	ZZB_ZCL_DOOR_LOCK_SOURCE_RF = 0x01,
+	ZZB_ZCL_DOOR_LOCK_SOURCE_MANUAL = 0x02,
+	ZZB_ZCL_DOOR_LOCK_SOURCE_RFID = 0x03,
+	ZZB_ZCL_DOOR_LOCK_SOURCE_INDETERMINATE = 0xff,
+};
+
+/** Operation Event Code (ZCL Table 7-29). */
+enum zzb_zcl_door_lock_operation_event {
+	ZZB_ZCL_DOOR_LOCK_OPERATION_UNKNOWN = 0x00,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_LOCK = 0x01,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_UNLOCK = 0x02,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_LOCK_INVALID_CODE = 0x03,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_LOCK_INVALID_SCHEDULE = 0x04,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_UNLOCK_INVALID_CODE = 0x05,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_UNLOCK_INVALID_SCHEDULE = 0x06,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_ONE_TOUCH_LOCK = 0x07,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_KEY_LOCK = 0x08,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_KEY_UNLOCK = 0x09,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_AUTO_LOCK = 0x0a,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_SCHEDULE_LOCK = 0x0b,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_SCHEDULE_UNLOCK = 0x0c,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_MANUAL_LOCK = 0x0d,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_MANUAL_UNLOCK = 0x0e,
+	ZZB_ZCL_DOOR_LOCK_OPERATION_NON_ACCESS_USER = 0x0f,
+};
+
+/** Programming Event Code (ZCL Table 7-35). */
+enum zzb_zcl_door_lock_programming_event {
+	ZZB_ZCL_DOOR_LOCK_PROGRAMMING_UNKNOWN = 0x00,
+	ZZB_ZCL_DOOR_LOCK_PROGRAMMING_MASTER_CODE_CHANGED = 0x01,
+	ZZB_ZCL_DOOR_LOCK_PROGRAMMING_PIN_ADDED = 0x02,
+	ZZB_ZCL_DOOR_LOCK_PROGRAMMING_PIN_DELETED = 0x03,
+	ZZB_ZCL_DOOR_LOCK_PROGRAMMING_PIN_CHANGED = 0x04,
+	ZZB_ZCL_DOOR_LOCK_PROGRAMMING_RFID_ADDED = 0x05,
+	ZZB_ZCL_DOOR_LOCK_PROGRAMMING_RFID_DELETED = 0x06,
 };
 
 /** The longest PIN code that the stack stores, in octets. */
@@ -140,6 +184,14 @@ struct zzb_zcl_door_lock_user {
  * of 0 acts as Unlock Door. When LockState becomes Unlocked, the stack sets the deadline after
  * AutoRelockTime seconds unless AutoRelockTime is 0 or a deadline is set; when it becomes Locked,
  * the deadline is removed. At the deadline zcl_cmd_cb receives Lock Door without a payload.
+ *
+ * The stack sends Operation Event Notification with source RF to the bound destinations after Lock
+ * Door and Unlock Door that zcl_cmd_cb accepts and after a refusal for the code, and with source
+ * Manual and code AutoLock at a relock deadline. It sends Programming Event Notification with
+ * source RF after Set PIN Code, Clear PIN Code and Clear All PIN Codes that pass. The bit of the
+ * event in its mask enables it. LocalTime comes from the clock of the node (Time), and every code
+ * is replaced by 0xff octets while SendPINOverTheAir is FALSE. The application sends the events of
+ * its keypad and of manual operation with zzb_zcl_send_bound().
  */
 struct zzb_zcl_door_lock {
 	/** enum zzb_zcl_door_lock_state. */
