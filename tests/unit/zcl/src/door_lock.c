@@ -755,6 +755,17 @@ ZTEST(zzb_zcl_door_lock, test_auto_relock)
 	zassert_false(timer_armed());
 }
 
+/* ZCL 7.3.2.12.6: Unlock Door of a lock that is already unlocked also starts AutoRelockTime */
+ZTEST(zzb_zcl_door_lock, test_auto_relock_unlocked)
+{
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_UNLOCKED);
+	lock100.auto_relock_time = 2;
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR, NULL, 0, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(2100));
+	zassert_equal(zcl_cmd_calls.count, 2);
+	check_relock(1, DOOR_LOCK_EP);
+}
+
 /* An AutoRelockTime of 4294968 s, above 2^32 ms, sets its deadline in 49.7 days */
 ZTEST(zzb_zcl_door_lock, test_auto_relock_long)
 {

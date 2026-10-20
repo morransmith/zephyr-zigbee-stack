@@ -469,6 +469,11 @@ static int operate(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 		relock_after(node, v, sys_get_le16(cmd->payload));
 	}
 
+	/* ZCL 7.3.2.12.6: also when LockState does not change, the lock being unlocked */
+	if (!lock && v->relock == 0) {
+		relock_after(node, v, v->auto_relock_time);
+	}
+
 	status = respond(node, cmd, ZZB_ZCL_SUCCESS);
 	rf_operation_event(node, cmd->ep, v,
 			   lock ? ZZB_ZCL_DOOR_LOCK_OPERATION_LOCK
