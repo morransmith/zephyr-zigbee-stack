@@ -400,6 +400,7 @@ struct zzb_zcl_pressure pressure70;
 struct zzb_zcl_flow flow70;
 struct zzb_zcl_humidity humidity70;
 struct zzb_zcl_fan fan70 = {.fan_mode_sequence = 0x02};
+struct zzb_zcl_pump pump70;
 
 static const struct zzb_zcl_cluster ep70_clusters[] = {
 	ZZB_ZCL_TEMPERATURE_SERVER(&temperature70),
@@ -407,6 +408,7 @@ static const struct zzb_zcl_cluster ep70_clusters[] = {
 	ZZB_ZCL_FLOW_SERVER(&flow70),
 	ZZB_ZCL_HUMIDITY_SERVER(&humidity70),
 	ZZB_ZCL_FAN_SERVER(&fan70),
+	ZZB_ZCL_PUMP_SERVER(&pump70),
 };
 
 static const struct zzb_endpoint endpoints[] = {
