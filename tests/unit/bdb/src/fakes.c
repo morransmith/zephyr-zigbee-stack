@@ -20,6 +20,7 @@ DEFINE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node 
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_network_discovery_req, struct zzb_node *, uint32_t, uint8_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_reset_req, struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_leave_req, struct zzb_node *, bool);
+DEFINE_FAKE_VOID_FUNC(zzb_nwk_poll_hold, struct zzb_node *, enum zzb_nwk_hold, bool);
 DEFINE_FAKE_VOID_FUNC(zzb_aps_reset, struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_apsme_get_tc_addr, const struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(struct zzb_aps_key_pair *, zzb_aps_key_pair_find, struct zzb_node *,
@@ -140,6 +141,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nlme_network_discovery_req);
 	RESET_FAKE(zzb_nlme_reset_req);
 	RESET_FAKE(zzb_nlme_leave_req);
+	RESET_FAKE(zzb_nwk_poll_hold);
 	RESET_FAKE(zzb_aps_reset);
 	RESET_FAKE(zzb_apsme_get_tc_addr);
 	RESET_FAKE(zzb_aps_key_pair_find);
@@ -172,6 +174,12 @@ void reset_fakes(void)
 	zzb_apsme_bind_req_fake.custom_fake = bind_copy;
 	zzb_zcl_send_cmd_fake.custom_fake = send_cmd_copy;
 	memset(bindings, 0, sizeof(bindings));
+}
+
+bool held(void)
+{
+	return zzb_nwk_poll_hold_fake.arg1_val == ZZB_NWK_HOLD_BDB &&
+	       zzb_nwk_poll_hold_fake.arg2_val;
 }
 
 static void reboot_handler(struct k_work *work)

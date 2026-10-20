@@ -124,17 +124,20 @@ ZTEST(zzb_bdb_init, test_trust_center_rejoin_after_failed_secure_rejoins)
 	check_event(ZZB_BDB_EVENT_INIT, ZZB_BDB_SUCCESS);
 }
 
-/* apsSecurityTimeOutPeriod, then the pause before the next series */
+/* apsSecurityTimeOutPeriod, then the pause before the next series, which holds nothing */
 ZTEST(zzb_bdb_init, test_network_key_does_not_arrive)
 {
 	zassert_ok(zzb_bdb_start(node));
 	fail_two_steps();
+	zassert_false(held());
 	zzb_nlme_join_conf(node, ZZB_NWK_STATUS_SUCCESS);
+	zassert_true(held());
 
 	k_sleep(K_MSEC(1600));
 	zassert_equal(events.count, 0);
 	k_sleep(K_MSEC(200));
 	check_event(ZZB_BDB_EVENT_INIT, ZZB_BDB_NO_NETWORK);
+	zassert_false(held());
 
 	k_sleep(K_MSEC(29800));
 	zassert_equal(zzb_nlme_join_req_fake.call_count, 3);

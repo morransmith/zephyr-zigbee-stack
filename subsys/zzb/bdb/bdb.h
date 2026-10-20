@@ -125,6 +125,12 @@ void zzb_bdb_init(struct zzb_node *node);
 /* Arms the BDB timer, which acts by the state */
 void zzb_bdb_schedule(struct zzb_node *node, k_timeout_t delay);
 
+/* Sets the state of the procedure and recomputes the fast poll hold */
+void zzb_bdb_set_state(struct zzb_node *node, enum zzb_bdb_state state);
+
+/* Holds the fast poll rate while BDB waits for frames from the network (BDB 6.8) */
+void zzb_bdb_update_hold(struct zzb_node *node);
+
 /* Calls the event callback of the application */
 void zzb_bdb_notify(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bdb_status status);
 

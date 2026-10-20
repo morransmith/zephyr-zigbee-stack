@@ -18,6 +18,7 @@ DECLARE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_network_discovery_req, struct zzb_node *, uint32_t, uint8_t);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_reset_req, struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_leave_req, struct zzb_node *, bool);
+DECLARE_FAKE_VOID_FUNC(zzb_nwk_poll_hold, struct zzb_node *, enum zzb_nwk_hold, bool);
 DECLARE_FAKE_VOID_FUNC(zzb_aps_reset, struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(uint64_t, zzb_apsme_get_tc_addr, const struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(struct zzb_aps_key_pair *, zzb_aps_key_pair_find, struct zzb_node *,
@@ -91,6 +92,9 @@ struct zzb_node *test_node(void);
 
 /* Resets every fake and the event log */
 void reset_fakes(void);
+
+/* Whether the last call of the zzb_nwk_poll_hold() fake set the hold of BDB */
+bool held(void);
 
 /* Initializes BDB again, on the network EXT_PAN_ID when on_network is set */
 void reboot(bool on_network);

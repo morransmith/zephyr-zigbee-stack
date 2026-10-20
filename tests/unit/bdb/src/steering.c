@@ -160,13 +160,18 @@ ZTEST(zzb_bdb_steering, test_no_network_on_either_channel_set)
 	check_event(1, ZZB_BDB_NO_NETWORK);
 }
 
-/* BDB 8.2 step 10: the next suitable network of the same channels */
+/*
+ * BDB 8.2 step 10: the next suitable network of the same channels. A sleepy node fetches the key by
+ * polls (BDB 6.8).
+ */
 ZTEST(zzb_bdb_steering, test_network_key_does_not_arrive)
 {
 	zassert_ok(zzb_bdb_steering(node));
 	discovered(2);
 	check_join(0, OTHER_EXT_PAN_ID);
+	zassert_false(held());
 	zzb_nlme_join_conf(node, ZZB_MAC_STATUS_SUCCESS);
+	zassert_true(held());
 
 	k_sleep(K_MSEC(1600));
 	zassert_equal(zzb_nlme_reset_req_fake.call_count, 0);
@@ -174,6 +179,7 @@ ZTEST(zzb_bdb_steering, test_network_key_does_not_arrive)
 	zassert_equal(zzb_nlme_reset_req_fake.call_count, 1);
 	zassert_equal(zzb_aps_reset_fake.call_count, 1);
 	check_discovery(1, PRIMARY);
+	zassert_false(held());
 
 	/* The network that failed is skipped */
 	discovered(2);
@@ -181,6 +187,7 @@ ZTEST(zzb_bdb_steering, test_network_key_does_not_arrive)
 	zzb_nlme_join_conf(node, ZZB_MAC_STATUS_SUCCESS);
 	receive_key();
 	check_event(1, ZZB_BDB_SUCCESS);
+	zassert_false(held());
 }
 
 /* The MAC refuses a scan while its TX FIFO holds frames */
