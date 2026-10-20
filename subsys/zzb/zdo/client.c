@@ -31,6 +31,8 @@ static void schedule(struct zzb_node *node)
 		}
 	}
 
+	/* A sleepy node fetches the response from its parent */
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_ZDO, next != INT64_MAX);
 	if (next == INT64_MAX) {
 		k_work_cancel_delayable(&node->zdo.client_timer);
 		return;
