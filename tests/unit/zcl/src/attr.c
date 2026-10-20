@@ -19,6 +19,7 @@ static void *setup(void)
 #define RECORD_MAP32 "zzb/0/zcl/1/0f00/000a"
 #define RECORD_I8    "zzb/0/zcl/1/0f00/000c"
 #define RECORD_U32   "zzb/0/zcl/1/0f00/000d"
+#define RECORD_E16   "zzb/0/zcl/1/0f00/000e"
 
 /* Every test starts without the record, since ztest orders tests by name */
 static void before(void *fixture)
@@ -31,6 +32,7 @@ static void before(void *fixture)
 	zassert_ok(settings_delete(RECORD_MAP32));
 	zassert_ok(settings_delete(RECORD_I8));
 	zassert_ok(settings_delete(RECORD_U32));
+	zassert_ok(settings_delete(RECORD_E16));
 }
 
 static void after(void *fixture)
@@ -57,7 +59,7 @@ ZTEST(zzb_zcl_attr, test_wide_types)
 	static const uint8_t req[] = {0x00, 0x62, 0x02, 0x08, 0x00, 0x29, 0xfe, 0xff, 0x09, 0x00,
 				      0x22, 0x56, 0x34, 0x12, 0x0a, 0x00, 0x1b, 0xef, 0xcd, 0xab,
 				      0x89, 0x0c, 0x00, 0x28, 0xfd, 0x0d, 0x00, 0x23, 0x04, 0x03,
-				      0x02, 0x01};
+				      0x02, 0x01, 0x0e, 0x00, 0x31, 0x15, 0x00};
 	static const uint8_t rsp[] = {0x18, 0x62, 0x04, 0x00};
 	uint8_t rec[5];
 
@@ -68,10 +70,13 @@ ZTEST(zzb_zcl_attr, test_wide_types)
 	zassert_equal(values1.map32, 0x89abcdef);
 	zassert_equal(values1.i8, -3);
 	zassert_equal(values1.u32, 0x01020304);
+	zassert_equal(values1.e16, 0x0015);
 	zassert_equal(settings_load_one(RECORD_U24, rec, sizeof(rec)), 4);
 	zassert_mem_equal(rec, ((uint8_t[]){0x01, 0x56, 0x34, 0x12}), 4);
 	zassert_equal(settings_load_one(RECORD_I8, rec, sizeof(rec)), 2);
 	zassert_mem_equal(rec, ((uint8_t[]){0x01, 0xfd}), 2);
+	zassert_equal(settings_load_one(RECORD_E16, rec, sizeof(rec)), 3);
+	zassert_mem_equal(rec, ((uint8_t[]){0x01, 0x15, 0x00}), 3);
 
 	values1 = (struct test_values){0};
 	zassert_ok(reboot());
@@ -80,6 +85,7 @@ ZTEST(zzb_zcl_attr, test_wide_types)
 	zassert_equal(values1.map32, 0x89abcdef);
 	zassert_equal(values1.i8, -3);
 	zassert_equal(values1.u32, 0x01020304);
+	zassert_equal(values1.e16, 0x0015);
 }
 
 /* The check hook gets the value struct of the instance on the endpoint */

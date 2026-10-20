@@ -27,6 +27,7 @@ enum zzb_zcl_type {
 	ZZB_ZCL_INT8 = 0x28,
 	ZZB_ZCL_INT16 = 0x29,
 	ZZB_ZCL_ENUM8 = 0x30,
+	ZZB_ZCL_ENUM16 = 0x31,
 	ZZB_ZCL_OCTSTR = 0x41,
 	ZZB_ZCL_STRING = 0x42,
 };
@@ -37,7 +38,8 @@ enum zzb_zcl_type {
 	 (type) == ZZB_ZCL_INT8 || (type) == ZZB_ZCL_ENUM8)
 
 #define ZZB_ZCL_IS_WORD(type)                                                                      \
-	((type) == ZZB_ZCL_MAP16 || (type) == ZZB_ZCL_UINT16 || (type) == ZZB_ZCL_INT16)
+	((type) == ZZB_ZCL_MAP16 || (type) == ZZB_ZCL_UINT16 || (type) == ZZB_ZCL_INT16 ||         \
+	 (type) == ZZB_ZCL_ENUM16)
 
 /**
  * Size of the value struct field of a type; 0 for a type that the stack does not store. A uint24
