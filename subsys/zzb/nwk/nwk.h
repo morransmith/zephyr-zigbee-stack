@@ -189,8 +189,10 @@ struct zzb_nwk {
 	struct k_work_delayable poll_timer;
 	uint32_t long_poll_ms;
 	uint32_t short_poll_ms;
-	/* k_uptime_get() of the last poll */
+	/* k_uptime_get() of the last poll and of the end of zzb_nwk_poll_fast() */
 	int64_t poll_last;
+	int64_t fast_poll_end;
+	uint8_t poll_holds;
 };
 
 /* Clears the NWK state. The NIB has no PAN ID, no network address and a random sequence number. */
@@ -230,6 +232,23 @@ uint8_t zzb_nlme_get_capability(const struct zzb_node *node);
 
 /* Whether the network key is pending: joined and unauthorized (R22 4.4.1.2 step 2) */
 bool zzb_nwk_key_pending(const struct zzb_node *node);
+
+/* The layers that hold the fast poll rate of a sleepy node */
+enum zzb_nwk_hold {
+	ZZB_NWK_HOLD_APS = BIT(0),
+	ZZB_NWK_HOLD_ZDO = BIT(1),
+	ZZB_NWK_HOLD_BDB = BIT(2),
+	ZZB_NWK_HOLD_ZCL = BIT(3),
+};
+
+/* Sets or clears the hold of a layer; the node polls at the short interval while one is set */
+void zzb_nwk_poll_hold(struct zzb_node *node, enum zzb_nwk_hold hold, bool on);
+
+/* The node polls at the short interval for CONFIG_ZZB_NWK_FAST_POLL_MS from now */
+void zzb_nwk_poll_fast(struct zzb_node *node);
+
+/* Poll intervals of a sleepy node, set by Poll Control */
+void zzb_nwk_set_poll_intervals(struct zzb_node *node, uint32_t long_ms, uint32_t short_ms);
 
 /*
  * Saves the records nwk/net and nwk/keys while the node is on a network and its key is not
@@ -419,9 +438,6 @@ void zzb_nwk_leave_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 
 /* MLME-POLL.request to addr with the PAN ID of the NIB */
 int zzb_nwk_poll(struct zzb_node *node, uint16_t addr);
-
-/* Poll intervals of a sleepy node, set by Poll Control */
-void zzb_nwk_set_poll_intervals(struct zzb_node *node, uint32_t long_ms, uint32_t short_ms);
 
 void zzb_nwk_poll_init(struct zzb_node *node);
 

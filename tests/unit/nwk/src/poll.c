@@ -132,4 +132,68 @@ ZTEST(zzb_nwk_poll, test_intervals_change_the_period)
 	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
 }
 
+ZTEST(zzb_nwk_poll, test_hold_polls_at_the_short_interval)
+{
+	zzb_nwk_poll_hold(child, ZZB_NWK_HOLD_APS, true);
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_SHORT_POLL_MS - 100));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_SHORT_POLL_MS));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 2);
+}
+
+/* The poll armed at the short interval comes first, then the long interval applies */
+ZTEST(zzb_nwk_poll, test_release_returns_to_the_long_interval)
+{
+	zzb_nwk_poll_hold(child, ZZB_NWK_HOLD_APS, true);
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_SHORT_POLL_MS + 100));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 1);
+
+	zzb_nwk_poll_hold(child, ZZB_NWK_HOLD_APS, false);
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_SHORT_POLL_MS));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 2);
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_LONG_POLL_MS - 200));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 2);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 3);
+}
+
+ZTEST(zzb_nwk_poll, test_another_hold_keeps_the_short_interval)
+{
+	zzb_nwk_poll_hold(child, ZZB_NWK_HOLD_APS, true);
+	zzb_nwk_poll_hold(child, ZZB_NWK_HOLD_ZDO, true);
+	zzb_nwk_poll_hold(child, ZZB_NWK_HOLD_APS, false);
+	k_sleep(K_MSEC(3 * CONFIG_ZZB_NWK_SHORT_POLL_MS + 100));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count, 3);
+	zzb_nwk_poll_hold(child, ZZB_NWK_HOLD_ZDO, false);
+}
+
+ZTEST(zzb_nwk_poll, test_fast_poll_lasts_its_time)
+{
+	zzb_nwk_poll_fast(child);
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_FAST_POLL_MS + 100));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count,
+		      CONFIG_ZZB_NWK_FAST_POLL_MS / CONFIG_ZZB_NWK_SHORT_POLL_MS);
+
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_LONG_POLL_MS - 300));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count,
+		      CONFIG_ZZB_NWK_FAST_POLL_MS / CONFIG_ZZB_NWK_SHORT_POLL_MS);
+	k_sleep(K_MSEC(400));
+	zassert_equal(zzb_mlme_poll_req_fake.call_count,
+		      CONFIG_ZZB_NWK_FAST_POLL_MS / CONFIG_ZZB_NWK_SHORT_POLL_MS + 1);
+}
+
+ZTEST(zzb_nwk_poll, test_holds_of_a_node_that_is_not_sleepy_arm_no_timer)
+{
+	child->sleepy = false;
+	pair_nodes(child, parent);
+	zzb_nwk_poll_start(child);
+	zzb_nwk_poll_hold(child, ZZB_NWK_HOLD_BDB, true);
+	zzb_nwk_poll_fast(child);
+	zassert_equal(child->nwk.poll_holds, ZZB_NWK_HOLD_BDB);
+	zassert_false(k_work_delayable_is_pending(&child->nwk.poll_timer));
+	zzb_nwk_poll_hold(child, ZZB_NWK_HOLD_BDB, false);
+}
+
 ZTEST_SUITE(zzb_nwk_poll, NULL, setup, before, after, NULL);

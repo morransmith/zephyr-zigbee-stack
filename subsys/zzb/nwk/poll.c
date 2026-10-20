@@ -22,7 +22,9 @@ int zzb_nwk_poll(struct zzb_node *node, uint16_t addr)
 static void schedule(struct zzb_node *node)
 {
 	struct zzb_nwk *nwk = &node->nwk;
-	int64_t delay = nwk->poll_last + nwk->long_poll_ms - k_uptime_get();
+	int64_t now = k_uptime_get();
+	bool fast = nwk->poll_holds != 0 || now < nwk->fast_poll_end;
+	int64_t delay = nwk->poll_last + (fast ? nwk->short_poll_ms : nwk->long_poll_ms) - now;
 
 	if (!node->sleepy || zzb_nwk_neighbor_parent(node) == NULL) {
 		return;
@@ -57,6 +59,20 @@ void zzb_nwk_poll_init(struct zzb_node *node)
 	k_work_init_delayable(&nwk->poll_timer, poll_handler);
 	nwk->long_poll_ms = CONFIG_ZZB_NWK_LONG_POLL_MS;
 	nwk->short_poll_ms = CONFIG_ZZB_NWK_SHORT_POLL_MS;
+}
+
+void zzb_nwk_poll_hold(struct zzb_node *node, enum zzb_nwk_hold hold, bool on)
+{
+	struct zzb_nwk *nwk = &node->nwk;
+
+	nwk->poll_holds = on ? nwk->poll_holds | hold : nwk->poll_holds & ~hold;
+	schedule(node);
+}
+
+void zzb_nwk_poll_fast(struct zzb_node *node)
+{
+	node->nwk.fast_poll_end = k_uptime_get() + CONFIG_ZZB_NWK_FAST_POLL_MS;
+	schedule(node);
 }
 
 void zzb_nwk_set_poll_intervals(struct zzb_node *node, uint32_t long_ms, uint32_t short_ms)

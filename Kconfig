@@ -265,4 +265,12 @@ config ZZB_NWK_SHORT_POLL_MS
 	  Interval between polls while a layer waits for frames, the default
 	  ShortPollInterval of Poll Control.
 
+config ZZB_NWK_FAST_POLL_MS
+	int "Fast poll time of a sleepy end device after a frame in milliseconds"
+	default 3000
+	help
+	  Time at the short interval after APS delivers a data frame and after
+	  ZCL sends a request, so that the node fetches the next request or
+	  the response.
+
 endif # ZZB
