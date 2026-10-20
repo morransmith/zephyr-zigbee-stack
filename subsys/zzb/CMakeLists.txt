@@ -69,6 +69,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/appliance_control.c
   zcl/clusters/appliance_events.c
   zcl/clusters/appliance_id.c
+  zcl/clusters/appliance_stats.c
   zcl/clusters/ballast.c
   zcl/clusters/basic.c
   zcl/clusters/color.c

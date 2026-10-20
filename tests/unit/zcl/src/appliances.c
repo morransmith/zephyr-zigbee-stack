@@ -4,6 +4,7 @@
 #include <zephyr/ztest.h>
 #include <zzb/zcl/appliance_control.h>
 #include <zzb/zcl/appliance_events.h>
+#include <zzb/zcl/appliance_stats.h>
 
 #include "fakes.h"
 
@@ -223,6 +224,68 @@ ZTEST(zzb_zcl_appliances, test_events_client_malformed)
 	check_refused(ZZB_ZCL_APPLIANCE_EVENTS, false, commands, ARRAY_SIZE(commands),
 		      ZZB_ZCL_MALFORMED_COMMAND);
 	check_refused(ZZB_ZCL_APPLIANCE_EVENTS, false, &(struct test_cmd){0x03}, 1,
+		      ZZB_ZCL_UNSUP_COMMAND);
+}
+
+/*
+ * Log Request of log 5 and Log Queue Request reach zcl_cmd_cb of the Appliance Statistics server
+ * as received. Log Request with 3 octets gives MALFORMED_COMMAND, an unknown command
+ * UNSUP_COMMAND.
+ */
+ZTEST(zzb_zcl_appliances, test_stats_server_commands)
+{
+	static const struct test_cmd commands[] = {
+		{0x00, 4, {0x05, 0x00, 0x00, 0x00}},
+		{0x01, 0, {0}},
+	};
+
+	check_passed(ZZB_ZCL_APPLIANCE_STATS, true, commands, ARRAY_SIZE(commands));
+	check_refused(ZZB_ZCL_APPLIANCE_STATS, true, &(struct test_cmd){0x00, 3, {0x05}}, 1,
+		      ZZB_ZCL_MALFORMED_COMMAND);
+	check_refused(ZZB_ZCL_APPLIANCE_STATS, true, &(struct test_cmd){0x02}, 1,
+		      ZZB_ZCL_UNSUP_COMMAND);
+}
+
+/*
+ * The commands of ZCL 15.5.2.2 reach zcl_cmd_cb of the client as received: Log Notification of log
+ * 5 without a time stamp and with 3 octets of log payload, Log Response of log 5 with the time
+ * stamp 0x30001000 and an empty log, Log Queue Response of logs 5 and 6, and Statistics Available
+ * of no log
+ */
+ZTEST(zzb_zcl_appliances, test_stats_client_commands)
+{
+	static const struct test_cmd commands[] = {
+		{0x00, 15, {0xff, 0xff, 0xff, 0xff, 0x05, 0x00, 0x00, 0x00, 0x03}},
+		{0x01, 12, {0x00, 0x10, 0x00, 0x30, 0x05}},
+		{0x02, 9, {0x02, 0x05, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00}},
+		{0x03, 1, {0x00}},
+	};
+
+	check_passed(ZZB_ZCL_APPLIANCE_STATS, false, commands, ARRAY_SIZE(commands));
+}
+
+/*
+ * A payload shorter than its fields gives MALFORMED_COMMAND: Log Notification with 11 octets, with
+ * 2 of the 3 octets of its log payload and with Log Length 0xffffffff, Log Response without
+ * fields, Log Queue Response with 3 octets of its second log ID and Statistics Available without
+ * its count. An unknown command gives UNSUP_COMMAND. None reaches zcl_cmd_cb.
+ */
+ZTEST(zzb_zcl_appliances, test_stats_client_malformed)
+{
+	static const struct test_cmd commands[] = {
+		{0x00, 11, {0xff, 0xff, 0xff, 0xff, 0x05, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00}},
+		{0x00, 14, {0xff, 0xff, 0xff, 0xff, 0x05, 0x00, 0x00, 0x00, 0x03}},
+		{0x00,
+		 13,
+		 {0xff, 0xff, 0xff, 0xff, 0x05, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x01}},
+		{0x01, 0, {0}},
+		{0x02, 8, {0x02, 0x05, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00}},
+		{0x03, 0, {0}},
+	};
+
+	check_refused(ZZB_ZCL_APPLIANCE_STATS, false, commands, ARRAY_SIZE(commands),
+		      ZZB_ZCL_MALFORMED_COMMAND);
+	check_refused(ZZB_ZCL_APPLIANCE_STATS, false, &(struct test_cmd){0x04}, 1,
 		      ZZB_ZCL_UNSUP_COMMAND);
 }
 

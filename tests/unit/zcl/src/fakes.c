@@ -534,19 +534,23 @@ static const struct zzb_zcl_cluster ep91_clusters[] = {
 struct zzb_zcl_power_profile power_profile140 = {.total_profile_num = 1, .energy_formatting = 0x01};
 struct zzb_zcl_appliance_control appliance_control140;
 struct zzb_zcl_appliance_id appliance_id140;
+struct zzb_zcl_appliance_stats appliance_stats140 = {
+	.log_max_size = 0x3c,
+	.log_queue_max_size = 1,
+};
 
 static const struct zzb_zcl_cluster ep140_clusters[] = {
 	ZZB_ZCL_POWER_PROFILE_SERVER(&power_profile140),
 	ZZB_ZCL_APPLIANCE_CONTROL_SERVER(&appliance_control140),
 	ZZB_ZCL_APPLIANCE_ID_SERVER(&appliance_id140),
 	ZZB_ZCL_APPLIANCE_EVENTS_SERVER(),
+	ZZB_ZCL_APPLIANCE_STATS_SERVER(&appliance_stats140),
 };
 
 static const struct zzb_zcl_cluster ep141_clusters[] = {
-	ZZB_ZCL_POWER_PROFILE_CLIENT(),
-	ZZB_ZCL_APPLIANCE_CONTROL_CLIENT(),
-	ZZB_ZCL_APPLIANCE_ID_CLIENT(),
-	ZZB_ZCL_APPLIANCE_EVENTS_CLIENT(),
+	ZZB_ZCL_POWER_PROFILE_CLIENT(),   ZZB_ZCL_APPLIANCE_CONTROL_CLIENT(),
+	ZZB_ZCL_APPLIANCE_ID_CLIENT(),    ZZB_ZCL_APPLIANCE_EVENTS_CLIENT(),
+	ZZB_ZCL_APPLIANCE_STATS_CLIENT(),
 };
 
 static const struct zzb_endpoint endpoints[] = {
