@@ -9,11 +9,13 @@
 
 #include "aps/aps.h"
 #include "bdb/bdb.h"
+#include "common/fc.h"
 #include "common/node.h"
 #include "common/queue.h"
 #include "fake_radio.h"
 #include "nwk/nwk.h"
 #include "parent.h"
+#include "storage/settings.h"
 #include "zcl/zcl.h"
 #include "zdo/zdo.h"
 
@@ -109,6 +111,42 @@ static int64_t wait_zcl_frames(int count)
 
 	zassert_true(parent_log.zcl_frames >= count);
 	return k_uptime_get() - start;
+}
+
+struct reboot_call {
+	struct k_work work;
+	int err;
+};
+
+/* The layers above the MAC start again from their records, as zzb_node_init() does */
+static void reboot_handler(struct k_work *work)
+{
+	struct reboot_call *call = CONTAINER_OF(work, struct reboot_call, work);
+
+	zzb_nwk_init(child);
+	zzb_aps_init(child);
+	zzb_zdo_init(child);
+	zzb_zcl_init(child);
+	call->err = zzb_settings_load(child);
+	if (call->err == 0) {
+		call->err = zzb_fc_start(&child->nwk.fc);
+	}
+
+	if (call->err == 0) {
+		call->err = zzb_fc_start(&child->aps.fc);
+	}
+
+	zzb_zcl_start(child);
+	zzb_bdb_init(child);
+}
+
+static void reboot(void)
+{
+	struct reboot_call call = {0};
+
+	zzb_call_sync(&call.work, reboot_handler);
+	zassert_ok(call.err);
+	events.count = 0;
 }
 
 static void *setup(void)
@@ -237,6 +275,50 @@ ZTEST(zzb_sleepy_integration, test_idle_node_arms_only_deadline_timers)
 	zassert_false(k_work_delayable_is_pending(&child->zcl.ias_zone_timer));
 	zassert_false(k_work_delayable_is_pending(&child->zcl.time_timer));
 	zassert_equal(child->nwk.poll_holds, 0);
+	zassert_false(fake_radio_rx_on(1));
+}
+
+/* BDB 7.1: the rejoin response comes through the poll at the end of macResponseWaitTime */
+ZTEST(zzb_sleepy_integration, test_reboot_rejoins)
+{
+	steer();
+	reboot();
+	zassert_ok(zzb_bdb_start(child));
+	k_sleep(K_SECONDS(3));
+
+	check_event(ZZB_BDB_EVENT_INIT, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.rejoin_reqs, 1);
+	zassert_true(parent_log.rejoin_hdr.flags & ZZB_NWK_SECURITY);
+	zassert_equal(parent_log.device_annces, 2);
+	zassert_equal(child->nwk.nib.short_addr, CHILD_ADDR);
+}
+
+/*
+ * Three polls fail at the long interval; the secure rejoin on the old channel finds no beacon, the
+ * one on all channels finds the parent
+ */
+ZTEST(zzb_sleepy_integration, test_parent_moves_to_another_channel)
+{
+	steer();
+	parent_set_channel(20);
+	k_sleep(K_SECONDS(20));
+
+	check_event(ZZB_BDB_EVENT_REJOIN, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.rejoin_reqs, 1);
+	zassert_equal(child->nwk.nib.channel, 20);
+}
+
+/* BDB 9.4: Mgmt_Leave_req waits at the parent for the next poll */
+ZTEST(zzb_sleepy_integration, test_mgmt_leave_resets_the_node)
+{
+	steer();
+	k_sleep(K_SECONDS(4));
+	parent_send_mgmt_leave(false);
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_LONG_POLL_MS + 1000));
+
+	check_event(ZZB_BDB_EVENT_LEFT, ZZB_BDB_SUCCESS);
+	zassert_equal(parent_log.mgmt_leave_rsps, 1);
+	zassert_equal(parent_log.leaves, 1);
 	zassert_false(fake_radio_rx_on(1));
 }
 
