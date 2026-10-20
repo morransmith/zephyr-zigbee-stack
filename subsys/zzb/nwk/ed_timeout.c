@@ -38,17 +38,6 @@ static int send_request(struct zzb_node *node, const struct zzb_nwk_neighbor *pa
 	return zzb_nwk_send_cmd(node, &hdr, &cmd, parent->short_addr, true);
 }
 
-static int poll(struct zzb_node *node, const struct zzb_nwk_neighbor *parent)
-{
-	const struct zzb_mac_addr coord = {
-		.mode = ZZB_MAC_ADDR_SHORT,
-		.pan_id = node->nwk.nib.pan_id,
-		.short_addr = parent->short_addr,
-	};
-
-	return zzb_mlme_poll_req(node, &coord);
-}
-
 static void fail(struct zzb_node *node)
 {
 	zzb_nwk_keepalive_stop(node);
@@ -77,7 +66,7 @@ static void keepalive_handler(struct k_work *work)
 	}
 
 	if (!nwk->ed_timeout_due && (nwk->nib.parent_info & ZZB_NWK_PARENT_POLL_KEEPALIVE)) {
-		arm(node, poll(node, parent) ? RETRY_DELAY : PERIOD);
+		arm(node, zzb_nwk_poll(node, parent->short_addr) ? RETRY_DELAY : PERIOD);
 		return;
 	}
 

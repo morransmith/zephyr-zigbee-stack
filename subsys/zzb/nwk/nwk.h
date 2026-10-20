@@ -411,6 +411,9 @@ void zzb_nwk_leave_conf(struct zzb_node *node, enum zzb_mac_status status);
 void zzb_nwk_leave_rx(struct zzb_node *node, const struct zzb_nwk_hdr *hdr,
 		      const struct zzb_nwk_cmd *cmd, uint16_t mac_src);
 
+/* MLME-POLL.request to addr with the PAN ID of the NIB */
+int zzb_nwk_poll(struct zzb_node *node, uint16_t addr);
+
 void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 
 /* Sends the End Device Timeout Request from the stack queue, again after 1 s if that fails */

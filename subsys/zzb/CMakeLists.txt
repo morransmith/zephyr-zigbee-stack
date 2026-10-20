@@ -27,6 +27,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_NWK
   nwk/neighbor.c
   nwk/nib.c
   nwk/nwk.c
+  nwk/poll.c
   nwk/rejoin.c
   nwk/security.c
   nwk/status.c
