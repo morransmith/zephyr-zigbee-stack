@@ -15,4 +15,5 @@ manifest:
           - hal_nordic
           - hal_espressif
           - mbedtls
+          - mcuboot
           - tf-psa-crypto
