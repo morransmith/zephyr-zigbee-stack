@@ -946,7 +946,7 @@ ZCL records, little-endian:
 - The stack does not interpret Mode and Config/Status: the motor direction, calibration, maintenance and the open-loop rule of ZCL 7.4.2.2.5 (0 % closes) are left to the application.
 - The scene extension field set is CurrentPositionLiftPercentage, CurrentPositionTiltPercentage. A recall passes Go To Lift Percentage and Go To Tilt Percentage to `zcl_cmd_cb`, for each axis of the type with a value of at most 100, in a `struct zzb_zcl_cmd` that the stack builds with `unicast` false and source address, source endpoint and TSN 0; the status it returns is ignored. The transition time is ignored: the motor moves at its own speed. The first position that the application sets after the recall makes SceneValid FALSE.
 - The reset of the node sets Mode 0.
-- ZHA 2.3.1 configures the reports of both percentages 0/900/1, shows 100 minus CurrentPositionLiftPercentage as the position and sends only Up/Open, Down/Close, Stop, Go To Lift Percentage and Go To Tilt Percentage; its inversion switch writes bit 0 of Mode.
+- ZHA 2.3.1 configures the reports of both percentages 0/900/1, shows 100 minus CurrentPositionLiftPercentage as the position and sends only Up/Open, Down/Close, Stop, Go To Lift Percentage and Go To Tilt Percentage. Its inversion switch writes bit 0 of Mode and shows bit 2 of Config/Status, so the application that reverses the motor sets that bit.
 
 ### Thermostat
 
