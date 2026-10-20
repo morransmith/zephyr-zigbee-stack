@@ -160,6 +160,10 @@ static void send_bound_handler(struct k_work *work)
 
 	req->err = zzb_zcl_send_bindings(req->node, ep, req->cluster, ZZB_ZCL_FRAME_CLUSTER,
 					 to_client, req->cmd, req->payload, req->len);
+	/* A sleepy node fetches the response, such as Lock Door Response */
+	if (req->err == 0) {
+		zzb_nwk_poll_fast(req->node);
+	}
 }
 
 int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t cmd,
@@ -410,6 +414,7 @@ void zzb_zcl_init(struct zzb_node *node)
 	k_work_cancel_delayable(&node->zcl.ias_zone_timer);
 	k_work_cancel_delayable(&node->zcl.time_timer);
 	k_work_cancel_delayable(&node->zcl.door_lock_timer);
+	k_work_cancel_delayable(&node->zcl.poll_control_timer);
 	node->zcl = (struct zzb_zcl){
 		.tsn = sys_rand8_get(),
 	};
@@ -424,6 +429,7 @@ void zzb_zcl_init(struct zzb_node *node)
 	zzb_zcl_ias_zone_init(node);
 	zzb_zcl_time_init(node);
 	zzb_zcl_door_lock_init(node);
+	zzb_zcl_poll_control_init(node);
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];

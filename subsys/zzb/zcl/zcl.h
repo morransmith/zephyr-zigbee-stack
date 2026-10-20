@@ -109,6 +109,8 @@ struct zzb_zcl {
 	struct k_work_delayable time_timer;
 	/* TSN of the last request of the Time client */
 	uint8_t time_tsn;
+	/* Sends the check-ins of Poll Control and ends its windows and fast polls */
+	struct k_work_delayable poll_control_timer;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;
 	/* The frame being processed, for the hooks; NULL outside the processing of a frame */
@@ -270,6 +272,9 @@ void zzb_zcl_device_temp_init(struct zzb_node *node);
 void zzb_zcl_ias_wd_init(struct zzb_node *node);
 void zzb_zcl_ias_zone_init(struct zzb_node *node);
 void zzb_zcl_door_lock_init(struct zzb_node *node);
+
+/* Initializes the timer of Poll Control and clears the hold of ZCL on the poll rate of NWK */
+void zzb_zcl_poll_control_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*

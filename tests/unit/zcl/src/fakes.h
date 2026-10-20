@@ -32,6 +32,7 @@
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/on_off_switch_config.h>
+#include <zzb/zcl/poll_control.h>
 #include <zzb/zcl/power_config.h>
 #include <zzb/zcl/power_profile.h>
 #include <zzb/zcl/pump.h>
@@ -41,6 +42,7 @@
 
 #include "aps/aps.h"
 #include "common/buf.h"
+#include "nwk/nwk.h"
 
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 			const struct zzb_apsde_req *);
@@ -48,6 +50,11 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
 /* By default every IEEE address resolves to the requester */
 DECLARE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, uint16_t *);
+DECLARE_FAKE_VOID_FUNC(zzb_nwk_poll_hold, struct zzb_node *, enum zzb_nwk_hold, bool);
+DECLARE_FAKE_VOID_FUNC(zzb_nwk_poll_fast, struct zzb_node *);
+DECLARE_FAKE_VOID_FUNC(zzb_nwk_set_poll_intervals, struct zzb_node *, uint32_t, uint32_t);
+DECLARE_FAKE_VALUE_FUNC(bool, zzb_aps_bound, struct zzb_node *, uint8_t, uint16_t, uint16_t,
+			uint8_t);
 
 #define NODE_EUI64 0x00124b0001020304ULL
 #define NODE_ADDR  0x5678
@@ -400,6 +407,9 @@ struct zzb_node *test_node(void);
 
 /* Resets every fake */
 void reset_fakes(void);
+
+/* Resets the fake of APSDE-DATA.request, which copies the frames to sent again */
+void reset_frames(void);
 
 /* Checks that every frame buffer is free */
 void check_no_buffer_leak(void);
