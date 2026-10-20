@@ -7,6 +7,10 @@
 /* ClusterRevision (ZCL 6.3.1.1) */
 #define REVISION 3
 
+/* The range of LocalTemperatureCalibration (ZCL Table 6-13) */
+#define CALIBRATION_MIN -25
+#define CALIBRATION_MAX 25
+
 /* The default setpoints of ZCL Table 6-13, 26 and 20 degrees Celsius */
 #define DEFAULT_COOLING 2600
 #define DEFAULT_HEATING 2000
@@ -193,6 +197,18 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 	}
 }
 
+/* ZCL 6.3.2.2.2.1, CCB 2477: LocalTemperatureCalibration out of range takes the nearer end */
+static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
+{
+	const struct zzb_zcl_thermostat *v = values;
+	int8_t calibration =
+		CLAMP(v->local_temperature_calibration, CALIBRATION_MIN, CALIBRATION_MAX);
+
+	if (attr == ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_CALIBRATION) {
+		zzb_zcl_store(node, ep, ZZB_ZCL_THERMOSTAT, attr, (uint8_t)calibration);
+	}
+}
+
 static int16_t default_cooling(const struct zzb_zcl_thermostat *v)
 {
 	return CLAMP(DEFAULT_COOLING, v->abs_min_cool_setpoint_limit,
@@ -263,4 +279,5 @@ const struct zzb_zcl_cluster_def zzb_zcl_thermostat_def = {
 	.init = init,
 	.reset = reset,
 	.check = check,
+	.changed = changed,
 };

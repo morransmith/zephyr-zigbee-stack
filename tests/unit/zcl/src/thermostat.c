@@ -54,6 +54,12 @@ static uint8_t write_temperature(uint16_t attr, int16_t t)
 	return write(attr, ZZB_ZCL_INT16, t);
 }
 
+static uint8_t write_calibration(int8_t calibration)
+{
+	return write(ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_CALIBRATION, ZZB_ZCL_INT8,
+		     (uint8_t)calibration);
+}
+
 static void set_sequence(uint8_t sequence)
 {
 	zassert_ok(zzb_zcl_attr_set(test_node(), THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT,
@@ -237,6 +243,34 @@ ZTEST(zzb_zcl_thermostat, test_dead_band)
 	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT, 1600),
 		      ZZB_ZCL_SUCCESS);
 	check_setpoints(2700, 2900, 1600, 2000);
+}
+
+/*
+ * ZCL 6.3.2.2.2.1 (CCB 2477): LocalTemperatureCalibration outside -25 to 25 takes the nearer end
+ * with SUCCESS and one zcl_cb, and the record holds the limited value. A value that the
+ * application sets is limited too.
+ */
+ZTEST(zzb_zcl_thermostat, test_calibration)
+{
+	static const uint16_t calibration[] = {ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_CALIBRATION};
+	int8_t value = 100;
+
+	zassert_equal(write_calibration(-30), ZZB_ZCL_SUCCESS);
+	zassert_equal(thermostat60.local_temperature_calibration, -25);
+	check_zcl_cb(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, calibration, 1);
+	zassert_ok(reboot());
+	zassert_equal(thermostat60.local_temperature_calibration, -25);
+
+	zassert_equal(write_calibration(26), ZZB_ZCL_SUCCESS);
+	zassert_equal(thermostat60.local_temperature_calibration, 25);
+	check_zcl_cb(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, calibration, 1);
+	zassert_equal(write_calibration(-25), ZZB_ZCL_SUCCESS);
+	zassert_equal(thermostat60.local_temperature_calibration, -25);
+
+	zassert_ok(zzb_zcl_attr_set(test_node(), THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT,
+				    ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_CALIBRATION, &value));
+	zassert_ok(reboot());
+	zassert_equal(thermostat60.local_temperature_calibration, 25);
 }
 
 /*
