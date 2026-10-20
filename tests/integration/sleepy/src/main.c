@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <zephyr/kernel.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/ias_zone.h>
+#include <zzb/zcl/poll_control.h>
 #include <zzb/zzb.h>
 
 #include "aps/aps.h"
@@ -55,10 +57,13 @@ static struct zzb_zcl_ias_zone zone = {
 	.zone_type = 0x0015,
 };
 
-/* A battery powered contact switch */
+static struct zzb_zcl_poll_control poll_control;
+
+/* A battery powered contact switch, with Poll Control on the first endpoint as zigpy needs it */
 static const struct zzb_zcl_cluster sensor[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
+	ZZB_ZCL_POLL_CONTROL_SERVER(&poll_control),
 	ZZB_ZCL_IAS_ZONE_SERVER(&zone),
 };
 
@@ -262,6 +267,7 @@ ZTEST(zzb_sleepy_integration, test_idle_node_arms_only_deadline_timers)
 
 	zassert_true(k_work_delayable_is_pending(&child->nwk.poll_timer));
 	zassert_true(k_work_delayable_is_pending(&child->nwk.keepalive));
+	zassert_true(k_work_delayable_is_pending(&child->zcl.poll_control_timer));
 
 	zassert_false(k_work_delayable_is_pending(&child->mac.timer));
 	zassert_false(k_work_delayable_is_pending(&child->nwk.timer));
@@ -320,6 +326,63 @@ ZTEST(zzb_sleepy_integration, test_mgmt_leave_resets_the_node)
 	zassert_equal(parent_log.mgmt_leave_rsps, 1);
 	zassert_equal(parent_log.leaves, 1);
 	zassert_false(fake_radio_rx_on(1));
+}
+
+/*
+ * zigpy binds Poll Control at the interview and writes FastPollTimeout 120. A Check-in after the
+ * new Check-inInterval of 10 s gets the Check-in Response of zigpy with Start Fast Polling and
+ * 120 quarter seconds, so the node polls at the short interval for 30 s. Check-inInterval 1 h
+ * then keeps the next check-in out of the test.
+ */
+ZTEST(zzb_sleepy_integration, test_poll_control_check_in)
+{
+	static const uint8_t write_timeout[] = {0x00, 0x50, 0x02, 0x03, 0x00, 0x21, 0x78, 0x00};
+	static const uint8_t write_interval[] = {0x00, 0x51, 0x02, 0x00, 0x00,
+						 0x23, 0x28, 0x00, 0x00, 0x00};
+	static const uint8_t write_hour[] = {0x00, 0x52, 0x02, 0x00, 0x00,
+					     0x23, 0x40, 0x38, 0x00, 0x00};
+	uint8_t check_in_rsp[] = {0x11, 0x00, 0x00, 0x01, 0x78, 0x00};
+	uint8_t bind[22] = {0x24};
+	int frames;
+	int polls;
+
+	steer();
+	sys_put_le64(child->eui64, bind + 1);
+	bind[9] = 1;
+	sys_put_le16(ZZB_ZCL_POLL_CONTROL, bind + 10);
+	bind[12] = ZZB_APS_ADDR_EXT;
+	sys_put_le64(PARENT_EUI64, bind + 13);
+	bind[21] = 1;
+	parent_send_zdo(ZZB_ZDP_BIND_REQ, bind, sizeof(bind));
+	parent_send_zcl(ZZB_ZCL_POLL_CONTROL, write_timeout, sizeof(write_timeout));
+	parent_send_zcl(ZZB_ZCL_POLL_CONTROL, write_interval, sizeof(write_interval));
+	wait_zcl_frames(2);
+	zassert_equal(poll_control.fast_poll_timeout, 120);
+	zassert_equal(poll_control.check_in_interval, 40);
+
+	frames = parent_log.zcl_frames;
+	k_sleep(K_MSEC(10 * MSEC_PER_SEC - 200));
+	zassert_equal(parent_log.zcl_frames, frames);
+	wait_zcl_frames(frames + 1);
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_POLL_CONTROL);
+	zassert_equal(parent_log.zcl_len, 3);
+	zassert_equal(parent_log.zcl[0], 0x19);
+	zassert_equal(parent_log.zcl[2], ZZB_ZCL_POLL_CONTROL_CHECK_IN);
+
+	check_in_rsp[1] = parent_log.zcl[1];
+	parent_send_zcl(ZZB_ZCL_POLL_CONTROL, check_in_rsp, sizeof(check_in_rsp));
+	parent_send_zcl(ZZB_ZCL_POLL_CONTROL, write_hour, sizeof(write_hour));
+	k_sleep(K_SECONDS(2));
+	zassert_equal(poll_control.check_in_interval, 0x3840);
+	polls = parent_log.polls;
+	k_sleep(K_SECONDS(20));
+	zassert_true(parent_log.polls - polls >=
+		     20 * MSEC_PER_SEC / CONFIG_ZZB_NWK_SHORT_POLL_MS - 2);
+
+	k_sleep(K_SECONDS(10));
+	polls = parent_log.polls;
+	k_sleep(K_SECONDS(10));
+	zassert_between_inclusive(parent_log.polls - polls, 1, 3);
 }
 
 ZTEST_SUITE(zzb_sleepy_integration, NULL, setup, before, after, NULL);
