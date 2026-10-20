@@ -109,7 +109,7 @@ struct zzb_zcl {
 	struct k_work_delayable time_timer;
 	/* TSN of the last request of the Time client */
 	uint8_t time_tsn;
-	/* Sends the check-ins of Poll Control and ends its windows */
+	/* Sends the check-ins of Poll Control and ends its windows and fast polls */
 	struct k_work_delayable poll_control_timer;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;

@@ -21,6 +21,8 @@ DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, ui
 DEFINE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, uint16_t *);
 DEFINE_FAKE_VOID_FUNC(zzb_nwk_poll_hold, struct zzb_node *, enum zzb_nwk_hold, bool);
 DEFINE_FAKE_VOID_FUNC(zzb_nwk_set_poll_intervals, struct zzb_node *, uint32_t, uint32_t);
+DEFINE_FAKE_VALUE_FUNC(bool, zzb_aps_bound, struct zzb_node *, uint8_t, uint16_t, uint16_t,
+		       uint8_t);
 
 struct test_values values1;
 struct test_values values2;
@@ -877,6 +879,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_aps_resolve_ext);
 	RESET_FAKE(zzb_nwk_poll_hold);
 	RESET_FAKE(zzb_nwk_set_poll_intervals);
+	RESET_FAKE(zzb_aps_bound);
 	FFF_RESET_HISTORY();
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
@@ -896,6 +899,12 @@ void reset_fakes(void)
 	recall_calls = (struct recall_calls){0};
 	alarm_reset_calls = (struct alarm_reset_calls){0};
 	memset(memberships, 0, sizeof(memberships));
+}
+
+void reset_frames(void)
+{
+	RESET_FAKE(zzb_apsde_data_req);
+	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
 }
 
 void check_no_buffer_leak(void)

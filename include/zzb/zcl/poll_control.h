@@ -31,6 +31,17 @@ extern "C" {
 #define ZZB_ZCL_POLL_CONTROL_SET_LONG_POLL_INTERVAL  0x02
 #define ZZB_ZCL_POLL_CONTROL_SET_SHORT_POLL_INTERVAL 0x03
 
+/** The clients for which a Poll Control server fast polls at the same time. */
+#define ZZB_ZCL_POLL_CONTROL_CLIENTS 4
+
+/** Internal: a client that has asked a Poll Control server to fast poll. */
+struct zzb_zcl_poll_control_client {
+	uint16_t addr;
+	uint8_t ep;
+	/** k_uptime_get() at the end of its fast polling, 0 for a free entry. */
+	int64_t end;
+};
+
 /**
  * Values of a Poll Control server (ZCL 3.16.4) of a sleepy end device; all intervals and timeouts
  * are in quarter seconds. The application fills the three limits before zzb_node_init() and
@@ -38,7 +49,8 @@ extern "C" {
  * and saves the other four: check_in_interval and fast_poll_timeout are writable, and Set Long
  * Poll Interval, Set Short Poll Interval and zzb_zcl_attr_set() change the poll intervals. The
  * server on the first endpoint with one sets the poll intervals of the node. Every server sends
- * Check-in to its bound destinations every check_in_interval.
+ * Check-in to its bound destinations every check_in_interval and fast polls for the bound clients
+ * that answer with Check-in Response until their timeouts or Fast Poll Stop.
  */
 struct zzb_zcl_poll_control {
 	/** Up to 0x6e0000, 0 turns the check-ins off; default 0x3840 (1 h). */
@@ -57,6 +69,8 @@ struct zzb_zcl_poll_control {
 	int64_t next_check_in;
 	/** Internal: k_uptime_get() at the end of the window after a check-in, 0 outside it. */
 	int64_t window_end;
+	/** Internal: the clients that a Check-in Response has made the server fast poll for. */
+	struct zzb_zcl_poll_control_client clients[ZZB_ZCL_POLL_CONTROL_CLIENTS];
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_poll_control_def;

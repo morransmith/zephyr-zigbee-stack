@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/poll_control.h>
@@ -116,9 +117,38 @@ static int64_t due(int64_t t)
 	return t != 0 ? t : INT64_MAX;
 }
 
+static bool has_clients(const struct zzb_zcl_poll_control *v)
+{
+	ARRAY_FOR_EACH_PTR(v->clients, c) {
+		if (c->end != 0) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/* The server fast polls during the window and until the deadlines of its clients */
+static bool fast_polls(const struct zzb_zcl_poll_control *v)
+{
+	return v->window_end != 0 || has_clients(v);
+}
+
+/* The earliest check-in, end of the window or deadline of a client of v, or INT64_MAX */
+static int64_t next_event(const struct zzb_zcl_poll_control *v)
+{
+	int64_t next = MIN(due(v->next_check_in), due(v->window_end));
+
+	ARRAY_FOR_EACH_PTR(v->clients, c) {
+		next = MIN(next, due(c->end));
+	}
+
+	return next;
+}
+
 /*
- * Arms the timer for the earliest check-in or end of a window of the node, or stops it, and holds
- * the fast poll rate while a window is open
+ * Arms the timer for the earliest event of the node, or stops it, and holds the fast poll rate
+ * while a server fast polls
  */
 static void schedule(struct zzb_node *node)
 {
@@ -129,8 +159,8 @@ static void schedule(struct zzb_node *node)
 		const struct zzb_zcl_poll_control *v = server(&node->device->endpoints[i]);
 
 		if (v != NULL) {
-			next = MIN(next, MIN(due(v->next_check_in), due(v->window_end)));
-			hold = hold || v->window_end != 0;
+			next = MIN(next, next_event(v));
+			hold = hold || fast_polls(v);
 		}
 	}
 
@@ -179,6 +209,12 @@ static void tick(struct k_work *work)
 
 		if (due(v->window_end) <= now) {
 			v->window_end = 0;
+		}
+
+		ARRAY_FOR_EACH_PTR(v->clients, c) {
+			if (due(c->end) <= now) {
+				c->end = 0;
+			}
 		}
 
 		if (due(v->next_check_in) <= now) {
@@ -230,9 +266,114 @@ static int set_interval(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	return ZZB_ZCL_SUCCESS;
 }
 
+/* ZCL 3.16.5.3: the client is bound to the server on the endpoint of the command */
+static bool bound(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return zzb_aps_bound(node, cmd->ep, ZZB_ZCL_POLL_CONTROL, cmd->src_addr, cmd->src_ep);
+}
+
+/* The entry of the source of cmd in the client table, or NULL */
+static struct zzb_zcl_poll_control_client *find_client(struct zzb_zcl_poll_control *v,
+						       const struct zzb_zcl_cmd *cmd)
+{
+	ARRAY_FOR_EACH_PTR(v->clients, c) {
+		if (c->end != 0 && c->addr == cmd->src_addr && c->ep == cmd->src_ep) {
+			return c;
+		}
+	}
+
+	return NULL;
+}
+
+/* A free entry has end 0, so it comes before the entry that ends first */
+static struct zzb_zcl_poll_control_client *new_client(struct zzb_zcl_poll_control *v,
+						      const struct zzb_zcl_cmd *cmd)
+{
+	struct zzb_zcl_poll_control_client *entry = &v->clients[0];
+
+	ARRAY_FOR_EACH_PTR(v->clients, c) {
+		if (c->end < entry->end) {
+			entry = c;
+		}
+	}
+
+	entry->addr = cmd->src_addr;
+	entry->ep = cmd->src_ep;
+	return entry;
+}
+
+static void remove_client(struct zzb_zcl_poll_control *v, const struct zzb_zcl_cmd *cmd)
+{
+	struct zzb_zcl_poll_control_client *c = find_client(v, cmd);
+
+	if (c != NULL) {
+		c->end = 0;
+	}
+}
+
+/* ZCL 3.16.5.3: Start Fast Polling and Fast Poll Timeout, 0 for FastPollTimeout */
+static int check_in_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			struct zzb_zcl_poll_control *v)
+{
+	struct zzb_zcl_poll_control_client *c;
+	uint16_t timeout;
+
+	if (cmd->len < 3) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	if (!bound(node, cmd) || v->window_end == 0) {
+		return ZZB_ZCL_FAILURE;
+	}
+
+	timeout = sys_get_le16(cmd->payload + 1);
+	if (above_max(v, timeout)) {
+		return ZZB_ZCL_INVALID_VALUE;
+	}
+
+	if (!cmd->payload[0]) {
+		remove_client(v, cmd);
+		schedule(node);
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	c = find_client(v, cmd);
+	if (c == NULL) {
+		c = new_client(v, cmd);
+	}
+
+	c->end = k_uptime_get() + ms(timeout != 0 ? timeout : v->fast_poll_timeout);
+	schedule(node);
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 3.16.5.4: the hold of the server ends with the deadline of its last client */
+static int fast_poll_stop(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			  struct zzb_zcl_poll_control *v)
+{
+	bool others;
+
+	if (!bound(node, cmd) || !fast_polls(v)) {
+		return ZZB_ZCL_FAILURE;
+	}
+
+	remove_client(v, cmd);
+	others = has_clients(v);
+	if (!others) {
+		v->window_end = 0;
+	}
+
+	schedule(node);
+	return others ? ZZB_ZCL_FAILURE : ZZB_ZCL_SUCCESS;
+}
+
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
 	switch (cmd->id) {
+	case ZZB_ZCL_POLL_CONTROL_CHECK_IN_RSP:
+		return check_in_rsp(node, cmd, values);
+	case ZZB_ZCL_POLL_CONTROL_FAST_POLL_STOP:
+		return fast_poll_stop(node, cmd, values);
 	case ZZB_ZCL_POLL_CONTROL_SET_LONG_POLL_INTERVAL:
 		return set_interval(node, cmd, values, ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL,
 				    sizeof(uint32_t));
@@ -255,6 +396,7 @@ static void init(void *values)
 	v->fast_poll_timeout = FAST_POLL_TIMEOUT_DEFAULT;
 	v->next_check_in = 0;
 	v->window_end = 0;
+	memset(v->clients, 0, sizeof(v->clients));
 }
 
 /* Nothing is sent at a join; the first check-in follows one interval after the start */
@@ -278,6 +420,7 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 	set(node, ep, ZZB_ZCL_POLL_CONTROL_SHORT_POLL_INTERVAL, SHORT_POLL_DEFAULT);
 	set(node, ep, ZZB_ZCL_POLL_CONTROL_FAST_POLL_TIMEOUT, FAST_POLL_TIMEOUT_DEFAULT);
 	v->window_end = 0;
+	memset(v->clients, 0, sizeof(v->clients));
 	schedule(node);
 	set_intervals(node, ep, v);
 }

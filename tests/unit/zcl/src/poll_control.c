@@ -61,14 +61,15 @@ static const struct zzb_device poll_device = {
 
 static struct zzb_node *poll_node;
 
-/* Passes a frame of Poll Control from the requester to endpoint ep of the third node */
-static void receive_poll(uint8_t ep, const uint8_t *asdu, size_t len)
+/* Passes a frame of Poll Control from src_addr and src_ep to endpoint ep of the third node */
+static void receive_from(uint16_t src_addr, uint8_t src_ep, uint8_t ep, const uint8_t *asdu,
+			 size_t len)
 {
 	const struct zzb_apsde_ind ind = {
 		.dst_addr = NODE_ADDR,
 		.dst_ep = ep,
-		.src_addr = REQUESTER_ADDR,
-		.src_ep = REQUESTER_EP,
+		.src_addr = src_addr,
+		.src_ep = src_ep,
 		.profile = 0x0104,
 		.cluster = ZZB_ZCL_POLL_CONTROL,
 		.security = ZZB_APS_SECURED_NWK_KEY,
@@ -78,6 +79,11 @@ static void receive_poll(uint8_t ep, const uint8_t *asdu, size_t len)
 	zassert_not_null(buf);
 	net_buf_add_mem(buf, asdu, len);
 	zzb_zcl_data_ind(poll_node, buf, &ind);
+}
+
+static void receive_poll(uint8_t ep, const uint8_t *asdu, size_t len)
+{
+	receive_from(REQUESTER_ADDR, REQUESTER_EP, ep, asdu, len);
 }
 
 struct reboot_call {
@@ -121,19 +127,33 @@ static void reset_poll(void)
 static uint8_t tsn;
 
 /*
- * Sends the command id with the payload to endpoint ep after reset_fakes() and checks its Default
- * Response
+ * Sends the command id with the payload from src_addr and src_ep to endpoint ep after
+ * reset_frames() and checks its Default Response
  */
-static void command(uint8_t ep, uint8_t id, const uint8_t *payload, size_t len, uint8_t status)
+static void command_from(uint16_t src_addr, uint8_t src_ep, uint8_t ep, uint8_t id,
+			 const uint8_t *payload, size_t len, uint8_t status)
 {
 	const uint8_t rsp[] = {0x18, ++tsn, 0x0b, id, status};
 	uint8_t frame[8] = {0x01, tsn, id};
 
 	zassert_true(3 + len <= sizeof(frame));
 	memcpy(frame + 3, payload, len);
-	reset_fakes();
-	receive_poll(ep, frame, 3 + len);
-	check_frame(0, ep, ZZB_ZCL_POLL_CONTROL, rsp, sizeof(rsp));
+	reset_frames();
+	receive_from(src_addr, src_ep, ep, frame, 3 + len);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_SHORT);
+	zassert_equal(sent[0].req.dst_addr, src_addr);
+	zassert_equal(sent[0].req.dst_ep, src_ep);
+	zassert_equal(sent[0].req.src_ep, ep);
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_POLL_CONTROL);
+	zassert_equal(sent[0].len, sizeof(rsp));
+	zassert_mem_equal(sent[0].data, rsp, sizeof(rsp));
+}
+
+/* command_from() the requester */
+static void command(uint8_t ep, uint8_t id, const uint8_t *payload, size_t len, uint8_t status)
+{
+	command_from(REQUESTER_ADDR, REQUESTER_EP, ep, id, payload, len, status);
 }
 
 static void set_long(uint8_t ep, uint32_t value, uint8_t status)
@@ -151,7 +171,7 @@ static void set_short(uint8_t ep, uint16_t value, uint8_t status)
 }
 
 /*
- * Writes the attribute records to endpoint ep after reset_fakes() and checks the Write Attributes
+ * Writes the attribute records to endpoint ep after reset_frames() and checks the Write Attributes
  * Response
  */
 static void write_attrs(uint8_t ep, const uint8_t *records, size_t len, const uint8_t *statuses,
@@ -164,12 +184,12 @@ static void write_attrs(uint8_t ep, const uint8_t *records, size_t len, const ui
 	zassert_true(3 + statuses_len <= sizeof(rsp));
 	memcpy(frame + 3, records, len);
 	memcpy(rsp + 3, statuses, statuses_len);
-	reset_fakes();
+	reset_frames();
 	receive_poll(ep, frame, 3 + len);
 	check_frame(0, ep, ZZB_ZCL_POLL_CONTROL, rsp, 3 + statuses_len);
 }
 
-/* Writes Check-inInterval qs to endpoint ep after reset_fakes() */
+/* Writes Check-inInterval qs to endpoint ep after reset_frames() */
 static void set_check_in(uint8_t ep, uint32_t qs)
 {
 	const uint8_t records[] = {0x00, 0x00, 0x23, qs, qs >> 8, qs >> 16, qs >> 24};
@@ -196,6 +216,40 @@ static bool held(void)
 	zassert_true(zzb_nwk_poll_hold_fake.call_count > 0);
 	zassert_equal(zzb_nwk_poll_hold_fake.arg1_val, ZZB_NWK_HOLD_ZCL);
 	return zzb_nwk_poll_hold_fake.arg2_val;
+}
+
+/* A second client beside the requester */
+#define SECOND_CLIENT_ADDR 0x1234
+#define SECOND_CLIENT_EP   2
+
+/*
+ * Opens the window of the server on endpoint 160 with a check-in 10 s after a write of
+ * Check-inInterval, which then becomes 1 h again
+ */
+static void open_window(void)
+{
+	set_check_in(POLL_EP, 40);
+	k_sleep(K_MSEC(10100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	set_check_in(POLL_EP, 0x3840);
+	zassert_true(held());
+}
+
+/* Sends Check-in Response from src_addr and src_ep to endpoint 160 */
+static void check_in_rsp(uint16_t src_addr, uint8_t src_ep, bool start, uint16_t timeout,
+			 uint8_t status)
+{
+	const uint8_t payload[] = {start, timeout, timeout >> 8};
+
+	command_from(src_addr, src_ep, POLL_EP, ZZB_ZCL_POLL_CONTROL_CHECK_IN_RSP, payload,
+		     sizeof(payload), status);
+}
+
+/* Sends Fast Poll Stop from src_addr and src_ep to endpoint 160 */
+static void fast_poll_stop(uint16_t src_addr, uint8_t src_ep, uint8_t status)
+{
+	command_from(src_addr, src_ep, POLL_EP, ZZB_ZCL_POLL_CONTROL_FAST_POLL_STOP, NULL, 0,
+		     status);
 }
 
 static void *setup(void)
@@ -355,6 +409,7 @@ static void check_intervals(uint32_t long_ms, uint32_t short_ms)
 ZTEST(zzb_zcl_poll_control, test_nwk_intervals)
 {
 	uint32_t long_poll = 0x30;
+	int calls;
 
 	zassert_ok(reboot_poll());
 	zassert_equal(zzb_nwk_set_poll_intervals_fake.call_count, 1);
@@ -368,10 +423,10 @@ ZTEST(zzb_zcl_poll_control, test_nwk_intervals)
 				    ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL, &long_poll));
 	check_intervals(12000, 1000);
 
+	calls = zzb_nwk_set_poll_intervals_fake.call_count;
 	set_long(SECOND_EP, 0x20, ZZB_ZCL_SUCCESS);
-	zassert_equal(zzb_nwk_set_poll_intervals_fake.call_count, 0);
 	set_short(SECOND_EP, 0x03, ZZB_ZCL_SUCCESS);
-	zassert_equal(zzb_nwk_set_poll_intervals_fake.call_count, 0);
+	zassert_equal(zzb_nwk_set_poll_intervals_fake.call_count, calls);
 
 	reset_poll();
 	check_intervals(5000, 500);
@@ -476,6 +531,138 @@ ZTEST(zzb_zcl_poll_control, test_check_in_interval_change)
 	set_check_in(POLL_EP, 0);
 	k_sleep(K_SECONDS(60));
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+}
+
+/*
+ * ZCL 3.16.5.3: a client that zzb_aps_bound() does not find and a response outside the window get
+ * FAILURE, a Fast Poll Timeout above FastPollTimeoutMax INVALID_VALUE. Start Fast Polling TRUE with
+ * timeout 0 holds the fast poll rate for FastPollTimeout, also after the window.
+ */
+ZTEST(zzb_zcl_poll_control, test_check_in_rsp)
+{
+	open_window();
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 0, ZZB_ZCL_FAILURE);
+	zassert_equal(zzb_aps_bound_fake.arg1_val, POLL_EP);
+	zassert_equal(zzb_aps_bound_fake.arg2_val, ZZB_ZCL_POLL_CONTROL);
+	zassert_equal(zzb_aps_bound_fake.arg3_val, REQUESTER_ADDR);
+	zassert_equal(zzb_aps_bound_fake.arg4_val, REQUESTER_EP);
+
+	zzb_aps_bound_fake.return_val = true;
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 241, ZZB_ZCL_INVALID_VALUE);
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 0, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(9800));
+	zassert_true(held());
+	k_sleep(K_MSEC(300));
+	zassert_false(held());
+
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 0, ZZB_ZCL_FAILURE);
+	command(POLL_EP, ZZB_ZCL_POLL_CONTROL_CHECK_IN_RSP, (uint8_t[]){0x01, 0x00}, 2,
+		ZZB_ZCL_MALFORMED_COMMAND);
+}
+
+/* A Fast Poll Timeout other than 0 sets the deadline of the client */
+ZTEST(zzb_zcl_poll_control, test_check_in_rsp_timeout)
+{
+	zzb_aps_bound_fake.return_val = true;
+	open_window();
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 0x50, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(19800));
+	zassert_true(held());
+	k_sleep(K_MSEC(300));
+	zassert_false(held());
+}
+
+/* Start Fast Polling FALSE removes the deadline of the client */
+ZTEST(zzb_zcl_poll_control, test_check_in_rsp_no_fast_poll)
+{
+	zzb_aps_bound_fake.return_val = true;
+	open_window();
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 0x50, ZZB_ZCL_SUCCESS);
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, false, 0, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(7480));
+	zassert_true(held());
+	k_sleep(K_MSEC(200));
+	zassert_false(held());
+}
+
+/*
+ * ZCL 3.16.5.4: Fast Poll Stop gets FAILURE from an unbound client, while the server does not fast
+ * poll and while another client has a deadline. Otherwise it gets SUCCESS, and the hold ends with
+ * the window.
+ */
+ZTEST(zzb_zcl_poll_control, test_fast_poll_stop)
+{
+	zzb_aps_bound_fake.return_val = true;
+	fast_poll_stop(REQUESTER_ADDR, REQUESTER_EP, ZZB_ZCL_FAILURE);
+	open_window();
+	zzb_aps_bound_fake.return_val = false;
+	fast_poll_stop(REQUESTER_ADDR, REQUESTER_EP, ZZB_ZCL_FAILURE);
+
+	zzb_aps_bound_fake.return_val = true;
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 0x50, ZZB_ZCL_SUCCESS);
+	check_in_rsp(SECOND_CLIENT_ADDR, SECOND_CLIENT_EP, true, 0x28, ZZB_ZCL_SUCCESS);
+	fast_poll_stop(REQUESTER_ADDR, REQUESTER_EP, ZZB_ZCL_FAILURE);
+	zassert_true(held());
+	fast_poll_stop(SECOND_CLIENT_ADDR, SECOND_CLIENT_EP, ZZB_ZCL_SUCCESS);
+	zassert_false(held());
+
+	fast_poll_stop(REQUESTER_ADDR, REQUESTER_EP, ZZB_ZCL_FAILURE);
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 0, ZZB_ZCL_FAILURE);
+}
+
+/*
+ * ZCL 3.16.6.2: the server fast polls until the latest deadline of its clients. ZCL 3.16.6.1:
+ * responses do not shift the check-in interval.
+ */
+ZTEST(zzb_zcl_poll_control, test_two_clients)
+{
+	uint8_t seq = poll_node->zcl.tsn;
+
+	zzb_aps_bound_fake.return_val = true;
+	set_check_in(POLL_EP, 80);
+	k_sleep(K_SECONDS(25));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 0x14, ZZB_ZCL_SUCCESS);
+	check_in_rsp(SECOND_CLIENT_ADDR, SECOND_CLIENT_EP, true, 0x30, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(4800));
+	zassert_true(held());
+	k_sleep(K_SECONDS(7));
+	zassert_true(held());
+	k_sleep(K_MSEC(400));
+	zassert_false(held());
+
+	k_sleep(K_MSEC(2700));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_check_in(1, seq + 1);
+}
+
+/* A full client table replaces the entry that ends first, here that of 0x1002 */
+ZTEST(zzb_zcl_poll_control, test_client_table_full)
+{
+	zzb_aps_bound_fake.return_val = true;
+	open_window();
+	check_in_rsp(0x1001, 1, true, 0x30, ZZB_ZCL_SUCCESS);
+	check_in_rsp(0x1002, 1, true, 0x28, ZZB_ZCL_SUCCESS);
+	check_in_rsp(0x1003, 1, true, 0x38, ZZB_ZCL_SUCCESS);
+	check_in_rsp(0x1004, 1, true, 0x40, ZZB_ZCL_SUCCESS);
+	check_in_rsp(0x1005, 1, true, 0x48, ZZB_ZCL_SUCCESS);
+
+	fast_poll_stop(0x1001, 1, ZZB_ZCL_FAILURE);
+	fast_poll_stop(0x1003, 1, ZZB_ZCL_FAILURE);
+	fast_poll_stop(0x1004, 1, ZZB_ZCL_FAILURE);
+	fast_poll_stop(0x1005, 1, ZZB_ZCL_SUCCESS);
+}
+
+/* The reset of the node clears the client table and the window, and the hold ends */
+ZTEST(zzb_zcl_poll_control, test_reset_clients)
+{
+	zzb_aps_bound_fake.return_val = true;
+	open_window();
+	check_in_rsp(REQUESTER_ADDR, REQUESTER_EP, true, 0x50, ZZB_ZCL_SUCCESS);
+	reset_poll();
+	zassert_false(held());
 }
 
 ZTEST_SUITE(zzb_zcl_poll_control, NULL, setup, before, after, teardown);
