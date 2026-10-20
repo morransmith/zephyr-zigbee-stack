@@ -306,4 +306,43 @@ ZTEST(zzb_radio_raw, test_sw_csma_ca_gives_up_after_max_backoffs)
 	zassert_false(zzb_radio_tx_done_fake.arg3_val);
 }
 
+/* k_cycle_get_64() at the last tx(); native_sim counts cycles in microseconds */
+static uint64_t tx_cycles;
+
+static int tx_record_time(const struct device *dev, enum ieee802154_tx_mode mode,
+			  struct net_pkt *pkt, struct net_buf *frag)
+{
+	tx_cycles = k_cycle_get_64();
+	return 0;
+}
+
+/*
+ * CONFIG_ZZB_RADIO_TX_BACKOFF: before the CSMA-CA of the driver the port waits 0 to 7 unit backoff
+ * periods of 320 us, as for esp32, whose CSMA-CA does one CCA without backoff
+ */
+ZTEST(zzb_radio_raw, test_tx_backs_off_before_hardware_csma_ca)
+{
+	uint8_t waits = 0;
+
+	if (!IS_ENABLED(CONFIG_ZZB_RADIO_TX_BACKOFF)) {
+		ztest_test_skip();
+	}
+
+	radio_tx_fake.custom_fake = tx_record_time;
+	for (int i = 0; i < 32; i++) {
+		uint64_t start = k_cycle_get_64();
+		uint64_t wait;
+
+		transmit(tx_buf(bcast_frame, sizeof(bcast_frame)));
+		wait = tx_cycles - start;
+		zassert_true(wait <= 7 * 320, "waited %llu us", wait);
+		waits |= BIT(wait / 320);
+	}
+
+	zassert_equal(radio_cca_fake.call_count, 0);
+	zassert_equal(radio_tx_fake.arg1_val, IEEE802154_TX_MODE_CSMA_CA);
+	/* More than one bit: the waits differ */
+	zassert_not_equal(waits & (waits - 1), 0, "one backoff for all frames");
+}
+
 ZTEST_SUITE(zzb_radio_raw, NULL, NULL, before, NULL, NULL);
