@@ -18,6 +18,7 @@
 #include <zzb/zcl/binary_input.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/device_temp.h>
+#include <zzb/zcl/door_lock.h>
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/ias_ace.h>
@@ -258,6 +259,18 @@ extern struct zzb_zcl_ias_wd wd86;
 /* Endpoint 90 is an IAS CIE with the IAS ACE server, endpoint 91 a keypad with the client */
 #define CIE_EP    90
 #define KEYPAD_EP 91
+
+/*
+ * Endpoints 100 and 101 are Door Locks with a Door Lock server, locked and with codes of 4 to 8
+ * octets; endpoint 100 also has an Alarms server
+ */
+#define DOOR_LOCK_EP 100
+
+extern struct zzb_zcl_door_lock lock100;
+extern struct zzb_zcl_door_lock lock101;
+
+/* Endpoint 102 is a Door Lock Controller with a Door Lock client */
+#define DOOR_LOCK_CLIENT_EP 102
 
 /*
  * Endpoint 120 is an On/Off Switch with the On/Off Switch Configuration server, SwitchType 0x01,

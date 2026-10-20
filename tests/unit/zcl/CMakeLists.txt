@@ -16,6 +16,7 @@ target_sources(app PRIVATE
   src/client.c
   src/color.c
   src/device_temp.c
+  src/door_lock.c
   src/fakes.c
   src/foundation.c
   src/frame.c

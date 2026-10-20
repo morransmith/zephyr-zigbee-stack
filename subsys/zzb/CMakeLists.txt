@@ -75,6 +75,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/binary_input.c
   zcl/clusters/color.c
   zcl/clusters/device_temp.c
+  zcl/clusters/door_lock.c
   zcl/clusters/electrical_measurement.c
   zcl/clusters/fan.c
   zcl/clusters/groups.c

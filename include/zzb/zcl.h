@@ -263,8 +263,9 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
  * as a command of Window Covering, after the checks of the stack. The payload is valid during the
  * call. Returns the status of the Default Response, unless the application answers the command
  * with zzb_zcl_cmd_respond(). A recalled Window Covering scene comes as Go To Lift Percentage and
- * Go To Tilt Percentage, and the end of an IAS WD warning as Start Warning with all fields 0, with
- * unicast false, src_addr, src_ep and tsn 0; their status is ignored.
+ * Go To Tilt Percentage, the end of an IAS WD warning as Start Warning with all fields 0 and the
+ * relock of a Door Lock as Lock Door without a payload, with unicast false, src_addr, src_ep and
+ * tsn 0; their status is ignored.
  */
 typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 
