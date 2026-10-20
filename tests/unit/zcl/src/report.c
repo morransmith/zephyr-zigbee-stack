@@ -422,6 +422,25 @@ ZTEST(zzb_zcl_report, test_send_errors)
 	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x00}, 4);
 }
 
+/*
+ * A report that APSDE-DATA refuses with -ENOBUFS, since its transmissions or buffers are in use, is
+ * tried again after 1 s
+ */
+ZTEST(zzb_zcl_report, test_no_buffer)
+{
+	configure(0x0000, ZZB_ZCL_BOOL, 0, 0, 0);
+	zzb_apsde_data_req_fake.custom_fake = NULL;
+	zzb_apsde_data_req_fake.return_val = -ENOBUFS;
+	set(0x0000, true);
+	k_sleep(K_MSEC(100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	k_sleep(K_MSEC(800));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	reset_fakes();
+	k_sleep(K_MSEC(200));
+	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x01}, 4);
+}
+
 /* No timer runs without a configuration that needs one */
 ZTEST(zzb_zcl_report, test_timer)
 {

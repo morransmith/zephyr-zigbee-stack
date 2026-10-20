@@ -28,7 +28,9 @@
 #define CONFIG_RECORDS_MAX (ZZB_ZCL_MAX_PAYLOAD / RECEIVED_RECORD_LEN)
 
 /* A report that APSDE-DATA refuses off a network or during a rejoin is sent again after this */
-#define RETRY_MS 5000
+#define RETRY_MS           5000
+/* A report refused while every APS transmission or buffer is in use is sent again after this */
+#define NO_BUFFER_RETRY_MS 1000
 
 #define RECORD_VERSION 1
 #define RECORD_LEN     12
@@ -441,6 +443,11 @@ static void send_reports(struct zzb_node *node, const struct zzb_zcl_report *fir
 		/* Other errors, such as no binding, count as sent */
 		if (err == -ENOTCONN || err == -EBUSY) {
 			r->retry = now + RETRY_MS;
+			continue;
+		}
+
+		if (err == -ENOBUFS) {
+			r->retry = now + NO_BUFFER_RETRY_MS;
 			continue;
 		}
 

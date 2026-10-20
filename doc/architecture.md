@@ -809,7 +809,7 @@ ZCL records, little-endian:
   - Configure Reporting sends no report. It takes the current value as the value of the last report and starts the maximum interval.
   - The attributes of one endpoint and cluster that are due at the same time go in one frame.
   - The frame goes from the endpoint to the bound destinations with the function of Clients, direction to the client. Without a binding nothing is sent.
-  - A report that APSDE-DATA refuses with `-ENOTCONN` or `-EBUSY`, which happens off a network and during a rejoin, stays due and is tried again after 5 s. After another error, such as no binding or no buffer, it counts as sent. The retry wakes a node off a network every 5 s; milestone 18 revisits it for sleepy devices.
+  - A report that APSDE-DATA refuses with `-ENOTCONN` or `-EBUSY`, which happens off a network and during a rejoin, stays due and is tried again after 5 s. One refused with `-ENOBUFS`, while the APS transmissions (`CONFIG_ZZB_APS_TX_COUNT`, default 4) or the buffers are in use, is tried again after 1 s: an application that sets six measurements of a Smart Plug at once makes six frames with an APS ACK request. After another error, such as no binding, it counts as sent. The retry wakes a node off a network every 5 s; milestone 18 revisits it for sleepy devices.
 - The change is checked when a value is stored, also by `zzb_zcl_attr_set()`. Loading the records does not check it.
 - `zzb_zcl_start()` takes the values of the last report after all records are loaded and before the `start` hooks. A change of OnOff by StartUpOnOff is therefore reported once the node is back on its network: ZHA 2.3.1 does not read OnOff again after a device reboots.
 
