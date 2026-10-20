@@ -9,11 +9,22 @@
 #define STATUS_RECORD_LEN 3
 #define VALUE_OFFSET      4
 
+static void refresh(struct zzb_node *node, const struct zzb_zcl_req *req)
+{
+	const struct zzb_zcl_cluster_def *def = req->cluster->def;
+
+	if (def != NULL && def->refresh != NULL) {
+		def->refresh(node, req->cmd.ep, req->cluster->values);
+	}
+}
+
 /* ZCL 2.5.1.3; an odd last octet is ignored (ZCL 2.3.2) */
 static int read_attributes(struct zzb_node *node, const struct zzb_zcl_req *req)
 {
 	uint8_t rsp[ZZB_ZCL_MAX_PAYLOAD];
 	size_t n = 0;
+
+	refresh(node, req);
 
 	for (size_t i = 0; i + 2 <= req->cmd.len; i += 2) {
 		uint16_t id = sys_get_le16(req->cmd.payload + i);
@@ -98,11 +109,13 @@ static int check_writes(const struct zzb_zcl_req *req, struct write_record *reco
 static int write_attributes(struct zzb_node *node, const struct zzb_zcl_req *req)
 {
 	struct write_record records[WRITE_RECORDS_MAX];
-	int count = check_writes(req, records);
 	bool changed[WRITE_RECORDS_MAX];
 	uint8_t rsp[1 + 3 * WRITE_RECORDS_MAX] = {ZZB_ZCL_SUCCESS};
 	size_t n = 0;
+	int count;
 
+	refresh(node, req);
+	count = check_writes(req, records);
 	if (count < 0) {
 		return ZZB_ZCL_MALFORMED_COMMAND;
 	}
@@ -193,6 +206,9 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req)
 		return zzb_zcl_configure_reporting(node, req);
 	case ZZB_ZCL_READ_REPORTING:
 		return zzb_zcl_read_reporting(node, req);
+	/* The Time client sets the clock of the node from the response */
+	case ZZB_ZCL_READ_ATTRIBUTES_RSP:
+		return zzb_zcl_time_read_rsp(node, req);
 	/* A client takes the reports of its bindings; their values do not reach the application */
 	case ZZB_ZCL_REPORT_ATTRIBUTES:
 		return req->cluster->server ? ZZB_ZCL_UNSUP_COMMAND : ZZB_ZCL_SUCCESS;

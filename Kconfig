@@ -167,6 +167,15 @@ config ZZB_ZCL_SCHEDULE_TRANSITIONS
 	  server. NumberOfDailyTransitions reports this number and
 	  NumberOfWeeklyTransitions seven times it.
 
+config ZZB_ZCL_DOOR_LOCK_USERS
+	int "PIN users of a Door Lock server"
+	range 1 255
+	default 8
+	help
+	  Users with a PIN code of each Door Lock server, user IDs 0 to this
+	  number minus 1. NumberOfTotalUsersSupported and
+	  NumberOfPINUsersSupported report this number.
+
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
 	range 0 0x07fff800

@@ -133,4 +133,21 @@ ZTEST(zzb_zcl_frame, test_unknown_lengths)
 	}
 }
 
+/* Section 16: fixed fields and lists counted by an octet or by its low nibble */
+ZTEST(zzb_zcl_frame, test_fields_len)
+{
+	static const struct zzb_zcl_field fields[] = {{2}, {1, 0xff}, {3, 0x0f}};
+	static const uint8_t p[] = {0xaa, 0xbb, 0x02, 0x01, 0x02, 0x21, 0x01, 0x02, 0x03, 0x99};
+
+	/* The fields end at the first field of length 0 */
+	zassert_equal(zzb_zcl_fields_len(p, sizeof(p), (struct zzb_zcl_field[]){{2}, {0}}, 2), 2);
+	zassert_equal(zzb_zcl_fields_len(p, sizeof(p), fields, ARRAY_SIZE(fields)), 9);
+	zassert_equal(zzb_zcl_fields_len(p, 9, fields, ARRAY_SIZE(fields)), 9);
+
+	zassert_equal(zzb_zcl_fields_len(p, 8, fields, ARRAY_SIZE(fields)), -EINVAL);
+	zassert_equal(zzb_zcl_fields_len(p, 4, fields, ARRAY_SIZE(fields)), -EINVAL);
+	zassert_equal(zzb_zcl_fields_len(p, 2, fields, ARRAY_SIZE(fields)), -EINVAL);
+	zassert_equal(zzb_zcl_fields_len(p, 1, fields, ARRAY_SIZE(fields)), -EINVAL);
+}
+
 ZTEST_SUITE(zzb_zcl_frame, NULL, NULL, NULL, NULL, NULL);

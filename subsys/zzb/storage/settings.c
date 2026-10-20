@@ -68,6 +68,8 @@ static void load_zcl(struct load_ctx *ctx, const char *key, size_t len, settings
 		ctx->err = zzb_zcl_schedule_load(ctx->node, next, len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "zcl/ias", &next) && next != NULL) {
 		ctx->err = zzb_zcl_ias_zone_load(ctx->node, atoi(next), len, read_cb, cb_arg);
+	} else if (settings_name_steq(key, "zcl/lock", &next) && next != NULL) {
+		ctx->err = zzb_zcl_door_lock_load(ctx->node, next, len, read_cb, cb_arg);
 	} else if (settings_name_steq(key, "zcl", &next) && next != NULL) {
 		ctx->err = zzb_zcl_attr_load(ctx->node, next, len, read_cb, cb_arg);
 	}

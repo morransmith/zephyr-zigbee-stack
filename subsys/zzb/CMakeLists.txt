@@ -66,10 +66,17 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_BDB
 zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/attr.c
   zcl/clusters/alarms.c
+  zcl/clusters/appliance_control.c
+  zcl/clusters/appliance_events.c
+  zcl/clusters/appliance_id.c
+  zcl/clusters/appliance_stats.c
   zcl/clusters/ballast.c
   zcl/clusters/basic.c
+  zcl/clusters/binary_input.c
   zcl/clusters/color.c
   zcl/clusters/device_temp.c
+  zcl/clusters/door_lock.c
+  zcl/clusters/electrical_measurement.c
   zcl/clusters/fan.c
   zcl/clusters/groups.c
   zcl/clusters/ias_ace.c
@@ -79,14 +86,19 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/illuminance.c
   zcl/clusters/level.c
   zcl/clusters/measurement.c
+  zcl/clusters/meter_id.c
+  zcl/clusters/metering.c
   zcl/clusters/occupancy.c
   zcl/clusters/on_off.c
+  zcl/clusters/on_off_switch_config.c
   zcl/clusters/power_config.c
+  zcl/clusters/power_profile.c
   zcl/clusters/pump.c
   zcl/clusters/scenes.c
   zcl/clusters/schedule.c
   zcl/clusters/thermostat.c
   zcl/clusters/thermostat_ui.c
+  zcl/clusters/time.c
   zcl/clusters/window_covering.c
   zcl/foundation.c
   zcl/frame.c

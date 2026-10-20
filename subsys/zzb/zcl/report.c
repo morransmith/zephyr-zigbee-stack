@@ -22,13 +22,15 @@
 #define RECEIVED_RECORD_LEN 5
 /* A record of Read Reporting Configuration: direction and attribute ID */
 #define READ_RECORD_LEN     3
-/* Status, direction, attribute ID, data type, intervals and a reportable change of 4 octets */
-#define READ_RSP_RECORD_MAX 13
+/* Status, direction, attribute ID, data type, intervals and a reportable change of 8 octets */
+#define READ_RSP_RECORD_MAX 17
 
 #define CONFIG_RECORDS_MAX (ZZB_ZCL_MAX_PAYLOAD / RECEIVED_RECORD_LEN)
 
 /* A report that APSDE-DATA refuses off a network or during a rejoin is sent again after this */
-#define RETRY_MS 5000
+#define RETRY_MS           5000
+/* A report refused while every APS transmission or buffer is in use is sent again after this */
+#define NO_BUFFER_RETRY_MS 1000
 
 #define RECORD_VERSION 1
 #define RECORD_LEN     12
@@ -78,7 +80,7 @@ static int parse_record(const uint8_t *p, size_t len, struct config_record *r)
 		}
 
 		/* The reportable change of the stack has 16 bits (section 16) */
-		r->change = zzb_zcl_value_get(r->type, p + SENT_RECORD_LEN);
+		r->change = MIN(zzb_zcl_value_get(r->type, p + SENT_RECORD_LEN), UINT16_MAX);
 	}
 
 	return SENT_RECORD_LEN + change_len;
@@ -355,17 +357,19 @@ int zzb_zcl_read_reporting(struct zzb_node *node, const struct zzb_zcl_req *req)
 }
 
 /* The number that the bits of a value of type stand for */
-static int64_t number(uint8_t type, uint32_t value)
+static int64_t number(uint8_t type, uint64_t value)
 {
-	if (type == ZZB_ZCL_INT8) {
+	switch (type) {
+	case ZZB_ZCL_INT8:
 		return (int8_t)value;
-	}
-
-	if (type == ZZB_ZCL_INT16) {
+	case ZZB_ZCL_INT16:
 		return (int16_t)value;
+	case ZZB_ZCL_INT24:
+	case ZZB_ZCL_INT32:
+		return (int32_t)value;
+	default:
+		return value;
 	}
-
-	return value;
 }
 
 void zzb_zcl_report_check(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_cluster *cl,
@@ -373,7 +377,7 @@ void zzb_zcl_report_check(struct zzb_node *node, uint8_t ep, const struct zzb_zc
 {
 	struct zzb_zcl_report *r = cl->server ? find(node, ep, cl->id, attr) : NULL;
 	const struct zzb_zcl_attr *a;
-	uint32_t value;
+	uint64_t value;
 
 	if (r == NULL) {
 		return;
@@ -439,6 +443,11 @@ static void send_reports(struct zzb_node *node, const struct zzb_zcl_report *fir
 		/* Other errors, such as no binding, count as sent */
 		if (err == -ENOTCONN || err == -EBUSY) {
 			r->retry = now + RETRY_MS;
+			continue;
+		}
+
+		if (err == -ENOBUFS) {
+			r->retry = now + NO_BUFFER_RETRY_MS;
 			continue;
 		}
 

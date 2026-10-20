@@ -32,14 +32,24 @@ struct zzb_zcl_report {
 	uint16_t max;
 	/* Reportable change of an analog attribute */
 	uint16_t change;
-	/* The value of the last report */
-	uint32_t last;
-	/* k_uptime_get() at the last report */
-	int64_t sent;
 	/* A change waits for the minimum interval */
 	bool pending;
+	/* The value of the last report */
+	uint64_t last;
+	/* k_uptime_get() at the last report */
+	int64_t sent;
 	/* k_uptime_get() at which a report refused off a network is tried again, or 0 */
 	int64_t retry;
+};
+
+/* The clock of the node (Time); not saved */
+struct zzb_zcl_clock {
+	bool set;
+	/* UTC time at k_uptime_get() uptime */
+	uint32_t utc;
+	int64_t uptime;
+	/* Local time minus UTC time */
+	int32_t offset;
 };
 
 /* Entry of the scene table (ZCL Table 3-41); names are not stored */
@@ -64,6 +74,8 @@ struct zzb_zcl_alarm {
 	uint8_t ep;
 	uint8_t code;
 	uint16_t cluster;
+	/* UTC time of the clock of the node, 0xffffffff without time (ZCL Table 3-66) */
+	uint32_t time;
 };
 
 struct zzb_zcl {
@@ -90,6 +102,13 @@ struct zzb_zcl {
 	struct k_work_delayable ias_wd_timer;
 	/* Tries again the IAS Zone notifications refused off a network */
 	struct k_work_delayable ias_zone_timer;
+	/* Relocks the Door Locks and ends their lockouts */
+	struct k_work_delayable door_lock_timer;
+	struct zzb_zcl_clock clock;
+	/* Sends the requests of the Time client */
+	struct k_work_delayable time_timer;
+	/* TSN of the last request of the Time client */
+	uint8_t time_tsn;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;
 	/* The frame being processed, for the hooks; NULL outside the processing of a frame */
@@ -250,6 +269,7 @@ void zzb_zcl_power_config_init(struct zzb_node *node);
 void zzb_zcl_device_temp_init(struct zzb_node *node);
 void zzb_zcl_ias_wd_init(struct zzb_node *node);
 void zzb_zcl_ias_zone_init(struct zzb_node *node);
+void zzb_zcl_door_lock_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*
@@ -279,7 +299,7 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);
 const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, uint16_t id);
 
 /* The value of an attribute of an integer type other than EUI64, with the bits of its ZCL value */
-uint32_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr);
+uint64_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr);
 
 /* Writes the value of attr of cl in its ZCL encoding; returns its length or -ENOSPC */
 int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
@@ -336,6 +356,42 @@ void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t
  * the command, or ZZB_ZCL_SUCCESS without zcl_cmd_cb
  */
 int zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
+
+/* Sets the clock of the node to the UTC time utc and the local time utc + offset */
+void zzb_zcl_clock_set(struct zzb_node *node, uint32_t utc, int32_t offset);
+
+/* The UTC time of the clock of the node, or 0xffffffff without time */
+uint32_t zzb_zcl_clock_utc(const struct zzb_node *node);
+
+/*
+ * LocalTime of the Time server on the first endpoint that has one, otherwise the UTC time of the
+ * clock of the node plus its offset; 0xffffffff without time
+ */
+uint32_t zzb_zcl_clock_local(const struct zzb_node *node);
+
+void zzb_zcl_time_init(struct zzb_node *node);
+
+/*
+ * Read Attributes Response (ZCL 2.5.2): sets the clock of the node from a valid response to the
+ * request of the Time client and returns SUCCESS, or returns UNSUP_COMMAND for another instance
+ */
+int zzb_zcl_time_read_rsp(struct zzb_node *node, const struct zzb_zcl_req *req);
+
+#define ZZB_ZCL_FIELDS_MAX 3
+
+/* A command that a cluster passes to zcl_cmd_cb and its fields */
+struct zzb_zcl_command {
+	uint8_t id;
+	struct zzb_zcl_field fields[ZZB_ZCL_FIELDS_MAX];
+};
+
+/*
+ * Passes cmd to zcl_cmd_cb when it is in the table of count commands and its payload holds their
+ * fields; octets after them are ignored (ZCL 2.3.2). Returns MALFORMED_COMMAND for a shorter
+ * payload, UNSUP_COMMAND for a command missing from the table, otherwise as zzb_zcl_app_cmd().
+ */
+int zzb_zcl_pass(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+		 const struct zzb_zcl_command *commands, size_t count);
 
 /* Configure Reporting (ZCL 2.5.7); returns the Default Response status or ZZB_ZCL_RESPONDED */
 int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);
@@ -428,6 +484,14 @@ int zzb_zcl_schedule_load(struct zzb_node *node, const char *key, size_t len,
  */
 int zzb_zcl_ias_zone_load(struct zzb_node *node, int ep, size_t len, settings_read_cb read_cb,
 			  void *cb_arg);
+
+/*
+ * Loads the record zcl/lock/<key>, key being <ep>/<user>; -EINVAL for an unknown version or length
+ * or a code longer than ZZB_ZCL_DOOR_LOCK_PIN_MAX. A record of an endpoint without a Door Lock
+ * server or of a user outside its table is ignored.
+ */
+int zzb_zcl_door_lock_load(struct zzb_node *node, const char *key, size_t len,
+			   settings_read_cb read_cb, void *cb_arg);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);

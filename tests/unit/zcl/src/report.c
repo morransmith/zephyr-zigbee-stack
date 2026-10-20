@@ -305,6 +305,59 @@ ZTEST(zzb_zcl_report, test_signed_change_int8)
 	check_report(0, (uint8_t[]){0x0c, 0x00, 0x28, 0x03}, 4);
 }
 
+/* ZHA 2.3.1 configures CurrentSummationDelivered (uint48) 30/900/1; the change has 48 bits */
+ZTEST(zzb_zcl_report, test_uint48_change)
+{
+	static const uint8_t req[] = {0x00, 0x60, 0x06, 0x00, 0x13, 0x00, 0x25, 0x1e, 0x00,
+				      0x84, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+	uint64_t u48 = 0x0200000000;
+
+	values1.u48 = 0x0100000000;
+	receive(TEST_CLUSTER, req, sizeof(req));
+	zassert_equal(sent[0].data[3], ZZB_ZCL_SUCCESS);
+	reset_fakes();
+
+	zassert_ok(zzb_zcl_attr_set(test_node(), 1, TEST_CLUSTER, 0x0013, &u48));
+	k_sleep(K_SECONDS(30));
+	check_report(0, (uint8_t[]){0x13, 0x00, 0x25, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00}, 9);
+}
+
+/* The reportable change of an int24, such as InstantaneousDemand, is measured with its sign */
+ZTEST(zzb_zcl_report, test_int24_change)
+{
+	static const uint8_t req[] = {0x00, 0x60, 0x06, 0x00, 0x10, 0x00, 0x2a,
+				      0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00};
+	int32_t i24 = 2;
+
+	values1.i24 = -2;
+	receive(TEST_CLUSTER, req, sizeof(req));
+	zassert_equal(sent[0].data[3], ZZB_ZCL_SUCCESS);
+	reset_fakes();
+
+	zassert_ok(zzb_zcl_attr_set(test_node(), 1, TEST_CLUSTER, 0x0010, &i24));
+	k_sleep(K_MSEC(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	i24 = 3;
+	zassert_ok(zzb_zcl_attr_set(test_node(), 1, TEST_CLUSTER, 0x0010, &i24));
+	k_sleep(K_MSEC(10));
+	check_report(0, (uint8_t[]){0x10, 0x00, 0x2a, 0x03, 0x00, 0x00}, 6);
+}
+
+/* Section 16: a reportable change above 16 bits is kept as 0xffff */
+ZTEST(zzb_zcl_report, test_wide_change)
+{
+	static const uint8_t configure[] = {0x00, 0x61, 0x06, 0x00, 0x13, 0x00, 0x25, 0x00, 0x00,
+					    0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
+	static const uint8_t req[] = {0x00, 0x62, 0x08, 0x00, 0x13, 0x00};
+	static const uint8_t rsp[] = {0x18, 0x62, 0x09, 0x00, 0x00, 0x13, 0x00, 0x25, 0x00,
+				      0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00};
+
+	receive(TEST_CLUSTER, configure, sizeof(configure));
+	receive(TEST_CLUSTER, req, sizeof(req));
+	check_frame(1, 1, TEST_CLUSTER, rsp, sizeof(rsp));
+}
+
 /* A change within the minimum interval after the last report waits for its end */
 ZTEST(zzb_zcl_report, test_minimum_interval)
 {
@@ -367,6 +420,25 @@ ZTEST(zzb_zcl_report, test_send_errors)
 	reset_fakes();
 	k_sleep(K_MSEC(5000));
 	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x00}, 4);
+}
+
+/*
+ * A report that APSDE-DATA refuses with -ENOBUFS, since its transmissions or buffers are in use, is
+ * tried again after 1 s
+ */
+ZTEST(zzb_zcl_report, test_no_buffer)
+{
+	configure(0x0000, ZZB_ZCL_BOOL, 0, 0, 0);
+	zzb_apsde_data_req_fake.custom_fake = NULL;
+	zzb_apsde_data_req_fake.return_val = -ENOBUFS;
+	set(0x0000, true);
+	k_sleep(K_MSEC(100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	k_sleep(K_MSEC(800));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	reset_fakes();
+	k_sleep(K_MSEC(200));
+	check_report(0, (uint8_t[]){0x00, 0x00, 0x10, 0x01}, 4);
 }
 
 /* No timer runs without a configuration that needs one */

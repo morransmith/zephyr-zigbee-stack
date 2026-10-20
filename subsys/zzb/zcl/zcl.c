@@ -253,6 +253,25 @@ int zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	return node->zcl.responded ? ZZB_ZCL_RESPONDED : status;
 }
 
+int zzb_zcl_pass(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+		 const struct zzb_zcl_command *commands, size_t count)
+{
+	for (size_t i = 0; i < count; i++) {
+		if (commands[i].id != cmd->id) {
+			continue;
+		}
+
+		if (zzb_zcl_fields_len(cmd->payload, cmd->len, commands[i].fields,
+				       ZZB_ZCL_FIELDS_MAX) < 0) {
+			return ZZB_ZCL_MALFORMED_COMMAND;
+		}
+
+		return zzb_zcl_app_cmd(node, cmd);
+	}
+
+	return ZZB_ZCL_UNSUP_COMMAND;
+}
+
 /* ZCL 2.5.12.2 */
 static void default_rsp(struct zzb_node *node, const struct zzb_zcl_req *req, int status)
 {
@@ -389,6 +408,8 @@ void zzb_zcl_init(struct zzb_node *node)
 	k_work_cancel_delayable(&node->zcl.temp_alarm_timer);
 	k_work_cancel_delayable(&node->zcl.ias_wd_timer);
 	k_work_cancel_delayable(&node->zcl.ias_zone_timer);
+	k_work_cancel_delayable(&node->zcl.time_timer);
+	k_work_cancel_delayable(&node->zcl.door_lock_timer);
 	node->zcl = (struct zzb_zcl){
 		.tsn = sys_rand8_get(),
 	};
@@ -401,6 +422,8 @@ void zzb_zcl_init(struct zzb_node *node)
 	zzb_zcl_device_temp_init(node);
 	zzb_zcl_ias_wd_init(node);
 	zzb_zcl_ias_zone_init(node);
+	zzb_zcl_time_init(node);
+	zzb_zcl_door_lock_init(node);
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];
@@ -448,6 +471,7 @@ void zzb_zcl_reset(struct zzb_node *node)
 	}
 
 	zzb_zcl_alarms_reset(node);
+	node->zcl.clock = (struct zzb_zcl_clock){0};
 	/* After the reset hooks, which may have armed the reporting timer */
 	zzb_zcl_report_reset(node);
 	zzb_zcl_scenes_delete(node);

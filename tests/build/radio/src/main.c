@@ -3,10 +3,17 @@
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zzb/zcl/alarms.h>
+#include <zzb/zcl/appliance_control.h>
+#include <zzb/zcl/appliance_events.h>
+#include <zzb/zcl/appliance_id.h>
+#include <zzb/zcl/appliance_stats.h>
 #include <zzb/zcl/ballast.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/binary_input.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/device_temp.h>
+#include <zzb/zcl/door_lock.h>
+#include <zzb/zcl/electrical_measurement.h>
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/ias_ace.h>
@@ -16,20 +23,26 @@
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
 #include <zzb/zcl/measurement.h>
+#include <zzb/zcl/meter_id.h>
+#include <zzb/zcl/metering.h>
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/on_off_switch_config.h>
 #include <zzb/zcl/power_config.h>
+#include <zzb/zcl/power_profile.h>
 #include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
 #include <zzb/zcl/thermostat.h>
+#include <zzb/zcl/time.h>
 #include <zzb/zcl/window_covering.h>
 #include <zzb/zzb.h>
 
 /*
  * An Extended Color Light, a Color Dimmer Switch, a Dimmable Ballast, an Occupancy Sensor, a Window
  * Covering, a Window Covering Controller, a Thermostat, a Heating/Cooling Unit, a Pump, a Pump
- * Controller, an IAS Zone, an IAS Warning Device, an IAS ACE keypad and an IAS CIE (Home Automation
- * profile)
+ * Controller, an IAS Zone, an IAS Warning Device, an IAS ACE keypad, an IAS CIE, a Door Lock, a
+ * Door Lock Controller, a Simple Sensor, a Smart Plug, a Meter Interface, a White Goods, a Home
+ * Gateway and an On/Off Switch with On/Off Switch Configuration (Home Automation profile)
  */
 #if defined(CONFIG_ZZB_ZCL)
 static struct zzb_zcl_basic basic = {
@@ -107,8 +120,17 @@ static struct zzb_zcl_identify zone_identify;
 static struct zzb_zcl_identify wd_identify;
 static struct zzb_zcl_identify keypad_identify;
 static struct zzb_zcl_identify cie_identify;
+static struct zzb_zcl_identify lock_identify;
+static struct zzb_zcl_identify lock_controller_identify;
+static struct zzb_zcl_identify input_identify;
+static struct zzb_zcl_identify plug_identify;
+static struct zzb_zcl_identify meter_identify;
+static struct zzb_zcl_identify goods_identify;
+static struct zzb_zcl_identify gateway_identify;
+static struct zzb_zcl_identify on_off_switch_identify;
 static struct zzb_zcl_scenes covering_scenes;
 static struct zzb_zcl_scenes pump_scenes;
+static struct zzb_zcl_scenes plug_scenes;
 
 /* Tilt Blind - Lift and Tilt with closed loop on both axes */
 static struct zzb_zcl_window_covering covering = {
@@ -190,6 +212,84 @@ static struct zzb_zcl_ias_wd siren;
 static struct zzb_zcl_ias_zone keypad_zone = {
 	.zone_type = 0x021d,
 };
+
+static struct zzb_zcl_door_lock lock = {
+	.lock_state = ZZB_ZCL_DOOR_LOCK_LOCKED,
+	.actuator_enabled = true,
+	.min_pin_code_length = 4,
+	.max_pin_code_length = 8,
+};
+
+static struct zzb_zcl_alarms lock_alarms;
+
+static struct zzb_zcl_binary_input input = {
+	.description = "Contact",
+};
+
+static struct zzb_zcl_on_off plug_on_off;
+
+/* kWh and kW with three decimals */
+static struct zzb_zcl_metering plug_metering = {
+	.multiplier = 1,
+	.divisor = 1000,
+	.summation_formatting = 0x2b,
+	.demand_formatting = 0x2b,
+};
+
+static struct zzb_zcl_electrical_measurement plug_power = {
+	.measurement_type = 0x09,
+	.ac_frequency = 0xffff,
+	.ac_frequency_min = 0xffff,
+	.ac_frequency_max = 0xffff,
+	.ac_frequency_multiplier = 1,
+	.ac_frequency_divisor = 1,
+	.rms_voltage = 0xffff,
+	.rms_voltage_min = 0xffff,
+	.rms_voltage_max = 0xffff,
+	.rms_current = 0xffff,
+	.rms_current_min = 0xffff,
+	.rms_current_max = 0xffff,
+	.active_power = INT16_MIN,
+	.active_power_min = INT16_MIN,
+	.active_power_max = INT16_MIN,
+	.reactive_power = INT16_MIN,
+	.apparent_power = 0xffff,
+	.ac_voltage_multiplier = 1,
+	.ac_voltage_divisor = 1,
+	.ac_current_multiplier = 1,
+	.ac_current_divisor = 1,
+	.ac_power_multiplier = 1,
+	.ac_power_divisor = 1,
+};
+
+/* A gas meter in m3 */
+static struct zzb_zcl_metering gas_metering = {
+	.unit_of_measure = 0x01,
+	.multiplier = 1,
+	.divisor = 1000,
+	.metering_device_type = 0x01,
+};
+
+static struct zzb_zcl_meter_id meter_id = {
+	.company_name = "zzb",
+	.pod = "0",
+};
+
+static struct zzb_zcl_power_profile power_profile = {
+	.total_profile_num = 1,
+	.energy_formatting = 0x01,
+};
+
+static struct zzb_zcl_appliance_control appliance_control;
+static struct zzb_zcl_appliance_id appliance_id;
+
+static struct zzb_zcl_appliance_stats appliance_stats = {
+	.log_max_size = 0x3c,
+	.log_queue_max_size = 1,
+};
+
+static struct zzb_zcl_time gateway_time;
+static struct zzb_zcl_on_off_switch_config switch_config;
 
 static struct zzb_zcl_flow flow = {
 	.measured_value = 0xffff,
@@ -321,6 +421,72 @@ static const struct zzb_zcl_cluster cie_clusters[] = {
 	ZZB_ZCL_IAS_ZONE_CLIENT(),
 	ZZB_ZCL_IAS_WD_CLIENT(),
 };
+
+static const struct zzb_zcl_cluster lock_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&lock_identify),
+	ZZB_ZCL_ALARMS_SERVER(&lock_alarms),
+	ZZB_ZCL_DOOR_LOCK_SERVER(&lock),
+};
+
+static const struct zzb_zcl_cluster lock_controller_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&lock_controller_identify),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+	ZZB_ZCL_DOOR_LOCK_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster input_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&input_identify),
+	ZZB_ZCL_BINARY_INPUT_SERVER(&input),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster plug_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&plug_identify),
+	ZZB_ZCL_GROUPS_SERVER(),
+	ZZB_ZCL_SCENES_SERVER(&plug_scenes),
+	ZZB_ZCL_ON_OFF_SERVER(&plug_on_off),
+	ZZB_ZCL_METERING_SERVER(&plug_metering),
+	ZZB_ZCL_ELECTRICAL_MEASUREMENT_SERVER(&plug_power),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+	ZZB_ZCL_TIME_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster meter_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&meter_identify),
+	ZZB_ZCL_METERING_SERVER(&gas_metering),
+	ZZB_ZCL_METER_ID_SERVER(&meter_id),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster goods_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&goods_identify),
+	ZZB_ZCL_POWER_PROFILE_SERVER(&power_profile),
+	ZZB_ZCL_APPLIANCE_CONTROL_SERVER(&appliance_control),
+	ZZB_ZCL_APPLIANCE_ID_SERVER(&appliance_id),
+	ZZB_ZCL_APPLIANCE_EVENTS_SERVER(),
+	ZZB_ZCL_APPLIANCE_STATS_SERVER(&appliance_stats),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster gateway_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&gateway_identify),
+	ZZB_ZCL_TIME_SERVER(&gateway_time),
+	ZZB_ZCL_POWER_PROFILE_CLIENT(),
+	ZZB_ZCL_METERING_CLIENT(),
+	ZZB_ZCL_METER_ID_CLIENT(),
+	ZZB_ZCL_ELECTRICAL_MEASUREMENT_CLIENT(),
+	ZZB_ZCL_APPLIANCE_CONTROL_CLIENT(),
+	ZZB_ZCL_APPLIANCE_ID_CLIENT(),
+	ZZB_ZCL_APPLIANCE_EVENTS_CLIENT(),
+	ZZB_ZCL_APPLIANCE_STATS_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster on_off_switch_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&on_off_switch_identify),
+	ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SERVER(&switch_config),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+	ZZB_ZCL_ON_OFF_CLIENT(),
+};
 #else
 /* native_sim builds no ZCL, so the definitions of the stack clusters do not exist */
 static const struct zzb_zcl_cluster light[] = {
@@ -447,6 +613,72 @@ static const struct zzb_zcl_cluster cie_clusters[] = {
 	{.id = ZZB_ZCL_IAS_ZONE},
 	{.id = ZZB_ZCL_IAS_WD},
 };
+
+static const struct zzb_zcl_cluster lock_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_ALARMS, .server = true},
+	{.id = ZZB_ZCL_DOOR_LOCK, .server = true},
+};
+
+static const struct zzb_zcl_cluster lock_controller_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+	{.id = ZZB_ZCL_DOOR_LOCK},
+};
+
+static const struct zzb_zcl_cluster input_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_BINARY_INPUT, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+};
+
+static const struct zzb_zcl_cluster plug_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_GROUPS, .server = true},
+	{.id = ZZB_ZCL_SCENES, .server = true},
+	{.id = ZZB_ZCL_ON_OFF, .server = true},
+	{.id = ZZB_ZCL_METERING, .server = true},
+	{.id = ZZB_ZCL_ELECTRICAL_MEASUREMENT, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+	{.id = ZZB_ZCL_TIME},
+};
+
+static const struct zzb_zcl_cluster meter_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_METERING, .server = true},
+	{.id = ZZB_ZCL_METER_ID, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+};
+
+static const struct zzb_zcl_cluster goods_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_POWER_PROFILE, .server = true},
+	{.id = ZZB_ZCL_APPLIANCE_CONTROL, .server = true},
+	{.id = ZZB_ZCL_APPLIANCE_ID, .server = true},
+	{.id = ZZB_ZCL_APPLIANCE_EVENTS, .server = true},
+	{.id = ZZB_ZCL_APPLIANCE_STATS, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+};
+
+static const struct zzb_zcl_cluster gateway_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_TIME, .server = true},
+	{.id = ZZB_ZCL_POWER_PROFILE},
+	{.id = ZZB_ZCL_METERING},
+	{.id = ZZB_ZCL_METER_ID},
+	{.id = ZZB_ZCL_ELECTRICAL_MEASUREMENT},
+	{.id = ZZB_ZCL_APPLIANCE_CONTROL},
+	{.id = ZZB_ZCL_APPLIANCE_ID},
+	{.id = ZZB_ZCL_APPLIANCE_EVENTS},
+	{.id = ZZB_ZCL_APPLIANCE_STATS},
+};
+
+static const struct zzb_zcl_cluster on_off_switch_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_ON_OFF_SWITCH_CONFIG, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+	{.id = ZZB_ZCL_ON_OFF},
+};
 #endif
 
 static const struct zzb_endpoint endpoints[] = {
@@ -561,6 +793,70 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_version = 1,
 		.clusters = cie_clusters,
 		.cluster_count = ARRAY_SIZE(cie_clusters),
+	},
+	{
+		.id = 15,
+		.profile = 0x0104,
+		.device_id = 0x000a,
+		.device_version = 1,
+		.clusters = lock_clusters,
+		.cluster_count = ARRAY_SIZE(lock_clusters),
+	},
+	{
+		.id = 16,
+		.profile = 0x0104,
+		.device_id = 0x000b,
+		.device_version = 1,
+		.clusters = lock_controller_clusters,
+		.cluster_count = ARRAY_SIZE(lock_controller_clusters),
+	},
+	{
+		.id = 17,
+		.profile = 0x0104,
+		.device_id = 0x000c,
+		.device_version = 1,
+		.clusters = input_clusters,
+		.cluster_count = ARRAY_SIZE(input_clusters),
+	},
+	{
+		.id = 18,
+		.profile = 0x0104,
+		.device_id = 0x0051,
+		.device_version = 1,
+		.clusters = plug_clusters,
+		.cluster_count = ARRAY_SIZE(plug_clusters),
+	},
+	{
+		.id = 19,
+		.profile = 0x0104,
+		.device_id = 0x0053,
+		.device_version = 1,
+		.clusters = meter_clusters,
+		.cluster_count = ARRAY_SIZE(meter_clusters),
+	},
+	{
+		.id = 20,
+		.profile = 0x0104,
+		.device_id = 0x0052,
+		.device_version = 1,
+		.clusters = goods_clusters,
+		.cluster_count = ARRAY_SIZE(goods_clusters),
+	},
+	{
+		.id = 21,
+		.profile = 0x0104,
+		.device_id = 0x0050,
+		.device_version = 1,
+		.clusters = gateway_clusters,
+		.cluster_count = ARRAY_SIZE(gateway_clusters),
+	},
+	{
+		.id = 22,
+		.profile = 0x0104,
+		.device_id = 0x0000,
+		.device_version = 1,
+		.clusters = on_off_switch_clusters,
+		.cluster_count = ARRAY_SIZE(on_off_switch_clusters),
 	},
 };
 

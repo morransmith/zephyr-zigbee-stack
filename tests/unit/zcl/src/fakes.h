@@ -9,10 +9,16 @@
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
 #include <zzb/zcl/alarms.h>
+#include <zzb/zcl/appliance_control.h>
+#include <zzb/zcl/appliance_events.h>
+#include <zzb/zcl/appliance_id.h>
+#include <zzb/zcl/appliance_stats.h>
 #include <zzb/zcl/ballast.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/binary_input.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/device_temp.h>
+#include <zzb/zcl/door_lock.h>
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/ias_ace.h>
@@ -22,9 +28,12 @@
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
 #include <zzb/zcl/measurement.h>
+#include <zzb/zcl/metering.h>
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/on_off_switch_config.h>
 #include <zzb/zcl/power_config.h>
+#include <zzb/zcl/power_profile.h>
 #include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
 #include <zzb/zcl/thermostat.h>
@@ -60,9 +69,10 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, u
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
- * Values of the test cluster, attributes 0x0000 to 0x000f in this order; 0x0000 to 0x0002, 0x0008
- * and 0x000c are reportable, 0x0002, 0x0008 to 0x000a and 0x000c to 0x000f are saved, 0x000b is
- * read-only. The reset sets 0x0001, 0x0002 and 0x000f to 0.
+ * Values of the test cluster, attributes 0x0000 to 0x0014 in this order; 0x0000 to 0x0002, 0x0008,
+ * 0x000c, 0x0010 and 0x0013 are reportable, 0x0002, 0x0008 to 0x000a and 0x000c to 0x0014 are
+ * saved, 0x000b is read-only. A remote write of 0x0004 gets READ_ONLY while bit 0 of 0x000b is
+ * set. The reset sets 0x0001, 0x0002 and 0x000f to 0.
  */
 struct test_values {
 	bool b;
@@ -81,6 +91,11 @@ struct test_values {
 	uint32_t u32;
 	uint16_t e16;
 	uint64_t eui64;
+	int32_t i24;
+	int32_t i32;
+	uint32_t utc;
+	uint64_t u48;
+	uint64_t u56;
 };
 
 /* ClusterRevision of the test cluster */
@@ -245,6 +260,48 @@ extern struct zzb_zcl_ias_wd wd86;
 #define CIE_EP    90
 #define KEYPAD_EP 91
 
+/*
+ * Endpoints 100 and 101 are Door Locks with a Door Lock server, locked and with codes of 4 to 8
+ * octets; endpoint 100 also has an Alarms server
+ */
+#define DOOR_LOCK_EP 100
+
+extern struct zzb_zcl_door_lock lock100;
+extern struct zzb_zcl_door_lock lock101;
+
+/* Endpoint 102 is a Door Lock Controller with a Door Lock client */
+#define DOOR_LOCK_CLIENT_EP 102
+
+/*
+ * Endpoint 120 is an On/Off Switch with the On/Off Switch Configuration server, SwitchType 0x01,
+ * and the On/Off client
+ */
+#define SWITCH_EP 120
+
+extern struct zzb_zcl_on_off_switch_config switch120;
+
+/* Endpoint 121 is a Simple Sensor with the Binary Input server */
+#define INPUT_EP 121
+
+extern struct zzb_zcl_binary_input input121;
+
+/* Endpoint 122 is a Meter Interface with the Metering server */
+#define METER_EP 122
+
+extern struct zzb_zcl_metering meter122;
+
+/*
+ * Endpoint 140 is a White Goods with the Power Profile server and the servers of the EN50523
+ * appliance clusters, 141 a Home Gateway with their clients
+ */
+#define WHITE_GOODS_EP 140
+#define GATEWAY_EP     141
+
+extern struct zzb_zcl_power_profile power_profile140;
+extern struct zzb_zcl_appliance_control appliance_control140;
+extern struct zzb_zcl_appliance_id appliance_id140;
+extern struct zzb_zcl_appliance_stats appliance_stats140;
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
@@ -263,6 +320,10 @@ extern int cmd_status;
 
 /* The value struct passed to the last call of the check hook of the test cluster */
 extern const void *check_values;
+
+/* Calls of the refresh hook of the test cluster, which sets the bits refresh_bits in 0x000b */
+extern int refresh_calls;
+extern uint16_t refresh_bits;
 
 /* Calls of the changed hook of the test cluster and of zcl_cb, in order */
 struct changed_calls {
@@ -363,6 +424,12 @@ void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_
 
 /* Checks that zcl_cb reported these attributes of cluster on endpoint ep in order, and no other */
 void check_zcl_cb(uint8_t ep, uint16_t cluster, const uint16_t *attrs, int count);
+
+/*
+ * Checks that frame i is a Report Attributes of cluster from endpoint ep to the bound destinations
+ * with the attribute records
+ */
+void check_report_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *records, size_t len);
 
 /* Checks that frame i is Alarm with code of cluster from endpoint ep to the bound destinations */
 void check_alarm(int i, uint8_t ep, uint16_t cluster, uint8_t code);

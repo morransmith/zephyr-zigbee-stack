@@ -147,21 +147,43 @@ int zzb_zcl_value_len(uint8_t type, const uint8_t *p, size_t len)
 	return (size_t)n <= len ? n : -EINVAL;
 }
 
-uint32_t zzb_zcl_value_get(uint8_t type, const uint8_t *p)
+int zzb_zcl_fields_len(const uint8_t *p, size_t len, const struct zzb_zcl_field *fields,
+		       size_t count)
 {
-	int len = MIN(zzb_zcl_type_len(type), 4);
-	uint32_t value = 0;
+	size_t n = 0;
+
+	for (size_t i = 0; i < count && fields[i].len > 0; i++) {
+		if (fields[i].count_mask == 0) {
+			n += fields[i].len;
+			continue;
+		}
+
+		if (len <= n) {
+			return -EINVAL;
+		}
+
+		n += 1 + (p[n] & fields[i].count_mask) * fields[i].len;
+	}
+
+	return n <= len ? n : -EINVAL;
+}
+
+uint64_t zzb_zcl_value_get(uint8_t type, const uint8_t *p)
+{
+	int len = MIN(zzb_zcl_type_len(type), 8);
+	uint64_t value = 0;
 
 	for (int i = len - 1; i >= 0; i--) {
 		value = value << 8 | p[i];
 	}
 
-	return value;
+	/* An int24 fills the 32 bits of its field */
+	return type == ZZB_ZCL_INT24 ? (uint32_t)sign_extend(value, 23) : value;
 }
 
-void zzb_zcl_value_put(uint8_t type, uint32_t value, uint8_t *p)
+void zzb_zcl_value_put(uint8_t type, uint64_t value, uint8_t *p)
 {
-	int len = MIN(zzb_zcl_type_len(type), 4);
+	int len = MIN(zzb_zcl_type_len(type), 8);
 
 	for (int i = 0; i < len; i++) {
 		p[i] = value >> (8 * i);
