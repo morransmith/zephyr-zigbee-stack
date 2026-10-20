@@ -166,8 +166,8 @@ void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 	zzb_zcl_send(node, &aps, &hdr, payload, len);
 }
 
-void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
-			 const uint8_t *payload, size_t len)
+void zzb_zcl_cmd_reply(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+		       const uint8_t *payload, size_t len)
 {
 	zzb_zcl_respond(node, CONTAINER_OF(cmd, struct zzb_zcl_req, cmd), ZZB_ZCL_FRAME_CLUSTER, id,
 			payload, len);

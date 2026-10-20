@@ -207,7 +207,7 @@ static int get_alarm(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	uint8_t rsp[8] = {ZZB_ZCL_NOT_FOUND};
 
 	if (a == NULL) {
-		zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_ALARMS_GET_ALARM_RSP, rsp, 1);
+		zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_ALARMS_GET_ALARM_RSP, rsp, 1);
 		return ZZB_ZCL_RESPONDED;
 	}
 
@@ -217,7 +217,7 @@ static int get_alarm(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	sys_put_le32(NO_TIME, rsp + 4);
 	remove_entry(node, a);
 	count(node, cmd->ep, true);
-	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_ALARMS_GET_ALARM_RSP, rsp, sizeof(rsp));
+	zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_ALARMS_GET_ALARM_RSP, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
 }
 

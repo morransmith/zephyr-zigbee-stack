@@ -302,8 +302,8 @@ void zzb_zcl_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t a
 void zzb_zcl_reset(struct zzb_node *node);
 
 /* Sends the cluster-specific response id with the payload to cmd, which a cmd hook processes */
-void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
-			 const uint8_t *payload, size_t len);
+void zzb_zcl_cmd_reply(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+		       const uint8_t *payload, size_t len);
 
 /* Calls zcl_effect_cb */
 void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t effect,
