@@ -28,6 +28,7 @@
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/on_off_switch_config.h>
+#include <zzb/zcl/poll_control.h>
 #include <zzb/zcl/power_config.h>
 #include <zzb/zcl/power_profile.h>
 #include <zzb/zcl/pump.h>
@@ -202,6 +203,8 @@ static struct zzb_zcl_pressure pressure = {
 static struct zzb_zcl_ias_zone contact = {
 	.zone_type = 0x0015,
 };
+
+static struct zzb_zcl_poll_control contact_poll_control;
 
 static struct zzb_zcl_ias_zone siren_zone = {
 	.zone_type = 0x0225,
@@ -398,6 +401,7 @@ static const struct zzb_zcl_cluster pump_controller_clusters[] = {
 
 static const struct zzb_zcl_cluster zone_clusters[] = {
 	ZZB_ZCL_IDENTIFY_SERVER(&zone_identify),
+	ZZB_ZCL_POLL_CONTROL_SERVER(&contact_poll_control),
 	ZZB_ZCL_IAS_ZONE_SERVER(&contact),
 };
 
@@ -418,6 +422,7 @@ static const struct zzb_zcl_cluster cie_clusters[] = {
 	ZZB_ZCL_IDENTIFY_SERVER(&cie_identify),
 	ZZB_ZCL_IAS_ACE_SERVER(),
 	ZZB_ZCL_IDENTIFY_CLIENT(),
+	ZZB_ZCL_POLL_CONTROL_CLIENT(),
 	ZZB_ZCL_IAS_ZONE_CLIENT(),
 	ZZB_ZCL_IAS_WD_CLIENT(),
 };
@@ -590,6 +595,7 @@ static const struct zzb_zcl_cluster pump_controller_clusters[] = {
 
 static const struct zzb_zcl_cluster zone_clusters[] = {
 	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_POLL_CONTROL, .server = true},
 	{.id = ZZB_ZCL_IAS_ZONE, .server = true},
 };
 
@@ -610,6 +616,7 @@ static const struct zzb_zcl_cluster cie_clusters[] = {
 	{.id = ZZB_ZCL_IDENTIFY, .server = true},
 	{.id = ZZB_ZCL_IAS_ACE, .server = true},
 	{.id = ZZB_ZCL_IDENTIFY},
+	{.id = ZZB_ZCL_POLL_CONTROL},
 	{.id = ZZB_ZCL_IAS_ZONE},
 	{.id = ZZB_ZCL_IAS_WD},
 };
