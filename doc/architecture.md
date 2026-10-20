@@ -1139,7 +1139,7 @@ ZCL records, little-endian:
   - Set Long Poll Interval outside 4 to 0x6E0000, below LongPollIntervalMin or ShortPollInterval, or above a Check-inInterval other than 0;
   - Set Short Poll Interval of 0 or above LongPollInterval.
 
-  The two commands answer with a Default Response.
+  The two commands answer with a Default Response, and `zzb_zcl_attr_set()` returns `-EINVAL` for these values.
 - The first endpoint with a Poll Control server sets the intervals of NWK with `zzb_nwk_set_poll_intervals()` from its `start`, `changed` and `reset` hooks. Other servers keep their attributes and check in, and they do not change the intervals.
 - Check-in goes every Check-inInterval to the bound destinations with the function of Clients (Disable Default Response 1, APS ACK request). The first check-in follows one interval after `zzb_zcl_start()`; nothing is sent at a join. A write of Check-inInterval restarts the interval (ZCL 3.16.6), while responses and Fast Poll Stop do not shift it. A check-in that cannot be sent, without a binding or a network, opens no window, and the next one follows after the interval.
 - A sent check-in opens a window of 7.68 s (ZCL 3.16.4.4), during which the server holds the fast poll rate with `ZZB_NWK_HOLD_ZCL`. The client table of an endpoint has 4 entries with the network address, the endpoint and the deadline of a client; a full table replaces the entry that ends first. The hold lasts until the window and every deadline have ended, so fast polling lasts until the latest deadline (ZCL 3.16.6).

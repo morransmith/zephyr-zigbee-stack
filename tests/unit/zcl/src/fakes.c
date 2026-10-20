@@ -19,6 +19,7 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_bu
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, uint16_t *);
+DEFINE_FAKE_VOID_FUNC(zzb_nwk_set_poll_intervals, struct zzb_node *, uint32_t, uint32_t);
 
 struct test_values values1;
 struct test_values values2;
@@ -873,6 +874,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_bdb_identify_end);
 	RESET_FAKE(zzb_bdb_identify_query_rsp);
 	RESET_FAKE(zzb_aps_resolve_ext);
+	RESET_FAKE(zzb_nwk_set_poll_intervals);
 	FFF_RESET_HISTORY();
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
