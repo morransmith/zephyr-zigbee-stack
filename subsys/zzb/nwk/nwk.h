@@ -169,6 +169,8 @@ struct zzb_nwk {
 	bool join_secure;
 	/* Waits for the rejoin response */
 	struct k_work_delayable timer;
+	/* A sleepy node has polled the candidate for the rejoin response */
+	bool rejoin_polled;
 	/* PAN ID, network address and channel before a rejoin, restored when it fails */
 	uint16_t prev_pan_id;
 	uint16_t prev_short_addr;
