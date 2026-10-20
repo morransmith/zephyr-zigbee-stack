@@ -65,6 +65,8 @@ struct zzb_node_config {
 	zzb_zcl_effect_cb_t zcl_effect_cb;
 	/** Callback for the commands that the application carries out, or NULL. */
 	zzb_zcl_cmd_cb_t zcl_cmd_cb;
+	/** Callback for the upgrade to a downloaded OTA image, or NULL. */
+	zzb_zcl_ota_cb_t ota_cb;
 	/**
 	 * Install code with its CRC (BDB 10.1.1), 8, 10, 14 or 18 bytes, or NULL. The node joins
 	 * with the key derived from it or with the default trust center link key.

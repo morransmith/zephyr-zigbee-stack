@@ -5,3 +5,9 @@ tests:
     platform_allow:
       - native_sim
       - native_sim/native/64
+  zzb.glue.raw.tx_backoff:
+    platform_allow:
+      - native_sim
+      - native_sim/native/64
+    extra_configs:
+      - CONFIG_ZZB_RADIO_TX_BACKOFF=y

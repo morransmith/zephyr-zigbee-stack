@@ -37,6 +37,12 @@ enum net_verdict ieee802154_handle_ack(struct net_if *iface, struct net_pkt *pkt
 	return NET_OK;
 }
 
+/* Waits a random number of unit backoff periods, 0 to 2^be - 1 */
+static void backoff(uint8_t be)
+{
+	k_busy_wait((sys_rand32_get() & BIT_MASK(be)) * UNIT_BACKOFF_US);
+}
+
 /* Unslotted CSMA-CA (802.15.4 5.1.1.4) */
 static int csma_ca(const struct device *dev)
 {
@@ -46,7 +52,7 @@ static int csma_ca(const struct device *dev)
 	for (int nb = 0; nb <= MAX_CSMA_BACKOFFS; nb++) {
 		int err;
 
-		k_busy_wait((sys_rand32_get() & BIT_MASK(be)) * UNIT_BACKOFF_US);
+		backoff(be);
 		err = api->cca(dev);
 		if (err != -EBUSY) {
 			return err;
@@ -66,6 +72,10 @@ static enum zzb_mac_status transmit(struct zzb_radio_port *port, struct net_buf 
 
 	acked = false;
 	ack_pending = false;
+
+	if (port->hw_csma && IS_ENABLED(CONFIG_ZZB_RADIO_TX_BACKOFF)) {
+		backoff(MIN_BE);
+	}
 
 	if (!port->hw_csma) {
 		if (csma_ca(port->dev)) {

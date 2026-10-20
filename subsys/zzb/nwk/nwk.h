@@ -241,6 +241,7 @@ enum zzb_nwk_hold {
 	ZZB_NWK_HOLD_ZDO = BIT(1),
 	ZZB_NWK_HOLD_BDB = BIT(2),
 	ZZB_NWK_HOLD_ZCL = BIT(3),
+	ZZB_NWK_HOLD_OTA = BIT(4),
 };
 
 /* Sets or clears the hold of a layer; the node polls at the short interval while one is set */

@@ -24,6 +24,7 @@ DEFINE_FAKE_VOID_FUNC(zzb_nwk_poll_fast, struct zzb_node *);
 DEFINE_FAKE_VOID_FUNC(zzb_nwk_set_poll_intervals, struct zzb_node *, uint32_t, uint32_t);
 DEFINE_FAKE_VALUE_FUNC(bool, zzb_aps_bound, struct zzb_node *, uint8_t, uint16_t, uint16_t,
 		       uint8_t);
+DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_apsme_get_tc_addr, const struct zzb_node *);
 
 struct test_values values1;
 struct test_values values2;
@@ -250,7 +251,7 @@ static void test_reset(struct zzb_node *node, uint8_t ep, void *values)
 	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x000f, 0);
 }
 
-static void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
+void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
 {
 	int i = zcl_cb_calls.count++;
 
@@ -883,10 +884,12 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_nwk_poll_fast);
 	RESET_FAKE(zzb_nwk_set_poll_intervals);
 	RESET_FAKE(zzb_aps_bound);
+	RESET_FAKE(zzb_apsme_get_tc_addr);
 	FFF_RESET_HISTORY();
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
 	zzb_aps_resolve_ext_fake.custom_fake = resolve_requester;
+	zzb_apsme_get_tc_addr_fake.return_val = TC_EUI64;
 	cmd_calls = (struct cmd_calls){0};
 	cmd_status = ZZB_ZCL_SUCCESS;
 	check_values = NULL;

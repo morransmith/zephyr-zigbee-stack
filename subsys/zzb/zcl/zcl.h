@@ -111,6 +111,8 @@ struct zzb_zcl {
 	uint8_t time_tsn;
 	/* Sends the check-ins of Poll Control and ends its windows and fast polls */
 	struct k_work_delayable poll_control_timer;
+	/* Sends the requests of the OTA Upgrade client */
+	struct k_work_delayable ota_timer;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;
 	/* The frame being processed, for the hooks; NULL outside the processing of a frame */
@@ -272,6 +274,12 @@ void zzb_zcl_device_temp_init(struct zzb_node *node);
 void zzb_zcl_ias_wd_init(struct zzb_node *node);
 void zzb_zcl_ias_zone_init(struct zzb_node *node);
 void zzb_zcl_door_lock_init(struct zzb_node *node);
+
+/*
+ * Initializes the timer of the OTA Upgrade client, clears its hold on the poll rate of NWK and ends
+ * a download of the node without a frame
+ */
+void zzb_zcl_ota_init(struct zzb_node *node);
 
 /* Initializes the timer of Poll Control and clears the hold of ZCL on the poll rate of NWK */
 void zzb_zcl_poll_control_init(struct zzb_node *node);

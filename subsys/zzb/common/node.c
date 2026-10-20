@@ -110,6 +110,7 @@ static void init_handler(struct k_work *work)
 		.zcl_cb = cfg->zcl_cb,
 		.zcl_effect_cb = cfg->zcl_effect_cb,
 		.zcl_cmd_cb = cfg->zcl_cmd_cb,
+		.ota_cb = cfg->ota_cb,
 		.sleepy = cfg->sleepy,
 	};
 	memcpy(node->install_key, key, sizeof(key));

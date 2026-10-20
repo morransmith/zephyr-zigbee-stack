@@ -47,6 +47,15 @@ config ZZB_MAC
 	help
 	  IEEE 802.15.4 MAC sublayer. Tests that fake the MAC turn it off.
 
+config ZZB_RADIO_TX_BACKOFF
+	bool "Random backoff before the CSMA-CA of the driver"
+	default y if IEEE802154_ESP32
+	help
+	  The radio port waits 0 to 7 unit backoff periods of 320 us before
+	  every tx() in IEEE802154_TX_MODE_CSMA_CA. The CSMA-CA of the esp32
+	  driver is one CCA without backoff, so without the wait a frame and
+	  its MAC retries all fail while another frame is on air.
+
 config ZZB_NWK
 	bool "NWK layer"
 	default ZZB_MAC
@@ -175,6 +184,35 @@ config ZZB_ZCL_DOOR_LOCK_USERS
 	  Users with a PIN code of each Door Lock server, user IDs 0 to this
 	  number minus 1. NumberOfTotalUsersSupported and
 	  NumberOfPINUsersSupported report this number.
+
+config ZZB_ZCL_OTA
+	bool "OTA Upgrade client"
+	depends on ZZB_ZCL && MCUBOOT_IMG_MANAGER
+	select IMG_ERASE_PROGRESSIVELY
+	help
+	  OTA Upgrade client (ZCL 11) that downloads firmware images from the
+	  trust center into the upload slot of MCUboot. The application
+	  enables CONFIG_STREAM_FLASH and CONFIG_IMG_MANAGER.
+
+config ZZB_ZCL_OTA_QUERY_INTERVAL
+	int "Minutes between the queries of the OTA Upgrade client"
+	depends on ZZB_ZCL_OTA
+	range 1 44640
+	default 1440
+	help
+	  The OTA Upgrade client sends Query Next Image Request to the trust
+	  center one interval after the start of the node and then every
+	  interval while it does not download.
+
+config ZZB_ZCL_OTA_BLOCK_SIZE
+	int "Octets of an OTA image block"
+	depends on ZZB_ZCL_OTA
+	range 1 65
+	default 48
+	help
+	  The data size that the OTA Upgrade client asks for in Image Block
+	  Request. 65 octets fill an ASDU with NWK security only, and 48 fit
+	  one with APS security.
 
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
