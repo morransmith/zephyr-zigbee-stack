@@ -75,6 +75,7 @@ struct zzb_zcl_window_covering {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_window_covering_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_window_covering_client_def;
 
 /** A Window Covering server with the values v, a pointer to struct zzb_zcl_window_covering. */
 #define ZZB_ZCL_WINDOW_COVERING_SERVER(v)                                                          \
@@ -83,6 +84,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_window_covering_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_window_covering *)NULL),                      \
 		.def = &zzb_zcl_window_covering_def,                                               \
+	}
+
+/** A Window Covering client, which the Window Covering Controller has (DTL). */
+#define ZZB_ZCL_WINDOW_COVERING_CLIENT()                                                           \
+	{                                                                                          \
+		.id = ZZB_ZCL_WINDOW_COVERING,                                                     \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_window_covering_client_def,                                        \
 	}
 
 #ifdef __cplusplus

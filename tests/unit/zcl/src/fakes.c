@@ -349,6 +349,7 @@ static const struct zzb_zcl_cluster ep5_clusters[] = {
 	ZZB_ZCL_ILLUMINANCE_CLIENT(),
 	ZZB_ZCL_ILLUMINANCE_LEVEL_CLIENT(),
 	ZZB_ZCL_OCCUPANCY_CLIENT(),
+	ZZB_ZCL_WINDOW_COVERING_CLIENT(),
 };
 
 static const struct zzb_zcl_cluster ep4_clusters[] = {
