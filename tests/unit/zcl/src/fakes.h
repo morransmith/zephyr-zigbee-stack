@@ -62,7 +62,8 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, u
 /*
  * Values of the test cluster, attributes 0x0000 to 0x0014 in this order; 0x0000 to 0x0002, 0x0008,
  * 0x000c, 0x0010 and 0x0013 are reportable, 0x0002, 0x0008 to 0x000a and 0x000c to 0x0014 are
- * saved, 0x000b is read-only. The reset sets 0x0001, 0x0002 and 0x000f to 0.
+ * saved, 0x000b is read-only. A remote write of 0x0004 gets READ_ONLY while bit 0 of 0x000b is
+ * set. The reset sets 0x0001, 0x0002 and 0x000f to 0.
  */
 struct test_values {
 	bool b;

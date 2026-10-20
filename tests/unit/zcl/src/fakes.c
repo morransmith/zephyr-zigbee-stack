@@ -208,7 +208,13 @@ static int test_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *
 
 static uint8_t test_check(const void *values, const struct zzb_zcl_attr *attr, uint32_t value)
 {
+	const struct test_values *v = values;
+
 	check_values = values;
+	if (attr->id == 0x0004 && (v->map16 & BIT(0))) {
+		return ZZB_ZCL_READ_ONLY;
+	}
+
 	return attr->id == 0x0003 && value > TEST_E8_MAX ? ZZB_ZCL_INVALID_VALUE : ZZB_ZCL_SUCCESS;
 }
 

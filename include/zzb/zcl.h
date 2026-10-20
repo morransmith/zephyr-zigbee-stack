@@ -187,7 +187,8 @@ struct zzb_zcl_cluster_def {
 	int (*cmd)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values);
 	/**
 	 * Checks a remote write of value to attr against the values before the write, or NULL.
-	 * Returns ZZB_ZCL_SUCCESS or ZZB_ZCL_INVALID_VALUE.
+	 * Returns ZZB_ZCL_SUCCESS, ZZB_ZCL_INVALID_VALUE, or ZZB_ZCL_READ_ONLY for an attribute
+	 * that is writable only under a condition; zzb_zcl_attr_set() ignores READ_ONLY.
 	 */
 	uint8_t (*check)(const void *values, const struct zzb_zcl_attr *attr, uint32_t value);
 	/** Called on the stack thread after every change of the value of attr, or NULL. */

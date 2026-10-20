@@ -179,6 +179,22 @@ ZTEST(zzb_zcl_attr, test_check_values)
 	zassert_equal_ptr(check_values, &values1);
 }
 
+/* Section 16: READ_ONLY from the check hook refuses a remote write, not zzb_zcl_attr_set() */
+ZTEST(zzb_zcl_attr, test_check_read_only)
+{
+	static const uint8_t req[] = {0x00, 0x66, 0x02, 0x04, 0x00, 0x18, 0x0f};
+	static const uint8_t rsp[] = {0x18, 0x66, 0x04, 0x88, 0x04, 0x00};
+	uint8_t map8 = 0x0f;
+
+	values1.map16 = BIT(0);
+	receive(TEST_CLUSTER, req, sizeof(req));
+	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
+	zassert_equal(values1.map8, 0);
+
+	zassert_ok(zzb_zcl_attr_set(test_node(), 1, TEST_CLUSTER, 0x0004, &map8));
+	zassert_equal(values1.map8, 0x0f);
+}
+
 /* Section 15: a record with an unknown version or length fails the boot */
 ZTEST(zzb_zcl_attr, test_bad_record)
 {
