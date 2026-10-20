@@ -13,13 +13,16 @@
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/device_temp.h>
+#include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
+#include <zzb/zcl/measurement.h>
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/power_config.h>
+#include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
 
 #include "aps/aps.h"
@@ -176,6 +179,19 @@ extern struct zzb_zcl_color color40;
 extern struct zzb_zcl_on_off on_off41;
 extern struct zzb_zcl_level level41;
 extern struct zzb_zcl_color color41;
+
+/*
+ * Endpoint 70 has the measurement servers, a Fan Control server with FanModeSequence 0x02 and a
+ * Pump Configuration and Control server; endpoint 71 has the clients of these clusters
+ */
+#define HVAC_EP 70
+
+extern struct zzb_zcl_temperature temperature70;
+extern struct zzb_zcl_pressure pressure70;
+extern struct zzb_zcl_flow flow70;
+extern struct zzb_zcl_humidity humidity70;
+extern struct zzb_zcl_fan fan70;
+extern struct zzb_zcl_pump pump70;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
