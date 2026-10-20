@@ -66,6 +66,10 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_BDB
 zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/attr.c
   zcl/clusters/alarms.c
+  zcl/clusters/appliance_control.c
+  zcl/clusters/appliance_events.c
+  zcl/clusters/appliance_id.c
+  zcl/clusters/appliance_stats.c
   zcl/clusters/ballast.c
   zcl/clusters/basic.c
   zcl/clusters/binary_input.c
@@ -87,6 +91,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/on_off.c
   zcl/clusters/on_off_switch_config.c
   zcl/clusters/power_config.c
+  zcl/clusters/power_profile.c
   zcl/clusters/pump.c
   zcl/clusters/scenes.c
   zcl/clusters/schedule.c

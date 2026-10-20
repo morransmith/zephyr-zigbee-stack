@@ -9,6 +9,10 @@
 #include <zephyr/net_buf.h>
 #include <zzb/zcl.h>
 #include <zzb/zcl/alarms.h>
+#include <zzb/zcl/appliance_control.h>
+#include <zzb/zcl/appliance_events.h>
+#include <zzb/zcl/appliance_id.h>
+#include <zzb/zcl/appliance_stats.h>
 #include <zzb/zcl/ballast.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/binary_input.h>
@@ -28,6 +32,7 @@
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/on_off_switch_config.h>
 #include <zzb/zcl/power_config.h>
+#include <zzb/zcl/power_profile.h>
 #include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
 #include <zzb/zcl/thermostat.h>
@@ -271,6 +276,18 @@ extern struct zzb_zcl_binary_input input121;
 #define METER_EP 122
 
 extern struct zzb_zcl_metering meter122;
+
+/*
+ * Endpoint 140 is a White Goods with the Power Profile server and the servers of the EN50523
+ * appliance clusters, 141 a Home Gateway with their clients
+ */
+#define WHITE_GOODS_EP 140
+#define GATEWAY_EP     141
+
+extern struct zzb_zcl_power_profile power_profile140;
+extern struct zzb_zcl_appliance_control appliance_control140;
+extern struct zzb_zcl_appliance_id appliance_id140;
+extern struct zzb_zcl_appliance_stats appliance_stats140;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
