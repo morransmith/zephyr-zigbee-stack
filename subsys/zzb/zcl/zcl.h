@@ -102,6 +102,8 @@ struct zzb_zcl {
 	struct k_work_delayable ias_wd_timer;
 	/* Tries again the IAS Zone notifications refused off a network */
 	struct k_work_delayable ias_zone_timer;
+	/* Ends the lockouts of the Door Locks */
+	struct k_work_delayable door_lock_timer;
 	struct zzb_zcl_clock clock;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;
@@ -263,6 +265,7 @@ void zzb_zcl_power_config_init(struct zzb_node *node);
 void zzb_zcl_device_temp_init(struct zzb_node *node);
 void zzb_zcl_ias_wd_init(struct zzb_node *node);
 void zzb_zcl_ias_zone_init(struct zzb_node *node);
+void zzb_zcl_door_lock_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*

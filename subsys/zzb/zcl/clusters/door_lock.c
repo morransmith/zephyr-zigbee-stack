@@ -3,11 +3,13 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
 #include <zzb/zcl/door_lock.h>
 
 #include "common/node.h"
+#include "common/queue.h"
 #include "storage/settings.h"
 #include "zcl/zcl.h"
 
@@ -27,6 +29,9 @@
 #define PASS           0x00
 #define FAIL           0x01
 #define DUPLICATE_CODE 0x03
+
+/* Tamper Alarm - wrong code entry limit (ZCL Table 7-22) */
+#define ALARM_WRONG_CODES 0x04
 
 #define RECORD_VERSION 1
 /* Version, user status, user type, code length and code */
@@ -103,55 +108,6 @@ static int respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t
 	return ZZB_ZCL_RESPONDED;
 }
 
-/* Toggle by LockState and Unlock with Timeout become Lock Door or Unlock Door */
-static uint8_t resolve(const struct zzb_zcl_cmd *cmd, const struct zzb_zcl_door_lock *v)
-{
-	switch (cmd->id) {
-	case ZZB_ZCL_DOOR_LOCK_TOGGLE:
-		return v->lock_state == ZZB_ZCL_DOOR_LOCK_LOCKED ? ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR
-								 : ZZB_ZCL_DOOR_LOCK_LOCK_DOOR;
-	case ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT:
-		return ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR;
-	default:
-		return cmd->id;
-	}
-}
-
-/* Lock Door, Unlock Door, Toggle and Unlock with Timeout (ZCL 7.3.2.15.1 to 7.3.2.15.4) */
-static int operate(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
-		   const struct zzb_zcl_door_lock *v)
-{
-	/* A copy of the whole request, which zzb_zcl_cmd_respond() can answer */
-	struct zzb_zcl_req req = *CONTAINER_OF(cmd, struct zzb_zcl_req, cmd);
-	size_t off = cmd->id == ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT ? TIMEOUT_LEN : 0;
-	int code_len = 0;
-	int status;
-
-	if (cmd->len > off) {
-		code_len = zzb_zcl_value_len(ZZB_ZCL_OCTSTR, cmd->payload + off, cmd->len - off);
-	}
-
-	if (cmd->len < off || code_len < 0) {
-		return ZZB_ZCL_MALFORMED_COMMAND;
-	}
-
-	/* ZCL Table 7-15 */
-	if (!v->actuator_enabled || v->operating_mode == ZZB_ZCL_DOOR_LOCK_MODE_PRIVACY ||
-	    v->operating_mode == ZZB_ZCL_DOOR_LOCK_MODE_NO_RF_LOCK_UNLOCK) {
-		return respond(node, cmd, ZZB_ZCL_FAILURE);
-	}
-
-	req.cmd.id = resolve(cmd, v);
-	req.cmd.payload = cmd->payload + off;
-	req.cmd.len = code_len;
-	status = zzb_zcl_app_cmd(node, &req.cmd);
-	if (status == ZZB_ZCL_RESPONDED) {
-		return status;
-	}
-
-	return respond(node, cmd, status == ZZB_ZCL_SUCCESS ? ZZB_ZCL_SUCCESS : ZZB_ZCL_FAILURE);
-}
-
 static void record_name(char name[NAME_LEN], uint8_t ep, int id)
 {
 	snprintk(name, NAME_LEN, "zcl/lock/%u/%d", ep, id);
@@ -220,6 +176,21 @@ static bool duplicate(const struct zzb_zcl_door_lock *v, int id, const uint8_t *
 	return false;
 }
 
+/* The ID of the user with the code, status 1 and a type other than 4 (ZCL 7.3.2.13.4), or -1 */
+static int code_user(const struct zzb_zcl_door_lock *v, const uint8_t *code, size_t len)
+{
+	for (int i = 0; i < ARRAY_SIZE(v->users); i++) {
+		const struct zzb_zcl_door_lock_user *u = &v->users[i];
+
+		if (u->status == ZZB_ZCL_DOOR_LOCK_USER_ENABLED &&
+		    u->type != ZZB_ZCL_DOOR_LOCK_USER_NON_ACCESS && has_code(u, code, len)) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 /*
  * Writes the code of len octets to p as an octet string, with 0xff octets in its place while
  * SendPINOverTheAir is FALSE (ZCL 7.3.2.13.3); returns its length
@@ -235,6 +206,144 @@ static size_t put_code(uint8_t *p, const struct zzb_zcl_door_lock *v, const uint
 	}
 
 	return 1 + len;
+}
+
+/* The values of the Door Lock server on ep, or NULL */
+static struct zzb_zcl_door_lock *server(const struct zzb_endpoint *ep)
+{
+	const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(ep, ZZB_ZCL_DOOR_LOCK, true);
+
+	return cl != NULL ? cl->values : NULL;
+}
+
+/* The earlier of next and a deadline, which is 0 when it is not set */
+static int64_t earlier(int64_t next, int64_t deadline)
+{
+	return deadline != 0 ? MIN(next, deadline) : next;
+}
+
+static bool due(int64_t deadline, int64_t now)
+{
+	return deadline != 0 && deadline <= now;
+}
+
+/* Arms the timer for the earliest end of a lockout of the node, or stops it */
+static void schedule(struct zzb_node *node)
+{
+	int64_t next = INT64_MAX;
+
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		const struct zzb_zcl_door_lock *v = server(&node->device->endpoints[i]);
+
+		if (v != NULL) {
+			next = earlier(next, v->lockout_end);
+		}
+	}
+
+	if (next == INT64_MAX) {
+		k_work_cancel_delayable(&node->zcl.door_lock_timer);
+		return;
+	}
+
+	k_work_reschedule_for_queue(&zzb_workq, &node->zcl.door_lock_timer,
+				    K_MSEC(MAX(next - k_uptime_get(), 0)));
+}
+
+/* The end of a lockout clears the count of wrong codes */
+static void tick(struct k_work *work)
+{
+	struct zzb_node *node = CONTAINER_OF(k_work_delayable_from_work(work), struct zzb_node,
+					     zcl.door_lock_timer);
+	int64_t now = k_uptime_get();
+
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		struct zzb_zcl_door_lock *v = server(&node->device->endpoints[i]);
+
+		if (v != NULL && due(v->lockout_end, now)) {
+			v->lockout_end = 0;
+			v->wrong_codes = 0;
+		}
+	}
+
+	schedule(node);
+}
+
+/*
+ * Counts a wrong code of an RF command on ep. Reaching WrongCodeEntryLimit starts the lockout and
+ * raises its alarm (ZCL 7.3.2.13.1).
+ */
+static void wrong_code(struct zzb_node *node, uint8_t ep, struct zzb_zcl_door_lock *v)
+{
+	v->wrong_codes++;
+	if (v->wrong_code_entry_limit == 0 || v->wrong_codes < v->wrong_code_entry_limit) {
+		return;
+	}
+
+	v->lockout_end = k_uptime_get() + v->user_code_temporary_disable_time * MSEC_PER_SEC;
+	schedule(node);
+	zzb_zcl_alarm_raise(node, ep, ZZB_ZCL_DOOR_LOCK, ALARM_WRONG_CODES,
+			    v->alarm_mask & BIT(ALARM_WRONG_CODES), true);
+}
+
+/* Toggle by LockState and Unlock with Timeout become Lock Door or Unlock Door */
+static uint8_t resolve(const struct zzb_zcl_cmd *cmd, const struct zzb_zcl_door_lock *v)
+{
+	switch (cmd->id) {
+	case ZZB_ZCL_DOOR_LOCK_TOGGLE:
+		return v->lock_state == ZZB_ZCL_DOOR_LOCK_LOCKED ? ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR
+								 : ZZB_ZCL_DOOR_LOCK_LOCK_DOOR;
+	case ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT:
+		return ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR;
+	default:
+		return cmd->id;
+	}
+}
+
+/* Lock Door, Unlock Door, Toggle and Unlock with Timeout (ZCL 7.3.2.15.1 to 7.3.2.15.4) */
+static int operate(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+		   struct zzb_zcl_door_lock *v)
+{
+	/* A copy of the whole request, which zzb_zcl_cmd_respond() can answer */
+	struct zzb_zcl_req req = *CONTAINER_OF(cmd, struct zzb_zcl_req, cmd);
+	size_t off = cmd->id == ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT ? TIMEOUT_LEN : 0;
+	const uint8_t *code = cmd->payload + off + 1;
+	int field = 0;
+	int status;
+	int len;
+
+	if (cmd->len > off) {
+		field = zzb_zcl_value_len(ZZB_ZCL_OCTSTR, cmd->payload + off, cmd->len - off);
+	}
+
+	if (cmd->len < off || field < 0) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	/* ZCL Table 7-15 */
+	if (!v->actuator_enabled || v->operating_mode == ZZB_ZCL_DOOR_LOCK_MODE_PRIVACY ||
+	    v->operating_mode == ZZB_ZCL_DOOR_LOCK_MODE_NO_RF_LOCK_UNLOCK || v->lockout_end != 0) {
+		return respond(node, cmd, ZZB_ZCL_FAILURE);
+	}
+
+	/* The code without its length octet; a missing code is empty */
+	len = MAX(field - 1, 0);
+	if (v->require_pin_for_rf_operation && code_user(v, code, len) < 0) {
+		status = respond(node, cmd, ZZB_ZCL_FAILURE);
+		wrong_code(node, cmd->ep, v);
+		return status;
+	}
+
+	/* A right code clears the count, which only wrong codes raise */
+	v->wrong_codes = 0;
+	req.cmd.id = resolve(cmd, v);
+	req.cmd.payload = cmd->payload + off;
+	req.cmd.len = field;
+	status = zzb_zcl_app_cmd(node, &req.cmd);
+	if (status == ZZB_ZCL_RESPONDED) {
+		return status;
+	}
+
+	return respond(node, cmd, status == ZZB_ZCL_SUCCESS ? ZZB_ZCL_SUCCESS : ZZB_ZCL_FAILURE);
 }
 
 /* ZCL 7.3.2.15.7; a code length of 0xff is the empty string */
@@ -435,7 +544,7 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 	return ZZB_ZCL_SUCCESS;
 }
 
-/* The fields of the application keep their values */
+/* The fields of the application keep their values; zzb_zcl_init() has stopped the timer */
 static void init(void *values)
 {
 	struct zzb_zcl_door_lock *v = values;
@@ -453,6 +562,8 @@ static void init(void *values)
 	v->keypad_programming_event_mask = EVENTS_ALL;
 	v->rf_programming_event_mask = EVENTS_ALL;
 	memset(v->users, 0, sizeof(v->users));
+	v->wrong_codes = 0;
+	v->lockout_end = 0;
 }
 
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value)
@@ -462,6 +573,8 @@ static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value
 
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
+	struct zzb_zcl_door_lock *v = values;
+
 	set(node, ep, ZZB_ZCL_DOOR_LOCK_AUTO_RELOCK_TIME, 0);
 	set(node, ep, ZZB_ZCL_DOOR_LOCK_OPERATING_MODE, ZZB_ZCL_DOOR_LOCK_MODE_NORMAL);
 	set(node, ep, ZZB_ZCL_DOOR_LOCK_WRONG_CODE_ENTRY_LIMIT, 0);
@@ -474,7 +587,10 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 	set(node, ep, ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_EVENT_MASK, EVENTS_ALL);
 	set(node, ep, ZZB_ZCL_DOOR_LOCK_KEYPAD_PROGRAMMING_EVENT_MASK, EVENTS_ALL);
 	set(node, ep, ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_EVENT_MASK, EVENTS_ALL);
-	clear_users(node, ep, values);
+	clear_users(node, ep, v);
+	v->wrong_codes = 0;
+	v->lockout_end = 0;
+	schedule(node);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def = {
@@ -486,12 +602,9 @@ const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def = {
 	.check = check,
 };
 
-/* The values of the Door Lock server on ep, or NULL */
-static struct zzb_zcl_door_lock *server(const struct zzb_endpoint *ep)
+void zzb_zcl_door_lock_init(struct zzb_node *node)
 {
-	const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(ep, ZZB_ZCL_DOOR_LOCK, true);
-
-	return cl != NULL ? cl->values : NULL;
+	k_work_init_delayable(&node->zcl.door_lock_timer, tick);
 }
 
 int zzb_zcl_door_lock_load(struct zzb_node *node, const char *key, size_t len,

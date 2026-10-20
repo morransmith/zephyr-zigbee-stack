@@ -128,7 +128,13 @@ struct zzb_zcl_door_lock_user {
  *
  * The stack processes the PIN code, User Status and User Type commands, keeps the users in the
  * field users and saves them. The application reads them on the stack thread, such as in a
- * callback, to check the codes of its keypad.
+ * callback, to check the codes of its keypad, and counts the wrong codes of its keypad itself.
+ *
+ * While RequirePINforRFOperation is TRUE, the RF commands need the code of a user with status
+ * Enabled and a type other than Non Access; a wrong or missing code gives FAILURE and counts. When
+ * WrongCodeEntryLimit is above 0 and the count reaches it, the RF commands get FAILURE for
+ * UserCodeTemporaryDisableTime seconds, and alarm 0x04 occurs through the Alarms server of the
+ * endpoint. A right code and the end of this lockout clear the count.
  */
 struct zzb_zcl_door_lock {
 	/** enum zzb_zcl_door_lock_state. */
@@ -162,6 +168,10 @@ struct zzb_zcl_door_lock {
 	uint16_t rf_programming_event_mask;
 	/** The users, element n with user ID n. */
 	struct zzb_zcl_door_lock_user users[CONFIG_ZZB_ZCL_DOOR_LOCK_USERS];
+	/** Internal: wrong codes of the RF commands since the last right code or lockout. */
+	uint8_t wrong_codes;
+	/** Internal: k_uptime_get() at the end of the lockout, 0 while no lockout runs. */
+	int64_t lockout_end;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def;

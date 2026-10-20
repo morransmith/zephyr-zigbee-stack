@@ -538,8 +538,11 @@ struct zzb_zcl_door_lock lock100 = {
 	.min_pin_code_length = 4,
 };
 
+static struct zzb_zcl_alarms alarms100;
+
 static const struct zzb_zcl_cluster ep100_clusters[] = {
 	ZZB_ZCL_DOOR_LOCK_SERVER(&lock100),
+	ZZB_ZCL_ALARMS_SERVER(&alarms100),
 };
 
 static const struct zzb_endpoint endpoints[] = {

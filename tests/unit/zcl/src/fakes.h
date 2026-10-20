@@ -252,7 +252,10 @@ extern struct zzb_zcl_ias_wd wd86;
 #define CIE_EP    90
 #define KEYPAD_EP 91
 
-/* Endpoint 100 is a Door Lock with a Door Lock server, locked and with codes of 4 to 8 octets */
+/*
+ * Endpoint 100 is a Door Lock with a Door Lock server, locked and with codes of 4 to 8 octets, and
+ * an Alarms server
+ */
 #define DOOR_LOCK_EP 100
 
 extern struct zzb_zcl_door_lock lock100;

@@ -2,10 +2,12 @@
 
 #include <errno.h>
 #include <string.h>
+#include <zephyr/kernel.h>
 #include <zephyr/settings/settings.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/door_lock.h>
 
+#include "common/node.h"
 #include "fakes.h"
 
 /* The values that the application set on endpoint 100 */
@@ -536,6 +538,119 @@ ZTEST(zzb_zcl_door_lock, test_bad_records)
 	zassert_ok(settings_delete("zzb/0/zcl/lock/1/1"));
 	zassert_ok(settings_delete("zzb/0/zcl/lock/9/1"));
 	zassert_ok(settings_delete("zzb/0/zcl/lock/100/8"));
+}
+
+/* Stores user id of endpoint 100 without a command */
+static void add_user(int id, uint8_t status, uint8_t type, const char *pin)
+{
+	struct zzb_zcl_door_lock_user *u = &lock100.users[id];
+
+	*u = (struct zzb_zcl_door_lock_user){.status = status, .type = type, .len = strlen(pin)};
+	memcpy(u->code, pin, strlen(pin));
+}
+
+static bool timer_armed(void)
+{
+	return k_work_delayable_is_pending(&test_node()->zcl.door_lock_timer);
+}
+
+/* The code "9999", which no user has */
+static const uint8_t wrong[] = {0x04, 0x39, 0x39, 0x39, 0x39};
+
+/*
+ * ZCL 7.3.2.13.4: with RequirePINforRFOperation the code must be the code of a user with status 1
+ * and a type other than 4; a disabled user, a non access user, a wrong and a missing code give
+ * FAILURE without zcl_cmd_cb. WrongCodeEntryLimit 0 gives no lockout.
+ */
+ZTEST(zzb_zcl_door_lock, test_require_pin)
+{
+	static const uint8_t disabled[] = {0x05, 0x32, 0x32, 0x32, 0x32, 0x32};
+	static const uint8_t non_access[] = {0x04, 0x33, 0x33, 0x33, 0x33};
+	static const uint8_t master[] = {0x00, 0x00, 0x04, 0x34, 0x34, 0x34, 0x34};
+
+	add_user(1, ZZB_ZCL_DOOR_LOCK_USER_ENABLED, ZZB_ZCL_DOOR_LOCK_USER_UNRESTRICTED, "1234");
+	add_user(2, ZZB_ZCL_DOOR_LOCK_USER_DISABLED, ZZB_ZCL_DOOR_LOCK_USER_UNRESTRICTED, "22222");
+	add_user(3, ZZB_ZCL_DOOR_LOCK_USER_ENABLED, ZZB_ZCL_DOOR_LOCK_USER_NON_ACCESS, "3333");
+	add_user(4, ZZB_ZCL_DOOR_LOCK_USER_ENABLED, ZZB_ZCL_DOOR_LOCK_USER_MASTER, "4444");
+	lock100.require_pin_for_rf_operation = true;
+
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, NULL, 0, ZZB_ZCL_FAILURE);
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR, disabled, sizeof(disabled), ZZB_ZCL_FAILURE);
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR, non_access, sizeof(non_access), ZZB_ZCL_FAILURE);
+	operate(ZZB_ZCL_DOOR_LOCK_TOGGLE, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	zassert_equal(zcl_cmd_calls.count, 0);
+
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, code, sizeof(code), ZZB_ZCL_SUCCESS);
+	check_cmd(0, ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, code, sizeof(code));
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, master, sizeof(master), ZZB_ZCL_SUCCESS);
+	zassert_equal(zcl_cmd_calls.count, 2);
+	zassert_false(timer_armed());
+}
+
+/*
+ * ZCL 7.3.2.13.1, 7.3.2.13.2: the count of wrong codes reaching WrongCodeEntryLimit refuses the
+ * commands for UserCodeTemporaryDisableTime seconds and raises alarm 0x04, which goes as Alarm with
+ * bit 4 of AlarmMask (ZCL Table 7-22). A right code and the end of the lockout clear the count.
+ */
+ZTEST(zzb_zcl_door_lock, test_lockout)
+{
+	static const uint16_t alarm_count[] = {ZZB_ZCL_ALARMS_ALARM_COUNT};
+
+	add_user(1, ZZB_ZCL_DOOR_LOCK_USER_ENABLED, ZZB_ZCL_DOOR_LOCK_USER_UNRESTRICTED, "1234");
+	lock100.require_pin_for_rf_operation = true;
+	lock100.wrong_code_entry_limit = 3;
+	lock100.user_code_temporary_disable_time = 2;
+
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, code, sizeof(code), ZZB_ZCL_SUCCESS);
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, NULL, 0, ZZB_ZCL_FAILURE);
+	zassert_false(timer_armed());
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	zassert_true(timer_armed());
+	zassert_equal(alarm_entries(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK, 0x04), 1);
+	check_zcl_cb(DOOR_LOCK_EP, ZZB_ZCL_ALARMS, alarm_count, ARRAY_SIZE(alarm_count));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 6);
+
+	reset_fakes();
+	k_sleep(K_MSEC(1900));
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, code, sizeof(code), ZZB_ZCL_FAILURE);
+	zassert_equal(zcl_cmd_calls.count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_false(timer_armed());
+
+	/* The count starts again from 0 */
+	lock100.alarm_mask = BIT(4);
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, code, sizeof(code), ZZB_ZCL_SUCCESS);
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 7);
+	check_alarm(6, DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK, 0x04);
+	zassert_equal(alarm_entries(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK, 0x04), 2);
+}
+
+/* The reset of the node and a reboot end the lockout */
+ZTEST(zzb_zcl_door_lock, test_lockout_reset)
+{
+	lock100.require_pin_for_rf_operation = true;
+	lock100.wrong_code_entry_limit = 1;
+	lock100.user_code_temporary_disable_time = 10;
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	zassert_true(timer_armed());
+	reset_node();
+	zassert_false(timer_armed());
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, NULL, 0, ZZB_ZCL_SUCCESS);
+
+	lock100.require_pin_for_rf_operation = true;
+	lock100.wrong_code_entry_limit = 1;
+	lock100.user_code_temporary_disable_time = 10;
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, wrong, sizeof(wrong), ZZB_ZCL_FAILURE);
+	zassert_ok(reboot());
+	zassert_false(timer_armed());
+	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, NULL, 0, ZZB_ZCL_SUCCESS);
 }
 
 ZTEST_SUITE(zzb_zcl_door_lock, NULL, setup, before, after, NULL);
