@@ -62,6 +62,22 @@ uint64_t zzb_mlme_get_coord_ext_addr(const struct zzb_node *node)
 	return node->mac.coord_ext_addr;
 }
 
+/* The receiver of a sleepy node is on only during MLME procedures */
+static void set_rx_on_when_idle(struct zzb_node *node, bool on)
+{
+	const struct ieee802154_radio_api *api = node->port.dev->api;
+
+	if (!node->sleepy) {
+		return;
+	}
+
+	api->configure(node->port.dev, IEEE802154_CONFIG_RX_ON_WHEN_IDLE,
+		       &(struct ieee802154_config){.rx_on_when_idle = on});
+	if (!on) {
+		api->stop(node->port.dev);
+	}
+}
+
 int zzb_mac_set_radio_channel(struct zzb_node *node, uint8_t channel)
 {
 	const struct ieee802154_radio_api *api = node->port.dev->api;
@@ -69,7 +85,15 @@ int zzb_mac_set_radio_channel(struct zzb_node *node, uint8_t channel)
 
 	api->set_channel(node->port.dev, channel);
 	err = api->start(node->port.dev);
-	return err == -EALREADY ? 0 : err;
+	if (err && err != -EALREADY) {
+		return err;
+	}
+
+	if (node->mac.op == ZZB_MAC_OP_NONE) {
+		set_rx_on_when_idle(node, false);
+	}
+
+	return 0;
 }
 
 static void timer_handler(struct k_work *work)
@@ -95,12 +119,17 @@ static void timer_handler(struct k_work *work)
 
 int zzb_mac_init(struct zzb_node *node, const struct device *radio)
 {
+	const struct ieee802154_radio_api *api = radio->api;
 	uint8_t ext_addr[8];
 	int err;
 
 	err = zzb_radio_init(&node->port, radio);
 	if (err) {
 		return err;
+	}
+
+	if (node->sleepy && !(api->get_capabilities(radio) & IEEE802154_RX_ON_WHEN_IDLE)) {
+		return -ENOTSUP;
 	}
 
 	node->mac = (struct zzb_mac){

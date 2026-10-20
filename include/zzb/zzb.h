@@ -95,7 +95,8 @@ struct zzb_node_config {
  * @retval -ENOMEM all CONFIG_ZZB_NODE_COUNT nodes are in use.
  * @retval -ENODEV cfg->eui64 is 0 and the hardware provides no EUI-64, or the custom-L2 backend
  *                 finds no interface for cfg->radio.
- * @retval -ENOTSUP the radio driver does not wait for the ACK in tx().
+ * @retval -ENOTSUP the radio driver does not wait for the ACK in tx(), or cfg->sleepy is set and
+ *                  the driver does not report IEEE802154_RX_ON_WHEN_IDLE.
  * @retval -EIO the radio does not start.
  */
 int zzb_node_init(const struct zzb_node_config *cfg, struct zzb_node **node);
