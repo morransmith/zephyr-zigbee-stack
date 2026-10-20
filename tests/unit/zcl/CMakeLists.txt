@@ -29,6 +29,7 @@ target_sources(app PRIVATE
   src/level.c
   src/metering.c
   src/on_off.c
+  src/ota.c
   src/poll_control.c
   src/power_config.c
   src/power_profile.c

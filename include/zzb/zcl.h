@@ -270,6 +270,13 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
 typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 
 /**
+ * Called on the stack thread after the OTA Upgrade client has requested a test upgrade with
+ * boot_request_upgrade(). The application reboots, e.g. with sys_reboot(), and confirms the new
+ * image with boot_write_img_confirmed() once it runs.
+ */
+typedef void (*zzb_zcl_ota_cb_t)(struct zzb_node *node);
+
+/**
  * @brief Set an attribute of a server cluster on an endpoint.
  *
  * Runs on the stack thread. value points to a value of the type of the field: uint8_t, int8_t or

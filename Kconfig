@@ -176,6 +176,14 @@ config ZZB_ZCL_DOOR_LOCK_USERS
 	  number minus 1. NumberOfTotalUsersSupported and
 	  NumberOfPINUsersSupported report this number.
 
+config ZZB_ZCL_OTA
+	bool "OTA Upgrade client"
+	depends on ZZB_ZCL && MCUBOOT_IMG_MANAGER
+	help
+	  OTA Upgrade client (ZCL 11) that downloads firmware images from the
+	  trust center into the upload slot of MCUboot. The application
+	  enables CONFIG_STREAM_FLASH and CONFIG_IMG_MANAGER.
+
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
 	range 0 0x07fff800

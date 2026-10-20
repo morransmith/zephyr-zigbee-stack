@@ -55,8 +55,11 @@ DECLARE_FAKE_VOID_FUNC(zzb_nwk_poll_fast, struct zzb_node *);
 DECLARE_FAKE_VOID_FUNC(zzb_nwk_set_poll_intervals, struct zzb_node *, uint32_t, uint32_t);
 DECLARE_FAKE_VALUE_FUNC(bool, zzb_aps_bound, struct zzb_node *, uint8_t, uint16_t, uint16_t,
 			uint8_t);
+/* By default apsTrustCenterAddress is TC_EUI64 */
+DECLARE_FAKE_VALUE_FUNC(uint64_t, zzb_apsme_get_tc_addr, const struct zzb_node *);
 
 #define NODE_EUI64 0x00124b0001020304ULL
+#define TC_EUI64   0x00124b0405060708ULL
 #define NODE_ADDR  0x5678
 
 /* The coordinator sends the requests from its endpoint 1 */

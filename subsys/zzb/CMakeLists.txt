@@ -108,5 +108,6 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/transition.c
   zcl/zcl.c
 )
+zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL_OTA zcl/clusters/ota.c)
 zephyr_library_sources_ifdef(CONFIG_IEEE802154_RAW_MODE radio/port.c radio/raw.c)
 zephyr_library_sources_ifdef(CONFIG_NET_L2_CUSTOM_IEEE802154 radio/port.c radio/custom_l2.c)
