@@ -39,8 +39,20 @@ ZTEST(zzb_zcl, test_cluster_command)
 	zassert_equal(cmd_calls.cmd.id, 0x02);
 	zassert_equal(cmd_calls.cmd.len, 2);
 	zassert_mem_equal(cmd_calls.payload, frame + 3, 2);
+	zassert_true(cmd_calls.cmd.server);
 	zassert_equal_ptr(cmd_calls.values, &values1);
 	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
+}
+
+/* A command to a client instance tells that it does not address the server */
+ZTEST(zzb_zcl, test_client_command)
+{
+	static const uint8_t frame[] = {0x19, 0x23, 0x02};
+
+	receive_ep(3, TEST_CLUSTER, frame, sizeof(frame));
+	zassert_equal(cmd_calls.count, 1);
+	zassert_false(cmd_calls.cmd.server);
+	zassert_equal_ptr(cmd_calls.values, &values3);
 }
 
 /* ZCL 2.4.1.1.4: with Disable Default Response 1 only an error gets a Default Response */

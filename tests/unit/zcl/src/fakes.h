@@ -43,8 +43,8 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, u
 #define REQUESTER_EP   0x01
 
 /*
- * A cluster of the test: a server on endpoints 1 and 2, not on endpoint 3. Endpoint 2 also has the
- * servers of the stack.
+ * A cluster of the test: a server on endpoints 1 and 2, a client with the same definition on
+ * endpoint 3. Endpoint 2 also has the servers of the stack.
  */
 #define TEST_CLUSTER 0x0f00
 
@@ -83,6 +83,7 @@ struct test_values {
 
 extern struct test_values values1;
 extern struct test_values values2;
+extern struct test_values values3;
 
 /* The Basic, Identify, Groups, Scenes and On/Off servers on endpoint 2 */
 extern struct zzb_zcl_basic basic;

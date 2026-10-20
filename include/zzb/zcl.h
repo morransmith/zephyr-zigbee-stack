@@ -136,6 +136,8 @@ struct zzb_zcl_cmd {
 	size_t len;
 	/** The command came as a NWK unicast to the endpoint, which ZCL responses may answer. */
 	bool unicast;
+	/** The command addresses the server instance (direction 0), otherwise the client. */
+	bool server;
 };
 
 /** An attribute of the scene extension field set of a cluster (ZCL 3.7.2.4.2). */
@@ -236,11 +238,11 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
 				    uint8_t effect, uint8_t variant);
 
 /**
- * Called on the stack thread for a cluster-specific command that the application carries out, a
- * command of Window Covering, after the checks of the stack. The payload is valid during the call.
- * Returns the status of the Default Response. A recalled Window Covering scene comes as Go To Lift
- * Percentage and Go To Tilt Percentage, with unicast false, src_addr, src_ep and tsn 0, and its
- * status is ignored.
+ * Called on the stack thread for a cluster-specific command that the application carries out, such
+ * as a command of Window Covering, after the checks of the stack. The payload is valid during the
+ * call. Returns the status of the Default Response. A recalled Window Covering scene comes as Go To
+ * Lift Percentage and Go To Tilt Percentage, with unicast false, src_addr, src_ep and tsn 0, and
+ * its status is ignored.
  */
 typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 

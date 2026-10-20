@@ -150,6 +150,7 @@ static void go_to(struct zzb_node *node, uint8_t ep, uint8_t id, uint8_t percent
 		.id = id,
 		.payload = &percentage,
 		.len = 1,
+		.server = true,
 	};
 
 	zzb_zcl_app_cmd(node, &cmd);

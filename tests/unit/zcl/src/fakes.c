@@ -21,6 +21,7 @@ DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, ui
 
 struct test_values values1;
 struct test_values values2;
+struct test_values values3;
 
 static const uint8_t product_code[] = {0x03, 0x00, 'Z', 'Z'};
 
@@ -340,6 +341,7 @@ static const struct zzb_zcl_cluster ep2_clusters[] = {
 static const struct zzb_zcl_cluster ep3_clusters[] = {
 	{.id = ON_OFF},
 	ZZB_ZCL_ON_OFF_SERVER(&on_off3),
+	{.id = TEST_CLUSTER, .values = &values3, .def = &test_def},
 };
 
 static const struct zzb_zcl_cluster ep5_clusters[] = {

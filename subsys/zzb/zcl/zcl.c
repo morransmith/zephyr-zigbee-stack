@@ -248,6 +248,7 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		.profile = ep->profile,
 		.cmd.unicast =
 			!ind->group && !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
+		.cmd.server = !(hdr->flags & ZZB_ZCL_TO_CLIENT),
 		.cluster =
 			zzb_zcl_find_cluster(ep, ind->cluster, !(hdr->flags & ZZB_ZCL_TO_CLIENT)),
 	};
