@@ -22,6 +22,9 @@
 /* Stack compliance revision 22 in bits 9 to 15, no server role (R22 Table 2-32) */
 #define SERVER_MASK (22 << 9)
 
+/* Current power mode of a sleepy node: the receiver comes on periodically (R22 Table 2-35) */
+#define POWER_MODE_PERIODIC 0x1
+
 /* Current power source level 100 % (R22 Table 2-38) */
 #define POWER_LEVEL_FULL 0xc
 
@@ -118,8 +121,8 @@ void zzb_zdo_serve_power_desc(struct zzb_node *node, const struct zzb_zdo_req *r
 	}
 
 	memcpy(rsp + 1, req->payload, 2);
-	/* Current power mode 0: the receiver is synchronized with RxOnWhenIdle */
-	rsp[3] = node->device->power_source << 4;
+	/* Mode 0 on other nodes: the receiver is synchronized with RxOnWhenIdle */
+	rsp[3] = node->device->power_source << 4 | (node->sleepy ? POWER_MODE_PERIODIC : 0);
 	rsp[4] = node->device->power_source | POWER_LEVEL_FULL << 4;
 	zzb_zdo_respond(node, req, rsp, sizeof(rsp));
 }
