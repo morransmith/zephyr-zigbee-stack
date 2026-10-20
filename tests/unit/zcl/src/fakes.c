@@ -395,6 +395,21 @@ static const struct zzb_zcl_cluster ep41_clusters[] = {
 	ZZB_ZCL_COLOR_SERVER(&color41),
 };
 
+struct zzb_zcl_thermostat thermostat60 = {
+	.occupancy = 0x01,
+	.abs_min_heat_setpoint_limit = 700,
+	.abs_max_heat_setpoint_limit = 3000,
+	.abs_min_cool_setpoint_limit = 1600,
+	.abs_max_cool_setpoint_limit = 3200,
+	.min_setpoint_dead_band = 25,
+	.control_sequence_of_operation = ZZB_ZCL_SEQUENCE_COOLING_HEATING,
+	.system_mode_default = ZZB_ZCL_SYSTEM_MODE_AUTO,
+};
+
+static const struct zzb_zcl_cluster ep60_clusters[] = {
+	ZZB_ZCL_THERMOSTAT_SERVER(&thermostat60),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -479,6 +494,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x010c,
 		.clusters = ep41_clusters,
 		.cluster_count = ARRAY_SIZE(ep41_clusters),
+	},
+	{
+		.id = THERMOSTAT_EP,
+		.profile = 0x0104,
+		.device_id = 0x0301,
+		.clusters = ep60_clusters,
+		.cluster_count = ARRAY_SIZE(ep60_clusters),
 	},
 };
 
