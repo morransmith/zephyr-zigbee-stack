@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/ias_zone.h>
+#include <zzb/zcl/ota.h>
 #include <zzb/zcl/poll_control.h>
 #include <zzb/zzb.h>
 
@@ -59,12 +61,27 @@ static struct zzb_zcl_ias_zone zone = {
 
 static struct zzb_zcl_poll_control poll_control;
 
+/* The image of tests/common/mcuboot_image.bin has a newer file version */
+static struct zzb_zcl_ota ota = {
+	.current_file_version = 0x01020300,
+	.image_type = 0x0042,
+};
+
+/* Calls of ota_cb */
+static int ota_cb_calls;
+
+static void record_ota_cb(struct zzb_node *node)
+{
+	ota_cb_calls++;
+}
+
 /* A battery powered contact switch, with Poll Control on the first endpoint as zigpy needs it */
 static const struct zzb_zcl_cluster sensor[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
 	ZZB_ZCL_POLL_CONTROL_SERVER(&poll_control),
 	ZZB_ZCL_IAS_ZONE_SERVER(&zone),
+	ZZB_ZCL_OTA_CLIENT(&ota),
 };
 
 static const struct zzb_endpoint endpoints[] = {
@@ -78,6 +95,7 @@ static const struct zzb_endpoint endpoints[] = {
 };
 
 static const struct zzb_device device = {
+	.manufacturer_code = 0x1234,
 	.power_source = ZZB_POWER_DISPOSABLE,
 	.endpoints = endpoints,
 	.endpoint_count = ARRAY_SIZE(endpoints),
@@ -160,6 +178,7 @@ static void *setup(void)
 		.radio = fake_radios[1],
 		.device = &device,
 		.bdb_cb = record_event,
+		.ota_cb = record_ota_cb,
 		.sleepy = true,
 	};
 
@@ -268,6 +287,7 @@ ZTEST(zzb_sleepy_integration, test_idle_node_arms_only_deadline_timers)
 	zassert_true(k_work_delayable_is_pending(&child->nwk.poll_timer));
 	zassert_true(k_work_delayable_is_pending(&child->nwk.keepalive));
 	zassert_true(k_work_delayable_is_pending(&child->zcl.poll_control_timer));
+	zassert_true(k_work_delayable_is_pending(&child->zcl.ota_timer));
 
 	zassert_false(k_work_delayable_is_pending(&child->mac.timer));
 	zassert_false(k_work_delayable_is_pending(&child->nwk.timer));
@@ -383,6 +403,72 @@ ZTEST(zzb_sleepy_integration, test_poll_control_check_in)
 	polls = parent_log.polls;
 	k_sleep(K_SECONDS(10));
 	zassert_between_inclusive(parent_log.polls - polls, 1, 3);
+}
+
+/* The OTA file that scripts/zigbee_ota.py builds from tests/common/mcuboot_image.bin */
+static const uint8_t ota_file[] = {
+#include <mcuboot_image.zigbee.inc>
+};
+
+/*
+ * Waits for the next ZCL frame of the child, which must be the OTA Upgrade request id, and returns
+ * the milliseconds waited
+ */
+static int64_t wait_ota_req(uint8_t id)
+{
+	int64_t waited = wait_zcl_frames(parent_log.zcl_frames + 1);
+
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_OTA);
+	zassert_equal(parent_log.zcl[0], 0x01);
+	zassert_equal(parent_log.zcl[2], id);
+	return waited;
+}
+
+/*
+ * zigpy installs an update with a unicast Image Notify, then answers with the values of the file
+ * header, blocks of at most 50 octets and an Upgrade End Response with UpgradeTime 0. The node
+ * fetches each response with a poll at the short interval, and MCUboot then has a test upgrade
+ * pending.
+ */
+ZTEST(zzb_sleepy_integration, test_ota_download)
+{
+	static const uint8_t notify[] = {0x19, 0x60, 0x00, 0x00, 0x64};
+	const uint8_t *req = parent_log.zcl + 3;
+	/* Status, manufacturer code, image type and file version start every response */
+	uint8_t rsp[3 + 14 + 50] = {0x19, 0x00, 0x00, 0x00};
+
+	steer();
+	memcpy(rsp + 4, ota_file + 10, 8);
+	parent_send_zcl(ZZB_ZCL_OTA, notify, sizeof(notify));
+	wait_ota_req(ZZB_ZCL_OTA_QUERY_NEXT_IMAGE);
+	rsp[1] = parent_log.zcl[1];
+	rsp[2] = ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP;
+	sys_put_le32(sizeof(ota_file), rsp + 12);
+	parent_send_zcl(ZZB_ZCL_OTA, rsp, 16);
+
+	for (uint32_t offset = 0; offset < sizeof(ota_file); offset += rsp[16]) {
+		zassert_true(wait_ota_req(ZZB_ZCL_OTA_IMAGE_BLOCK) <=
+			     CONFIG_ZZB_NWK_SHORT_POLL_MS + 100);
+		zassert_equal(sys_get_le32(req + 9), offset);
+		rsp[1] = parent_log.zcl[1];
+		rsp[2] = ZZB_ZCL_OTA_IMAGE_BLOCK_RSP;
+		sys_put_le32(offset, rsp + 12);
+		rsp[16] = MIN(MIN(50, req[13]), sizeof(ota_file) - offset);
+		memcpy(rsp + 17, ota_file + offset, rsp[16]);
+		parent_send_zcl(ZZB_ZCL_OTA, rsp, 17 + rsp[16]);
+	}
+
+	zassert_true(wait_ota_req(ZZB_ZCL_OTA_UPGRADE_END) <= CONFIG_ZZB_NWK_SHORT_POLL_MS + 100);
+	zassert_equal(req[0], ZZB_ZCL_SUCCESS);
+	rsp[1] = parent_log.zcl[1];
+	rsp[2] = ZZB_ZCL_OTA_UPGRADE_END_RSP;
+	memcpy(rsp + 3, ota_file + 10, 8);
+	memset(rsp + 11, 0, 8);
+	parent_send_zcl(ZZB_ZCL_OTA, rsp, 19);
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_SHORT_POLL_MS + 100));
+	zassert_equal(ota_cb_calls, 1);
+	zassert_equal(mcuboot_swap_type(), BOOT_SWAP_TYPE_TEST);
+	zassert_equal(child->nwk.poll_holds, 0);
 }
 
 ZTEST_SUITE(zzb_sleepy_integration, NULL, setup, before, after, NULL);
