@@ -13,6 +13,7 @@
 #include "fake_radio.h"
 #include "mac/frame.h"
 #include "nwk/frame.h"
+#include "nwk/nwk.h"
 #include "parent.h"
 #include "sec/aux_hdr.h"
 #include "sec/ccm.h"
@@ -61,7 +62,21 @@ static struct {
 	uint8_t stack_revision;
 	/* Sends the network key after an association or a trust center rejoin */
 	bool key_after_join;
+	/* The association or rejoin request of the child has RxOnWhenIdle 0 */
+	bool child_sleepy;
 } parent;
+
+/* macTransactionPersistenceTime of 500 superframe periods (R22 nwkTransactionPersistenceTime) */
+#define PERSISTENCE_MS 7680
+
+/* Data frames for a sleepy child, sent at its data requests (802.15.4 5.1.6.3) */
+static struct {
+	struct zzb_mac_hdr hdr;
+	uint8_t payload[ZZB_BUF_SIZE];
+	size_t len;
+	int64_t time;
+} queue[8];
+static size_t queue_len;
 
 /* Sends the network key KEY_DELAY_MS after a join, when the child has its address */
 static struct k_work_delayable key_work;
@@ -103,7 +118,7 @@ static struct zzb_mac_addr ext_addr(uint64_t addr)
 	};
 }
 
-static void send_mac(struct zzb_mac_hdr *hdr, const uint8_t *payload, size_t len)
+static void transmit(struct zzb_mac_hdr *hdr, const uint8_t *payload, size_t len)
 {
 	uint8_t frame[ZZB_BUF_SIZE];
 	size_t hdr_len;
@@ -112,6 +127,57 @@ static void send_mac(struct zzb_mac_hdr *hdr, const uint8_t *payload, size_t len
 	hdr_len = zzb_mac_hdr_write(hdr, frame);
 	memcpy(frame + hdr_len, payload, len);
 	fake_radio_send(0, frame, hdr_len + len);
+}
+
+static bool for_child(const struct zzb_mac_addr *dst)
+{
+	return (dst->mode == ZZB_MAC_ADDR_SHORT && dst->short_addr == parent.child_addr) ||
+	       (dst->mode == ZZB_MAC_ADDR_EXT && dst->ext_addr == parent.child_eui64);
+}
+
+static void send_mac(struct zzb_mac_hdr *hdr, const uint8_t *payload, size_t len)
+{
+	if (!parent.child_sleepy || hdr->type != ZZB_MAC_FRAME_DATA || !for_child(&hdr->dst)) {
+		transmit(hdr, payload, len);
+		return;
+	}
+
+	zassert_true(queue_len < ARRAY_SIZE(queue));
+	queue[queue_len].hdr = *hdr;
+	memcpy(queue[queue_len].payload, payload, len);
+	queue[queue_len].len = len;
+	queue[queue_len].time = k_uptime_get();
+	queue_len++;
+}
+
+static void dequeue(void)
+{
+	queue_len--;
+	memmove(&queue[0], &queue[1], queue_len * sizeof(queue[0]));
+}
+
+/* Sends the oldest frame for the child, with frame pending when more wait; false without one */
+static bool send_queued(void)
+{
+	struct zzb_mac_hdr hdr;
+
+	while (queue_len > 0 && k_uptime_get() - queue[0].time > PERSISTENCE_MS) {
+		parent_log.expired++;
+		dequeue();
+	}
+
+	if (queue_len == 0) {
+		return false;
+	}
+
+	hdr = queue[0].hdr;
+	if (queue_len > 1) {
+		hdr.flags |= ZZB_FRAME_PENDING;
+	}
+
+	transmit(&hdr, queue[0].payload, queue[0].len);
+	dequeue();
+	return true;
 }
 
 static void send_beacon(void)
@@ -525,6 +591,7 @@ static void reply(const struct zzb_nwk_hdr *hdr, const struct zzb_nwk_cmd *cmd, 
 		parent_log.rejoin_hdr = *hdr;
 		parent.child_addr = hdr->src;
 		parent.child_eui64 = hdr->src_ext;
+		parent.child_sleepy = !(cmd->capability & ZZB_NWK_CAP_RX_ON_IDLE);
 		rsp = (struct zzb_nwk_cmd){
 			.id = ZZB_NWK_CMD_REJOIN_RSP,
 			.rejoin_rsp = {.short_addr = hdr->src},
@@ -598,6 +665,7 @@ static bool rx_cb(const uint8_t *data, size_t len)
 		return false;
 	case ZZB_MAC_CMD_ASSOC_REQ:
 		parent.child_eui64 = hdr.src.ext_addr;
+		parent.child_sleepy = !(cmd.capability & ZZB_NWK_CAP_RX_ON_IDLE);
 		parent.assoc_pending = true;
 		return false;
 	case ZZB_MAC_CMD_DATA_REQ:
@@ -609,7 +677,7 @@ static bool rx_cb(const uint8_t *data, size_t len)
 		}
 
 		parent_log.polls++;
-		return false;
+		return send_queued();
 	default:
 		return false;
 	}
@@ -643,6 +711,8 @@ void parent_start(uint16_t short_addr, uint64_t eui64, uint16_t child_addr, uint
 	parent.withheld_acks = 0;
 	parent.stack_revision = 22;
 	parent.key_after_join = false;
+	parent.child_sleepy = false;
+	queue_len = 0;
 	memset(&parent_log, 0, sizeof(parent_log));
 	/* Safe on the zeroed work item of the first call */
 	k_work_cancel_delayable(&key_work);

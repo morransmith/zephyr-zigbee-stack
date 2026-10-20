@@ -24,6 +24,8 @@ extern const uint8_t tc_link_key_b[ZZB_SEC_KEY_LEN];
 struct parent_log {
 	int beacon_reqs;
 	int polls;
+	/* Frames for a sleepy child dropped after 7.68 s without a data request */
+	int expired;
 	int ed_timeout_reqs;
 	int rejoin_reqs;
 	int leaves;
@@ -69,7 +71,9 @@ extern struct parent_log parent_log;
  * Node_Desc_req with stack compliance revision 22, Request Key with key B and Verify Key with
  * Confirm Key. It does not send the network key on its own. Its endpoint 1 has Basic, Identify and
  * On/Off servers, which it reports in Simple_Desc_rsp; it answers IEEE_addr_req, and Identify
- * Query as an identifying endpoint.
+ * Query as an identifying endpoint. For a child whose association or rejoin request has
+ * RxOnWhenIdle 0 it queues the data frames to the child and sends the oldest one at each data
+ * request, with frame pending in the ACK, and in the frame when more frames wait.
  */
 void parent_start(uint16_t short_addr, uint64_t eui64, uint16_t child_addr, uint8_t parent_info);
 
