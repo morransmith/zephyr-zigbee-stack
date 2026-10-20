@@ -74,6 +74,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/groups.c
   zcl/clusters/ias_ace.c
   zcl/clusters/ias_wd.c
+  zcl/clusters/ias_zone.c
   zcl/clusters/identify.c
   zcl/clusters/illuminance.c
   zcl/clusters/level.c

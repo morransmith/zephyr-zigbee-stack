@@ -88,8 +88,12 @@ struct zzb_zcl {
 	struct k_work_delayable temp_alarm_timer;
 	/* Ends the warnings of IAS WD after their duration */
 	struct k_work_delayable ias_wd_timer;
+	/* Tries again the IAS Zone notifications refused off a network */
+	struct k_work_delayable ias_zone_timer;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;
+	/* The frame being processed, for the hooks; NULL outside the processing of a frame */
+	const struct zzb_zcl_cmd *received;
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -144,6 +148,15 @@ int zzb_zcl_send_cmd(struct zzb_node *node, uint8_t src_ep, uint16_t dst_addr, u
 int zzb_zcl_send_bindings(struct zzb_node *node, const struct zzb_endpoint *ep, uint16_t cluster,
 			  enum zzb_zcl_frame_type type, bool to_client, uint8_t cmd,
 			  const uint8_t *payload, size_t len);
+
+/*
+ * Sends the cluster-specific command cmd of a server from endpoint ep to the IEEE address dst_ext
+ * and dst_ep, with Disable Default Response 1 and an APS ACK request. Returns an error of
+ * zzb_zcl_send().
+ */
+int zzb_zcl_send_ext(struct zzb_node *node, const struct zzb_endpoint *ep, uint64_t dst_ext,
+		     uint8_t dst_ep, uint16_t cluster, uint8_t cmd, const uint8_t *payload,
+		     size_t len);
 
 /*
  * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload.
@@ -236,6 +249,7 @@ void zzb_zcl_on_off_switch(struct zzb_node *node, uint8_t ep, bool on_off);
 void zzb_zcl_power_config_init(struct zzb_node *node);
 void zzb_zcl_device_temp_init(struct zzb_node *node);
 void zzb_zcl_ias_wd_init(struct zzb_node *node);
+void zzb_zcl_ias_zone_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*
@@ -407,6 +421,13 @@ void zzb_zcl_schedule_clear(struct zzb_node *node, uint8_t ep, struct zzb_zcl_th
  */
 int zzb_zcl_schedule_load(struct zzb_node *node, const char *key, size_t len,
 			  settings_read_cb read_cb, void *cb_arg);
+
+/*
+ * Loads the record zcl/ias/<ep>, the endpoint of the CIE of the IAS Zone server on ep; -EINVAL for
+ * an unknown version or length. A record of an endpoint without an IAS Zone server is ignored.
+ */
+int zzb_zcl_ias_zone_load(struct zzb_node *node, int ep, size_t len, settings_read_cb read_cb,
+			  void *cb_arg);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);
