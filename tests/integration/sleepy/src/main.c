@@ -427,8 +427,8 @@ static int64_t wait_ota_req(uint8_t id)
 /*
  * zigpy installs an update with a unicast Image Notify, then answers with the values of the file
  * header, blocks of at most 50 octets and an Upgrade End Response with UpgradeTime 0. The node
- * fetches each response with a poll at the short interval, and MCUboot then has a test upgrade
- * pending.
+ * fetches each response with a poll at the short interval, and 1 s after the last one MCUboot has
+ * a test upgrade pending.
  */
 ZTEST(zzb_sleepy_integration, test_ota_download)
 {
@@ -465,7 +465,7 @@ ZTEST(zzb_sleepy_integration, test_ota_download)
 	memcpy(rsp + 3, ota_file + 10, 8);
 	memset(rsp + 11, 0, 8);
 	parent_send_zcl(ZZB_ZCL_OTA, rsp, 19);
-	k_sleep(K_MSEC(CONFIG_ZZB_NWK_SHORT_POLL_MS + 100));
+	k_sleep(K_MSEC(CONFIG_ZZB_NWK_SHORT_POLL_MS + 1100));
 	zassert_equal(ota_cb_calls, 1);
 	zassert_equal(mcuboot_swap_type(), BOOT_SWAP_TYPE_TEST);
 	zassert_equal(child->nwk.poll_holds, 0);

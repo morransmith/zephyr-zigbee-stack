@@ -37,6 +37,9 @@
 /* While the client waits for the upgrade time, it asks for it every 60 minutes (ZCL 11.16) */
 #define WAIT K_MINUTES(60)
 
+/* The upgrade waits at least this long, so the APS ACK of Upgrade End Response goes out first */
+#define UPGRADE_MIN_MS 1000
+
 /* The OTA header and the header of a sub-element (ZCL 11.4.2, 11.4.3) */
 #define HEADER_LEN  56
 #define ELEMENT_LEN 6
@@ -663,7 +666,7 @@ static int upgrade_end_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 
 	v->tries = 0;
 	set(node, ep, ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_OTA_COUNT_DOWN);
-	arm(node, v, K_MSEC(wait_ms(p + 8)));
+	arm(node, v, K_MSEC(MAX(wait_ms(p + 8), UPGRADE_MIN_MS)));
 	return ZZB_ZCL_SUCCESS;
 }
 

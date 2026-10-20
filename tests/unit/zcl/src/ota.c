@@ -986,8 +986,8 @@ ZTEST(zzb_zcl_ota, test_empty_upgrade_image)
 
 /*
  * Section 16: Upgrade End Response with UpgradeTime 0, as zigpy sends it, requests the test upgrade
- * of MCUboot at once and calls ota_cb. The client stays in Count down, ignores the responses and
- * sends nothing more.
+ * of MCUboot after 1 s, when the APS acknowledgement of the response has been sent, and calls
+ * ota_cb. The client stays in Count down, ignores the responses and sends nothing more.
  */
 ZTEST(zzb_zcl_ota, test_upgrade)
 {
@@ -995,7 +995,9 @@ ZTEST(zzb_zcl_ota, test_upgrade)
 	zassert_true(held());
 	end_rsp(0, 0);
 	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_COUNT_DOWN);
-	k_sleep(K_MSEC(10));
+	k_sleep(K_MSEC(900));
+	zassert_equal(ota_cb_calls, 0);
+	k_sleep(K_MSEC(200));
 	zassert_equal(ota_cb_calls, 1);
 	zassert_equal(mcuboot_swap_type(), BOOT_SWAP_TYPE_TEST);
 	zassert_false(held());
@@ -1060,7 +1062,7 @@ ZTEST(zzb_zcl_ota, test_upgrade_waiting)
 	zassert_true(held());
 
 	receive_from(REQUESTER_ADDR, REQUESTER_EP, 0xffff, 0xff, wildcards, sizeof(wildcards));
-	k_sleep(K_MSEC(10));
+	k_sleep(K_MSEC(1100));
 	zassert_equal(ota_cb_calls, 1);
 	zassert_equal(mcuboot_swap_type(), BOOT_SWAP_TYPE_TEST);
 }
