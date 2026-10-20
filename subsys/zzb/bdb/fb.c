@@ -16,6 +16,10 @@
 #define CLUSTER_IDENTIFY   0x0003
 #define CMD_IDENTIFY_QUERY 0x01
 
+/* IAS Zone and IAS WD (ZCL 8.2, 8.4), with IAS ACE between them */
+#define CLUSTER_IAS_ZONE 0x0500
+#define CLUSTER_IAS_WD   0x0502
+
 /* Groups cluster (ZCL 3.6): Add Group If Identifying */
 #define CLUSTER_GROUPS               0x0004
 #define CMD_ADD_GROUP_IF_IDENTIFYING 0x05
@@ -168,8 +172,17 @@ static bool listed(const uint8_t *list, uint8_t count, uint16_t cluster)
 }
 
 /*
+ * Identify serves the procedure itself; the DTL forbids finding & binding for IAS Zone, IAS ACE and
+ * IAS WD (DTL 43.3.1)
+ */
+static bool bindable(uint16_t cluster)
+{
+	return cluster != CLUSTER_IDENTIFY && !IN_RANGE(cluster, CLUSTER_IAS_ZONE, CLUSTER_IAS_WD);
+}
+
+/*
  * Step 7: a client cluster of the initiator matches an input cluster of the respondent, a server
- * cluster an output cluster. Identify serves the procedure itself and is not bound.
+ * cluster an output cluster.
  */
 static void match(struct zzb_node *node, const struct zzb_zdo_simple_desc *desc)
 {
@@ -187,7 +200,7 @@ static void match(struct zzb_node *node, const struct zzb_zdo_simple_desc *desc)
 		bool found = cl->server ? listed(desc->out, desc->out_count, cl->id)
 					: listed(desc->in, desc->in_count, cl->id);
 
-		if (cl->id != CLUSTER_IDENTIFY && found) {
+		if (bindable(cl->id) && found) {
 			fb->clusters[fb->cluster_count++] = cl->id;
 		}
 	}

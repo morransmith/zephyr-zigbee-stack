@@ -90,6 +90,9 @@ static const struct zzb_zcl_cluster initiator[] = {
 	{.id = 0x0003},
 	{.id = 0x0006},
 	{.id = 0x0402, .server = true},
+	{.id = 0x0500},
+	{.id = 0x0501, .server = true},
+	{.id = 0x0502},
 };
 
 static const struct zzb_endpoint endpoints[] = {
