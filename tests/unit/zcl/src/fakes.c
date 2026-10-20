@@ -251,7 +251,7 @@ static void test_reset(struct zzb_node *node, uint8_t ep, void *values)
 	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x000f, 0);
 }
 
-static void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
+void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
 {
 	int i = zcl_cb_calls.count++;
 

@@ -415,6 +415,7 @@ void zzb_zcl_init(struct zzb_node *node)
 	k_work_cancel_delayable(&node->zcl.time_timer);
 	k_work_cancel_delayable(&node->zcl.door_lock_timer);
 	k_work_cancel_delayable(&node->zcl.poll_control_timer);
+	k_work_cancel_delayable(&node->zcl.ota_timer);
 	node->zcl = (struct zzb_zcl){
 		.tsn = sys_rand8_get(),
 	};
@@ -429,6 +430,10 @@ void zzb_zcl_init(struct zzb_node *node)
 	zzb_zcl_ias_zone_init(node);
 	zzb_zcl_time_init(node);
 	zzb_zcl_door_lock_init(node);
+	if (IS_ENABLED(CONFIG_ZZB_ZCL_OTA)) {
+		zzb_zcl_ota_init(node);
+	}
+
 	zzb_zcl_poll_control_init(node);
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {

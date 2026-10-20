@@ -64,6 +64,12 @@ struct zzb_zcl_ota {
 	uint16_t manufacturer_id;
 	/** image_type during a download; 0xffff otherwise. */
 	uint16_t image_type_id;
+	/** Internal: the endpoint of the server, the source endpoint of the last Image Notify. */
+	uint8_t server_ep;
+	/** Internal: TSN of the last request. */
+	uint8_t tsn;
+	/** Internal: sends of the last request without a response; 0 while none is awaited. */
+	uint8_t tries;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_ota_client_def;

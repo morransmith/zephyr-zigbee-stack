@@ -179,10 +179,31 @@ config ZZB_ZCL_DOOR_LOCK_USERS
 config ZZB_ZCL_OTA
 	bool "OTA Upgrade client"
 	depends on ZZB_ZCL && MCUBOOT_IMG_MANAGER
+	select IMG_ERASE_PROGRESSIVELY
 	help
 	  OTA Upgrade client (ZCL 11) that downloads firmware images from the
 	  trust center into the upload slot of MCUboot. The application
 	  enables CONFIG_STREAM_FLASH and CONFIG_IMG_MANAGER.
+
+config ZZB_ZCL_OTA_QUERY_INTERVAL
+	int "Minutes between the queries of the OTA Upgrade client"
+	depends on ZZB_ZCL_OTA
+	range 1 44640
+	default 1440
+	help
+	  The OTA Upgrade client sends Query Next Image Request to the trust
+	  center one interval after the start of the node and then every
+	  interval while it does not download.
+
+config ZZB_ZCL_OTA_BLOCK_SIZE
+	int "Octets of an OTA image block"
+	depends on ZZB_ZCL_OTA
+	range 1 65
+	default 48
+	help
+	  The data size that the OTA Upgrade client asks for in Image Block
+	  Request. 65 octets fill an ASDU with NWK security only, and 48 fit
+	  one with APS security.
 
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
