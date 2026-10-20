@@ -93,6 +93,41 @@ static uint8_t valid(bool cond)
 	return cond ? ZZB_ZCL_SUCCESS : ZZB_ZCL_INVALID_VALUE;
 }
 
+/*
+ * The dead band applies only to the sequences that both heat and cool, so that a setpoint that is
+ * not used does not hold back the other
+ */
+static bool heats_and_cools(const struct zzb_zcl_thermostat *v)
+{
+	return v->control_sequence_of_operation == ZZB_ZCL_SEQUENCE_COOLING_HEATING ||
+	       v->control_sequence_of_operation == ZZB_ZCL_SEQUENCE_COOLING_HEATING_REHEAT;
+}
+
+/* MinSetpointDeadBand in 0.01 degrees Celsius */
+static int dead_band(const struct zzb_zcl_thermostat *v)
+{
+	return 10 * v->min_setpoint_dead_band;
+}
+
+/* ZCL 6.3.2.2.2.2: whether t is a valid heating setpoint in the pair with cooling */
+static bool heating_valid(const struct zzb_zcl_thermostat *v, int16_t t, int16_t cooling)
+{
+	if (t < v->min_heat_setpoint_limit || t > v->max_heat_setpoint_limit) {
+		return false;
+	}
+
+	return !heats_and_cools(v) || t <= cooling - dead_band(v);
+}
+
+static bool cooling_valid(const struct zzb_zcl_thermostat *v, int16_t t, int16_t heating)
+{
+	if (t < v->min_cool_setpoint_limit || t > v->max_cool_setpoint_limit) {
+		return false;
+	}
+
+	return !heats_and_cools(v) || t >= heating + dead_band(v);
+}
+
 /* AbsMin <= min <= the heating setpoints <= max <= AbsMax */
 static bool heat_limits(const struct zzb_zcl_thermostat *v, int16_t min, int16_t max)
 {
@@ -136,11 +171,13 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 
 	switch (attr->id) {
 	case ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT:
-	case ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT:
-		return valid(t >= v->min_cool_setpoint_limit && t <= v->max_cool_setpoint_limit);
+		return valid(cooling_valid(v, t, v->occupied_heating_setpoint));
 	case ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT:
+		return valid(heating_valid(v, t, v->occupied_cooling_setpoint));
+	case ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT:
+		return valid(cooling_valid(v, t, v->unoccupied_heating_setpoint));
 	case ZZB_ZCL_THERMOSTAT_UNOCCUPIED_HEATING_SETPOINT:
-		return valid(t >= v->min_heat_setpoint_limit && t <= v->max_heat_setpoint_limit);
+		return valid(heating_valid(v, t, v->unoccupied_cooling_setpoint));
 	case ZZB_ZCL_THERMOSTAT_MIN_HEAT_SETPOINT_LIMIT:
 		return valid(heat_limits(v, t, v->max_heat_setpoint_limit));
 	case ZZB_ZCL_THERMOSTAT_MAX_HEAT_SETPOINT_LIMIT:

@@ -205,6 +205,41 @@ ZTEST(zzb_zcl_thermostat, test_limits)
 }
 
 /*
+ * ZCL 6.3.2.2.2.2: with ControlSequenceOfOperation 4 or 5 the heating setpoint stays below the
+ * cooling setpoint of its pair by 10 x MinSetpointDeadBand, and the other setpoint does not move.
+ * The other sequences do not need the dead band.
+ */
+ZTEST(zzb_zcl_thermostat, test_dead_band)
+{
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2351),
+		      ZZB_ZCL_INVALID_VALUE);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2350),
+		      ZZB_ZCL_SUCCESS);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT, 2599),
+		      ZZB_ZCL_INVALID_VALUE);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT, 2700),
+		      ZZB_ZCL_SUCCESS);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT, 2249),
+		      ZZB_ZCL_INVALID_VALUE);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT, 2250),
+		      ZZB_ZCL_SUCCESS);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_HEATING_SETPOINT, 2001),
+		      ZZB_ZCL_INVALID_VALUE);
+	check_setpoints(2700, 2350, 2250, 2000);
+
+	set_sequence(ZZB_ZCL_SEQUENCE_COOLING_HEATING_REHEAT);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2451),
+		      ZZB_ZCL_INVALID_VALUE);
+	set_sequence(ZZB_ZCL_SEQUENCE_HEATING_ONLY);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2900),
+		      ZZB_ZCL_SUCCESS);
+	set_sequence(ZZB_ZCL_SEQUENCE_COOLING_ONLY);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT, 1600),
+		      ZZB_ZCL_SUCCESS);
+	check_setpoints(2700, 2900, 1600, 2000);
+}
+
+/*
  * SystemMode 0x02 and above 0x09 are reserved, and ControlSequenceOfOperation excludes the modes of
  * ZCL Table 6-15. The cases are ControlSequenceOfOperation, SystemMode and the status.
  */
