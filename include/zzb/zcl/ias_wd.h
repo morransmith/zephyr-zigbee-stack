@@ -37,12 +37,20 @@ extern "C" {
 /**
  * Values of an IAS WD server (ZCL 8.4.2.1). MaxDuration is writable and saved. Start Warning and
  * Squawk go to zcl_cmd_cb after the checks of the stack, and the application drives the siren and
- * the strobe. Start Warning comes as a copy with its 5 octets, the warning duration limited to
- * MaxDuration and the strobe duty cycle rounded to the nearest multiple of 10, at most 100.
+ * the strobe. Start Warning comes as a copy with its 5 octets, the warning duration limited to the
+ * whole seconds left of MaxDuration since the start of the continuous warning and the strobe duty
+ * cycle rounded to the nearest multiple of 10, at most 100. A Start Warning other than Stop
+ * (warning mode 0 without strobe) that zcl_cmd_cb accepts with a duration above 0 starts or
+ * continues the warning; at its end the stack passes Start Warning with all fields 0. Squawk
+ * during a warning does not reach zcl_cmd_cb.
  */
 struct zzb_zcl_ias_wd {
 	/** Seconds, 0x0000 to 0xfffe; default 240. */
 	uint16_t max_duration;
+	/** Internal: k_uptime_get() at the start of the continuous warning. */
+	int64_t warning_start;
+	/** Internal: k_uptime_get() at the end of the warning, 0 while no warning runs. */
+	int64_t warning_end;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_wd_def;

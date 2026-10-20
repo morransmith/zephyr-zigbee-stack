@@ -217,10 +217,11 @@ extern struct zzb_zcl_humidity humidity70;
 extern struct zzb_zcl_fan fan70;
 extern struct zzb_zcl_pump pump70;
 
-/* Endpoint 85 is a Warning Device with an IAS WD server */
+/* Endpoints 85 and 86 are Warning Devices with an IAS WD server each */
 #define WD_EP 85
 
 extern struct zzb_zcl_ias_wd wd85;
+extern struct zzb_zcl_ias_wd wd86;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

@@ -472,9 +472,14 @@ static const struct zzb_zcl_cluster ep71_clusters[] = {
 };
 
 struct zzb_zcl_ias_wd wd85;
+struct zzb_zcl_ias_wd wd86;
 
 static const struct zzb_zcl_cluster ep85_clusters[] = {
 	ZZB_ZCL_IAS_WD_SERVER(&wd85),
+};
+
+static const struct zzb_zcl_cluster ep86_clusters[] = {
+	ZZB_ZCL_IAS_WD_SERVER(&wd86),
 };
 
 static const struct zzb_endpoint endpoints[] = {
@@ -596,6 +601,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0403,
 		.clusters = ep85_clusters,
 		.cluster_count = ARRAY_SIZE(ep85_clusters),
+	},
+	{
+		.id = 86,
+		.profile = 0x0104,
+		.device_id = 0x0403,
+		.clusters = ep86_clusters,
+		.cluster_count = ARRAY_SIZE(ep86_clusters),
 	},
 };
 

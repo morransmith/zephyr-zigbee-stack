@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <string.h>
+#include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/ias_wd.h>
 
+#include "common/node.h"
 #include "fakes.h"
 
 static void *setup(void)
@@ -66,6 +68,25 @@ static void check_warning(int i, uint8_t ep, uint8_t fields, uint16_t duration, 
 	const uint8_t payload[] = {fields, duration & 0xff, duration >> 8, duty_cycle, 0x02};
 
 	check_cmd(i, ep, ZZB_ZCL_IAS_WD_START_WARNING, payload, sizeof(payload));
+}
+
+/* Checks that call i of zcl_cmd_cb is the Start Warning that the stack passes at the end on ep */
+static void check_end(int i, uint8_t ep)
+{
+	static const uint8_t stop[5];
+	const struct zzb_zcl_cmd *cmd = &zcl_cmd_calls.cmd[i];
+
+	check_cmd(i, ep, ZZB_ZCL_IAS_WD_START_WARNING, stop, sizeof(stop));
+	zassert_false(cmd->unicast);
+	zassert_true(cmd->server);
+	zassert_equal(cmd->src_addr, 0);
+	zassert_equal(cmd->src_ep, 0);
+	zassert_equal(cmd->tsn, 0);
+}
+
+static bool timer_armed(void)
+{
+	return k_work_delayable_is_pending(&test_node()->zcl.ias_wd_timer);
 }
 
 /* ZCL Table 8-19: MaxDuration defaults to 240 s, is saved, and 0xffff gives INVALID_VALUE */
@@ -170,6 +191,139 @@ ZTEST(zzb_zcl_ias_wd, test_squawk)
 	command(WD_EP, 0x02, NULL, 0, ZZB_ZCL_UNSUP_COMMAND);
 	zassert_equal(zcl_cmd_calls.count, 1);
 	check_cmd(0, WD_EP, ZZB_ZCL_IAS_WD_SQUAWK, (uint8_t[]){0x1b}, 1);
+}
+
+/*
+ * A warning that zcl_cmd_cb accepts ends after its duration: the stack passes Start Warning with
+ * all fields 0 to zcl_cmd_cb and ignores its status
+ */
+ZTEST(zzb_zcl_ias_wd, test_warning_end)
+{
+	start_warning(WD_EP, 0x36, 2, 0, ZZB_ZCL_SUCCESS);
+	zassert_true(timer_armed());
+	k_sleep(K_MSEC(1900));
+	zassert_equal(zcl_cmd_calls.count, 1);
+
+	zcl_cmd_status = ZZB_ZCL_FAILURE;
+	k_sleep(K_MSEC(200));
+	zassert_equal(zcl_cmd_calls.count, 2);
+	check_end(1, WD_EP);
+	zassert_false(timer_armed());
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+}
+
+/*
+ * ZCL 8.4.2.1.1: while a warning runs, the duration of a Start Warning is limited to what is left
+ * of MaxDuration since the start of the warning, rounded down to whole seconds. After the end a
+ * new warning starts.
+ */
+ZTEST(zzb_zcl_ias_wd, test_continuous_warning)
+{
+	const uint16_t max_duration = 5;
+
+	zassert_ok(zzb_zcl_attr_set(test_node(), WD_EP, ZZB_ZCL_IAS_WD, ZZB_ZCL_IAS_WD_MAX_DURATION,
+				    &max_duration));
+	start_warning(WD_EP, 0x10, 3, 0, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(2500));
+	start_warning(WD_EP, 0x20, 10, 0, ZZB_ZCL_SUCCESS);
+	check_warning(1, WD_EP, 0x20, 2, 0);
+	k_sleep(K_MSEC(1900));
+	zassert_equal(zcl_cmd_calls.count, 2);
+	k_sleep(K_MSEC(200));
+	check_end(2, WD_EP);
+
+	start_warning(WD_EP, 0x10, 10, 0, ZZB_ZCL_SUCCESS);
+	check_warning(3, WD_EP, 0x10, 5, 0);
+}
+
+/*
+ * Warning mode 0 without strobe, as ZHA 2.3.1 sends it, ends the warning without the Start Warning
+ * of the end; with strobe it starts a warning (ZCL 8.4.2.2.1.3)
+ */
+ZTEST(zzb_zcl_ias_wd, test_stop)
+{
+	start_warning(WD_EP, 0x36, 2, 0, ZZB_ZCL_SUCCESS);
+	start_warning(WD_EP, 0x02, 5, 0, ZZB_ZCL_SUCCESS);
+	zassert_false(timer_armed());
+	k_sleep(K_SECONDS(3));
+	zassert_equal(zcl_cmd_calls.count, 2);
+
+	start_warning(WD_EP, 0x04, 1, 0, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(1100));
+	check_end(3, WD_EP);
+}
+
+/*
+ * A Start Warning that zcl_cmd_cb refuses, Stop included, or another one with a duration of 0
+ * leaves the warning as it is
+ */
+ZTEST(zzb_zcl_ias_wd, test_refused_start_warning)
+{
+	zcl_cmd_status = ZZB_ZCL_FAILURE;
+	start_warning(WD_EP, 0x36, 5, 0, ZZB_ZCL_FAILURE);
+	zcl_cmd_status = ZZB_ZCL_SUCCESS;
+	start_warning(WD_EP, 0x36, 0, 0, ZZB_ZCL_SUCCESS);
+	zassert_false(timer_armed());
+
+	start_warning(WD_EP, 0x36, 2, 0, ZZB_ZCL_SUCCESS);
+	start_warning(WD_EP, 0x36, 0, 0, ZZB_ZCL_SUCCESS);
+	zcl_cmd_status = ZZB_ZCL_FAILURE;
+	start_warning(WD_EP, 0x36, 10, 0, ZZB_ZCL_FAILURE);
+	start_warning(WD_EP, 0x02, 5, 0, ZZB_ZCL_FAILURE);
+	k_sleep(K_MSEC(2100));
+	zassert_equal(zcl_cmd_calls.count, 7);
+	check_end(6, WD_EP);
+}
+
+/*
+ * ZCL 8.4.2.2.2: Squawk during a warning has no effect and gets SUCCESS without zcl_cmd_cb; its
+ * checks still apply
+ */
+ZTEST(zzb_zcl_ias_wd, test_squawk_during_warning)
+{
+	start_warning(WD_EP, 0x36, 1, 0, ZZB_ZCL_SUCCESS);
+	zcl_cmd_status = ZZB_ZCL_FAILURE;
+	command(WD_EP, ZZB_ZCL_IAS_WD_SQUAWK, (uint8_t[]){0x1b}, 1, ZZB_ZCL_SUCCESS);
+	command(WD_EP, ZZB_ZCL_IAS_WD_SQUAWK, (uint8_t[]){0x20}, 1, ZZB_ZCL_INVALID_FIELD);
+	zassert_equal(zcl_cmd_calls.count, 1);
+
+	k_sleep(K_MSEC(1100));
+	command(WD_EP, ZZB_ZCL_IAS_WD_SQUAWK, (uint8_t[]){0x1b}, 1, ZZB_ZCL_FAILURE);
+	zassert_equal(zcl_cmd_calls.count, 3);
+}
+
+/* The timer of the node ends the warnings of every endpoint */
+ZTEST(zzb_zcl_ias_wd, test_endpoints)
+{
+	start_warning(WD_EP, 0x36, 3, 0, ZZB_ZCL_SUCCESS);
+	start_warning(86, 0x36, 1, 0, ZZB_ZCL_SUCCESS);
+	k_sleep(K_MSEC(1100));
+	zassert_equal(zcl_cmd_calls.count, 3);
+	check_end(2, 86);
+
+	k_sleep(K_SECONDS(2));
+	zassert_equal(zcl_cmd_calls.count, 4);
+	check_end(3, WD_EP);
+	zassert_false(timer_armed());
+}
+
+/*
+ * The reset of the node ends a warning with the Start Warning of the end; a reboot drops it
+ * without
+ */
+ZTEST(zzb_zcl_ias_wd, test_reset)
+{
+	start_warning(WD_EP, 0x36, 5, 0, ZZB_ZCL_SUCCESS);
+	reset_node();
+	zassert_equal(zcl_cmd_calls.count, 2);
+	check_end(1, WD_EP);
+	zassert_false(timer_armed());
+
+	start_warning(WD_EP, 0x36, 5, 0, ZZB_ZCL_SUCCESS);
+	zassert_ok(reboot());
+	zassert_false(timer_armed());
+	command(WD_EP, ZZB_ZCL_IAS_WD_SQUAWK, (uint8_t[]){0x1b}, 1, ZZB_ZCL_SUCCESS);
+	zassert_equal(zcl_cmd_calls.count, 4);
 }
 
 ZTEST_SUITE(zzb_zcl_ias_wd, NULL, setup, before, after, NULL);
