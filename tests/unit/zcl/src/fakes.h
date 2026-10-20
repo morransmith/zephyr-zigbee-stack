@@ -15,6 +15,7 @@
 #include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
+#include <zzb/zcl/ias_zone.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
@@ -34,6 +35,8 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
 			const struct zzb_apsde_req *);
 DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
+/* By default every IEEE address resolves to the requester */
+DECLARE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, uint16_t *);
 
 #define NODE_EUI64 0x00124b0001020304ULL
 #define NODE_ADDR  0x5678
@@ -215,6 +218,14 @@ extern struct zzb_zcl_flow flow70;
 extern struct zzb_zcl_humidity humidity70;
 extern struct zzb_zcl_fan fan70;
 extern struct zzb_zcl_pump pump70;
+
+/*
+ * Endpoint 80 is a contact switch with an IAS Zone server, ZoneType 0x0015. The device has the
+ * manufacturer code 0x1234.
+ */
+#define ZONE_EP 80
+
+extern struct zzb_zcl_ias_zone zone80;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

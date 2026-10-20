@@ -18,6 +18,7 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_bu
 		       const struct zzb_apsde_req *);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, uint16_t *);
 
 struct test_values values1;
 struct test_values values2;
@@ -473,6 +474,12 @@ static const struct zzb_zcl_cluster ep71_clusters[] = {
 	ZZB_ZCL_HUMIDITY_CLIENT(),    ZZB_ZCL_FAN_CLIENT(),      ZZB_ZCL_PUMP_CLIENT(),
 };
 
+struct zzb_zcl_ias_zone zone80 = {.zone_type = 0x0015};
+
+static const struct zzb_zcl_cluster ep80_clusters[] = {
+	ZZB_ZCL_IAS_ZONE_SERVER(&zone80),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -586,9 +593,17 @@ static const struct zzb_endpoint endpoints[] = {
 		.clusters = ep71_clusters,
 		.cluster_count = ARRAY_SIZE(ep71_clusters),
 	},
+	{
+		.id = ZONE_EP,
+		.profile = 0x0104,
+		.device_id = 0x0402,
+		.clusters = ep80_clusters,
+		.cluster_count = ARRAY_SIZE(ep80_clusters),
+	},
 };
 
 static const struct zzb_device device = {
+	.manufacturer_code = 0x1234,
 	.power_source = ZZB_POWER_MAINS,
 	.endpoints = endpoints,
 	.endpoint_count = ARRAY_SIZE(endpoints),
@@ -606,6 +621,12 @@ static int apsde_data_req_take(struct zzb_node *node, struct net_buf *buf,
 	memcpy(copy->data, buf->data, buf->len);
 	copy->len = buf->len;
 	net_buf_unref(buf);
+	return 0;
+}
+
+static int resolve_requester(struct zzb_node *node, uint64_t ext_addr, uint16_t *addr)
+{
+	*addr = REQUESTER_ADDR;
 	return 0;
 }
 
@@ -632,9 +653,11 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_apsde_data_req);
 	RESET_FAKE(zzb_bdb_identify_end);
 	RESET_FAKE(zzb_bdb_identify_query_rsp);
+	RESET_FAKE(zzb_aps_resolve_ext);
 	FFF_RESET_HISTORY();
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
+	zzb_aps_resolve_ext_fake.custom_fake = resolve_requester;
 	cmd_calls = (struct cmd_calls){0};
 	cmd_status = ZZB_ZCL_SUCCESS;
 	check_values = NULL;

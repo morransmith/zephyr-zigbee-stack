@@ -416,6 +416,13 @@ void zzb_zcl_schedule_clear(struct zzb_node *node, uint8_t ep, struct zzb_zcl_th
 int zzb_zcl_schedule_load(struct zzb_node *node, const char *key, size_t len,
 			  settings_read_cb read_cb, void *cb_arg);
 
+/*
+ * Loads the record zcl/ias/<ep>, the endpoint of the CIE of the IAS Zone server on ep; -EINVAL for
+ * an unknown version or length. A record of an endpoint without an IAS Zone server is ignored.
+ */
+int zzb_zcl_ias_zone_load(struct zzb_node *node, int ep, size_t len, settings_read_cb read_cb,
+			  void *cb_arg);
+
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);
 
