@@ -31,9 +31,13 @@ extern "C" {
 #define ZZB_ZCL_WINDOW_COVERING_MODE                        0x0017
 
 /** Commands that the server receives and a client sends (ZCL Table 7-45). */
-#define ZZB_ZCL_WINDOW_COVERING_UP_OPEN    0x00
-#define ZZB_ZCL_WINDOW_COVERING_DOWN_CLOSE 0x01
-#define ZZB_ZCL_WINDOW_COVERING_STOP       0x02
+#define ZZB_ZCL_WINDOW_COVERING_UP_OPEN               0x00
+#define ZZB_ZCL_WINDOW_COVERING_DOWN_CLOSE            0x01
+#define ZZB_ZCL_WINDOW_COVERING_STOP                  0x02
+#define ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_VALUE      0x04
+#define ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE 0x05
+#define ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_VALUE      0x07
+#define ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE 0x08
 
 /**
  * Values of a Window Covering server (ZCL 7.4.2.1). The application fills the fields before mode
@@ -42,7 +46,10 @@ extern "C" {
  * its position.
  */
 struct zzb_zcl_window_covering {
-	/** ZCL Table 7-41. */
+	/**
+	 * ZCL Table 7-41. It gives the axes of the Go To commands: tilt with 0x06, 0x07 and 0x08,
+	 * lift with every type except 0x06 and 0x07.
+	 */
 	uint8_t window_covering_type;
 	/** Centimeters. */
 	uint16_t physical_closed_limit_lift;

@@ -15,6 +15,7 @@ static void *setup(void)
 /* Each test starts with the defaults, without records */
 static void before(void *fixture)
 {
+	covering50.window_covering_type = 0x08;
 	reset_node();
 	reset_fakes();
 }
@@ -36,6 +37,19 @@ static void command(uint8_t id, const uint8_t *payload, size_t len, uint8_t stat
 	memcpy(frame + 3, payload, len);
 	receive_ep(COVERING_EP, ZZB_ZCL_WINDOW_COVERING, frame, 3 + len);
 	check_frame(frames, COVERING_EP, ZZB_ZCL_WINDOW_COVERING, rsp, sizeof(rsp));
+}
+
+/* Checks that call i of zcl_cmd_cb got the command id of endpoint 50 with the payload */
+static void check_cmd(int i, uint8_t id, const uint8_t *payload, size_t len)
+{
+	const struct zzb_zcl_cmd *cmd = &zcl_cmd_calls.cmd[i];
+
+	zassert_true(zcl_cmd_calls.count > i);
+	zassert_equal(cmd->ep, COVERING_EP);
+	zassert_equal(cmd->cluster, ZZB_ZCL_WINDOW_COVERING);
+	zassert_equal(cmd->id, id);
+	zassert_equal(cmd->len, len);
+	zassert_mem_equal(zcl_cmd_calls.payload[i], payload, len);
 }
 
 /*
@@ -66,6 +80,85 @@ ZTEST(zzb_zcl_window_covering, test_commands)
 
 	command(0x03, NULL, 0, ZZB_ZCL_UNSUP_COMMAND);
 	zassert_equal(zcl_cmd_calls.count, 3);
+}
+
+/*
+ * ZCL 7.4.2.2.5, 7.4.2.2.7: Go To Lift Percentage and Go To Tilt Percentage reach zcl_cmd_cb as
+ * received, and a percentage above 100 gives INVALID_VALUE
+ */
+ZTEST(zzb_zcl_window_covering, test_go_to_percentage)
+{
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, (uint8_t[]){50}, 1, ZZB_ZCL_SUCCESS);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, (uint8_t[]){100}, 1,
+		ZZB_ZCL_SUCCESS);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, (uint8_t[]){101}, 1,
+		ZZB_ZCL_INVALID_VALUE);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, (uint8_t[]){0xff}, 1,
+		ZZB_ZCL_INVALID_VALUE);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, NULL, 0, ZZB_ZCL_MALFORMED_COMMAND);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, NULL, 0, ZZB_ZCL_MALFORMED_COMMAND);
+
+	zassert_equal(zcl_cmd_calls.count, 2);
+	check_cmd(0, ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, (uint8_t[]){50}, 1);
+	check_cmd(1, ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, (uint8_t[]){100}, 1);
+}
+
+/*
+ * ZCL 7.4.2.2.4, 7.4.2.2.6: a value between the installed open and closed limits, in either order,
+ * reaches zcl_cmd_cb as received, and another value gives INVALID_VALUE. The open limit of tilt
+ * is above its closed limit, as the text of ZCL assumes.
+ */
+ZTEST(zzb_zcl_window_covering, test_go_to_value)
+{
+	covering50.installed_open_limit_lift = 10;
+	covering50.installed_closed_limit_lift = 200;
+	covering50.installed_open_limit_tilt = 900;
+	covering50.installed_closed_limit_tilt = 0;
+
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_VALUE, (uint8_t[]){0x0a, 0x00}, 2,
+		ZZB_ZCL_SUCCESS);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_VALUE, (uint8_t[]){0xc8, 0x00}, 2,
+		ZZB_ZCL_SUCCESS);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_VALUE, (uint8_t[]){0x09, 0x00}, 2,
+		ZZB_ZCL_INVALID_VALUE);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_VALUE, (uint8_t[]){0xc9, 0x00}, 2,
+		ZZB_ZCL_INVALID_VALUE);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_VALUE, (uint8_t[]){0x84, 0x03}, 2,
+		ZZB_ZCL_SUCCESS);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_VALUE, (uint8_t[]){0x85, 0x03}, 2,
+		ZZB_ZCL_INVALID_VALUE);
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_VALUE, (uint8_t[]){0x00}, 1,
+		ZZB_ZCL_MALFORMED_COMMAND);
+
+	zassert_equal(zcl_cmd_calls.count, 3);
+	check_cmd(0, ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_VALUE, (uint8_t[]){0x0a, 0x00}, 2);
+	check_cmd(1, ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_VALUE, (uint8_t[]){0xc8, 0x00}, 2);
+	check_cmd(2, ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_VALUE, (uint8_t[]){0x84, 0x03}, 2);
+}
+
+/*
+ * WindowCoveringType gives the axes, as in ZHA 2.3.1: tilt with 0x06, 0x07 and 0x08, lift with
+ * every type except 0x06 and 0x07. A command of a missing axis gives UNSUP_COMMAND, also before
+ * the check of its payload.
+ */
+ZTEST(zzb_zcl_window_covering, test_axes)
+{
+	static const uint8_t lift[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x81, 0x00, 0x00};
+	static const uint8_t tilt[] = {0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x00, 0x00, 0x00, 0x81};
+
+	ARRAY_FOR_EACH(lift, type) {
+		reset_fakes();
+		covering50.window_covering_type = type;
+		command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, (uint8_t[]){0}, 1,
+			lift[type]);
+		command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, (uint8_t[]){0}, 1,
+			tilt[type]);
+	}
+
+	covering50.window_covering_type = 0x07;
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_VALUE, NULL, 0, ZZB_ZCL_UNSUP_COMMAND);
+	covering50.window_covering_type = 0x00;
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_VALUE, NULL, 0, ZZB_ZCL_UNSUP_COMMAND);
 }
 
 /*
