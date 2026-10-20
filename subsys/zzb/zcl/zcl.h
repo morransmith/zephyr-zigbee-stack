@@ -376,6 +376,16 @@ void zzb_zcl_alarms_reset(struct zzb_node *node);
 int zzb_zcl_schedule_set(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 			 struct zzb_zcl_thermostat *v);
 
+/*
+ * Get Weekly Schedule (ZCL 6.3.2.3.3) to the Thermostat server with the values v; returns the
+ * status of the Default Response or ZZB_ZCL_RESPONDED
+ */
+int zzb_zcl_schedule_get(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			 const struct zzb_zcl_thermostat *v);
+
+/* Empties every day of the weekly schedule of the Thermostat server on ep with the values v */
+void zzb_zcl_schedule_clear(struct zzb_node *node, uint8_t ep, struct zzb_zcl_thermostat *v);
+
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);
 

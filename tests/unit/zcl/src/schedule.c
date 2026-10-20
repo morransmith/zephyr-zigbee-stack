@@ -34,6 +34,14 @@ static void after(void *fixture)
 static uint8_t tsn;
 
 /*
+ * Set Weekly Schedule of Monday and Wednesday to heat at 6:00 to 20 degrees Celsius and at 22:00
+ * to 16, of Saturday to heat and cool at 8:00 to 18 and 27, and of Away to cool at 0:00 to 30
+ */
+static const uint8_t heat[] = {0x02, 0x0a, 0x01, 0x68, 0x01, 0xd0, 0x07, 0x28, 0x05, 0x40, 0x06};
+static const uint8_t both[] = {0x01, 0x40, 0x03, 0xe0, 0x01, 0x08, 0x07, 0x8c, 0x0a};
+static const uint8_t cool[] = {0x01, 0x80, 0x02, 0x00, 0x00, 0xb8, 0x0b};
+
+/*
  * Sends the Thermostat command id with the payload to endpoint 60 after reset_fakes(), and returns
  * the status of its Default Response
  */
@@ -71,18 +79,30 @@ static void check_empty(int i)
 	zassert_equal(thermostat60.schedule[i].count, 0, "day %d", i);
 }
 
+/* Sends Get Weekly Schedule of days and mode to endpoint 60 after reset_fakes() */
+static void get_schedule(uint8_t days, uint8_t mode)
+{
+	const uint8_t req[] = {0x01, ++tsn, ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE, days, mode};
+
+	reset_fakes();
+	receive_ep(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, req, sizeof(req));
+}
+
+/* Checks that frame i is a Get Weekly Schedule Response to the last request with the payload */
+static void check_rsp(int i, const uint8_t *payload, size_t len)
+{
+	uint8_t rsp[32] = {0x19, tsn, ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE_RSP};
+
+	memcpy(rsp + 3, payload, len);
+	check_frame(i, THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, rsp, 3 + len);
+}
+
 /*
  * ZCL 6.3.2.3.2: every day of the bitmap gets the sequence in place of its previous one, with the
- * setpoints of its mode. The first command sets Monday and Wednesday to heat at 6:00 to 20 degrees
- * Celsius and at 22:00 to 16, the second Saturday to heat and cool at 8:00 to 18 and 27, the third
- * Away to cool at 0:00 to 30.
+ * setpoints of its mode
  */
 ZTEST(zzb_zcl_schedule, test_set)
 {
-	static const uint8_t heat[] = {0x02, 0x0a, 0x01, 0x68, 0x01, 0xd0,
-				       0x07, 0x28, 0x05, 0x40, 0x06};
-	static const uint8_t both[] = {0x01, 0x40, 0x03, 0xe0, 0x01, 0x08, 0x07, 0x8c, 0x0a};
-	static const uint8_t cool[] = {0x01, 0x80, 0x02, 0x00, 0x00, 0xb8, 0x0b};
 	static const struct zzb_zcl_schedule_transition heat_t[] = {
 		{360, 2000, INT16_MIN},
 		{1320, 1600, INT16_MIN},
@@ -174,6 +194,79 @@ ZTEST(zzb_zcl_schedule, test_set_limits)
 
 	zassert_equal(set_schedule(req, sizeof(req)), ZZB_ZCL_SUCCESS);
 	check_day(1, ZZB_ZCL_SCHEDULE_HEAT | ZZB_ZCL_SCHEDULE_COOL, t, ARRAY_SIZE(t));
+}
+
+/*
+ * Section 16: Get Weekly Schedule answers each requested day whose mode has a requested bit, in the
+ * order of the days, with the bit of the day, the common mode bits and their setpoints
+ */
+ZTEST(zzb_zcl_schedule, test_get)
+{
+	static const uint8_t monday[] = {0x02, 0x02, 0x01, 0x68, 0x01, 0xd0,
+					 0x07, 0x28, 0x05, 0x40, 0x06};
+	static const uint8_t wednesday[] = {0x02, 0x08, 0x01, 0x68, 0x01, 0xd0,
+					    0x07, 0x28, 0x05, 0x40, 0x06};
+	static const uint8_t saturday[] = {0x01, 0x40, 0x03, 0xe0, 0x01, 0x08, 0x07, 0x8c, 0x0a};
+	static const uint8_t saturday_cool[] = {0x01, 0x40, 0x02, 0xe0, 0x01, 0x8c, 0x0a};
+	static const uint8_t away[] = {0x01, 0x80, 0x02, 0x00, 0x00, 0xb8, 0x0b};
+
+	zassert_equal(set_schedule(heat, sizeof(heat)), ZZB_ZCL_SUCCESS);
+	zassert_equal(set_schedule(both, sizeof(both)), ZZB_ZCL_SUCCESS);
+	zassert_equal(set_schedule(cool, sizeof(cool)), ZZB_ZCL_SUCCESS);
+
+	get_schedule(0x7f, 0x03);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	check_rsp(0, monday, sizeof(monday));
+	check_rsp(1, wednesday, sizeof(wednesday));
+	check_rsp(2, saturday, sizeof(saturday));
+
+	get_schedule(0xff, 0x02);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_rsp(0, saturday_cool, sizeof(saturday_cool));
+	check_rsp(1, away, sizeof(away));
+
+	/* Sunday has no sequence and Monday no cooling setpoints */
+	get_schedule(0x03, 0x02);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_rsp(0, (uint8_t[]){0x00, 0x03, 0x02}, 3);
+}
+
+/* A payload without Mode To Return gives MALFORMED_COMMAND, and a broadcast gets no response */
+ZTEST(zzb_zcl_schedule, test_get_errors)
+{
+	const struct zzb_apsde_ind broadcast = {
+		.dst_addr = 0xffff,
+		.dst_ep = THERMOSTAT_EP,
+		.src_addr = REQUESTER_ADDR,
+		.src_ep = REQUESTER_EP,
+		.profile = 0x0104,
+		.cluster = ZZB_ZCL_THERMOSTAT,
+	};
+
+	zassert_equal(command(ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE, (uint8_t[]){0x7f}, 1),
+		      ZZB_ZCL_MALFORMED_COMMAND);
+
+	reset_fakes();
+	receive_ind(&broadcast, (uint8_t[]){0x01, 0x40, 0x02, 0x7f, 0x03}, 5);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
+/* ZCL 6.3.2.3.4: Clear Weekly Schedule empties every day, and so does the reset of the node */
+ZTEST(zzb_zcl_schedule, test_clear)
+{
+	zassert_equal(set_schedule(heat, sizeof(heat)), ZZB_ZCL_SUCCESS);
+	zassert_equal(set_schedule(cool, sizeof(cool)), ZZB_ZCL_SUCCESS);
+	zassert_equal(command(ZZB_ZCL_THERMOSTAT_CLEAR_WEEKLY_SCHEDULE, NULL, 0), ZZB_ZCL_SUCCESS);
+	ARRAY_FOR_EACH(thermostat60.schedule, i) {
+		check_empty(i);
+	}
+
+	zassert_equal(set_schedule(heat, sizeof(heat)), ZZB_ZCL_SUCCESS);
+	zassert_equal(set_schedule(cool, sizeof(cool)), ZZB_ZCL_SUCCESS);
+	reset_node();
+	ARRAY_FOR_EACH(thermostat60.schedule, i) {
+		check_empty(i);
+	}
 }
 
 ZTEST_SUITE(zzb_zcl_schedule, NULL, setup, before, after, NULL);
