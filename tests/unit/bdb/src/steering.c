@@ -6,6 +6,7 @@
 #include <zzb/bdb.h>
 
 #include "bdb/bdb.h"
+#include "common/node.h"
 #include "fakes.h"
 #include "mac/mac.h"
 #include "nwk/nwk.h"
@@ -100,6 +101,16 @@ ZTEST(zzb_bdb_steering, test_steering_joins_an_open_network)
 	zassert_equal(zzb_zdo_device_annce_req_fake.call_count, 1);
 	check_permit_joining(1);
 	check_event(1, ZZB_BDB_SUCCESS);
+}
+
+/* Section 3: the power source is set independently of the sleepy flag */
+ZTEST(zzb_bdb_steering, test_sleepy_node_joins_with_the_receiver_off)
+{
+	node->sleepy = true;
+	zassert_ok(zzb_bdb_steering(node));
+	discovered(1);
+	node->sleepy = false;
+	zassert_equal(zzb_nlme_join_req_fake.arg5_val, SLEEPY_CAPABILITY);
 }
 
 /* BDB 8.1: an end device only extends the permit joining of the routers */

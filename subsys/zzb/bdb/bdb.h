@@ -131,6 +131,9 @@ void zzb_bdb_notify(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bd
 /* Ends the procedure, then calls the event callback */
 void zzb_bdb_report(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bdb_status status);
 
+/* nwkCapabilityInformation of an association or a rejoin, from the sleepy flag and the device */
+uint8_t zzb_bdb_capability(const struct zzb_node *node);
+
 /* BDB 7.1 */
 int zzb_bdb_initialize(struct zzb_node *node);
 

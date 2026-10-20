@@ -6,6 +6,7 @@
 #include <zzb/bdb.h>
 
 #include "bdb/bdb.h"
+#include "common/node.h"
 #include "fakes.h"
 #include "nwk/nwk.h"
 
@@ -68,6 +69,17 @@ ZTEST(zzb_bdb_init, test_start_rejoins)
 	zzb_nlme_join_conf(node, ZZB_NWK_STATUS_SUCCESS);
 	zassert_equal(zzb_zdo_device_annce_req_fake.call_count, 1);
 	check_event(ZZB_BDB_EVENT_INIT, ZZB_BDB_SUCCESS);
+}
+
+/* A changed sleepy flag applies at the next rejoin */
+ZTEST(zzb_bdb_init, test_sleepy_node_rejoins_with_the_receiver_off)
+{
+	node->sleepy = true;
+	zassert_ok(zzb_bdb_start(node));
+	run_stack();
+	node->sleepy = false;
+	zassert_equal(zzb_nlme_join_req_fake.call_count, 1);
+	zassert_equal(zzb_nlme_join_req_fake.arg5_val, SLEEPY_CAPABILITY);
 }
 
 /* The MAC refuses a scan while its TX FIFO holds frames */

@@ -16,7 +16,6 @@ DEFINE_FFF_GLOBALS;
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_join_req, struct zzb_node *, uint64_t,
 		       enum zzb_nwk_join_method, uint32_t, uint8_t, uint8_t, bool);
 DEFINE_FAKE_VALUE_FUNC(uint64_t, zzb_nlme_get_ext_pan_id, const struct zzb_node *);
-DEFINE_FAKE_VALUE_FUNC(uint8_t, zzb_nlme_get_capability, const struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node *);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_network_discovery_req, struct zzb_node *, uint32_t, uint8_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_nlme_reset_req, struct zzb_node *);
@@ -137,7 +136,6 @@ void reset_fakes(void)
 {
 	RESET_FAKE(zzb_nlme_join_req);
 	RESET_FAKE(zzb_nlme_get_ext_pan_id);
-	RESET_FAKE(zzb_nlme_get_capability);
 	RESET_FAKE(zzb_nlme_get_short_addr);
 	RESET_FAKE(zzb_nlme_network_discovery_req);
 	RESET_FAKE(zzb_nlme_reset_req);
@@ -168,7 +166,6 @@ void reset_fakes(void)
 	};
 	memcpy(tc_pair.key, "ZigBeeAlliance09", ZZB_SEC_KEY_LEN);
 
-	zzb_nlme_get_capability_fake.return_val = CAPABILITY;
 	zzb_nlme_get_short_addr_fake.return_val = NODE_ADDR;
 	zzb_apsme_get_tc_addr_fake.return_val = TC_EUI64;
 	zzb_aps_key_pair_find_fake.return_val = &tc_pair;

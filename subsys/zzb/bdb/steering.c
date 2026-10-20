@@ -1,25 +1,12 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
-#include <zzb/zzb.h>
 
 #include "aps/aps.h"
 #include "bdb/bdb.h"
 #include "common/node.h"
 #include "nwk/nwk.h"
 #include "zdo/zdo.h"
-
-/* The receiver stays on until milestone 18 */
-static uint8_t capability(const struct zzb_node *node)
-{
-	uint8_t cap = ZZB_NWK_CAP_ALLOC_ADDR | ZZB_NWK_CAP_RX_ON_IDLE;
-
-	if (node->device != NULL && (node->device->power_source & ZZB_POWER_MAINS)) {
-		cap |= ZZB_NWK_CAP_MAINS;
-	}
-
-	return cap;
-}
 
 static void discover(struct zzb_node *node);
 
@@ -94,7 +81,7 @@ static void join_next(struct zzb_node *node)
 		}
 
 		err = zzb_nlme_join_req(node, network->ext_pan_id, ZZB_NWK_JOIN_ASSOC, 0, 0,
-					capability(node), false);
+					zzb_bdb_capability(node), false);
 		if (err == -EBUSY) {
 			zzb_bdb_schedule(node, K_MSEC(ZZB_BDB_RETRY_MS));
 			return;

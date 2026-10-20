@@ -2,6 +2,7 @@
 
 #include <zephyr/kernel.h>
 #include <zzb/bdb.h>
+#include <zzb/zzb.h>
 
 #include "bdb/bdb.h"
 #include "common/node.h"
@@ -67,6 +68,21 @@ void zzb_bdb_report(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bd
 	node->bdb.state = ZZB_BDB_IDLE;
 	k_work_cancel_delayable(&node->bdb.timer);
 	zzb_bdb_notify(node, event, status);
+}
+
+uint8_t zzb_bdb_capability(const struct zzb_node *node)
+{
+	uint8_t cap = ZZB_NWK_CAP_ALLOC_ADDR;
+
+	if (!node->sleepy) {
+		cap |= ZZB_NWK_CAP_RX_ON_IDLE;
+	}
+
+	if (node->device != NULL && (node->device->power_source & ZZB_POWER_MAINS)) {
+		cap |= ZZB_NWK_CAP_MAINS;
+	}
+
+	return cap;
 }
 
 void zzb_nlme_network_discovery_conf(struct zzb_node *node, uint8_t status,

@@ -86,7 +86,7 @@ static void request(struct zzb_node *node)
 {
 	int err = zzb_nlme_join_req(node, zzb_nlme_get_ext_pan_id(node), ZZB_NWK_JOIN_REJOIN,
 				    steps[node->bdb.step].channels, steps[node->bdb.step].duration,
-				    zzb_nlme_get_capability(node), steps[node->bdb.step].secure);
+				    zzb_bdb_capability(node), steps[node->bdb.step].secure);
 
 	if (err == -EBUSY) {
 		zzb_bdb_schedule(node, K_MSEC(ZZB_BDB_RETRY_MS));

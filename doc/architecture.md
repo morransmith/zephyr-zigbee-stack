@@ -524,7 +524,7 @@ Management (R22 2.4.3.3, 2.4.4.4):
 
 | File | Contents |
 |---|---|
-| `bdb.c` | init, public functions, events, dispatch of the NLME callbacks, timer |
+| `bdb.c` | init, public functions, events, dispatch of the NLME callbacks, timer, capability of a join |
 | `init.c` | initialization and the rejoin series |
 | `steering.c` | network steering |
 | `tclk.c` | trust center link key exchange |

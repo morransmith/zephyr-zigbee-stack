@@ -14,7 +14,6 @@
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_join_req, struct zzb_node *, uint64_t,
 			enum zzb_nwk_join_method, uint32_t, uint8_t, uint8_t, bool);
 DECLARE_FAKE_VALUE_FUNC(uint64_t, zzb_nlme_get_ext_pan_id, const struct zzb_node *);
-DECLARE_FAKE_VALUE_FUNC(uint8_t, zzb_nlme_get_capability, const struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(uint16_t, zzb_nlme_get_short_addr, const struct zzb_node *);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_network_discovery_req, struct zzb_node *, uint32_t, uint8_t);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nlme_reset_req, struct zzb_node *);
@@ -43,6 +42,9 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_zdo_mgmt_permit_joining_req, struct zzb_node *,
 
 /* nwkCapabilityInformation: allocate address, receiver on when idle, mains power */
 #define CAPABILITY 0x8c
+
+/* The capability of a sleepy node: allocate address, mains power */
+#define SLEEPY_CAPABILITY 0x84
 
 #define TC_EUI64 0x00124b0000000001ULL
 
