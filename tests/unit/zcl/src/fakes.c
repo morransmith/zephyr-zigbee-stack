@@ -531,6 +531,16 @@ static const struct zzb_zcl_cluster ep91_clusters[] = {
 	ZZB_ZCL_IAS_ACE_CLIENT(),
 };
 
+struct zzb_zcl_power_profile power_profile140 = {.total_profile_num = 1, .energy_formatting = 0x01};
+
+static const struct zzb_zcl_cluster ep140_clusters[] = {
+	ZZB_ZCL_POWER_PROFILE_SERVER(&power_profile140),
+};
+
+static const struct zzb_zcl_cluster ep141_clusters[] = {
+	ZZB_ZCL_POWER_PROFILE_CLIENT(),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -692,6 +702,20 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0401,
 		.clusters = ep91_clusters,
 		.cluster_count = ARRAY_SIZE(ep91_clusters),
+	},
+	{
+		.id = WHITE_GOODS_EP,
+		.profile = 0x0104,
+		.device_id = 0x0052,
+		.clusters = ep140_clusters,
+		.cluster_count = ARRAY_SIZE(ep140_clusters),
+	},
+	{
+		.id = GATEWAY_EP,
+		.profile = 0x0104,
+		.device_id = 0x0050,
+		.clusters = ep141_clusters,
+		.cluster_count = ARRAY_SIZE(ep141_clusters),
 	},
 };
 

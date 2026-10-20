@@ -25,6 +25,7 @@
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/power_config.h>
+#include <zzb/zcl/power_profile.h>
 #include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
 #include <zzb/zcl/thermostat.h>
@@ -250,6 +251,12 @@ extern struct zzb_zcl_ias_wd wd86;
 /* Endpoint 90 is an IAS CIE with the IAS ACE server, endpoint 91 a keypad with the client */
 #define CIE_EP    90
 #define KEYPAD_EP 91
+
+/* Endpoint 140 is a White Goods with a Power Profile server, 141 a Home Gateway with a client */
+#define WHITE_GOODS_EP 140
+#define GATEWAY_EP     141
+
+extern struct zzb_zcl_power_profile power_profile140;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

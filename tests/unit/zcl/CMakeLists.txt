@@ -26,6 +26,7 @@ target_sources(app PRIVATE
   src/level.c
   src/on_off.c
   src/power_config.c
+  src/power_profile.c
   src/report.c
   src/scenes.c
   src/schedule.c
