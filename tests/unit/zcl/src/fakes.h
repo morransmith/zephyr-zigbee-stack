@@ -10,6 +10,7 @@
 #include <zzb/zcl.h>
 #include <zzb/zcl/alarms.h>
 #include <zzb/zcl/appliance_control.h>
+#include <zzb/zcl/appliance_id.h>
 #include <zzb/zcl/ballast.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/color.h>
@@ -254,14 +255,15 @@ extern struct zzb_zcl_ias_wd wd86;
 #define KEYPAD_EP 91
 
 /*
- * Endpoint 140 is a White Goods with the Power Profile and Appliance Control servers, 141 a Home
- * Gateway with their clients
+ * Endpoint 140 is a White Goods with the Power Profile, Appliance Control and Appliance
+ * Identification servers, 141 a Home Gateway with their clients
  */
 #define WHITE_GOODS_EP 140
 #define GATEWAY_EP     141
 
 extern struct zzb_zcl_power_profile power_profile140;
 extern struct zzb_zcl_appliance_control appliance_control140;
+extern struct zzb_zcl_appliance_id appliance_id140;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
