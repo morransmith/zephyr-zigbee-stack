@@ -446,8 +446,8 @@ void zzb_nwk_poll_init(struct zzb_node *node);
 /* Starts the polls of a sleepy node with a parent, the first after one interval */
 void zzb_nwk_poll_start(struct zzb_node *node);
 
-/* Polls the parent of a sleepy node at once */
-void zzb_nwk_poll_now(struct zzb_node *node);
+/* Polls the parent of a sleepy node after delay, unless the next poll is due earlier */
+void zzb_nwk_poll_after(struct zzb_node *node, k_timeout_t delay);
 
 void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 

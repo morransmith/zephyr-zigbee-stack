@@ -278,7 +278,7 @@ void zzb_mcps_data_ind(struct zzb_node *node, struct net_buf *buf)
 	int hdr_len;
 
 	if (zzb_frame_meta(buf)->flags & ZZB_FRAME_PENDING) {
-		zzb_nwk_poll_now(node);
+		zzb_nwk_poll_after(node, K_NO_WAIT);
 	}
 
 	hdr_len = rx_frame(node, buf, &hdr);
