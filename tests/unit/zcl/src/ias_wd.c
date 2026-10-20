@@ -326,4 +326,14 @@ ZTEST(zzb_zcl_ias_wd, test_reset)
 	zassert_equal(zcl_cmd_calls.count, 4);
 }
 
+/* The DTL requires ClusterRevision on the IAS WD client of the CIE */
+ZTEST(zzb_zcl_ias_wd, test_client_revision)
+{
+	static const uint8_t read[] = {0x08, 0x70, 0x00, 0xfd, 0xff};
+	static const uint8_t rsp[] = {0x10, 0x70, 0x01, 0xfd, 0xff, 0x00, 0x21, 0x02, 0x00};
+
+	receive_ep(WD_CLIENT_EP, ZZB_ZCL_IAS_WD, read, sizeof(read));
+	check_frame(0, WD_CLIENT_EP, ZZB_ZCL_IAS_WD, rsp, sizeof(rsp));
+}
+
 ZTEST_SUITE(zzb_zcl_ias_wd, NULL, setup, before, after, NULL);

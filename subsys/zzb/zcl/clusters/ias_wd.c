@@ -221,3 +221,13 @@ void zzb_zcl_ias_wd_init(struct zzb_node *node)
 {
 	k_work_init_delayable(&node->zcl.ias_wd_timer, tick);
 }
+
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_ias_wd_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};

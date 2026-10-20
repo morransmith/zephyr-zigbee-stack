@@ -54,6 +54,7 @@ struct zzb_zcl_ias_wd {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_wd_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_ias_wd_client_def;
 
 /** An IAS WD server with the values v, a pointer to struct zzb_zcl_ias_wd. */
 #define ZZB_ZCL_IAS_WD_SERVER(v)                                                                   \
@@ -62,6 +63,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_ias_wd_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_ias_wd *)NULL),                               \
 		.def = &zzb_zcl_ias_wd_def,                                                        \
+	}
+
+/** An IAS WD client, which the IAS CIE has (DTL); the server generates no commands. */
+#define ZZB_ZCL_IAS_WD_CLIENT()                                                                    \
+	{                                                                                          \
+		.id = ZZB_ZCL_IAS_WD,                                                              \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_ias_wd_client_def,                                                 \
 	}
 
 #ifdef __cplusplus

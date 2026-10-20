@@ -482,6 +482,10 @@ static const struct zzb_zcl_cluster ep86_clusters[] = {
 	ZZB_ZCL_IAS_WD_SERVER(&wd86),
 };
 
+static const struct zzb_zcl_cluster ep87_clusters[] = {
+	ZZB_ZCL_IAS_WD_CLIENT(),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -608,6 +612,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0403,
 		.clusters = ep86_clusters,
 		.cluster_count = ARRAY_SIZE(ep86_clusters),
+	},
+	{
+		.id = WD_CLIENT_EP,
+		.profile = 0x0104,
+		.device_id = 0x0400,
+		.clusters = ep87_clusters,
+		.cluster_count = ARRAY_SIZE(ep87_clusters),
 	},
 };
 

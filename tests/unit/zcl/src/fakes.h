@@ -223,6 +223,9 @@ extern struct zzb_zcl_pump pump70;
 extern struct zzb_zcl_ias_wd wd85;
 extern struct zzb_zcl_ias_wd wd86;
 
+/* Endpoint 87 is an IAS CIE with an IAS WD client */
+#define WD_CLIENT_EP 87
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
