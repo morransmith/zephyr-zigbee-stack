@@ -411,6 +411,11 @@ static const struct zzb_zcl_cluster ep70_clusters[] = {
 	ZZB_ZCL_PUMP_SERVER(&pump70),
 };
 
+static const struct zzb_zcl_cluster ep71_clusters[] = {
+	ZZB_ZCL_TEMPERATURE_CLIENT(), ZZB_ZCL_PRESSURE_CLIENT(), ZZB_ZCL_FLOW_CLIENT(),
+	ZZB_ZCL_HUMIDITY_CLIENT(),    ZZB_ZCL_FAN_CLIENT(),      ZZB_ZCL_PUMP_CLIENT(),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -502,6 +507,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0303,
 		.clusters = ep70_clusters,
 		.cluster_count = ARRAY_SIZE(ep70_clusters),
+	},
+	{
+		.id = 71,
+		.profile = 0x0104,
+		.device_id = 0x0304,
+		.clusters = ep71_clusters,
+		.cluster_count = ARRAY_SIZE(ep71_clusters),
 	},
 };
 

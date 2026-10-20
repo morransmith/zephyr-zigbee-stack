@@ -92,3 +92,43 @@ const struct zzb_zcl_cluster_def zzb_zcl_humidity_def = {
 	.attrs = humidity_attrs,
 	.attr_count = ARRAY_SIZE(humidity_attrs),
 };
+
+static const struct zzb_zcl_attr temperature_client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, TEMPERATURE_REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_temperature_client_def = {
+	.attrs = temperature_client_attrs,
+	.attr_count = ARRAY_SIZE(temperature_client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};
+
+static const struct zzb_zcl_attr pressure_client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, PRESSURE_REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_pressure_client_def = {
+	.attrs = pressure_client_attrs,
+	.attr_count = ARRAY_SIZE(pressure_client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};
+
+static const struct zzb_zcl_attr flow_client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, FLOW_REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_flow_client_def = {
+	.attrs = flow_client_attrs,
+	.attr_count = ARRAY_SIZE(flow_client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};
+
+static const struct zzb_zcl_attr humidity_client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, HUMIDITY_REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_humidity_client_def = {
+	.attrs = humidity_client_attrs,
+	.attr_count = ARRAY_SIZE(humidity_client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};

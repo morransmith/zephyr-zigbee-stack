@@ -30,6 +30,7 @@ struct zzb_zcl_fan {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_fan_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_fan_client_def;
 
 /** A Fan Control server with the values v, a pointer to struct zzb_zcl_fan. */
 #define ZZB_ZCL_FAN_SERVER(v)                                                                      \
@@ -38,6 +39,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_fan_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_fan *)NULL),                                  \
 		.def = &zzb_zcl_fan_def,                                                           \
+	}
+
+/** A Fan Control client; it accepts reports. */
+#define ZZB_ZCL_FAN_CLIENT()                                                                       \
+	{                                                                                          \
+		.id = ZZB_ZCL_FAN,                                                                 \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_fan_client_def,                                                    \
 	}
 
 #ifdef __cplusplus

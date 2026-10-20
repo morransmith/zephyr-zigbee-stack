@@ -83,6 +83,7 @@ struct zzb_zcl_pump {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_pump_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_pump_client_def;
 
 /**
  * A Pump Configuration and Control server with the values v, a pointer to struct zzb_zcl_pump.
@@ -93,6 +94,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_pump_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_pump *)NULL),                                 \
 		.def = &zzb_zcl_pump_def,                                                          \
+	}
+
+/** A Pump Configuration and Control client; it accepts reports. */
+#define ZZB_ZCL_PUMP_CLIENT()                                                                      \
+	{                                                                                          \
+		.id = ZZB_ZCL_PUMP,                                                                \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_pump_client_def,                                                   \
 	}
 
 #ifdef __cplusplus

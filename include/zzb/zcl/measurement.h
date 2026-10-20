@@ -88,6 +88,10 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_temperature_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_pressure_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_flow_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_humidity_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_temperature_client_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_pressure_client_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_flow_client_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_humidity_client_def;
 
 /** A Temperature Measurement server with the values v, a pointer to struct zzb_zcl_temperature. */
 #define ZZB_ZCL_TEMPERATURE_SERVER(v)                                                              \
@@ -125,6 +129,38 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_humidity_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_humidity *)NULL),                             \
 		.def = &zzb_zcl_humidity_def,                                                      \
+	}
+
+/** A Temperature Measurement client; it accepts reports. */
+#define ZZB_ZCL_TEMPERATURE_CLIENT()                                                               \
+	{                                                                                          \
+		.id = ZZB_ZCL_TEMPERATURE,                                                         \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_temperature_client_def,                                            \
+	}
+
+/** A Pressure Measurement client; it accepts reports. */
+#define ZZB_ZCL_PRESSURE_CLIENT()                                                                  \
+	{                                                                                          \
+		.id = ZZB_ZCL_PRESSURE,                                                            \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_pressure_client_def,                                               \
+	}
+
+/** A Flow Measurement client; it accepts reports. */
+#define ZZB_ZCL_FLOW_CLIENT()                                                                      \
+	{                                                                                          \
+		.id = ZZB_ZCL_FLOW,                                                                \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_flow_client_def,                                                   \
+	}
+
+/** A Relative Humidity Measurement client; it accepts reports. */
+#define ZZB_ZCL_HUMIDITY_CLIENT()                                                                  \
+	{                                                                                          \
+		.id = ZZB_ZCL_HUMIDITY,                                                            \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_humidity_client_def,                                               \
 	}
 
 #ifdef __cplusplus

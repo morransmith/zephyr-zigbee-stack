@@ -182,7 +182,7 @@ extern struct zzb_zcl_color color41;
 
 /*
  * Endpoint 70 has the measurement servers, a Fan Control server with FanModeSequence 0x02 and a
- * Pump Configuration and Control server
+ * Pump Configuration and Control server; endpoint 71 has the clients of these clusters
  */
 #define HVAC_EP 70
 
