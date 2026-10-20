@@ -106,6 +106,29 @@ int zzb_zcl_send_bindings(struct zzb_node *node, const struct zzb_endpoint *ep, 
 	return zzb_zcl_send(node, &aps, &hdr, payload, len);
 }
 
+int zzb_zcl_send_ext(struct zzb_node *node, const struct zzb_endpoint *ep, uint64_t dst_ext,
+		     uint8_t dst_ep, uint16_t cluster, uint8_t cmd, const uint8_t *payload,
+		     size_t len)
+{
+	const struct zzb_zcl_hdr hdr = {
+		.type = ZZB_ZCL_FRAME_CLUSTER,
+		.flags = ZZB_ZCL_DISABLE_DEFAULT_RSP | ZZB_ZCL_TO_CLIENT,
+		.tsn = node->zcl.tsn++,
+		.cmd = cmd,
+	};
+	const struct zzb_apsde_req aps = {
+		.dst_mode = ZZB_APS_ADDR_EXT,
+		.dst_ext = dst_ext,
+		.dst_ep = dst_ep,
+		.profile = ep->profile,
+		.cluster = cluster,
+		.src_ep = ep->id,
+		.tx_options = ZZB_APS_TX_ACK,
+	};
+
+	return zzb_zcl_send(node, &aps, &hdr, payload, len);
+}
+
 struct send_bound_req {
 	struct k_work work;
 	struct zzb_node *node;

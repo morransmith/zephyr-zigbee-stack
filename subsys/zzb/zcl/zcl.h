@@ -144,6 +144,15 @@ int zzb_zcl_send_bindings(struct zzb_node *node, const struct zzb_endpoint *ep, 
 			  const uint8_t *payload, size_t len);
 
 /*
+ * Sends the cluster-specific command cmd of a server from endpoint ep to the IEEE address dst_ext
+ * and dst_ep, with Disable Default Response 1 and an APS ACK request. Returns an error of
+ * zzb_zcl_send().
+ */
+int zzb_zcl_send_ext(struct zzb_node *node, const struct zzb_endpoint *ep, uint64_t dst_ext,
+		     uint8_t dst_ep, uint16_t cluster, uint8_t cmd, const uint8_t *payload,
+		     size_t len);
+
+/*
  * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload.
  * Returns an error of zzb_zcl_send().
  */
