@@ -275,7 +275,10 @@ void zzb_zcl_ias_wd_init(struct zzb_node *node);
 void zzb_zcl_ias_zone_init(struct zzb_node *node);
 void zzb_zcl_door_lock_init(struct zzb_node *node);
 
-/* Initializes the timer of the OTA Upgrade client */
+/*
+ * Initializes the timer of the OTA Upgrade client, clears its hold on the poll rate of NWK and ends
+ * a download of the node without a frame
+ */
 void zzb_zcl_ota_init(struct zzb_node *node);
 
 /* Initializes the timer of Poll Control and clears the hold of ZCL on the poll rate of NWK */

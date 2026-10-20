@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/ota.h>
 
@@ -69,6 +70,22 @@ static struct zzb_node *ota_node;
 /* A node other than the trust center, which runs the OTA server */
 #define OTHER_ADDR 0x1234
 
+/* The file version of the image that the server offers */
+#define NEW_VERSION 0x01020400
+
+#define BLOCK CONFIG_ZZB_ZCL_OTA_BLOCK_SIZE
+
+/* The OTA header and the sub-element header (ZCL 11.4.2, 11.4.3) */
+#define HEADER_LEN  56
+#define ELEMENT_LEN 6
+
+/* An MCUboot image: a header of 32 octets and a pattern */
+#define IMAGE_LEN 150
+
+/* The OTA file that the server offers, built by the test */
+static uint8_t file[512];
+static size_t file_len;
+
 /* Query Next Image Request of the client: manufacturer code, image type and CurrentFileVersion */
 static const uint8_t query_req[] = {0x00, 0x34, 0x12, 0x42, 0x00, 0x00, 0x03, 0x02, 0x01};
 
@@ -109,7 +126,7 @@ static void command_from(uint16_t src_addr, uint8_t ep, uint8_t tsn, uint8_t id,
 			 const uint8_t *payload, size_t len, uint8_t status)
 {
 	const uint8_t rsp[] = {0x10, tsn, 0x0b, id, status};
-	uint8_t frame[32] = {0x09, tsn, id};
+	uint8_t frame[96] = {0x09, tsn, id};
 
 	zassert_true(3 + len <= sizeof(frame));
 	memcpy(frame + 3, payload, len);
@@ -227,11 +244,158 @@ static uint8_t wait_query(void)
 	return tsn;
 }
 
+/*
+ * Starts an OTA file (ZCL 11.4.2) with header version 0x0100, header length hdr_len and the
+ * manufacturer code, image type and file version of the offer
+ */
+static void start_file(uint16_t hdr_len)
+{
+	memset(file, 0, sizeof(file));
+	sys_put_le32(0x0beef11e, file);
+	sys_put_le16(0x0100, file + 4);
+	sys_put_le16(hdr_len, file + 6);
+	sys_put_le16(OTA_MANUFACTURER, file + 10);
+	sys_put_le16(OTA_IMAGE_TYPE, file + 12);
+	sys_put_le32(NEW_VERSION, file + 14);
+	sys_put_le16(0x0002, file + 18);
+	file_len = hdr_len;
+}
+
+/* Appends a sub-element (ZCL 11.4.3) with tag and length len and data_len octets of data */
+static void add_element(uint16_t tag, uint32_t len, const uint8_t *data, size_t data_len)
+{
+	zassert_true(file_len + ELEMENT_LEN + data_len <= sizeof(file));
+	sys_put_le16(tag, file + file_len);
+	sys_put_le32(len, file + file_len + 2);
+	memcpy(file + file_len + ELEMENT_LEN, data, data_len);
+	file_len += ELEMENT_LEN + data_len;
+}
+
+/* Writes the length of the file as the total image size of the OTA header */
+static void finish_file(void)
+{
+	sys_put_le32(file_len, file + 52);
+}
+
+/*
+ * An MCUboot image: the magic 0x96f3b83d, header size 32 and image size of the MCUboot image
+ * header, then a pattern
+ */
+static void build_image(uint8_t *image)
+{
+	memset(image, 0, IMAGE_LEN);
+	sys_put_le32(0x96f3b83d, image);
+	sys_put_le16(32, image + 8);
+	sys_put_le32(IMAGE_LEN - 32, image + 12);
+	for (int i = 32; i < IMAGE_LEN; i++) {
+		image[i] = i;
+	}
+}
+
+/* An OTA file with the OTA header and an Upgrade Image sub-element with the MCUboot image */
+static void build_file(void)
+{
+	uint8_t image[IMAGE_LEN];
+
+	build_image(image);
+	start_file(HEADER_LEN);
+	add_element(0x0000, IMAGE_LEN, image, IMAGE_LEN);
+	finish_file();
+}
+
+/* Passes the command id with tsn and the payload from the trust center to endpoint 170, as zigpy */
+static void server_cmd(uint8_t tsn, uint8_t id, const uint8_t *payload, size_t len)
+{
+	uint8_t frame[96] = {0x19, tsn, id};
+
+	zassert_true(3 + len <= sizeof(frame));
+	memcpy(frame + 3, payload, len);
+	receive_ota(OTA_EP, frame, 3 + len);
+}
+
+/* Answers the query with tsn with SUCCESS and the file after reset_frames() */
+static void offer(uint8_t tsn)
+{
+	uint8_t payload[13] = {0x00, 0x34, 0x12, 0x42, 0x00};
+
+	sys_put_le32(NEW_VERSION, payload + 5);
+	sys_put_le32(file_len, payload + 9);
+	reset_frames();
+	server_cmd(tsn, ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP, payload, sizeof(payload));
+}
+
+/* Checks that frame i is Image Block Request at offset and returns its TSN */
+static uint8_t check_block_req(int i, uint32_t offset)
+{
+	uint8_t req[14] = {0x00, 0x34, 0x12, 0x42, 0x00};
+
+	sys_put_le32(NEW_VERSION, req + 5);
+	sys_put_le32(offset, req + 9);
+	req[13] = BLOCK;
+	return check_request(i, REQUESTER_EP, ZZB_ZCL_OTA_IMAGE_BLOCK, req, sizeof(req));
+}
+
+/* Answers the request with tsn with len octets of the file at offset after reset_frames() */
+static void block_rsp(uint8_t tsn, uint32_t offset, uint8_t len)
+{
+	uint8_t payload[14 + BLOCK] = {0x00, 0x34, 0x12, 0x42, 0x00};
+
+	sys_put_le32(NEW_VERSION, payload + 5);
+	sys_put_le32(offset, payload + 9);
+	payload[13] = len;
+	memcpy(payload + 14, file + offset, len);
+	reset_frames();
+	server_cmd(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, payload, 14 + len);
+}
+
+/* Answers the block requests of the client with the blocks of the file before offset end */
+static void serve(uint32_t end)
+{
+	for (uint32_t offset = ota170.file_offset; offset < end; offset += BLOCK) {
+		zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+		block_rsp(check_block_req(0, offset), offset, MIN(BLOCK, file_len - offset));
+	}
+}
+
+/* Checks that frame i is Upgrade End Request with status */
+static void check_end_req(int i, uint8_t status)
+{
+	uint8_t req[9] = {status, 0x34, 0x12, 0x42, 0x00};
+
+	sys_put_le32(NEW_VERSION, req + 5);
+	check_request(i, REQUESTER_EP, ZZB_ZCL_OTA_UPGRADE_END, req, sizeof(req));
+}
+
+/* The last hold of the poll rate by the OTA Upgrade client */
+static bool held(void)
+{
+	zassert_true(zzb_nwk_poll_hold_fake.call_count <= FFF_ARG_HISTORY_LEN);
+	for (int i = zzb_nwk_poll_hold_fake.call_count - 1; i >= 0; i--) {
+		if (zzb_nwk_poll_hold_fake.arg1_history[i] == ZZB_NWK_HOLD_OTA) {
+			zassert_equal(zzb_nwk_poll_hold_fake.arg0_history[i], ota_node);
+			return zzb_nwk_poll_hold_fake.arg2_history[i];
+		}
+	}
+
+	zassert_unreachable("no hold");
+	return false;
+}
+
+/* The defaults outside a download (ZCL Table 11-10) */
+static void check_normal(void)
+{
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_NORMAL);
+	zassert_equal(ota170.file_offset, 0xffffffff);
+	zassert_equal(ota170.downloaded_file_version, 0xffffffff);
+	zassert_equal(ota170.image_type_id, 0xffff);
+}
+
 static void *setup(void)
 {
 	const struct zzb_node_config cfg = {
 		.eui64 = OTA_EUI64,
 		.device = &ota_device,
+		.zcl_cb = record_zcl_cb,
 	};
 
 	test_node();
@@ -239,11 +403,13 @@ static void *setup(void)
 	return NULL;
 }
 
-/* Each test starts with the defaults */
+/* Each test starts with the defaults; zzb_zcl_init() ends a download of the test before */
 static void before(void *fixture)
 {
+	zassert_ok(reboot_ota());
 	reset_ota();
 	reset_fakes();
+	build_file();
 }
 
 static void after(void *fixture)
@@ -455,6 +621,219 @@ ZTEST(zzb_zcl_ota, test_notify_broadcast)
 	notify(REQUESTER_ADDR, REQUESTER_EP, NODE_ADDR, 0xff, wildcards, sizeof(wildcards));
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
 	check_query(3, REQUESTER_EP);
+}
+
+/*
+ * ZCL 11.13.5.4: NO_IMAGE_AVAILABLE, NOT_AUTHORIZED and a SUCCESS with CurrentFileVersion end the
+ * query without a download
+ */
+ZTEST(zzb_zcl_ota, test_no_download)
+{
+	uint8_t current[13] = {0x00, 0x34, 0x12, 0x42, 0x00, 0x00, 0x03, 0x02, 0x01};
+	uint8_t tsn = wait_query();
+
+	sys_put_le32(file_len, current + 9);
+	server_cmd(tsn, ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP, (uint8_t[]){0x98}, 1);
+	server_cmd(tsn, ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP, (uint8_t[]){0x7e}, 1);
+	server_cmd(tsn, ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP, current, sizeof(current));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	check_normal();
+}
+
+/*
+ * ZCL 11.13.5.4, 11.13.6, 11.13.8.4: a SUCCESS starts the download with zcl_cb, the client asks for
+ * the blocks from offset 0 and holds the fast poll rate while it waits for them, FileOffset follows
+ * the blocks, and after the last block it sends Upgrade End Request SUCCESS and the download is
+ * complete
+ */
+ZTEST(zzb_zcl_ota, test_download)
+{
+	static const uint16_t start_attrs[] = {0x0006, 0x0008, 0x0004, 0x0001};
+	static const uint16_t blocks_attrs[] = {0x0001, 0x0001, 0x0001, 0x0001, 0x0001, 0x0006};
+	uint8_t tsn = wait_query();
+
+	zcl_cb_calls = (struct zcl_cb_calls){0};
+	offer(tsn);
+	check_zcl_cb(OTA_EP, ZZB_ZCL_OTA, start_attrs, ARRAY_SIZE(start_attrs));
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOADING);
+	zassert_equal(ota170.image_type_id, OTA_IMAGE_TYPE);
+	zassert_equal(ota170.downloaded_file_version, NEW_VERSION);
+	zassert_equal(ota170.file_offset, 0);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_block_req(0, 0);
+	zassert_true(held());
+
+	zcl_cb_calls = (struct zcl_cb_calls){0};
+	tsn = check_block_req(0, 0);
+	block_rsp(tsn, 0, BLOCK);
+	zassert_equal(ota170.file_offset, BLOCK);
+	check_block_req(0, BLOCK);
+	zassert_not_equal(sent[0].data[1], tsn);
+	zassert_true(held());
+	serve(file_len);
+	zassert_equal(ota170.file_offset, file_len);
+	check_zcl_cb(OTA_EP, ZZB_ZCL_OTA, blocks_attrs, ARRAY_SIZE(blocks_attrs));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_end_req(0, 0x00);
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
+	zassert_false(held());
+}
+
+/*
+ * ZCL 11.13.8.5.1: an Image Block Response SUCCESS that does not match the request gets
+ * MALFORMED_COMMAND and is ignored, and so does a WAIT_FOR_DATA shorter than 9 octets or with a
+ * RequestTime below CurrentTime. A response with another TSN is ignored.
+ */
+ZTEST(zzb_zcl_ota, test_block_rsp_checks)
+{
+	uint8_t rsp[16 + BLOCK] = {0x00, 0x34, 0x12, 0x42, 0x00};
+	uint8_t tsn;
+
+	offer(wait_query());
+	serve(4 * BLOCK);
+	tsn = check_block_req(0, 4 * BLOCK);
+	sys_put_le32(NEW_VERSION, rsp + 5);
+	sys_put_le32(4 * BLOCK, rsp + 9);
+	rsp[13] = 1;
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 13, 0x80);
+	rsp[1] = 0x35;
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 15, 0x80);
+	rsp[1] = 0x34;
+	rsp[3] = 0x43;
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 15, 0x80);
+	rsp[3] = 0x42;
+	rsp[5] = 0x01;
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 15, 0x80);
+	rsp[5] = 0x00;
+	rsp[9] = 0;
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 15, 0x80);
+	sys_put_le32(4 * BLOCK, rsp + 9);
+	rsp[13] = 0;
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 14, 0x80);
+	rsp[13] = 2;
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 15, 0x80);
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 17, 0x80);
+	rsp[13] = file_len - 4 * BLOCK + 1;
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 14 + rsp[13], 0x80);
+	command(tsn + 1, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, rsp, 13, 0x00);
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, (uint8_t[]){0x97, 0x00, 0x00, 0x00, 0x00}, 5,
+		0x80);
+	command(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP,
+		(uint8_t[]){0x97, 0x10, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x00, 0x00}, 9, 0x80);
+	zassert_equal(ota170.file_offset, 4 * BLOCK);
+	zassert_true(held());
+
+	reset_frames();
+	block_rsp(tsn, 4 * BLOCK, file_len - 4 * BLOCK);
+	check_end_req(0, 0x00);
+}
+
+/*
+ * Section 16: a block request without a response is sent again after 5 s, and the download ends
+ * without a frame after three repetitions. The next query follows one interval later.
+ */
+ZTEST(zzb_zcl_ota, test_block_retries)
+{
+	static const uint16_t end_attrs[] = {0x0006, 0x0001, 0x0004, 0x0008};
+
+	offer(wait_query());
+	serve(BLOCK);
+	check_block_req(0, BLOCK);
+	k_sleep(K_MSEC(4900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_block_req(1, BLOCK);
+	zassert_true(held());
+	k_sleep(K_SECONDS(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
+	check_block_req(3, BLOCK);
+	k_sleep(K_MSEC(4800));
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOADING);
+
+	zcl_cb_calls = (struct zcl_cb_calls){0};
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
+	check_normal();
+	check_zcl_cb(OTA_EP, ZZB_ZCL_OTA, end_attrs, ARRAY_SIZE(end_attrs));
+	zassert_false(held());
+
+	k_sleep(K_MSEC(INTERVAL_MS - 200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
+	k_sleep(K_MSEC(200));
+	check_query(4, REQUESTER_EP);
+}
+
+/*
+ * ZCL 11.13.8.2.8: WAIT_FOR_DATA sends the same request again after RequestTime seconds when
+ * CurrentTime is 0, otherwise after RequestTime - CurrentTime seconds. The client does not hold the
+ * fast poll rate meanwhile.
+ */
+ZTEST(zzb_zcl_ota, test_wait_for_data)
+{
+	static const uint8_t wait_offset[] = {0x97, 0x00, 0x00, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x00};
+	static const uint8_t wait_utc[] = {0x97, 0x00, 0x00, 0x00, 0x20, 0x0a,
+					   0x00, 0x00, 0x20, 0x00, 0x00};
+	uint8_t tsn;
+
+	offer(wait_query());
+	tsn = check_block_req(0, 0);
+	reset_frames();
+	server_cmd(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, wait_offset, sizeof(wait_offset));
+	zassert_false(held());
+	k_sleep(K_MSEC(29900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	tsn = check_block_req(0, 0);
+	zassert_true(held());
+
+	reset_frames();
+	server_cmd(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, wait_utc, sizeof(wait_utc));
+	k_sleep(K_MSEC(9900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_block_req(0, 0);
+}
+
+/* ZCL 11.13.8.4: ABORT ends the download without a frame */
+ZTEST(zzb_zcl_ota, test_abort)
+{
+	uint8_t tsn;
+
+	offer(wait_query());
+	serve(BLOCK);
+	tsn = check_block_req(0, BLOCK);
+	reset_frames();
+	server_cmd(tsn, ZZB_ZCL_OTA_IMAGE_BLOCK_RSP, (uint8_t[]){0x95}, 1);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	check_normal();
+	zassert_false(held());
+
+	k_sleep(K_MSEC(INTERVAL_MS - 100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	check_query(0, REQUESTER_EP);
+}
+
+/*
+ * Section 16: zzb_zcl_init() ends a download without a frame and clears the hold, and the client
+ * downloads again from offset 0
+ */
+ZTEST(zzb_zcl_ota, test_reboot)
+{
+	offer(wait_query());
+	serve(BLOCK);
+	zassert_ok(reboot_ota());
+	zassert_false(held());
+	check_normal();
+
+	reset_frames();
+	notify(REQUESTER_ADDR, REQUESTER_EP, NODE_ADDR, OTA_EP, (uint8_t[]){0x00, 0x64}, 2);
+	offer(check_query(0, REQUESTER_EP));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_block_req(0, 0);
 }
 
 ZTEST_SUITE(zzb_zcl_ota, NULL, setup, before, after, teardown);

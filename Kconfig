@@ -194,6 +194,16 @@ config ZZB_ZCL_OTA_QUERY_INTERVAL
 	  center one interval after the start of the node and then every
 	  interval while it does not download.
 
+config ZZB_ZCL_OTA_BLOCK_SIZE
+	int "Octets of an OTA image block"
+	depends on ZZB_ZCL_OTA
+	range 1 65
+	default 48
+	help
+	  The data size that the OTA Upgrade client asks for in Image Block
+	  Request. 65 octets fill an ASDU with NWK security only, and 48 fit
+	  one with APS security.
+
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
 	range 0 0x07fff800

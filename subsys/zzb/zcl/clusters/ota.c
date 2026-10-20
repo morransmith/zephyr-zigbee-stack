@@ -26,8 +26,20 @@
 /* The next query after one that APSDE-DATA refuses */
 #define RETRY K_SECONDS(60)
 
+/* A request without a response is sent again after 5 s, three times */
+#define TIMEOUT K_SECONDS(5)
+#define REPEATS 3
+
 /* The length of the OTA header (ZCL 11.4.2) */
 #define HEADER_LEN 56
+
+/* The download into the upload slot, which one node of the binary owns at a time (section 3) */
+static struct {
+	/* NULL while no node downloads */
+	struct zzb_node *owner;
+	/* The image size of the Query Next Image Response */
+	uint32_t size;
+} dl;
 
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_OTA_UPGRADE_SERVER_ID, ZZB_ZCL_EUI64, 0, struct zzb_zcl_ota,
@@ -57,6 +69,7 @@ static void init(void *values)
 	v->image_upgrade_status = ZZB_ZCL_OTA_NORMAL;
 	v->image_type_id = 0xffff;
 	v->server_ep = SERVER_EP;
+	v->tries = 0;
 }
 
 static void refresh(struct zzb_node *node, uint8_t ep, void *values)
@@ -86,9 +99,36 @@ static struct zzb_zcl_ota *values_of(const struct zzb_endpoint *ep)
 	return zzb_zcl_find_cluster(ep, ZZB_ZCL_OTA, false)->values;
 }
 
-static void arm(struct zzb_node *node, k_timeout_t delay)
+/* Writes value to attribute attr of the client on ep and reports a change with zcl_cb */
+static void set(struct zzb_node *node, const struct zzb_endpoint *ep, uint16_t attr, uint32_t value)
 {
+	const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(ep, ZZB_ZCL_OTA, false);
+
+	if (zzb_zcl_attr_write(cl, zzb_zcl_attr_find(cl, attr), value)) {
+		zzb_zcl_changed(node, ep->id, cl, attr);
+	}
+}
+
+/* Arms the timer and holds the fast poll rate while the client waits for a response */
+static void arm(struct zzb_node *node, const struct zzb_zcl_ota *v, k_timeout_t delay)
+{
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_OTA, v->tries != 0);
 	k_work_reschedule_for_queue(&zzb_workq, &node->zcl.ota_timer, delay);
+}
+
+/* Writes the manufacturer code of the device, the image type and the file version of a payload */
+static void put_image(uint8_t *p, const struct zzb_node *node, uint16_t type, uint32_t version)
+{
+	sys_put_le16(node->device->manufacturer_code, p);
+	sys_put_le16(type, p + 2);
+	sys_put_le32(version, p + 4);
+}
+
+static void release(const struct zzb_node *node)
+{
+	if (dl.owner == node) {
+		dl.owner = NULL;
+	}
 }
 
 /* Sends the command id with the payload from the client on ep to the server */
@@ -121,16 +161,87 @@ static void query(struct zzb_node *node, const struct zzb_endpoint *ep)
 	struct zzb_zcl_ota *v = values_of(ep);
 	uint8_t payload[9] = {0};
 
-	sys_put_le16(node->device->manufacturer_code, payload + 1);
-	sys_put_le16(v->image_type, payload + 3);
-	sys_put_le32(v->current_file_version, payload + 5);
+	put_image(payload + 1, node, v->image_type, v->current_file_version);
 	if (request(node, ep, ZZB_ZCL_OTA_QUERY_NEXT_IMAGE, payload, sizeof(payload)) != 0) {
-		arm(node, RETRY);
+		arm(node, v, RETRY);
 		return;
 	}
 
 	zzb_nwk_poll_fast(node);
-	arm(node, INTERVAL);
+	arm(node, v, INTERVAL);
+}
+
+/*
+ * Image Block Request (ZCL 11.13.6) at FileOffset, which waits for its response. A request that
+ * APSDE-DATA refuses counts as one without a response.
+ */
+static void block_req(struct zzb_node *node, const struct zzb_endpoint *ep)
+{
+	struct zzb_zcl_ota *v = values_of(ep);
+	uint8_t payload[14] = {0};
+
+	put_image(payload + 1, node, v->image_type_id, v->downloaded_file_version);
+	sys_put_le32(v->file_offset, payload + 9);
+	payload[13] = CONFIG_ZZB_ZCL_OTA_BLOCK_SIZE;
+	v->tries++;
+	request(node, ep, ZZB_ZCL_OTA_IMAGE_BLOCK, payload, sizeof(payload));
+	arm(node, v, TIMEOUT);
+}
+
+/* Upgrade End Request (ZCL 11.13.9) with status */
+static void end_req(struct zzb_node *node, const struct zzb_endpoint *ep, uint8_t status)
+{
+	struct zzb_zcl_ota *v = values_of(ep);
+	uint8_t payload[9] = {status};
+
+	put_image(payload + 1, node, v->image_type_id, v->downloaded_file_version);
+	request(node, ep, ZZB_ZCL_OTA_UPGRADE_END, payload, sizeof(payload));
+}
+
+/* ZCL 11.13.5.4: the download of the file version of size octets starts at offset 0 */
+static void start_download(struct zzb_node *node, const struct zzb_endpoint *ep, uint32_t version,
+			   uint32_t size)
+{
+	struct zzb_zcl_ota *v = values_of(ep);
+
+	/* The firmware has one upload slot */
+	if (dl.owner != NULL) {
+		return;
+	}
+
+	dl.owner = node;
+	dl.size = size;
+	set(node, ep, ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_OTA_DOWNLOADING);
+	set(node, ep, ZZB_ZCL_OTA_IMAGE_TYPE_ID, v->image_type);
+	set(node, ep, ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION, version);
+	set(node, ep, ZZB_ZCL_OTA_FILE_OFFSET, 0);
+	block_req(node, ep);
+}
+
+/* After the last block the client sends Upgrade End Request, and the download is complete */
+static void complete(struct zzb_node *node, const struct zzb_endpoint *ep)
+{
+	struct zzb_zcl_ota *v = values_of(ep);
+
+	end_req(node, ep, ZZB_ZCL_SUCCESS);
+	set(node, ep, ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
+	v->tries = 0;
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_OTA, false);
+	k_work_cancel_delayable(&node->zcl.ota_timer);
+}
+
+/* Ends a download without a frame; the next query follows one interval later */
+static void end(struct zzb_node *node, const struct zzb_endpoint *ep)
+{
+	struct zzb_zcl_ota *v = values_of(ep);
+
+	release(node);
+	v->tries = 0;
+	set(node, ep, ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_OTA_NORMAL);
+	set(node, ep, ZZB_ZCL_OTA_FILE_OFFSET, 0xffffffff);
+	set(node, ep, ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION, 0xffffffff);
+	set(node, ep, ZZB_ZCL_OTA_IMAGE_TYPE_ID, 0xffff);
+	arm(node, v, INTERVAL);
 }
 
 /* Armed only on a node with an OTA client */
@@ -138,8 +249,21 @@ static void tick(struct k_work *work)
 {
 	struct zzb_node *node =
 		CONTAINER_OF(k_work_delayable_from_work(work), struct zzb_node, zcl.ota_timer);
+	const struct zzb_endpoint *ep = first(node);
+	struct zzb_zcl_ota *v = values_of(ep);
 
-	query(node, first(node));
+	if (v->image_upgrade_status == ZZB_ZCL_OTA_NORMAL) {
+		query(node, ep);
+		return;
+	}
+
+	/* A block request without a response, or the end of WAIT_FOR_DATA */
+	if (v->tries > REPEATS) {
+		end(node, ep);
+		return;
+	}
+
+	block_req(node, ep);
 }
 
 /* value is own or the wildcard of a manufacturer code or image type (ZCL 11.4.2.5, 11.4.2.6) */
@@ -193,6 +317,7 @@ static int image_notify(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, st
 static int query_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_ota *v)
 {
 	const uint8_t *p = cmd->payload;
+	uint32_t version;
 
 	if (cmd->tsn != v->tsn) {
 		return ZZB_ZCL_SUCCESS;
@@ -212,7 +337,85 @@ static int query_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struc
 		return ZZB_ZCL_MALFORMED_COMMAND;
 	}
 
+	version = sys_get_le32(p + 5);
+	if (version != v->current_file_version && version != v->downloaded_file_version) {
+		start_download(node, zzb_node_endpoint(node, cmd->ep), version,
+			       sys_get_le32(p + 9));
+	}
+
 	return ZZB_ZCL_SUCCESS;
+}
+
+/*
+ * The time from CurrentTime at p to the time at p + 4 in milliseconds, negative when it is earlier;
+ * with CurrentTime 0 the second time is an offset (ZCL 11.13.8.2.8, 11.13.9.6)
+ */
+static int64_t wait_ms(const uint8_t *p)
+{
+	return ((int64_t)sys_get_le32(p + 4) - sys_get_le32(p)) * MSEC_PER_SEC;
+}
+
+/* ZCL 11.13.8.5.1: a block with the fields of the request; the next request follows at once */
+static int block(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_ota *v)
+{
+	const struct zzb_endpoint *ep = zzb_node_endpoint(node, cmd->ep);
+	const uint8_t *p = cmd->payload;
+
+	if (cmd->len < 14 || sys_get_le16(p + 1) != node->device->manufacturer_code ||
+	    sys_get_le16(p + 3) != v->image_type_id ||
+	    sys_get_le32(p + 5) != v->downloaded_file_version ||
+	    sys_get_le32(p + 9) != v->file_offset ||
+	    !IN_RANGE(p[13], 1, CONFIG_ZZB_ZCL_OTA_BLOCK_SIZE) || cmd->len != 14 + p[13] ||
+	    p[13] > dl.size - v->file_offset) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	set(node, ep, ZZB_ZCL_OTA_FILE_OFFSET, v->file_offset + p[13]);
+	v->tries = 0;
+	if (v->file_offset < dl.size) {
+		block_req(node, ep);
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	complete(node, ep);
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 11.13.8.4: WAIT_FOR_DATA sends the same request after RequestTime */
+static int wait_for_data(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			 struct zzb_zcl_ota *v)
+{
+	if (cmd->len < 9 || wait_ms(cmd->payload + 1) < 0) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	v->tries = 0;
+	arm(node, v, K_MSEC(wait_ms(cmd->payload + 1)));
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 11.13.8; other statuses are ignored */
+static int block_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_ota *v)
+{
+	if (v->image_upgrade_status != ZZB_ZCL_OTA_DOWNLOADING || cmd->tsn != v->tsn) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	if (cmd->len < 1) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	switch (cmd->payload[0]) {
+	case ZZB_ZCL_SUCCESS:
+		return block(node, cmd, v);
+	case ZZB_ZCL_WAIT_FOR_DATA:
+		return wait_for_data(node, cmd, v);
+	case ZZB_ZCL_ABORT:
+		end(node, zzb_node_endpoint(node, cmd->ep));
+		return ZZB_ZCL_SUCCESS;
+	default:
+		return ZZB_ZCL_SUCCESS;
+	}
 }
 
 /* Only the client on the first endpoint processes commands, and only those of the trust center */
@@ -231,6 +434,8 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 		return image_notify(node, cmd, values);
 	case ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP:
 		return query_rsp(node, cmd, values);
+	case ZZB_ZCL_OTA_IMAGE_BLOCK_RSP:
+		return block_rsp(node, cmd, values);
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}
@@ -240,7 +445,7 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 static void start(struct zzb_node *node, uint8_t ep, void *values)
 {
 	if (first(node)->id == ep) {
-		arm(node, INTERVAL);
+		arm(node, values, INTERVAL);
 	}
 }
 
@@ -251,7 +456,7 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 
 	if (first(node)->id == ep) {
 		v->server_ep = SERVER_EP;
-		arm(node, INTERVAL);
+		arm(node, v, INTERVAL);
 	}
 }
 
@@ -268,4 +473,6 @@ const struct zzb_zcl_cluster_def zzb_zcl_ota_client_def = {
 void zzb_zcl_ota_init(struct zzb_node *node)
 {
 	k_work_init_delayable(&node->zcl.ota_timer, tick);
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_OTA, false);
+	release(node);
 }

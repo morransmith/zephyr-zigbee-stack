@@ -355,6 +355,9 @@ struct zcl_cb_calls {
 
 extern struct zcl_cb_calls zcl_cb_calls;
 
+/* zcl_cb of the test nodes, which records its calls in zcl_cb_calls */
+void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr);
+
 /* Calls of zcl_effect_cb, with the arguments of the last one */
 struct effect_calls {
 	int count;
