@@ -216,4 +216,28 @@ ZTEST(zzb_sleepy_integration, test_frame_pending_fetches_the_next_frame)
 	zassert_equal(parent_log.zcl[1], second[1]);
 }
 
+/* Only deadline timers are armed, and the receiver is off (section 20 of doc/architecture.md) */
+ZTEST(zzb_sleepy_integration, test_idle_node_arms_only_deadline_timers)
+{
+	steer();
+	k_sleep(K_SECONDS(4));
+
+	zassert_true(k_work_delayable_is_pending(&child->nwk.poll_timer));
+	zassert_true(k_work_delayable_is_pending(&child->nwk.keepalive));
+
+	zassert_false(k_work_delayable_is_pending(&child->mac.timer));
+	zassert_false(k_work_delayable_is_pending(&child->nwk.timer));
+	zassert_false(k_work_delayable_is_pending(&child->aps.timer));
+	zassert_false(k_work_delayable_is_pending(&child->zdo.channel_timer));
+	zassert_false(k_work_delayable_is_pending(&child->zdo.client_timer));
+	zassert_false(k_work_delayable_is_pending(&child->bdb.timer));
+	zassert_false(k_work_delayable_is_pending(&child->bdb.fb.timer));
+	zassert_false(k_work_delayable_is_pending(&child->zcl.identify_timer));
+	zassert_false(k_work_delayable_is_pending(&child->zcl.report_timer));
+	zassert_false(k_work_delayable_is_pending(&child->zcl.ias_zone_timer));
+	zassert_false(k_work_delayable_is_pending(&child->zcl.time_timer));
+	zassert_equal(child->nwk.poll_holds, 0);
+	zassert_false(fake_radio_rx_on(1));
+}
+
 ZTEST_SUITE(zzb_sleepy_integration, NULL, setup, before, after, NULL);
