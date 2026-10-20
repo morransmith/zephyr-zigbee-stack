@@ -309,7 +309,7 @@ static uint8_t file_header(const struct zzb_node *node, const struct zzb_zcl_ota
 
 /*
  * ZCL 11.4.3: a sub-element whose data start at offset ends within the file, and the one Upgrade
- * Image fits the upload slot
+ * Image has data and fits the upload slot
  */
 static uint8_t element(uint32_t offset)
 {
@@ -320,7 +320,7 @@ static uint8_t element(uint32_t offset)
 		return ZZB_ZCL_INVALID_IMAGE;
 	}
 
-	if (tag == UPGRADE_IMAGE && (dl.image || len > dl.flash.flash_area->fa_size)) {
+	if (tag == UPGRADE_IMAGE && (dl.image || len == 0 || len > dl.flash.flash_area->fa_size)) {
 		return ZZB_ZCL_INVALID_IMAGE;
 	}
 

@@ -971,6 +971,20 @@ ZTEST(zzb_zcl_ota, test_invalid_image)
 }
 
 /*
+ * Section 16: an Upgrade Image without data gives INVALID_IMAGE, also while the upload slot holds
+ * the image of an earlier download
+ */
+ZTEST(zzb_zcl_ota, test_empty_upgrade_image)
+{
+	download();
+	reset_ota();
+	start_file(HEADER_LEN);
+	add_element(0x0000, 0, file, 0);
+	finish_file();
+	check_invalid(file_len);
+}
+
+/*
  * Section 16: Upgrade End Response with UpgradeTime 0, as zigpy sends it, requests the test upgrade
  * of MCUboot at once and calls ota_cb. The client stays in Count down, ignores the responses and
  * sends nothing more.
