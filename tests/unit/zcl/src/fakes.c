@@ -471,6 +471,12 @@ static const struct zzb_zcl_cluster ep71_clusters[] = {
 	ZZB_ZCL_HUMIDITY_CLIENT(),    ZZB_ZCL_FAN_CLIENT(),      ZZB_ZCL_PUMP_CLIENT(),
 };
 
+struct zzb_zcl_ias_wd wd85;
+
+static const struct zzb_zcl_cluster ep85_clusters[] = {
+	ZZB_ZCL_IAS_WD_SERVER(&wd85),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -583,6 +589,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0304,
 		.clusters = ep71_clusters,
 		.cluster_count = ARRAY_SIZE(ep71_clusters),
+	},
+	{
+		.id = WD_EP,
+		.profile = 0x0104,
+		.device_id = 0x0403,
+		.clusters = ep85_clusters,
+		.cluster_count = ARRAY_SIZE(ep85_clusters),
 	},
 };
 

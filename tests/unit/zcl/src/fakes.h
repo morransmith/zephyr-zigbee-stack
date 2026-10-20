@@ -15,6 +15,7 @@
 #include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
+#include <zzb/zcl/ias_wd.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
@@ -215,6 +216,11 @@ extern struct zzb_zcl_flow flow70;
 extern struct zzb_zcl_humidity humidity70;
 extern struct zzb_zcl_fan fan70;
 extern struct zzb_zcl_pump pump70;
+
+/* Endpoint 85 is a Warning Device with an IAS WD server */
+#define WD_EP 85
+
+extern struct zzb_zcl_ias_wd wd85;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
