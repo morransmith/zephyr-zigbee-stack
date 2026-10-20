@@ -123,6 +123,22 @@ static bool timer_armed(void)
 	return k_work_delayable_is_pending(&test_node()->zcl.ias_zone_timer);
 }
 
+/* Writes CurrentZoneSensitivityLevel of endpoint 80 and returns the status of the response */
+static uint8_t write_level(uint8_t level)
+{
+	const uint8_t req[] = {0x00, ++tsn, 0x02, 0x13, 0x00, 0x20, level};
+	int i = zzb_apsde_data_req_fake.call_count;
+
+	receive_ep(ZONE_EP, ZZB_ZCL_IAS_ZONE, req, sizeof(req));
+	zassert_mem_equal(sent[i].data, ((uint8_t[]){0x18, tsn, 0x04}), 3);
+	return sent[i].data[3];
+}
+
+static uint8_t test_mode(uint8_t duration, uint8_t level)
+{
+	return command(ZZB_ZCL_IAS_ZONE_INITIATE_TEST_MODE, (uint8_t[]){duration, level}, 2);
+}
+
 /*
  * ZCL 8.2.2.1.3: the write of IAS_CIE_Address starts auto-enroll-request to the source endpoint of
  * the write, and Zone Enroll Response with Success enrolls the zone
@@ -283,6 +299,104 @@ ZTEST(zzb_zcl_ias_zone, test_notification_retry)
 	/* 7 s in quarter seconds */
 	check_zone_cmd(3, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
 		       (uint8_t[]){0x03, 0x00, 0x00, 0x05, 0x1c, 0x00}, 6);
+	zassert_false(timer_armed());
+}
+
+/*
+ * ZCL 8.2.2.1.2: NumberOfZoneSensitivityLevelsSupported reads as 2 while the application leaves it
+ * 0 and limits CurrentZoneSensitivityLevel, which is saved
+ */
+ZTEST(zzb_zcl_ias_zone, test_sensitivity_level)
+{
+	static const uint16_t level[] = {ZZB_ZCL_IAS_ZONE_CURRENT_SENSITIVITY_LEVEL};
+
+	zassert_equal(zone80.number_of_zone_sensitivity_levels_supported, 2);
+	zassert_equal(write_level(3), ZZB_ZCL_INVALID_VALUE);
+	zassert_equal(write_level(2), ZZB_ZCL_SUCCESS);
+	zassert_ok(reboot());
+	zassert_equal(zone80.current_zone_sensitivity_level, 2);
+
+	reset_fakes();
+	reset_node();
+	zassert_equal(zone80.current_zone_sensitivity_level, 0);
+	check_zcl_cb(ZONE_EP, ZZB_ZCL_IAS_ZONE, level, ARRAY_SIZE(level));
+}
+
+/*
+ * ZCL 8.2.2.2.2: Initiate Test Mode sets the sensitivity level and bit 8 of ZoneStatus until the
+ * end of its duration; the stack keeps bit 8 in a value of the application
+ */
+ZTEST(zzb_zcl_ias_zone, test_test_mode)
+{
+	static const uint16_t started[] = {ZZB_ZCL_IAS_ZONE_CURRENT_SENSITIVITY_LEVEL,
+					   ZZB_ZCL_IAS_ZONE_STATUS};
+	static const uint16_t ended[] = {ZZB_ZCL_IAS_ZONE_STATUS};
+
+	enroll();
+	zassert_equal(test_mode(3, 1), ZZB_ZCL_SUCCESS);
+	zassert_equal(zone80.current_zone_sensitivity_level, 1);
+	zassert_equal(zone80.zone_status, ZZB_ZCL_IAS_ZONE_STATUS_TEST);
+	check_zcl_cb(ZONE_EP, ZZB_ZCL_IAS_ZONE, started, ARRAY_SIZE(started));
+	check_zone_cmd(0, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
+		       (uint8_t[]){0x00, 0x01, 0x00, 0x05, 0x00, 0x00}, 6);
+
+	set_status(ZZB_ZCL_IAS_ZONE_STATUS_ALARM1);
+	check_zone_cmd(2, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
+		       (uint8_t[]){0x01, 0x01, 0x00, 0x05, 0x00, 0x00}, 6);
+
+	reset_fakes();
+	k_sleep(K_MSEC(2900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zone80.zone_status, ZZB_ZCL_IAS_ZONE_STATUS_ALARM1);
+	check_zcl_cb(ZONE_EP, ZZB_ZCL_IAS_ZONE, ended, ARRAY_SIZE(ended));
+	check_zone_cmd(0, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
+		       (uint8_t[]){0x01, 0x00, 0x00, 0x05, 0x00, 0x00}, 6);
+	zassert_false(timer_armed());
+}
+
+/*
+ * Initiate Normal Operation Mode ends the test mode, and so does a duration of 0 at once. A level
+ * above NumberOfZoneSensitivityLevelsSupported is refused.
+ */
+ZTEST(zzb_zcl_ias_zone, test_normal_mode)
+{
+	static const uint16_t zero[] = {ZZB_ZCL_IAS_ZONE_CURRENT_SENSITIVITY_LEVEL,
+					ZZB_ZCL_IAS_ZONE_STATUS, ZZB_ZCL_IAS_ZONE_STATUS};
+
+	enroll();
+	zassert_equal(test_mode(60, 0), ZZB_ZCL_SUCCESS);
+	zassert_equal(command(ZZB_ZCL_IAS_ZONE_INITIATE_NORMAL_MODE, NULL, 0), ZZB_ZCL_SUCCESS);
+	zassert_equal(zone80.zone_status, 0);
+	check_zone_cmd(2, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
+		       (uint8_t[]){0x00, 0x00, 0x00, 0x05, 0x00, 0x00}, 6);
+	zassert_false(timer_armed());
+
+	reset_fakes();
+	zassert_equal(test_mode(0, 2), ZZB_ZCL_SUCCESS);
+	zassert_equal(zone80.zone_status, 0);
+	check_zcl_cb(ZONE_EP, ZZB_ZCL_IAS_ZONE, zero, ARRAY_SIZE(zero));
+	check_zone_cmd(0, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
+		       (uint8_t[]){0x00, 0x01, 0x00, 0x05, 0x00, 0x00}, 6);
+	check_zone_cmd(1, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
+		       (uint8_t[]){0x00, 0x00, 0x00, 0x05, 0x00, 0x00}, 6);
+	zassert_false(timer_armed());
+
+	zassert_equal(test_mode(10, 3), ZZB_ZCL_INVALID_FIELD);
+	zassert_equal(zone80.current_zone_sensitivity_level, 2);
+	set_status(ZZB_ZCL_IAS_ZONE_STATUS_TEST);
+	zassert_equal(zone80.zone_status, 0);
+}
+
+/* The reset of the node ends the test mode */
+ZTEST(zzb_zcl_ias_zone, test_reset_test_mode)
+{
+	enroll();
+	zassert_equal(test_mode(60, 1), ZZB_ZCL_SUCCESS);
+	zassert_true(timer_armed());
+	reset_node();
+	zassert_equal(zone80.zone_status, 0);
+	zassert_equal(zone80.current_zone_sensitivity_level, 0);
 	zassert_false(timer_armed());
 }
 

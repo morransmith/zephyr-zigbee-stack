@@ -25,6 +25,9 @@
 /* Enroll response code Success (ZCL Table 8-10) */
 #define ENROLL_SUCCESS 0x00
 
+/* The default of NumberOfZoneSensitivityLevelsSupported (ZCL Table 8-8) */
+#define SENSITIVITY_LEVELS 2
+
 /* A notification refused off a network or during a rejoin is sent again after this */
 #define RETRY_MS 5000
 
@@ -48,6 +51,11 @@ static const struct zzb_zcl_attr attrs[] = {
 		     struct zzb_zcl_ias_zone, ias_cie_address),
 	ZZB_ZCL_ATTR(ZZB_ZCL_IAS_ZONE_ID, ZZB_ZCL_UINT8, ZZB_ZCL_NV, struct zzb_zcl_ias_zone,
 		     zone_id),
+	ZZB_ZCL_ATTR(ZZB_ZCL_IAS_ZONE_NUMBER_OF_SENSITIVITY_LEVELS_SUPPORTED, ZZB_ZCL_UINT8, 0,
+		     struct zzb_zcl_ias_zone, number_of_zone_sensitivity_levels_supported),
+	ZZB_ZCL_ATTR(ZZB_ZCL_IAS_ZONE_CURRENT_SENSITIVITY_LEVEL, ZZB_ZCL_UINT8,
+		     ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct zzb_zcl_ias_zone,
+		     current_zone_sensitivity_level),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
 };
 
@@ -142,7 +150,13 @@ static struct zzb_zcl_ias_zone *server(const struct zzb_endpoint *ep)
 	return cl != NULL ? cl->values : NULL;
 }
 
-/* Arms the timer for the earliest retry of the node, or stops it */
+/* The time t of a timer event, or INT64_MAX for 0, which stands for none */
+static int64_t due(int64_t t)
+{
+	return t != 0 ? t : INT64_MAX;
+}
+
+/* Arms the timer for the earliest retry or end of the test mode of the node, or stops it */
 static void schedule(struct zzb_node *node)
 {
 	int64_t next = INT64_MAX;
@@ -150,8 +164,8 @@ static void schedule(struct zzb_node *node)
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_zcl_ias_zone *v = server(&node->device->endpoints[i]);
 
-		if (v != NULL && v->retry != 0) {
-			next = MIN(next, v->retry);
+		if (v != NULL) {
+			next = MIN(next, MIN(due(v->retry), due(v->test_end)));
 		}
 	}
 
@@ -164,6 +178,13 @@ static void schedule(struct zzb_node *node)
 				    K_MSEC(MAX(next - k_uptime_get(), 0)));
 }
 
+/* Ends the test mode; the change of bit 8 of ZoneStatus is sent (ZCL 8.2.2.2.2.2) */
+static void end_test(struct zzb_node *node, uint8_t ep, struct zzb_zcl_ias_zone *v)
+{
+	v->test_end = 0;
+	set(node, ep, ZZB_ZCL_IAS_ZONE_STATUS, v->zone_status & ~ZZB_ZCL_IAS_ZONE_STATUS_TEST);
+}
+
 static void tick(struct k_work *work)
 {
 	struct zzb_node *node =
@@ -174,7 +195,11 @@ static void tick(struct k_work *work)
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];
 		struct zzb_zcl_ias_zone *v = server(ep);
 
-		if (v != NULL && v->retry != 0 && v->retry <= now) {
+		if (v != NULL && due(v->test_end) <= now) {
+			end_test(node, ep->id, v);
+		}
+
+		if (v != NULL && due(v->retry) <= now) {
 			notify(node, ep->id, v);
 		}
 	}
@@ -203,6 +228,18 @@ static void cie_changed(struct zzb_node *node, uint8_t ep, struct zzb_zcl_ias_zo
 	}
 }
 
+/* The stack keeps bit 8 (Test), also in a value of the application, and sends the change */
+static void status_changed(struct zzb_node *node, uint8_t ep, struct zzb_zcl_ias_zone *v)
+{
+	v->zone_status &= ~ZZB_ZCL_IAS_ZONE_STATUS_TEST;
+	if (v->test_end != 0) {
+		v->zone_status |= ZZB_ZCL_IAS_ZONE_STATUS_TEST;
+	}
+
+	notify(node, ep, v);
+	schedule(node);
+}
+
 static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
 {
 	switch (attr) {
@@ -210,8 +247,7 @@ static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t at
 		cie_changed(node, ep, values);
 		break;
 	case ZZB_ZCL_IAS_ZONE_STATUS:
-		notify(node, ep, values);
-		schedule(node);
+		status_changed(node, ep, values);
 		break;
 	}
 }
@@ -227,6 +263,37 @@ static int enroll_response(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	return ZZB_ZCL_SUCCESS;
 }
 
+/* ZCL 8.2.2.2.2.2 */
+static int initiate_normal_mode(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+				struct zzb_zcl_ias_zone *v)
+{
+	end_test(node, cmd->ep, v);
+	return ZZB_ZCL_SUCCESS;
+}
+
+/* ZCL 8.2.2.2.2.4: the duration in seconds and the sensitivity level */
+static int initiate_test_mode(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			      struct zzb_zcl_ias_zone *v)
+{
+	uint8_t duration = cmd->payload[0];
+	uint8_t level = cmd->payload[1];
+
+	if (level > v->number_of_zone_sensitivity_levels_supported) {
+		return ZZB_ZCL_INVALID_FIELD;
+	}
+
+	set(node, cmd->ep, ZZB_ZCL_IAS_ZONE_CURRENT_SENSITIVITY_LEVEL, level);
+	v->test_end = k_uptime_get() + duration * MSEC_PER_SEC;
+	set(node, cmd->ep, ZZB_ZCL_IAS_ZONE_STATUS, v->zone_status | ZZB_ZCL_IAS_ZONE_STATUS_TEST);
+	if (duration == 0) {
+		end_test(node, cmd->ep, v);
+	}
+
+	/* A new duration of a running test mode */
+	schedule(node);
+	return ZZB_ZCL_SUCCESS;
+}
+
 /* The commands with the length of their fields */
 static const struct {
 	uint8_t id;
@@ -234,6 +301,8 @@ static const struct {
 	int (*fn)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_ias_zone *v);
 } commands[] = {
 	{ZZB_ZCL_IAS_ZONE_ENROLL_RSP, 2, enroll_response},
+	{ZZB_ZCL_IAS_ZONE_INITIATE_NORMAL_MODE, 0, initiate_normal_mode},
+	{ZZB_ZCL_IAS_ZONE_INITIATE_TEST_MODE, 2, initiate_test_mode},
 };
 
 /* ZCL 8.2.2.1.3: the source is the network address of IAS_CIE_Address */
@@ -267,16 +336,39 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	return ZZB_ZCL_UNSUP_COMMAND;
 }
 
-/* The defaults of ZCL 8.2.2.1; the fields of the application keep their values */
+/* ZCL 8.2.2.1.2.4: level 0 is the default of the device and may equal another level */
+static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32_t value)
+{
+	const struct zzb_zcl_ias_zone *v = values;
+
+	if (attr->id == ZZB_ZCL_IAS_ZONE_CURRENT_SENSITIVITY_LEVEL &&
+	    value > v->number_of_zone_sensitivity_levels_supported) {
+		return ZZB_ZCL_INVALID_VALUE;
+	}
+
+	return ZZB_ZCL_SUCCESS;
+}
+
+/*
+ * The defaults of ZCL 8.2.2.1 outside the test mode; the fields of the application keep their
+ * values
+ */
 static void init(void *values)
 {
 	struct zzb_zcl_ias_zone *v = values;
 
 	v->zone_state = NOT_ENROLLED;
+	v->zone_status &= ~ZZB_ZCL_IAS_ZONE_STATUS_TEST;
 	v->ias_cie_address = 0;
 	v->zone_id = NO_ZONE;
+	if (v->number_of_zone_sensitivity_levels_supported == 0) {
+		v->number_of_zone_sensitivity_levels_supported = SENSITIVITY_LEVELS;
+	}
+
+	v->current_zone_sensitivity_level = 0;
 	v->cie_ep = 0;
 	v->retry = 0;
+	v->test_end = 0;
 }
 
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
@@ -287,9 +379,12 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 	set(node, ep, ZZB_ZCL_IAS_ZONE_STATE, NOT_ENROLLED);
 	set(node, ep, ZZB_ZCL_IAS_ZONE_ID, NO_ZONE);
 	set(node, ep, ZZB_ZCL_IAS_ZONE_CIE_ADDRESS, 0);
+	set(node, ep, ZZB_ZCL_IAS_ZONE_CURRENT_SENSITIVITY_LEVEL, 0);
+	end_test(node, ep, v);
 	v->cie_ep = 0;
 	/* Not to the next CIE */
 	v->retry = 0;
+	schedule(node);
 	record_name(name, ep);
 	zzb_settings_delete(node, name);
 }
@@ -300,6 +395,7 @@ const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_def = {
 	.init = init,
 	.reset = reset,
 	.cmd = cmd,
+	.check = check,
 	.changed = changed,
 };
 
