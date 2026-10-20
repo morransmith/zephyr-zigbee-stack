@@ -8,6 +8,7 @@ project(zzb_unit_zcl)
 target_include_directories(app PRIVATE ${ZEPHYR_ZZB_MODULE_DIR}/subsys/zzb)
 target_sources(app PRIVATE
   src/alarms.c
+  src/appliances.c
   src/attr.c
   src/ballast.c
   src/basic.c

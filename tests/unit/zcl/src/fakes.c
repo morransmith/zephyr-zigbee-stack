@@ -532,13 +532,16 @@ static const struct zzb_zcl_cluster ep91_clusters[] = {
 };
 
 struct zzb_zcl_power_profile power_profile140 = {.total_profile_num = 1, .energy_formatting = 0x01};
+struct zzb_zcl_appliance_control appliance_control140;
 
 static const struct zzb_zcl_cluster ep140_clusters[] = {
 	ZZB_ZCL_POWER_PROFILE_SERVER(&power_profile140),
+	ZZB_ZCL_APPLIANCE_CONTROL_SERVER(&appliance_control140),
 };
 
 static const struct zzb_zcl_cluster ep141_clusters[] = {
 	ZZB_ZCL_POWER_PROFILE_CLIENT(),
+	ZZB_ZCL_APPLIANCE_CONTROL_CLIENT(),
 };
 
 static const struct zzb_endpoint endpoints[] = {

@@ -66,6 +66,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_BDB
 zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/attr.c
   zcl/clusters/alarms.c
+  zcl/clusters/appliance_control.c
   zcl/clusters/ballast.c
   zcl/clusters/basic.c
   zcl/clusters/color.c
