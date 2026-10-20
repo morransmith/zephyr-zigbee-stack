@@ -128,10 +128,10 @@ config ZZB_ZCL
 config ZZB_ZCL_REPORT_COUNT
 	int "Reporting table entries"
 	range 1 255
-	default 8
+	default 16
 	help
 	  Attributes whose reports Configure Reporting has set up, on all
-	  endpoints of a node.
+	  endpoints of a node. ZHA configures 11 reports on a Thermostat.
 
 config ZZB_ZCL_ALARM_COUNT
 	int "Alarm table entries"
