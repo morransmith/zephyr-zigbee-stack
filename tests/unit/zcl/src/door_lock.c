@@ -10,13 +10,15 @@
 #include "common/node.h"
 #include "fakes.h"
 
-/* The values that the application set on endpoint 100 */
+/* The values that the application set on endpoints 100 and 101 */
 static struct zzb_zcl_door_lock factory;
+static struct zzb_zcl_door_lock factory101;
 
 static void *setup(void)
 {
 	test_node();
 	factory = lock100;
+	factory101 = lock101;
 	return NULL;
 }
 
@@ -25,6 +27,7 @@ static void before(void *fixture)
 {
 	reset_node();
 	lock100 = factory;
+	lock101 = factory101;
 	reset_fakes();
 }
 
@@ -651,6 +654,123 @@ ZTEST(zzb_zcl_door_lock, test_lockout_reset)
 	zassert_ok(reboot());
 	zassert_false(timer_armed());
 	operate(ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, NULL, 0, ZZB_ZCL_SUCCESS);
+}
+
+/* The application sets LockState of the Door Lock server on ep */
+static void set_lock_state(uint8_t ep, uint8_t state)
+{
+	zassert_ok(zzb_zcl_attr_set(test_node(), ep, ZZB_ZCL_DOOR_LOCK,
+				    ZZB_ZCL_DOOR_LOCK_LOCK_STATE, &state));
+}
+
+/* Checks that call i of zcl_cmd_cb is the Lock Door that the stack passes at a deadline on ep */
+static void check_relock(int i, uint8_t ep)
+{
+	const struct zzb_zcl_cmd *cmd = &zcl_cmd_calls.cmd[i];
+
+	zassert_true(zcl_cmd_calls.count > i);
+	zassert_equal(cmd->ep, ep);
+	zassert_equal(cmd->cluster, ZZB_ZCL_DOOR_LOCK);
+	zassert_equal(cmd->id, ZZB_ZCL_DOOR_LOCK_LOCK_DOOR);
+	zassert_equal(cmd->len, 0);
+	zassert_false(cmd->unicast);
+	zassert_true(cmd->server);
+	zassert_equal(cmd->src_addr, 0);
+	zassert_equal(cmd->src_ep, 0);
+	zassert_equal(cmd->tsn, 0);
+}
+
+/*
+ * ZCL 7.3.2.15.4: Unlock with Timeout that zcl_cmd_cb accepts passes Lock Door to zcl_cmd_cb after
+ * its timeout, and the status of zcl_cmd_cb is ignored. A timeout of 0 and a refused command set no
+ * deadline.
+ */
+ZTEST(zzb_zcl_door_lock, test_unlock_with_timeout)
+{
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, (uint8_t[]){0x00, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	zcl_cmd_status = ZZB_ZCL_FAILURE;
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, (uint8_t[]){0x02, 0x00}, 2, ZZB_ZCL_FAILURE);
+	zassert_false(timer_armed());
+
+	zcl_cmd_status = ZZB_ZCL_SUCCESS;
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, (uint8_t[]){0x02, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	zassert_true(timer_armed());
+	k_sleep(K_MSEC(1900));
+	zassert_equal(zcl_cmd_calls.count, 3);
+
+	zcl_cmd_status = ZZB_ZCL_FAILURE;
+	k_sleep(K_MSEC(200));
+	zassert_equal(zcl_cmd_calls.count, 4);
+	check_relock(3, DOOR_LOCK_EP);
+	zassert_false(timer_armed());
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+}
+
+/*
+ * ZCL 7.3.2.12.6: LockState Unlocked sets the deadline after AutoRelockTime, unless it is 0 or a
+ * deadline is set, and Locked removes the deadline. The timeout of Unlock with Timeout overrides
+ * AutoRelockTime.
+ */
+ZTEST(zzb_zcl_door_lock, test_auto_relock)
+{
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_UNLOCKED);
+	zassert_false(timer_armed());
+
+	lock100.auto_relock_time = 3;
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_LOCKED);
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_UNLOCKED);
+	zassert_true(timer_armed());
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_LOCKED);
+	zassert_false(timer_armed());
+
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_UNLOCKED);
+	k_sleep(K_SECONDS(2));
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_NOT_FULLY_LOCKED);
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_UNLOCKED);
+	k_sleep(K_MSEC(900));
+	zassert_equal(zcl_cmd_calls.count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zcl_cmd_calls.count, 1);
+	check_relock(0, DOOR_LOCK_EP);
+
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_LOCKED);
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, (uint8_t[]){0x01, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_UNLOCKED);
+	k_sleep(K_MSEC(1100));
+	zassert_equal(zcl_cmd_calls.count, 3);
+	check_relock(2, DOOR_LOCK_EP);
+	zassert_false(timer_armed());
+}
+
+/* One timer of the node serves the deadlines of every endpoint */
+ZTEST(zzb_zcl_door_lock, test_relock_endpoints)
+{
+	lock100.auto_relock_time = 3;
+	lock101.auto_relock_time = 1;
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_UNLOCKED);
+	set_lock_state(101, ZZB_ZCL_DOOR_LOCK_UNLOCKED);
+	k_sleep(K_MSEC(1100));
+	zassert_equal(zcl_cmd_calls.count, 1);
+	check_relock(0, 101);
+
+	k_sleep(K_SECONDS(2));
+	zassert_equal(zcl_cmd_calls.count, 2);
+	check_relock(1, DOOR_LOCK_EP);
+	zassert_false(timer_armed());
+}
+
+/* The reset of the node and a reboot remove the deadline */
+ZTEST(zzb_zcl_door_lock, test_relock_reset)
+{
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, (uint8_t[]){0x01, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	reset_node();
+	zassert_false(timer_armed());
+
+	operate(ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT, (uint8_t[]){0x01, 0x00}, 2, ZZB_ZCL_SUCCESS);
+	zassert_ok(reboot());
+	zassert_false(timer_armed());
+	k_sleep(K_MSEC(1100));
+	zassert_equal(zcl_cmd_calls.count, 2);
 }
 
 ZTEST_SUITE(zzb_zcl_door_lock, NULL, setup, before, after, NULL);

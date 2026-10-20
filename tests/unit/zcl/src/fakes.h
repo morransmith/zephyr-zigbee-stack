@@ -253,12 +253,13 @@ extern struct zzb_zcl_ias_wd wd86;
 #define KEYPAD_EP 91
 
 /*
- * Endpoint 100 is a Door Lock with a Door Lock server, locked and with codes of 4 to 8 octets, and
- * an Alarms server
+ * Endpoints 100 and 101 are Door Locks with a Door Lock server, locked and with codes of 4 to 8
+ * octets; endpoint 100 also has an Alarms server
  */
 #define DOOR_LOCK_EP 100
 
 extern struct zzb_zcl_door_lock lock100;
+extern struct zzb_zcl_door_lock lock101;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {

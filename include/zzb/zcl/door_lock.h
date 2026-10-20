@@ -135,6 +135,11 @@ struct zzb_zcl_door_lock_user {
  * WrongCodeEntryLimit is above 0 and the count reaches it, the RF commands get FAILURE for
  * UserCodeTemporaryDisableTime seconds, and alarm 0x04 occurs through the Alarms server of the
  * endpoint. A right code and the end of this lockout clear the count.
+ *
+ * Unlock with Timeout that zcl_cmd_cb accepts sets a relock deadline after its timeout; a timeout
+ * of 0 acts as Unlock Door. When LockState becomes Unlocked, the stack sets the deadline after
+ * AutoRelockTime seconds unless AutoRelockTime is 0 or a deadline is set; when it becomes Locked,
+ * the deadline is removed. At the deadline zcl_cmd_cb receives Lock Door without a payload.
  */
 struct zzb_zcl_door_lock {
 	/** enum zzb_zcl_door_lock_state. */
@@ -172,6 +177,8 @@ struct zzb_zcl_door_lock {
 	uint8_t wrong_codes;
 	/** Internal: k_uptime_get() at the end of the lockout, 0 while no lockout runs. */
 	int64_t lockout_end;
+	/** Internal: k_uptime_get() at which the stack locks the door, 0 without a deadline. */
+	int64_t relock;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def;

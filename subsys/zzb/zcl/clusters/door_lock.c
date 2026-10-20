@@ -227,7 +227,7 @@ static bool due(int64_t deadline, int64_t now)
 	return deadline != 0 && deadline <= now;
 }
 
-/* Arms the timer for the earliest end of a lockout of the node, or stops it */
+/* Arms the timer for the earliest relock or end of a lockout of the node, or stops it */
 static void schedule(struct zzb_node *node)
 {
 	int64_t next = INT64_MAX;
@@ -236,7 +236,7 @@ static void schedule(struct zzb_node *node)
 		const struct zzb_zcl_door_lock *v = server(&node->device->endpoints[i]);
 
 		if (v != NULL) {
-			next = earlier(next, v->lockout_end);
+			next = earlier(earlier(next, v->lockout_end), v->relock);
 		}
 	}
 
@@ -249,6 +249,31 @@ static void schedule(struct zzb_node *node)
 				    K_MSEC(MAX(next - k_uptime_get(), 0)));
 }
 
+/* Sets the relock deadline after time seconds; 0 sets none */
+static void relock_after(struct zzb_node *node, struct zzb_zcl_door_lock *v, uint32_t time)
+{
+	if (time == 0) {
+		return;
+	}
+
+	v->relock = k_uptime_get() + time * MSEC_PER_SEC;
+	schedule(node);
+}
+
+/* Passes Lock Door without a payload to zcl_cmd_cb and ignores its status */
+static void relock(struct zzb_node *node, uint8_t ep, struct zzb_zcl_door_lock *v)
+{
+	const struct zzb_zcl_cmd cmd = {
+		.ep = ep,
+		.cluster = ZZB_ZCL_DOOR_LOCK,
+		.id = ZZB_ZCL_DOOR_LOCK_LOCK_DOOR,
+		.server = true,
+	};
+
+	v->relock = 0;
+	zzb_zcl_app_cmd(node, &cmd);
+}
+
 /* The end of a lockout clears the count of wrong codes */
 static void tick(struct k_work *work)
 {
@@ -257,11 +282,20 @@ static void tick(struct k_work *work)
 	int64_t now = k_uptime_get();
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
-		struct zzb_zcl_door_lock *v = server(&node->device->endpoints[i]);
+		const struct zzb_endpoint *ep = &node->device->endpoints[i];
+		struct zzb_zcl_door_lock *v = server(ep);
 
-		if (v != NULL && due(v->lockout_end, now)) {
+		if (v == NULL) {
+			continue;
+		}
+
+		if (due(v->lockout_end, now)) {
 			v->lockout_end = 0;
 			v->wrong_codes = 0;
+		}
+
+		if (due(v->relock, now)) {
+			relock(node, ep->id, v);
 		}
 	}
 
@@ -339,6 +373,10 @@ static int operate(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	req.cmd.payload = cmd->payload + off;
 	req.cmd.len = field;
 	status = zzb_zcl_app_cmd(node, &req.cmd);
+	if (status == ZZB_ZCL_SUCCESS && cmd->id == ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT) {
+		relock_after(node, v, sys_get_le16(cmd->payload));
+	}
+
 	if (status == ZZB_ZCL_RESPONDED) {
 		return status;
 	}
@@ -534,6 +572,23 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	}
 }
 
+/* ZCL 7.3.2.12.6: an unlock from any source starts AutoRelockTime, unless a deadline is set */
+static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
+{
+	struct zzb_zcl_door_lock *v = values;
+
+	if (attr != ZZB_ZCL_DOOR_LOCK_LOCK_STATE) {
+		return;
+	}
+
+	if (v->lock_state == ZZB_ZCL_DOOR_LOCK_LOCKED) {
+		v->relock = 0;
+		schedule(node);
+	} else if (v->lock_state == ZZB_ZCL_DOOR_LOCK_UNLOCKED && v->relock == 0) {
+		relock_after(node, v, v->auto_relock_time);
+	}
+}
+
 static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32_t value)
 {
 	if (attr->id == ZZB_ZCL_DOOR_LOCK_OPERATING_MODE &&
@@ -564,6 +619,7 @@ static void init(void *values)
 	memset(v->users, 0, sizeof(v->users));
 	v->wrong_codes = 0;
 	v->lockout_end = 0;
+	v->relock = 0;
 }
 
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value)
@@ -590,6 +646,7 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 	clear_users(node, ep, v);
 	v->wrong_codes = 0;
 	v->lockout_end = 0;
+	v->relock = 0;
 	schedule(node);
 }
 
@@ -600,6 +657,7 @@ const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def = {
 	.reset = reset,
 	.cmd = cmd,
 	.check = check,
+	.changed = changed,
 };
 
 void zzb_zcl_door_lock_init(struct zzb_node *node)
