@@ -327,7 +327,7 @@ static void relock_after(struct zzb_node *node, struct zzb_zcl_door_lock *v, uin
 		return;
 	}
 
-	v->relock = k_uptime_get() + time * MSEC_PER_SEC;
+	v->relock = k_uptime_get() + (int64_t)time * MSEC_PER_SEC;
 	schedule(node);
 }
 

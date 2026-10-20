@@ -755,6 +755,16 @@ ZTEST(zzb_zcl_door_lock, test_auto_relock)
 	zassert_false(timer_armed());
 }
 
+/* An AutoRelockTime of 4294968 s, above 2^32 ms, sets its deadline in 49.7 days */
+ZTEST(zzb_zcl_door_lock, test_auto_relock_long)
+{
+	lock100.auto_relock_time = 4294968;
+	set_lock_state(DOOR_LOCK_EP, ZZB_ZCL_DOOR_LOCK_UNLOCKED);
+	k_sleep(K_SECONDS(1));
+	zassert_equal(zcl_cmd_calls.count, 0);
+	zassert_true(timer_armed());
+}
+
 /* One timer of the node serves the deadlines of every endpoint */
 ZTEST(zzb_zcl_door_lock, test_relock_endpoints)
 {
