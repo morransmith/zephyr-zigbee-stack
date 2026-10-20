@@ -90,6 +90,8 @@ static void schedule(struct zzb_node *node)
 		}
 	}
 
+	/* A sleepy node fetches the ACK from its parent */
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_APS, next != INT64_MAX);
 	if (next == INT64_MAX) {
 		k_work_cancel_delayable(&node->aps.timer);
 		return;

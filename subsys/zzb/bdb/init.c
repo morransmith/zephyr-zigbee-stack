@@ -38,7 +38,7 @@ int zzb_bdb_initialize(struct zzb_node *node)
 /* The NWK callback that reports the cause may run inside a confirm, so the timer issues the step */
 static void start_series(struct zzb_node *node)
 {
-	node->bdb.state = ZZB_BDB_REJOIN;
+	zzb_bdb_set_state(node, ZZB_BDB_REJOIN);
 	node->bdb.step = 0;
 	zzb_bdb_schedule(node, K_NO_WAIT);
 }
@@ -63,7 +63,7 @@ static void series_failed(struct zzb_node *node)
 	struct zzb_bdb *bdb = &node->bdb;
 	bool report = !bdb->reported;
 
-	bdb->state = ZZB_BDB_REJOIN_PAUSE;
+	zzb_bdb_set_state(node, ZZB_BDB_REJOIN_PAUSE);
 	zzb_bdb_schedule(node, K_MSEC(bdb->pause_ms));
 	bdb->pause_ms = MIN(2 * bdb->pause_ms, ZZB_BDB_PAUSE_MAX_MS);
 	bdb->reported = true;
@@ -86,7 +86,7 @@ static void request(struct zzb_node *node)
 {
 	int err = zzb_nlme_join_req(node, zzb_nlme_get_ext_pan_id(node), ZZB_NWK_JOIN_REJOIN,
 				    steps[node->bdb.step].channels, steps[node->bdb.step].duration,
-				    zzb_nlme_get_capability(node), steps[node->bdb.step].secure);
+				    zzb_bdb_capability(node), steps[node->bdb.step].secure);
 
 	if (err == -EBUSY) {
 		zzb_bdb_schedule(node, K_MSEC(ZZB_BDB_RETRY_MS));
@@ -127,7 +127,7 @@ void zzb_bdb_rejoin_conf(struct zzb_node *node, uint8_t status)
 		return;
 	}
 
-	node->bdb.state = ZZB_BDB_REJOIN_KEY;
+	zzb_bdb_set_state(node, ZZB_BDB_REJOIN_KEY);
 	zzb_bdb_schedule(node, K_MSEC(ZZB_BDB_KEY_WAIT_MS));
 }
 

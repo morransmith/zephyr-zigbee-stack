@@ -2,6 +2,7 @@
 
 #include <zephyr/ztest.h>
 
+#include "common/node.h"
 #include "fakes.h"
 
 #define NODE_DESC_REQ   0x0002
@@ -59,6 +60,18 @@ ZTEST(zzb_zdo_desc, test_power_desc)
 	static const uint8_t rsp[] = {0x22, 0x00, NODE_ADDR_LE, 0x10, 0xc1};
 
 	receive(POWER_DESC_REQ, NODE_ADDR, req, sizeof(req));
+	check_response(0, POWER_DESC_REQ | 0x8000, rsp, sizeof(rsp));
+}
+
+/* R22 Table 2-35: the receiver of a sleepy end device comes on periodically */
+ZTEST(zzb_zdo_desc, test_power_desc_of_a_sleepy_node)
+{
+	static const uint8_t req[] = {0x24, NODE_ADDR_LE};
+	static const uint8_t rsp[] = {0x24, 0x00, NODE_ADDR_LE, 0x11, 0xc1};
+
+	test_node()->sleepy = true;
+	receive(POWER_DESC_REQ, NODE_ADDR, req, sizeof(req));
+	test_node()->sleepy = false;
 	check_response(0, POWER_DESC_REQ | 0x8000, rsp, sizeof(rsp));
 }
 

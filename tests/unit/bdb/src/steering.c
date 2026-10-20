@@ -6,6 +6,7 @@
 #include <zzb/bdb.h>
 
 #include "bdb/bdb.h"
+#include "common/node.h"
 #include "fakes.h"
 #include "mac/mac.h"
 #include "nwk/nwk.h"
@@ -102,6 +103,16 @@ ZTEST(zzb_bdb_steering, test_steering_joins_an_open_network)
 	check_event(1, ZZB_BDB_SUCCESS);
 }
 
+/* Section 3: the power source is set independently of the sleepy flag */
+ZTEST(zzb_bdb_steering, test_sleepy_node_joins_with_the_receiver_off)
+{
+	node->sleepy = true;
+	zassert_ok(zzb_bdb_steering(node));
+	discovered(1);
+	node->sleepy = false;
+	zassert_equal(zzb_nlme_join_req_fake.arg5_val, SLEEPY_CAPABILITY);
+}
+
 /* BDB 8.1: an end device only extends the permit joining of the routers */
 ZTEST(zzb_bdb_steering, test_steering_on_a_network)
 {
@@ -149,13 +160,18 @@ ZTEST(zzb_bdb_steering, test_no_network_on_either_channel_set)
 	check_event(1, ZZB_BDB_NO_NETWORK);
 }
 
-/* BDB 8.2 step 10: the next suitable network of the same channels */
+/*
+ * BDB 8.2 step 10: the next suitable network of the same channels. A sleepy node fetches the key by
+ * polls (BDB 6.8).
+ */
 ZTEST(zzb_bdb_steering, test_network_key_does_not_arrive)
 {
 	zassert_ok(zzb_bdb_steering(node));
 	discovered(2);
 	check_join(0, OTHER_EXT_PAN_ID);
+	zassert_false(held());
 	zzb_nlme_join_conf(node, ZZB_MAC_STATUS_SUCCESS);
+	zassert_true(held());
 
 	k_sleep(K_MSEC(1600));
 	zassert_equal(zzb_nlme_reset_req_fake.call_count, 0);
@@ -163,6 +179,7 @@ ZTEST(zzb_bdb_steering, test_network_key_does_not_arrive)
 	zassert_equal(zzb_nlme_reset_req_fake.call_count, 1);
 	zassert_equal(zzb_aps_reset_fake.call_count, 1);
 	check_discovery(1, PRIMARY);
+	zassert_false(held());
 
 	/* The network that failed is skipped */
 	discovered(2);
@@ -170,6 +187,7 @@ ZTEST(zzb_bdb_steering, test_network_key_does_not_arrive)
 	zzb_nlme_join_conf(node, ZZB_MAC_STATUS_SUCCESS);
 	receive_key();
 	check_event(1, ZZB_BDB_SUCCESS);
+	zassert_false(held());
 }
 
 /* The MAC refuses a scan while its TX FIFO holds frames */

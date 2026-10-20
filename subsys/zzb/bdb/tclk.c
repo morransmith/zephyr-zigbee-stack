@@ -62,7 +62,7 @@ static void retry(struct zzb_node *node, void (*attempt)(struct zzb_node *node))
 static void start_step(struct zzb_node *node, enum zzb_bdb_state state,
 		       void (*attempt)(struct zzb_node *node))
 {
-	node->bdb.state = state;
+	zzb_bdb_set_state(node, state);
 	node->bdb.attempts = 0;
 	attempt(node);
 }

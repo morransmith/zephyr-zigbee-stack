@@ -18,6 +18,7 @@ void zzb_aps_init(struct zzb_node *node)
 	};
 	zzb_fc_init(&node->aps.fc, node, "fc/aps");
 	zzb_aps_tx_init(node);
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_APS, false);
 }
 
 void zzb_aps_reset(struct zzb_node *node)
@@ -111,6 +112,8 @@ static void deliver(struct zzb_node *node, struct net_buf *buf, const struct zzb
 
 	net_buf_pull(buf, hdr_len);
 	zzb_apsde_data_ind(node, buf, &ind);
+	/* The sender of a request is likely to send the next one */
+	zzb_nwk_poll_fast(node);
 }
 
 void zzb_nlde_data_ind(struct zzb_node *node, struct net_buf *buf, uint16_t dst_addr,

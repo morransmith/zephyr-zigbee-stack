@@ -64,6 +64,7 @@ static int target(struct zzb_node *node, uint8_t ep)
 
 	/* Step 3; other identifying endpoints are not changed (MAY) */
 	node->bdb.fb_target_ep = ep;
+	zzb_bdb_update_hold(node);
 	return zzb_zcl_identify(node, ep, ZZB_BDB_MIN_COMMISSIONING_S);
 }
 
@@ -75,12 +76,14 @@ void zzb_bdb_identify_end(struct zzb_node *node, uint8_t ep)
 	}
 
 	node->bdb.fb_target_ep = 0;
+	zzb_bdb_update_hold(node);
 	zzb_bdb_notify(node, ZZB_BDB_EVENT_FINDING_BINDING_TARGET, ZZB_BDB_SUCCESS);
 }
 
 static void finish(struct zzb_node *node, enum zzb_bdb_status status)
 {
 	node->bdb.fb.ep = 0;
+	zzb_bdb_update_hold(node);
 	k_work_cancel_delayable(&node->bdb.fb.timer);
 	zzb_bdb_notify(node, ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR, status);
 }
@@ -324,6 +327,7 @@ static int initiator(struct zzb_node *node, uint8_t ep, uint16_t group)
 	fb->count = 0;
 	fb->next = 0;
 	fb->group_bound = false;
+	zzb_bdb_update_hold(node);
 
 	/* A query that cannot be sent gets no response */
 	zzb_zcl_send_cmd(node, ep, 0xffff, 0xff, CLUSTER_IDENTIFY, CMD_IDENTIFY_QUERY, NULL, 0);
@@ -335,6 +339,7 @@ void zzb_bdb_fb_clear(struct zzb_node *node)
 {
 	node->bdb.fb_target_ep = 0;
 	node->bdb.fb.ep = 0;
+	zzb_bdb_update_hold(node);
 	k_work_cancel_delayable(&node->bdb.fb.timer);
 }
 
