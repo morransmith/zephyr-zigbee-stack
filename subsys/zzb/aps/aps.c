@@ -18,6 +18,7 @@ void zzb_aps_init(struct zzb_node *node)
 	};
 	zzb_fc_init(&node->aps.fc, node, "fc/aps");
 	zzb_aps_tx_init(node);
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_APS, false);
 }
 
 void zzb_aps_reset(struct zzb_node *node)

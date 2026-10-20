@@ -22,6 +22,7 @@ DECLARE_FAKE_VALUE_FUNC(struct zzb_nwk_neighbor *, zzb_nwk_neighbor_find_ext, st
 			uint64_t);
 DECLARE_FAKE_VALUE_FUNC(int, zzb_nwk_addr_map_find, struct zzb_node *, uint64_t, uint16_t *);
 DECLARE_FAKE_VALUE_FUNC(uint64_t, zzb_nwk_addr_map_ext, struct zzb_node *, uint16_t);
+DECLARE_FAKE_VOID_FUNC(zzb_nwk_poll_hold, struct zzb_node *, enum zzb_nwk_hold, bool);
 DECLARE_FAKE_VOID_FUNC(zzb_apsde_data_conf, struct zzb_node *, uint8_t, uint8_t);
 DECLARE_FAKE_VOID_FUNC(zzb_apsde_data_ind, struct zzb_node *, struct net_buf *,
 		       const struct zzb_apsde_ind *);

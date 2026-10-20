@@ -546,6 +546,13 @@ static uint8_t sent_counter(int i)
 	return hdr.counter;
 }
 
+/* Whether the last call of the zzb_nwk_poll_hold() fake set the hold of APS */
+static bool held(void)
+{
+	return zzb_nwk_poll_hold_fake.arg1_val == ZZB_NWK_HOLD_APS &&
+	       zzb_nwk_poll_hold_fake.arg2_val;
+}
+
 ZTEST(zzb_aps_data, test_acknowledged_transmission)
 {
 	struct zzb_aps_hdr hdr;
@@ -582,6 +589,32 @@ ZTEST(zzb_aps_data, test_ack_before_the_confirm)
 	zassert_equal(sent[1].meta.handle, sent[0].meta.handle);
 }
 
+/* A sleepy node fetches the ACK from its parent at the short poll interval (section 5) */
+ZTEST(zzb_aps_data, test_ack_wait_holds_the_poll_rate)
+{
+	struct net_buf *frame;
+
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &on_off_req));
+	zzb_nlde_data_conf(node, sent[0].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	zassert_false(held(), "unacknowledged frame");
+
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &acked_req));
+	zassert_false(held());
+	zzb_nlde_data_conf(node, sent[1].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	zassert_true(held());
+	receive_ack(sent_counter(1));
+	zassert_false(held());
+
+	/* The init of APS clears the table without a confirm */
+	zassert_ok(zzb_apsde_data_req(node, asdu_buf(), &acked_req));
+	zzb_nlde_data_conf(node, sent[2].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+	zassert_true(held());
+	frame = node->aps.tx[sent[2].meta.handle].frame;
+	zassert_ok(reboot(node));
+	net_buf_unref(frame);
+	zassert_false(held());
+}
+
 /* R22 2.2.8.4.4: the same APS counter, a higher frame counter */
 ZTEST(zzb_aps_data, test_retransmission_with_a_new_frame_counter)
 {
@@ -616,6 +649,7 @@ ZTEST(zzb_aps_data, test_no_ack_after_the_retries)
 	for (int i = 0; i <= 3; i++) {
 		zassert_equal(zzb_nlde_data_req_fake.call_count, i + 1);
 		zzb_nlde_data_conf(node, sent[i].meta.handle, ZZB_MAC_STATUS_SUCCESS);
+		zassert_true(held());
 		k_sleep(K_MSEC(1650));
 	}
 
@@ -623,6 +657,7 @@ ZTEST(zzb_aps_data, test_no_ack_after_the_retries)
 	zassert_equal(zzb_apsde_data_conf_fake.call_count, 1);
 	zassert_equal(zzb_apsde_data_conf_fake.arg1_val, HANDLE);
 	zassert_equal(zzb_apsde_data_conf_fake.arg2_val, ZZB_APS_STATUS_NO_ACK);
+	zassert_false(held());
 }
 
 /* R22 2.2.4.1.1: the status of a failed NLDE-DATA.confirm comes before NO_ACK */
