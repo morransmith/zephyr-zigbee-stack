@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
 #include <zzb/zcl/thermostat.h>
 
 #include "zcl/zcl.h"
@@ -249,6 +250,7 @@ static void init(void *values)
 	v->max_cool_setpoint_limit = v->abs_max_cool_setpoint_limit;
 	v->system_mode = v->system_mode_default;
 	v->thermostat_programming_operation_mode = 0;
+	memset(v->schedule, 0, sizeof(v->schedule));
 }
 
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value)

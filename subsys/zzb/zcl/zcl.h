@@ -383,8 +383,19 @@ int zzb_zcl_schedule_set(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 int zzb_zcl_schedule_get(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 			 const struct zzb_zcl_thermostat *v);
 
-/* Empties every day of the weekly schedule of the Thermostat server on ep with the values v */
+/*
+ * Empties every day of the weekly schedule of the Thermostat server on ep with the values v and
+ * deletes their records
+ */
 void zzb_zcl_schedule_clear(struct zzb_node *node, uint8_t ep, struct zzb_zcl_thermostat *v);
+
+/*
+ * Loads the record zcl/sched/<key>, key being <ep>/<day>; -EINVAL for an unknown version, a count
+ * above the capacity or a length other than that of the count. A record of an endpoint without a
+ * Thermostat server or of a day above 7 is ignored.
+ */
+int zzb_zcl_schedule_load(struct zzb_node *node, const char *key, size_t len,
+			  settings_read_cb read_cb, void *cb_arg);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);

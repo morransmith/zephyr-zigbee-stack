@@ -109,7 +109,7 @@ struct zzb_zcl_schedule_day {
  * Values of a Thermostat server (ZCL 6.3.2.2). Temperatures are in 0.01 degrees Celsius, INT16_MIN
  * (the non-value 0x8000) when unknown. The application fills the fields up to system_mode_default
  * before zzb_node_init() and changes them with zzb_zcl_attr_set(); they are read-only. The stack
- * keeps the other fields, the writable attributes, which are saved, and the weekly schedule.
+ * keeps the other fields, the writable attributes and the weekly schedule, and saves them.
  */
 struct zzb_zcl_thermostat {
 	/** With local_temperature_calibration applied by the application. */

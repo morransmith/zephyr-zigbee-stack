@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
+#include <zephyr/settings/settings.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/thermostat.h>
 
@@ -41,6 +43,14 @@ static const uint8_t heat[] = {0x02, 0x0a, 0x01, 0x68, 0x01, 0xd0, 0x07, 0x28, 0
 static const uint8_t both[] = {0x01, 0x40, 0x03, 0xe0, 0x01, 0x08, 0x07, 0x8c, 0x0a};
 static const uint8_t cool[] = {0x01, 0x80, 0x02, 0x00, 0x00, 0xb8, 0x0b};
 
+/* Their transitions */
+static const struct zzb_zcl_schedule_transition heat_t[] = {
+	{360, 2000, INT16_MIN},
+	{1320, 1600, INT16_MIN},
+};
+static const struct zzb_zcl_schedule_transition both_t[] = {{480, 1800, 2700}};
+static const struct zzb_zcl_schedule_transition cool_t[] = {{0, INT16_MIN, 3000}};
+
 /*
  * Sends the Thermostat command id with the payload to endpoint 60 after reset_fakes(), and returns
  * the status of its Default Response
@@ -79,6 +89,13 @@ static void check_empty(int i)
 	zassert_equal(thermostat60.schedule[i].count, 0, "day %d", i);
 }
 
+static void check_all_empty(void)
+{
+	ARRAY_FOR_EACH(thermostat60.schedule, i) {
+		check_empty(i);
+	}
+}
+
 /* Sends Get Weekly Schedule of days and mode to endpoint 60 after reset_fakes() */
 static void get_schedule(uint8_t days, uint8_t mode)
 {
@@ -103,13 +120,6 @@ static void check_rsp(int i, const uint8_t *payload, size_t len)
  */
 ZTEST(zzb_zcl_schedule, test_set)
 {
-	static const struct zzb_zcl_schedule_transition heat_t[] = {
-		{360, 2000, INT16_MIN},
-		{1320, 1600, INT16_MIN},
-	};
-	static const struct zzb_zcl_schedule_transition both_t[] = {{480, 1800, 2700}};
-	static const struct zzb_zcl_schedule_transition cool_t[] = {{0, INT16_MIN, 3000}};
-
 	zassert_equal(set_schedule(heat, sizeof(heat)), ZZB_ZCL_SUCCESS);
 	zassert_equal(set_schedule(both, sizeof(both)), ZZB_ZCL_SUCCESS);
 	zassert_equal(set_schedule(cool, sizeof(cool)), ZZB_ZCL_SUCCESS);
@@ -251,22 +261,75 @@ ZTEST(zzb_zcl_schedule, test_get_errors)
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
 }
 
-/* ZCL 6.3.2.3.4: Clear Weekly Schedule empties every day, and so does the reset of the node */
+/*
+ * ZCL 6.3.2.3.4: Clear Weekly Schedule empties every day, and so does the reset of the node; both
+ * delete the records
+ */
 ZTEST(zzb_zcl_schedule, test_clear)
 {
 	zassert_equal(set_schedule(heat, sizeof(heat)), ZZB_ZCL_SUCCESS);
 	zassert_equal(set_schedule(cool, sizeof(cool)), ZZB_ZCL_SUCCESS);
 	zassert_equal(command(ZZB_ZCL_THERMOSTAT_CLEAR_WEEKLY_SCHEDULE, NULL, 0), ZZB_ZCL_SUCCESS);
-	ARRAY_FOR_EACH(thermostat60.schedule, i) {
-		check_empty(i);
-	}
+	check_all_empty();
+	zassert_ok(reboot());
+	check_all_empty();
 
 	zassert_equal(set_schedule(heat, sizeof(heat)), ZZB_ZCL_SUCCESS);
 	zassert_equal(set_schedule(cool, sizeof(cool)), ZZB_ZCL_SUCCESS);
 	reset_node();
-	ARRAY_FOR_EACH(thermostat60.schedule, i) {
-		check_empty(i);
-	}
+	check_all_empty();
+	zassert_ok(reboot());
+	check_all_empty();
+}
+
+/* Section 15: each day that a Set changes is saved, and a day that becomes empty is deleted */
+ZTEST(zzb_zcl_schedule, test_records)
+{
+	zassert_equal(set_schedule(heat, sizeof(heat)), ZZB_ZCL_SUCCESS);
+	zassert_equal(set_schedule(both, sizeof(both)), ZZB_ZCL_SUCCESS);
+	zassert_equal(set_schedule(cool, sizeof(cool)), ZZB_ZCL_SUCCESS);
+	zassert_equal(set_schedule((uint8_t[]){0x00, 0x08, 0x01}, 3), ZZB_ZCL_SUCCESS);
+
+	zassert_ok(reboot());
+	check_empty(0);
+	check_day(1, ZZB_ZCL_SCHEDULE_HEAT, heat_t, 2);
+	check_empty(2);
+	check_empty(3);
+	check_empty(4);
+	check_empty(5);
+	check_day(6, ZZB_ZCL_SCHEDULE_HEAT | ZZB_ZCL_SCHEDULE_COOL, both_t, 1);
+	check_day(7, ZZB_ZCL_SCHEDULE_COOL, cool_t, 1);
+}
+
+ZTEST(zzb_zcl_schedule, test_bad_records)
+{
+	/* Version, heat, 1 transition at 6:00 to 20 degrees Celsius and no cooling setpoint */
+	uint8_t rec[] = {2, 0x01, 1, 0x68, 0x01, 0xd0, 0x07, 0x00, 0x80};
+	uint8_t full[33] = {1, 0x01, 5};
+	static const struct zzb_zcl_schedule_transition t[] = {{360, 2000, INT16_MIN}};
+
+	zassert_ok(settings_save_one("zzb/0/zcl/sched/60/1", rec, sizeof(rec)));
+	zassert_equal(reboot(), -EINVAL);
+
+	rec[0] = 1;
+	zassert_ok(settings_save_one("zzb/0/zcl/sched/60/1", rec, sizeof(rec) - 1));
+	zassert_equal(reboot(), -EINVAL);
+
+	/* 5 transitions, above the capacity */
+	zassert_ok(settings_save_one("zzb/0/zcl/sched/60/1", full, sizeof(full)));
+	zassert_equal(reboot(), -EINVAL);
+
+	/* A record of an endpoint without a Thermostat server, of an unknown one or of day 8 */
+	zassert_ok(settings_save_one("zzb/0/zcl/sched/70/1", rec, sizeof(rec)));
+	zassert_ok(settings_save_one("zzb/0/zcl/sched/9/1", rec, sizeof(rec)));
+	zassert_ok(settings_save_one("zzb/0/zcl/sched/60/8", rec, sizeof(rec)));
+	zassert_ok(settings_save_one("zzb/0/zcl/sched/60/1", rec, sizeof(rec)));
+	zassert_ok(reboot());
+	check_day(1, ZZB_ZCL_SCHEDULE_HEAT, t, 1);
+
+	zassert_ok(settings_delete("zzb/0/zcl/sched/70/1"));
+	zassert_ok(settings_delete("zzb/0/zcl/sched/9/1"));
+	zassert_ok(settings_delete("zzb/0/zcl/sched/60/8"));
 }
 
 ZTEST_SUITE(zzb_zcl_schedule, NULL, setup, before, after, NULL);

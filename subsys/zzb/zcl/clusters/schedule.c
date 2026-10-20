@@ -1,9 +1,15 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <string.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/printk.h>
 #include <zzb/zcl/thermostat.h>
 
+#include "common/node.h"
+#include "storage/settings.h"
 #include "zcl/zcl.h"
 
 /* Number of Transitions, Day of Week and Mode for Sequence (ZCL 6.3.2.3.2) */
@@ -16,6 +22,12 @@
 
 /* 23:59 in minutes since midnight */
 #define LAST_MINUTE 1439
+
+#define RECORD_VERSION 1
+/* Version, mode and number of transitions */
+#define RECORD_HDR_LEN 3
+/* Room for zcl/sched/<ep>/<day> */
+#define NAME_LEN       16
 
 /* The length of a transition with the setpoints of mode */
 static size_t transition_len(uint8_t mode)
@@ -82,6 +94,34 @@ static uint8_t parse(const struct zzb_zcl_thermostat *v, const uint8_t *p,
 	return ZZB_ZCL_SUCCESS;
 }
 
+static void record_name(char name[NAME_LEN], uint8_t ep, int day)
+{
+	snprintk(name, NAME_LEN, "zcl/sched/%u/%d", ep, day);
+}
+
+/* Saves day i of the schedule on ep, or deletes the record of an empty day; errors are ignored */
+static void save(struct zzb_node *node, uint8_t ep, int i, const struct zzb_zcl_schedule_day *day)
+{
+	uint8_t rec[RECORD_HDR_LEN + TRANSITION_LEN * CONFIG_ZZB_ZCL_SCHEDULE_TRANSITIONS] = {
+		RECORD_VERSION, day->mode, day->count};
+	uint8_t *p = rec + RECORD_HDR_LEN;
+	char name[NAME_LEN];
+
+	record_name(name, ep, i);
+	if (day->count == 0) {
+		zzb_settings_delete(node, name);
+		return;
+	}
+
+	for (int j = 0; j < day->count; j++, p += TRANSITION_LEN) {
+		sys_put_le16(day->transitions[j].time, p);
+		sys_put_le16(day->transitions[j].heating, p + 2);
+		sys_put_le16(day->transitions[j].cooling, p + 4);
+	}
+
+	zzb_settings_save(node, name, rec, p - rec);
+}
+
 int zzb_zcl_schedule_set(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 			 struct zzb_zcl_thermostat *v)
 {
@@ -120,6 +160,7 @@ int zzb_zcl_schedule_set(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	for (int i = 0; i < ARRAY_SIZE(v->schedule); i++) {
 		if (days & BIT(i)) {
 			v->schedule[i] = day;
+			save(node, cmd->ep, i, &day);
 		}
 	}
 
@@ -202,5 +243,72 @@ int zzb_zcl_schedule_get(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 
 void zzb_zcl_schedule_clear(struct zzb_node *node, uint8_t ep, struct zzb_zcl_thermostat *v)
 {
+	char name[NAME_LEN];
+
 	memset(v->schedule, 0, sizeof(v->schedule));
+	for (int i = 0; i < ARRAY_SIZE(v->schedule); i++) {
+		record_name(name, ep, i);
+		zzb_settings_delete(node, name);
+	}
+}
+
+/* The values of the Thermostat server on ep, or NULL */
+static struct zzb_zcl_thermostat *server(struct zzb_node *node, unsigned long ep)
+{
+	const struct zzb_endpoint *e = ep <= UINT8_MAX ? zzb_node_endpoint(node, ep) : NULL;
+	const struct zzb_zcl_cluster *cl;
+
+	if (e == NULL) {
+		return NULL;
+	}
+
+	cl = zzb_zcl_find_cluster(e, ZZB_ZCL_THERMOSTAT, true);
+	return cl != NULL ? cl->values : NULL;
+}
+
+int zzb_zcl_schedule_load(struct zzb_node *node, const char *key, size_t len,
+			  settings_read_cb read_cb, void *cb_arg)
+{
+	uint8_t rec[RECORD_HDR_LEN + TRANSITION_LEN * CONFIG_ZZB_ZCL_SCHEDULE_TRANSITIONS];
+	struct zzb_zcl_schedule_day *day;
+	struct zzb_zcl_thermostat *v;
+	unsigned long ep, i;
+	char *end;
+	int err;
+
+	/* <ep>/<day> */
+	ep = strtoul(key, &end, 10);
+	i = *end == '/' ? strtoul(end + 1, &end, 10) : ULONG_MAX;
+	v = server(node, ep);
+	if (v == NULL || i >= ARRAY_SIZE(v->schedule)) {
+		return 0;
+	}
+
+	if (len < RECORD_HDR_LEN || len > sizeof(rec)) {
+		return -EINVAL;
+	}
+
+	err = zzb_settings_read(len, read_cb, cb_arg, rec, len);
+	if (err) {
+		return err;
+	}
+
+	if (len != RECORD_HDR_LEN + TRANSITION_LEN * rec[2]) {
+		return -EINVAL;
+	}
+
+	day = &v->schedule[i];
+	day->mode = rec[1];
+	day->count = rec[2];
+	for (int j = 0; j < day->count; j++) {
+		const uint8_t *p = rec + RECORD_HDR_LEN + TRANSITION_LEN * j;
+
+		day->transitions[j] = (struct zzb_zcl_schedule_transition){
+			.time = sys_get_le16(p),
+			.heating = sys_get_le16(p + 2),
+			.cooling = sys_get_le16(p + 4),
+		};
+	}
+
+	return 0;
 }
