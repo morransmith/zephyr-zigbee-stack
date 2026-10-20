@@ -184,6 +184,16 @@ config ZZB_ZCL_OTA
 	  trust center into the upload slot of MCUboot. The application
 	  enables CONFIG_STREAM_FLASH and CONFIG_IMG_MANAGER.
 
+config ZZB_ZCL_OTA_QUERY_INTERVAL
+	int "Minutes between the queries of the OTA Upgrade client"
+	depends on ZZB_ZCL_OTA
+	range 1 44640
+	default 1440
+	help
+	  The OTA Upgrade client sends Query Next Image Request to the trust
+	  center one interval after the start of the node and then every
+	  interval while it does not download.
+
 config ZZB_BDB_PRIMARY_CHANNELS
 	hex "bdbPrimaryChannelSet"
 	range 0 0x07fff800
