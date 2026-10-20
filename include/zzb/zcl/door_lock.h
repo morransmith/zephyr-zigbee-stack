@@ -42,12 +42,28 @@ extern "C" {
 #define ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR         0x01
 #define ZZB_ZCL_DOOR_LOCK_TOGGLE              0x02
 #define ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT 0x03
+#define ZZB_ZCL_DOOR_LOCK_SET_PIN_CODE        0x05
+#define ZZB_ZCL_DOOR_LOCK_GET_PIN_CODE        0x06
+#define ZZB_ZCL_DOOR_LOCK_CLEAR_PIN_CODE      0x07
+#define ZZB_ZCL_DOOR_LOCK_CLEAR_ALL_PIN_CODES 0x08
+#define ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS     0x09
+#define ZZB_ZCL_DOOR_LOCK_GET_USER_STATUS     0x0a
+#define ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE       0x14
+#define ZZB_ZCL_DOOR_LOCK_GET_USER_TYPE       0x15
 
 /** Commands that the server generates (ZCL Table 7-27); a response has the ID of its command. */
 #define ZZB_ZCL_DOOR_LOCK_LOCK_DOOR_RSP           0x00
 #define ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR_RSP         0x01
 #define ZZB_ZCL_DOOR_LOCK_TOGGLE_RSP              0x02
 #define ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT_RSP 0x03
+#define ZZB_ZCL_DOOR_LOCK_SET_PIN_CODE_RSP        0x05
+#define ZZB_ZCL_DOOR_LOCK_GET_PIN_CODE_RSP        0x06
+#define ZZB_ZCL_DOOR_LOCK_CLEAR_PIN_CODE_RSP      0x07
+#define ZZB_ZCL_DOOR_LOCK_CLEAR_ALL_PIN_CODES_RSP 0x08
+#define ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS_RSP     0x09
+#define ZZB_ZCL_DOOR_LOCK_GET_USER_STATUS_RSP     0x0a
+#define ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE_RSP       0x14
+#define ZZB_ZCL_DOOR_LOCK_GET_USER_TYPE_RSP       0x15
 
 /** LockState (ZCL Table 7-9). */
 enum zzb_zcl_door_lock_state {
@@ -66,8 +82,36 @@ enum zzb_zcl_door_lock_mode {
 	ZZB_ZCL_DOOR_LOCK_MODE_PASSAGE = 0x04,
 };
 
+/** User Status (ZCL Table 7-24). */
+enum zzb_zcl_door_lock_user_status {
+	ZZB_ZCL_DOOR_LOCK_USER_AVAILABLE = 0x00,
+	ZZB_ZCL_DOOR_LOCK_USER_ENABLED = 0x01,
+	ZZB_ZCL_DOOR_LOCK_USER_DISABLED = 0x03,
+};
+
+/** User Type (ZCL Table 7-25); the stack has no schedules, so it takes 0, 3 and 4. */
+enum zzb_zcl_door_lock_user_type {
+	ZZB_ZCL_DOOR_LOCK_USER_UNRESTRICTED = 0x00,
+	ZZB_ZCL_DOOR_LOCK_USER_YEAR_DAY_SCHEDULE = 0x01,
+	ZZB_ZCL_DOOR_LOCK_USER_WEEK_DAY_SCHEDULE = 0x02,
+	ZZB_ZCL_DOOR_LOCK_USER_MASTER = 0x03,
+	ZZB_ZCL_DOOR_LOCK_USER_NON_ACCESS = 0x04,
+	ZZB_ZCL_DOOR_LOCK_USER_NOT_SUPPORTED = 0xff,
+};
+
 /** The longest PIN code that the stack stores, in octets. */
 #define ZZB_ZCL_DOOR_LOCK_PIN_MAX 8
+
+/** A user of a Door Lock server; an available user has all fields 0. */
+struct zzb_zcl_door_lock_user {
+	/** enum zzb_zcl_door_lock_user_status. */
+	uint8_t status;
+	/** enum zzb_zcl_door_lock_user_type. */
+	uint8_t type;
+	/** Octets of code. */
+	uint8_t len;
+	uint8_t code[ZZB_ZCL_DOOR_LOCK_PIN_MAX];
+};
 
 /**
  * Values of a Door Lock server (ZCL 7.3.2.9). The application fills the fields up to
@@ -81,6 +125,10 @@ enum zzb_zcl_door_lock_mode {
  * payload, an octet string, or without a payload. The application drives the bolt and sets
  * LockState. The stack answers with the response of the received command: SUCCESS when zcl_cmd_cb
  * returns SUCCESS, otherwise FAILURE.
+ *
+ * The stack processes the PIN code, User Status and User Type commands, keeps the users in the
+ * field users and saves them. The application reads them on the stack thread, such as in a
+ * callback, to check the codes of its keypad.
  */
 struct zzb_zcl_door_lock {
 	/** enum zzb_zcl_door_lock_state. */
@@ -112,6 +160,8 @@ struct zzb_zcl_door_lock {
 	uint16_t manual_operation_event_mask;
 	uint16_t keypad_programming_event_mask;
 	uint16_t rf_programming_event_mask;
+	/** The users, element n with user ID n. */
+	struct zzb_zcl_door_lock_user users[CONFIG_ZZB_ZCL_DOOR_LOCK_USERS];
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def;

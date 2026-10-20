@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
+#include <zephyr/settings/settings.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/door_lock.h>
 
@@ -263,6 +265,277 @@ ZTEST(zzb_zcl_door_lock, test_respond)
 	zassert_equal(zcl_cmd_calls.count, 2);
 	zassert_false(zcl_cmd_calls.cmd[1].unicast);
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+}
+
+/*
+ * Sends the command id with the payload after reset_fakes() and returns the status of its
+ * response, which is its only frame
+ */
+static uint8_t status_of(uint8_t id, const uint8_t *payload, size_t len)
+{
+	reset_fakes();
+	command(id, payload, len);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].len, 4);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x19, tsn, id}), 3);
+	return sent[0].data[3];
+}
+
+/* Set PIN Code of user id with status, type and pin; returns the status of the response */
+static uint8_t set_pin(uint16_t id, uint8_t status, uint8_t type, const char *pin)
+{
+	uint8_t payload[16] = {id & 0xff, id >> 8, status, type, strlen(pin)};
+
+	memcpy(payload + 5, pin, strlen(pin));
+	return status_of(ZZB_ZCL_DOOR_LOCK_SET_PIN_CODE, payload, 5 + strlen(pin));
+}
+
+/* Sends the command id with user id and value; returns the status of the response */
+static uint8_t set_user(uint8_t id, uint16_t user, uint8_t value)
+{
+	return status_of(id, (uint8_t[]){user & 0xff, user >> 8, value}, 3);
+}
+
+/* Clear PIN Code of user; returns the status of the response */
+static uint8_t clear_pin(uint16_t user)
+{
+	return status_of(ZZB_ZCL_DOOR_LOCK_CLEAR_PIN_CODE, (uint8_t[]){user & 0xff, user >> 8}, 2);
+}
+
+/* Sends the Get command id of user after reset_fakes() */
+static void get(uint8_t id, uint16_t user)
+{
+	reset_fakes();
+	command(id, (uint8_t[]){user & 0xff, user >> 8}, 2);
+}
+
+/* Sends the Get command id of user and checks that its response has the payload after the ID */
+static void check_get(uint8_t id, uint16_t user, const uint8_t *payload, size_t len)
+{
+	uint8_t rsp[16] = {user & 0xff, user >> 8};
+
+	memcpy(rsp + 2, payload, len);
+	get(id, user);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_rsp(0, id, rsp, 2 + len);
+}
+
+/* Checks user id of endpoint 100 */
+static void check_user(int id, uint8_t status, uint8_t type, const char *pin)
+{
+	const struct zzb_zcl_door_lock_user *u = &lock100.users[id];
+
+	zassert_equal(u->status, status, "user %d", id);
+	zassert_equal(u->type, type, "user %d", id);
+	zassert_equal(u->len, strlen(pin), "user %d", id);
+	zassert_mem_equal(u->code, pin, strlen(pin), "user %d", id);
+}
+
+/*
+ * ZCL 7.3.2.15.7, 7.3.2.15.8: Set PIN Code stores the user, and changes its code without a Clear
+ * PIN Code first (ZCL 7.3.2.8). The code of another user gives 3 (duplicate). Get PIN Code
+ * replaces the code by 0xff octets while SendPINOverTheAir is FALSE (ZCL 7.3.2.13.3).
+ */
+ZTEST(zzb_zcl_door_lock, test_set_pin_code)
+{
+	zassert_equal(set_pin(1, ZZB_ZCL_DOOR_LOCK_USER_ENABLED,
+			      ZZB_ZCL_DOOR_LOCK_USER_UNRESTRICTED, "1234"),
+		      0);
+	check_user(1, ZZB_ZCL_DOOR_LOCK_USER_ENABLED, ZZB_ZCL_DOOR_LOCK_USER_UNRESTRICTED, "1234");
+	check_get(ZZB_ZCL_DOOR_LOCK_GET_PIN_CODE, 1,
+		  (uint8_t[]){0x01, 0x00, 0x04, 0xff, 0xff, 0xff, 0xff}, 7);
+
+	lock100.send_pin_over_the_air = true;
+	check_get(ZZB_ZCL_DOOR_LOCK_GET_PIN_CODE, 1,
+		  (uint8_t[]){0x01, 0x00, 0x04, 0x31, 0x32, 0x33, 0x34}, 7);
+
+	zassert_equal(set_pin(1, ZZB_ZCL_DOOR_LOCK_USER_DISABLED, ZZB_ZCL_DOOR_LOCK_USER_MASTER,
+			      "56781234"),
+		      0);
+	check_user(1, ZZB_ZCL_DOOR_LOCK_USER_DISABLED, ZZB_ZCL_DOOR_LOCK_USER_MASTER, "56781234");
+	zassert_equal(set_pin(7, ZZB_ZCL_DOOR_LOCK_USER_ENABLED, ZZB_ZCL_DOOR_LOCK_USER_NON_ACCESS,
+			      "56781234"),
+		      3);
+	zassert_equal(set_pin(7, ZZB_ZCL_DOOR_LOCK_USER_ENABLED, ZZB_ZCL_DOOR_LOCK_USER_NON_ACCESS,
+			      "1234"),
+		      0);
+	check_user(7, ZZB_ZCL_DOOR_LOCK_USER_ENABLED, ZZB_ZCL_DOOR_LOCK_USER_NON_ACCESS, "1234");
+}
+
+/*
+ * Section 16: Set PIN Code gives 1 for a user ID outside the table, a user status other than 1 and
+ * 3, a user type 1, 2 or above 4 and a code outside MinPINCodeLength to MaxPINCodeLength, which is
+ * limited to 8, and MALFORMED_COMMAND for a truncated payload. The user keeps its code.
+ */
+ZTEST(zzb_zcl_door_lock, test_set_pin_code_errors)
+{
+	static const struct {
+		uint16_t id;
+		uint8_t status;
+		uint8_t type;
+		const char *pin;
+	} cases[] = {
+		{8, 1, 0, "5678"}, {2, 0, 0, "5678"}, {2, 2, 0, "5678"}, {2, 1, 1, "5678"},
+		{2, 1, 2, "5678"}, {2, 1, 5, "5678"}, {2, 1, 0, "567"},  {2, 1, 0, "567812345"},
+	};
+
+	zassert_equal(set_pin(2, 1, 0, "1234"), 0);
+	lock100.max_pin_code_length = 10;
+	ARRAY_FOR_EACH(cases, i) {
+		zassert_equal(set_pin(cases[i].id, cases[i].status, cases[i].type, cases[i].pin), 1,
+			      "case %zu", i);
+	}
+
+	reset_fakes();
+	command(ZZB_ZCL_DOOR_LOCK_SET_PIN_CODE, (uint8_t[]){0x02, 0x00, 0x01, 0x00, 0x04, 0x35}, 6);
+	check_default_rsp(0, ZZB_ZCL_DOOR_LOCK_SET_PIN_CODE, ZZB_ZCL_MALFORMED_COMMAND);
+	command(ZZB_ZCL_DOOR_LOCK_SET_PIN_CODE, (uint8_t[]){0x02, 0x00, 0x01, 0x00}, 4);
+	check_default_rsp(1, ZZB_ZCL_DOOR_LOCK_SET_PIN_CODE, ZZB_ZCL_MALFORMED_COMMAND);
+	check_user(2, 1, 0, "1234");
+}
+
+/*
+ * ZCL 7.3.2.16.7, 7.3.2.16.11, 7.3.2.16.22: an available user has status 0, type 0xff and an empty
+ * code, and a user ID outside the table gets a Default Response with INVALID_FIELD
+ */
+ZTEST(zzb_zcl_door_lock, test_get_user)
+{
+	static const uint8_t gets[] = {
+		ZZB_ZCL_DOOR_LOCK_GET_PIN_CODE,
+		ZZB_ZCL_DOOR_LOCK_GET_USER_STATUS,
+		ZZB_ZCL_DOOR_LOCK_GET_USER_TYPE,
+	};
+
+	zassert_equal(
+		set_pin(1, ZZB_ZCL_DOOR_LOCK_USER_DISABLED, ZZB_ZCL_DOOR_LOCK_USER_MASTER, "1234"),
+		0);
+	check_get(ZZB_ZCL_DOOR_LOCK_GET_USER_STATUS, 1, (uint8_t[]){0x03}, 1);
+	check_get(ZZB_ZCL_DOOR_LOCK_GET_USER_TYPE, 1, (uint8_t[]){0x03}, 1);
+	check_get(ZZB_ZCL_DOOR_LOCK_GET_PIN_CODE, 0, (uint8_t[]){0x00, 0xff, 0x00}, 3);
+	check_get(ZZB_ZCL_DOOR_LOCK_GET_USER_STATUS, 7, (uint8_t[]){0x00}, 1);
+	check_get(ZZB_ZCL_DOOR_LOCK_GET_USER_TYPE, 7, (uint8_t[]){0xff}, 1);
+
+	ARRAY_FOR_EACH(gets, i) {
+		get(gets[i], 8);
+		check_default_rsp(0, gets[i], ZZB_ZCL_INVALID_FIELD);
+		reset_fakes();
+		command(gets[i], (uint8_t[]){0x01}, 1);
+		check_default_rsp(0, gets[i], ZZB_ZCL_MALFORMED_COMMAND);
+	}
+}
+
+/*
+ * ZCL 7.3.2.15.9, 7.3.2.15.10: Clear PIN Code makes the user available and gives 1 for a user ID
+ * outside the table; Clear All PIN Codes makes every user available
+ */
+ZTEST(zzb_zcl_door_lock, test_clear)
+{
+	zassert_equal(set_pin(1, 1, 0, "1234"), 0);
+	zassert_equal(set_pin(2, 3, 3, "5678"), 0);
+	zassert_equal(set_pin(3, 1, 4, "4321"), 0);
+	zassert_equal(clear_pin(1), 0);
+	check_user(1, 0, 0, "");
+	check_user(2, 3, 3, "5678");
+	zassert_equal(clear_pin(8), 1);
+
+	zassert_equal(status_of(ZZB_ZCL_DOOR_LOCK_CLEAR_ALL_PIN_CODES, NULL, 0), 0);
+	ARRAY_FOR_EACH(lock100.users, i) {
+		check_user(i, 0, 0, "");
+	}
+}
+
+/*
+ * Section 16: Set User Status takes 1 and 3 and Set User Type 0, 3 and 4 for an occupied user;
+ * other values, an available user and a user ID outside the table give 1
+ */
+ZTEST(zzb_zcl_door_lock, test_set_user)
+{
+	static const uint8_t statuses[] = {0, 2, 0xff};
+	static const uint8_t types[] = {1, 2, 5, 0xff};
+
+	zassert_equal(set_pin(1, 1, 0, "1234"), 0);
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS, 1, 3), 0);
+	check_user(1, 3, 0, "1234");
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS, 1, 1), 0);
+	ARRAY_FOR_EACH(statuses, i) {
+		zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS, 1, statuses[i]), 1);
+	}
+
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE, 1, 3), 0);
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE, 1, 4), 0);
+	check_user(1, 1, 4, "1234");
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE, 1, 0), 0);
+	ARRAY_FOR_EACH(types, i) {
+		zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE, 1, types[i]), 1);
+	}
+
+	check_user(1, 1, 0, "1234");
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS, 2, 1), 1);
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE, 2, 0), 1);
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS, 8, 1), 1);
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE, 8, 0), 1);
+	check_user(2, 0, 0, "");
+
+	reset_fakes();
+	command(ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE, (uint8_t[]){0x01, 0x00}, 2);
+	check_default_rsp(0, ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE, ZZB_ZCL_MALFORMED_COMMAND);
+}
+
+/*
+ * Section 15: each change of a user is saved, a cleared user is deleted, and the reset of the node
+ * clears the users and deletes their records
+ */
+ZTEST(zzb_zcl_door_lock, test_records)
+{
+	zassert_equal(set_pin(0, 1, 0, "1234"), 0);
+	zassert_equal(set_pin(6, 1, 0, "12345678"), 0);
+	zassert_equal(set_pin(7, 1, 0, "4321"), 0);
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS, 6, 3), 0);
+	zassert_equal(set_user(ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE, 7, 3), 0);
+	zassert_equal(clear_pin(0), 0);
+	zassert_ok(reboot());
+	check_user(0, 0, 0, "");
+	check_user(6, 3, 0, "12345678");
+	check_user(7, 1, 3, "4321");
+
+	reset_node();
+	check_user(6, 0, 0, "");
+	check_user(7, 0, 0, "");
+	zassert_ok(reboot());
+	ARRAY_FOR_EACH(lock100.users, i) {
+		check_user(i, 0, 0, "");
+	}
+}
+
+ZTEST(zzb_zcl_door_lock, test_bad_records)
+{
+	/* Version, enabled, unrestricted, the code "1234" */
+	uint8_t rec[] = {2, 1, 0, 4, 0x31, 0x32, 0x33, 0x34, 0, 0, 0, 0};
+
+	zassert_ok(settings_save_one("zzb/0/zcl/lock/100/1", rec, sizeof(rec)));
+	zassert_equal(reboot(), -EINVAL);
+
+	rec[0] = 1;
+	zassert_ok(settings_save_one("zzb/0/zcl/lock/100/1", rec, sizeof(rec) - 1));
+	zassert_equal(reboot(), -EINVAL);
+
+	/* A code of 9 octets */
+	rec[3] = 9;
+	zassert_ok(settings_save_one("zzb/0/zcl/lock/100/1", rec, sizeof(rec)));
+	zassert_equal(reboot(), -EINVAL);
+
+	/* A record of an endpoint without a Door Lock server, of an unknown one or of user 8 */
+	rec[3] = 4;
+	zassert_ok(settings_save_one("zzb/0/zcl/lock/1/1", rec, sizeof(rec)));
+	zassert_ok(settings_save_one("zzb/0/zcl/lock/9/1", rec, sizeof(rec)));
+	zassert_ok(settings_save_one("zzb/0/zcl/lock/100/8", rec, sizeof(rec)));
+	zassert_ok(settings_save_one("zzb/0/zcl/lock/100/1", rec, sizeof(rec)));
+	zassert_ok(reboot());
+	check_user(1, 1, 0, "1234");
+
+	zassert_ok(settings_delete("zzb/0/zcl/lock/1/1"));
+	zassert_ok(settings_delete("zzb/0/zcl/lock/9/1"));
+	zassert_ok(settings_delete("zzb/0/zcl/lock/100/8"));
 }
 
 ZTEST_SUITE(zzb_zcl_door_lock, NULL, setup, before, after, NULL);

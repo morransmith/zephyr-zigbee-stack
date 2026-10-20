@@ -1,7 +1,14 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/printk.h>
 #include <zzb/zcl/door_lock.h>
 
+#include "common/node.h"
+#include "storage/settings.h"
 #include "zcl/zcl.h"
 
 /* ClusterRevision (ZCL 7.3.1.1) */
@@ -12,6 +19,20 @@
 
 /* Timeout in seconds, before the code of Unlock with Timeout */
 #define TIMEOUT_LEN 2
+
+/* User ID, User Status and User Type, before the code of Set PIN Code */
+#define SET_PIN_CODE_LEN 4
+
+/* The statuses of the responses to the commands of the users (ZCL 7.3.2.16.6 to 7.3.2.16.21) */
+#define PASS           0x00
+#define FAIL           0x01
+#define DUPLICATE_CODE 0x03
+
+#define RECORD_VERSION 1
+/* Version, user status, user type, code length and code */
+#define RECORD_LEN     (4 + ZZB_ZCL_DOOR_LOCK_PIN_MAX)
+/* Room for zcl/lock/<ep>/<user> */
+#define NAME_LEN       20
 
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_DOOR_LOCK_LOCK_STATE, ZZB_ZCL_ENUM8, ZZB_ZCL_REPORT,
@@ -131,14 +152,274 @@ static int operate(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	return respond(node, cmd, status == ZZB_ZCL_SUCCESS ? ZZB_ZCL_SUCCESS : ZZB_ZCL_FAILURE);
 }
 
+static void record_name(char name[NAME_LEN], uint8_t ep, int id)
+{
+	snprintk(name, NAME_LEN, "zcl/lock/%u/%d", ep, id);
+}
+
+/* Saves user id of the server on ep, or deletes the record of an available user */
+static void save(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_door_lock *v, int id)
+{
+	const struct zzb_zcl_door_lock_user *u = &v->users[id];
+	uint8_t rec[RECORD_LEN] = {RECORD_VERSION, u->status, u->type, u->len};
+	char name[NAME_LEN];
+
+	record_name(name, ep, id);
+	if (u->status == ZZB_ZCL_DOOR_LOCK_USER_AVAILABLE) {
+		zzb_settings_delete(node, name);
+		return;
+	}
+
+	memcpy(rec + 4, u->code, sizeof(u->code));
+	zzb_settings_save(node, name, rec, sizeof(rec));
+}
+
+/* The user ID at the start of the payload, which has at least 2 octets, or -1 outside the table */
+static int user_id(const struct zzb_zcl_cmd *cmd)
+{
+	uint16_t id = sys_get_le16(cmd->payload);
+
+	return id < CONFIG_ZZB_ZCL_DOOR_LOCK_USERS ? id : -1;
+}
+
+static bool status_valid(uint8_t status)
+{
+	return status == ZZB_ZCL_DOOR_LOCK_USER_ENABLED ||
+	       status == ZZB_ZCL_DOOR_LOCK_USER_DISABLED;
+}
+
+/* The schedule types need schedules, which the stack does not have */
+static bool type_valid(uint8_t type)
+{
+	return type == ZZB_ZCL_DOOR_LOCK_USER_UNRESTRICTED ||
+	       type == ZZB_ZCL_DOOR_LOCK_USER_MASTER || type == ZZB_ZCL_DOOR_LOCK_USER_NON_ACCESS;
+}
+
+/* The type that Get PIN Code and Get User Type give, 0xff for an available user (ZCL 7.3.2.16.7) */
+static uint8_t type_of(const struct zzb_zcl_door_lock_user *u)
+{
+	return u->status == ZZB_ZCL_DOOR_LOCK_USER_AVAILABLE ? ZZB_ZCL_DOOR_LOCK_USER_NOT_SUPPORTED
+							     : u->type;
+}
+
+static bool has_code(const struct zzb_zcl_door_lock_user *u, const uint8_t *code, size_t len)
+{
+	return u->status != ZZB_ZCL_DOOR_LOCK_USER_AVAILABLE && u->len == len &&
+	       memcmp(u->code, code, len) == 0;
+}
+
+/* Whether a user other than id has the code */
+static bool duplicate(const struct zzb_zcl_door_lock *v, int id, const uint8_t *code, size_t len)
+{
+	for (int i = 0; i < ARRAY_SIZE(v->users); i++) {
+		if (i != id && has_code(&v->users[i], code, len)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/*
+ * Writes the code of len octets to p as an octet string, with 0xff octets in its place while
+ * SendPINOverTheAir is FALSE (ZCL 7.3.2.13.3); returns its length
+ */
+static size_t put_code(uint8_t *p, const struct zzb_zcl_door_lock *v, const uint8_t *code,
+		       size_t len)
+{
+	p[0] = len;
+	if (v->send_pin_over_the_air) {
+		memcpy(p + 1, code, len);
+	} else {
+		memset(p + 1, 0xff, len);
+	}
+
+	return 1 + len;
+}
+
+/* ZCL 7.3.2.15.7; a code length of 0xff is the empty string */
+static int set_pin_code(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			struct zzb_zcl_door_lock *v)
+{
+	const uint8_t *pin = cmd->payload + SET_PIN_CODE_LEN;
+	struct zzb_zcl_door_lock_user *u;
+	int field;
+	int len;
+	int id;
+
+	if (cmd->len < SET_PIN_CODE_LEN) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	field = zzb_zcl_value_len(ZZB_ZCL_OCTSTR, pin, cmd->len - SET_PIN_CODE_LEN);
+	if (field < 0) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	id = user_id(cmd);
+	len = field - 1;
+	if (id < 0 || !status_valid(cmd->payload[2]) || !type_valid(cmd->payload[3]) ||
+	    !IN_RANGE(len, v->min_pin_code_length,
+		      MIN(v->max_pin_code_length, ZZB_ZCL_DOOR_LOCK_PIN_MAX))) {
+		return respond(node, cmd, FAIL);
+	}
+
+	if (duplicate(v, id, pin + 1, len)) {
+		return respond(node, cmd, DUPLICATE_CODE);
+	}
+
+	u = &v->users[id];
+	*u = (struct zzb_zcl_door_lock_user){
+		.status = cmd->payload[2],
+		.type = cmd->payload[3],
+		.len = len,
+	};
+	memcpy(u->code, pin + 1, len);
+	save(node, cmd->ep, v, id);
+	return respond(node, cmd, PASS);
+}
+
+/*
+ * Get PIN Code, Get User Status and Get User Type (ZCL 7.3.2.16.7, 7.3.2.16.11, 7.3.2.16.22). A
+ * user ID outside the table gets a Default Response with an error.
+ */
+static int get_user(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+		    const struct zzb_zcl_door_lock *v)
+{
+	uint8_t rsp[5 + ZZB_ZCL_DOOR_LOCK_PIN_MAX];
+	const struct zzb_zcl_door_lock_user *u;
+	size_t len = 3;
+	int id;
+
+	if (cmd->len < 2) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	id = user_id(cmd);
+	if (id < 0) {
+		return ZZB_ZCL_INVALID_FIELD;
+	}
+
+	if (!cmd->unicast) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	u = &v->users[id];
+	sys_put_le16(id, rsp);
+	switch (cmd->id) {
+	case ZZB_ZCL_DOOR_LOCK_GET_PIN_CODE:
+		rsp[2] = u->status;
+		rsp[3] = type_of(u);
+		len = 4 + put_code(rsp + 4, v, u->code, u->len);
+		break;
+	case ZZB_ZCL_DOOR_LOCK_GET_USER_STATUS:
+		rsp[2] = u->status;
+		break;
+	default:
+		rsp[2] = type_of(u);
+		break;
+	}
+
+	zzb_zcl_cmd_reply(node, cmd, cmd->id, rsp, len);
+	return ZZB_ZCL_RESPONDED;
+}
+
+/* ZCL 7.3.2.15.9: the user becomes available, with the default type */
+static int clear_pin_code(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			  struct zzb_zcl_door_lock *v)
+{
+	int id;
+
+	if (cmd->len < 2) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	id = user_id(cmd);
+	if (id < 0) {
+		return respond(node, cmd, FAIL);
+	}
+
+	v->users[id] = (struct zzb_zcl_door_lock_user){0};
+	save(node, cmd->ep, v, id);
+	return respond(node, cmd, PASS);
+}
+
+/* Makes every user of the server on ep available and deletes the records */
+static void clear_users(struct zzb_node *node, uint8_t ep, struct zzb_zcl_door_lock *v)
+{
+	for (int i = 0; i < ARRAY_SIZE(v->users); i++) {
+		v->users[i] = (struct zzb_zcl_door_lock_user){0};
+		save(node, ep, v, i);
+	}
+}
+
+/* ZCL 7.3.2.15.11; an available user takes Set PIN Code instead */
+static int set_user_status(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			   struct zzb_zcl_door_lock *v)
+{
+	int id;
+
+	if (cmd->len < 3) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	id = user_id(cmd);
+	if (id < 0 || v->users[id].status == ZZB_ZCL_DOOR_LOCK_USER_AVAILABLE ||
+	    !status_valid(cmd->payload[2])) {
+		return respond(node, cmd, FAIL);
+	}
+
+	v->users[id].status = cmd->payload[2];
+	save(node, cmd->ep, v, id);
+	return respond(node, cmd, PASS);
+}
+
+/* ZCL 7.3.2.15.22, of an occupied user */
+static int set_user_type(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			 struct zzb_zcl_door_lock *v)
+{
+	int id;
+
+	if (cmd->len < 3) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	id = user_id(cmd);
+	if (id < 0 || v->users[id].status == ZZB_ZCL_DOOR_LOCK_USER_AVAILABLE ||
+	    !type_valid(cmd->payload[2])) {
+		return respond(node, cmd, FAIL);
+	}
+
+	v->users[id].type = cmd->payload[2];
+	save(node, cmd->ep, v, id);
+	return respond(node, cmd, PASS);
+}
+
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
 {
+	struct zzb_zcl_door_lock *v = values;
+
 	switch (cmd->id) {
 	case ZZB_ZCL_DOOR_LOCK_LOCK_DOOR:
 	case ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR:
 	case ZZB_ZCL_DOOR_LOCK_TOGGLE:
 	case ZZB_ZCL_DOOR_LOCK_UNLOCK_WITH_TIMEOUT:
-		return operate(node, cmd, values);
+		return operate(node, cmd, v);
+	case ZZB_ZCL_DOOR_LOCK_SET_PIN_CODE:
+		return set_pin_code(node, cmd, v);
+	case ZZB_ZCL_DOOR_LOCK_GET_PIN_CODE:
+	case ZZB_ZCL_DOOR_LOCK_GET_USER_STATUS:
+	case ZZB_ZCL_DOOR_LOCK_GET_USER_TYPE:
+		return get_user(node, cmd, v);
+	case ZZB_ZCL_DOOR_LOCK_CLEAR_PIN_CODE:
+		return clear_pin_code(node, cmd, v);
+	case ZZB_ZCL_DOOR_LOCK_CLEAR_ALL_PIN_CODES:
+		clear_users(node, cmd->ep, v);
+		return respond(node, cmd, PASS);
+	case ZZB_ZCL_DOOR_LOCK_SET_USER_STATUS:
+		return set_user_status(node, cmd, v);
+	case ZZB_ZCL_DOOR_LOCK_SET_USER_TYPE:
+		return set_user_type(node, cmd, v);
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}
@@ -171,6 +452,7 @@ static void init(void *values)
 	v->manual_operation_event_mask = EVENTS_ALL;
 	v->keypad_programming_event_mask = EVENTS_ALL;
 	v->rf_programming_event_mask = EVENTS_ALL;
+	memset(v->users, 0, sizeof(v->users));
 }
 
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value)
@@ -192,6 +474,7 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 	set(node, ep, ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_EVENT_MASK, EVENTS_ALL);
 	set(node, ep, ZZB_ZCL_DOOR_LOCK_KEYPAD_PROGRAMMING_EVENT_MASK, EVENTS_ALL);
 	set(node, ep, ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_EVENT_MASK, EVENTS_ALL);
+	clear_users(node, ep, values);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def = {
@@ -202,3 +485,48 @@ const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def = {
 	.cmd = cmd,
 	.check = check,
 };
+
+/* The values of the Door Lock server on ep, or NULL */
+static struct zzb_zcl_door_lock *server(const struct zzb_endpoint *ep)
+{
+	const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(ep, ZZB_ZCL_DOOR_LOCK, true);
+
+	return cl != NULL ? cl->values : NULL;
+}
+
+int zzb_zcl_door_lock_load(struct zzb_node *node, const char *key, size_t len,
+			   settings_read_cb read_cb, void *cb_arg)
+{
+	const struct zzb_endpoint *e;
+	struct zzb_zcl_door_lock_user *u;
+	struct zzb_zcl_door_lock *v;
+	uint8_t rec[RECORD_LEN];
+	unsigned long ep, id;
+	char *end;
+	int err;
+
+	/* <ep>/<user> */
+	ep = strtoul(key, &end, 10);
+	id = *end == '/' ? strtoul(end + 1, &end, 10) : ULONG_MAX;
+	e = ep <= UINT8_MAX ? zzb_node_endpoint(node, ep) : NULL;
+	v = e != NULL ? server(e) : NULL;
+	if (v == NULL || id >= ARRAY_SIZE(v->users)) {
+		return 0;
+	}
+
+	err = zzb_settings_read(len, read_cb, cb_arg, rec, sizeof(rec));
+	if (err) {
+		return err;
+	}
+
+	if (rec[3] > ZZB_ZCL_DOOR_LOCK_PIN_MAX) {
+		return -EINVAL;
+	}
+
+	u = &v->users[id];
+	u->status = rec[1];
+	u->type = rec[2];
+	u->len = rec[3];
+	memcpy(u->code, rec + 4, sizeof(u->code));
+	return 0;
+}

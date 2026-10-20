@@ -467,6 +467,14 @@ int zzb_zcl_schedule_load(struct zzb_node *node, const char *key, size_t len,
 int zzb_zcl_ias_zone_load(struct zzb_node *node, int ep, size_t len, settings_read_cb read_cb,
 			  void *cb_arg);
 
+/*
+ * Loads the record zcl/lock/<key>, key being <ep>/<user>; -EINVAL for an unknown version or length
+ * or a code longer than ZZB_ZCL_DOOR_LOCK_PIN_MAX. A record of an endpoint without a Door Lock
+ * server or of a user outside its table is ignored.
+ */
+int zzb_zcl_door_lock_load(struct zzb_node *node, const char *key, size_t len,
+			   settings_read_cb read_cb, void *cb_arg);
+
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);
 
