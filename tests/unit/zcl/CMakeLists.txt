@@ -25,6 +25,7 @@ target_sources(app PRIVATE
   src/power_config.c
   src/report.c
   src/scenes.c
+  src/schedule.c
   src/sensors.c
   src/thermostat.c
   src/window_covering.c

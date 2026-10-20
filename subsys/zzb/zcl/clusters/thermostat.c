@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
 #include <zzb/zcl/thermostat.h>
 
 #include "zcl/zcl.h"
@@ -249,6 +250,7 @@ static void init(void *values)
 	v->max_cool_setpoint_limit = v->abs_max_cool_setpoint_limit;
 	v->system_mode = v->system_mode_default;
 	v->thermostat_programming_operation_mode = 0;
+	memset(v->schedule, 0, sizeof(v->schedule));
 }
 
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value)
@@ -339,6 +341,13 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	switch (cmd->id) {
 	case ZZB_ZCL_THERMOSTAT_SETPOINT_RAISE_LOWER:
 		return setpoint_raise_lower(node, cmd, values);
+	case ZZB_ZCL_THERMOSTAT_SET_WEEKLY_SCHEDULE:
+		return zzb_zcl_schedule_set(node, cmd, values);
+	case ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE:
+		return zzb_zcl_schedule_get(node, cmd, values);
+	case ZZB_ZCL_THERMOSTAT_CLEAR_WEEKLY_SCHEDULE:
+		zzb_zcl_schedule_clear(node, cmd->ep, values);
+		return ZZB_ZCL_SUCCESS;
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}
@@ -374,6 +383,7 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 			v->abs_max_cool_setpoint_limit);
 	set(node, ep, ZZB_ZCL_THERMOSTAT_SYSTEM_MODE, v->system_mode_default);
 	set(node, ep, ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE, 0);
+	zzb_zcl_schedule_clear(node, ep, values);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_thermostat_def = {

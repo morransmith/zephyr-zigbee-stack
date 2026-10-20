@@ -99,6 +99,7 @@ struct zzb_zcl_attr {
 /** Command status values (ZCL Table 2-12). */
 enum zzb_zcl_status {
 	ZZB_ZCL_SUCCESS = 0x00,
+	ZZB_ZCL_FAILURE = 0x01,
 	ZZB_ZCL_MALFORMED_COMMAND = 0x80,
 	ZZB_ZCL_UNSUP_COMMAND = 0x81,
 	ZZB_ZCL_INVALID_FIELD = 0x85,
