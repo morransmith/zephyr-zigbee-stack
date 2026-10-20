@@ -399,6 +399,42 @@ const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_def = {
 	.changed = changed,
 };
 
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+/* The commands that the client passes to zcl_cmd_cb, with the length of their fields */
+static const struct {
+	uint8_t id;
+	uint8_t len;
+} client_commands[] = {
+	{ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION, 6},
+	{ZZB_ZCL_IAS_ZONE_ENROLL_REQ, 4},
+};
+
+static int client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
+{
+	ARRAY_FOR_EACH(client_commands, i) {
+		if (client_commands[i].id != cmd->id) {
+			continue;
+		}
+
+		if (cmd->len < client_commands[i].len) {
+			return ZZB_ZCL_MALFORMED_COMMAND;
+		}
+
+		return zzb_zcl_app_cmd(node, cmd);
+	}
+
+	return ZZB_ZCL_UNSUP_COMMAND;
+}
+
+const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.cmd = client_cmd,
+};
+
 int zzb_zcl_ias_zone_load(struct zzb_node *node, int ep, size_t len, settings_read_cb read_cb,
 			  void *cb_arg)
 {

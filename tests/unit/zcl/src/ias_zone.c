@@ -400,6 +400,51 @@ ZTEST(zzb_zcl_ias_zone, test_reset_test_mode)
 	zassert_false(timer_armed());
 }
 
+/*
+ * The IAS Zone client of a CIE passes the commands of the zones to zcl_cmd_cb, which answers Zone
+ * Enroll Request
+ */
+ZTEST(zzb_zcl_ias_zone, test_client)
+{
+	static const uint8_t request[] = {0x19, 0x61, 0x01, 0x15, 0x00, 0x34, 0x12};
+	static const uint8_t response[] = {0x11, 0x61, 0x42, 0xaa};
+	static const uint8_t notification[] = {0x19, 0x62, 0x00, 0x01, 0x00,
+					       0x00, 0x05, 0x00, 0x00};
+
+	zcl_cmd_responds = true;
+	receive_ep(ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, request, sizeof(request));
+	zassert_equal(zcl_cmd_calls.count, 1);
+	zassert_false(zcl_cmd_calls.cmd[0].server);
+	zassert_equal(zcl_cmd_calls.cmd[0].id, ZZB_ZCL_IAS_ZONE_ENROLL_REQ);
+	zassert_equal(zcl_cmd_calls.cmd[0].len, 4);
+	zassert_mem_equal(zcl_cmd_calls.payload[0], request + 3, 4);
+	zassert_ok(zcl_cmd_respond_err);
+	check_frame(0, ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, response, sizeof(response));
+
+	zcl_cmd_responds = false;
+	receive_ep(ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, notification, sizeof(notification));
+	zassert_equal(zcl_cmd_calls.count, 2);
+	zassert_equal(zcl_cmd_calls.cmd[1].id, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+}
+
+/* Shorter payloads and another command of the client */
+ZTEST(zzb_zcl_ias_zone, test_client_errors)
+{
+	receive_ep(ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE,
+		   (uint8_t[]){0x09, 0x63, 0x01, 0x15, 0x00, 0x34}, 6);
+	check_frame(0, ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, (uint8_t[]){0x10, 0x63, 0x0b, 0x01, 0x80},
+		    5);
+	receive_ep(ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE,
+		   (uint8_t[]){0x09, 0x64, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00}, 8);
+	check_frame(1, ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, (uint8_t[]){0x10, 0x64, 0x0b, 0x00, 0x80},
+		    5);
+	receive_ep(ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, (uint8_t[]){0x09, 0x65, 0x02}, 3);
+	check_frame(2, ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, (uint8_t[]){0x10, 0x65, 0x0b, 0x02, 0x81},
+		    5);
+	zassert_equal(zcl_cmd_calls.count, 0);
+}
+
 /* Section 15: the enrollment and the endpoint of the CIE are saved, and the reset deletes them */
 ZTEST(zzb_zcl_ias_zone, test_records)
 {

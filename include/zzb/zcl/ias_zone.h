@@ -78,6 +78,7 @@ struct zzb_zcl_ias_zone {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_client_def;
 
 /** An IAS Zone server with the values v, a pointer to struct zzb_zcl_ias_zone. */
 #define ZZB_ZCL_IAS_ZONE_SERVER(v)                                                                 \
@@ -86,6 +87,18 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_ias_zone *)NULL),                             \
 		.def = &zzb_zcl_ias_zone_def,                                                      \
+	}
+
+/**
+ * An IAS Zone client, which the IAS CIE has (DTL). Zone Status Change Notification and Zone Enroll
+ * Request go to zcl_cmd_cb; the application answers Zone Enroll Request with Zone Enroll Response
+ * through zzb_zcl_cmd_respond().
+ */
+#define ZZB_ZCL_IAS_ZONE_CLIENT()                                                                  \
+	{                                                                                          \
+		.id = ZZB_ZCL_IAS_ZONE,                                                            \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_ias_zone_client_def,                                               \
 	}
 
 #ifdef __cplusplus

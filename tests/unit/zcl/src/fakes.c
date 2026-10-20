@@ -480,6 +480,10 @@ static const struct zzb_zcl_cluster ep80_clusters[] = {
 	ZZB_ZCL_IAS_ZONE_SERVER(&zone80),
 };
 
+static const struct zzb_zcl_cluster ep81_clusters[] = {
+	ZZB_ZCL_IAS_ZONE_CLIENT(),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -599,6 +603,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0402,
 		.clusters = ep80_clusters,
 		.cluster_count = ARRAY_SIZE(ep80_clusters),
+	},
+	{
+		.id = ZONE_CLIENT_EP,
+		.profile = 0x0104,
+		.device_id = 0x0400,
+		.clusters = ep81_clusters,
+		.cluster_count = ARRAY_SIZE(ep81_clusters),
 	},
 };
 

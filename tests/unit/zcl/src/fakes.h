@@ -227,6 +227,9 @@ extern struct zzb_zcl_pump pump70;
 
 extern struct zzb_zcl_ias_zone zone80;
 
+/* Endpoint 81 is an IAS CIE with the IAS Zone client */
+#define ZONE_CLIENT_EP 81
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
