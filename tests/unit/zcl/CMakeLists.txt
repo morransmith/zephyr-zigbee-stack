@@ -25,6 +25,7 @@ target_sources(app PRIVATE
   src/ias_zone.c
   src/identify.c
   src/level.c
+  src/metering.c
   src/on_off.c
   src/power_config.c
   src/report.c

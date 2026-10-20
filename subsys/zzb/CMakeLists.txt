@@ -80,6 +80,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/illuminance.c
   zcl/clusters/level.c
   zcl/clusters/measurement.c
+  zcl/clusters/metering.c
   zcl/clusters/occupancy.c
   zcl/clusters/on_off.c
   zcl/clusters/on_off_switch_config.c

@@ -544,6 +544,12 @@ static const struct zzb_zcl_cluster ep121_clusters[] = {
 	ZZB_ZCL_BINARY_INPUT_SERVER(&input121),
 };
 
+struct zzb_zcl_metering meter122;
+
+static const struct zzb_zcl_cluster ep122_clusters[] = {
+	ZZB_ZCL_METERING_SERVER(&meter122),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -719,6 +725,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x000c,
 		.clusters = ep121_clusters,
 		.cluster_count = ARRAY_SIZE(ep121_clusters),
+	},
+	{
+		.id = METER_EP,
+		.profile = 0x0104,
+		.device_id = 0x0053,
+		.clusters = ep122_clusters,
+		.cluster_count = ARRAY_SIZE(ep122_clusters),
 	},
 };
 

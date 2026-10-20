@@ -23,6 +23,7 @@
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
 #include <zzb/zcl/measurement.h>
+#include <zzb/zcl/metering.h>
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/on_off_switch_config.h>
@@ -265,6 +266,11 @@ extern struct zzb_zcl_on_off_switch_config switch120;
 #define INPUT_EP 121
 
 extern struct zzb_zcl_binary_input input121;
+
+/* Endpoint 122 is a Meter Interface with the Metering server */
+#define METER_EP 122
+
+extern struct zzb_zcl_metering meter122;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
