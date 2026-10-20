@@ -85,8 +85,8 @@ static void save(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_ias_zon
 }
 
 /* Sends the command id with the payload from the server on ep to the CIE */
-static int send(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_ias_zone *v, uint8_t id,
-		const uint8_t *payload, size_t len)
+static int send_to_cie(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_ias_zone *v,
+		       uint8_t id, const uint8_t *payload, size_t len)
 {
 	return zzb_zcl_send_ext(node, zzb_node_endpoint(node, ep), v->ias_cie_address, v->cie_ep,
 				ZZB_ZCL_IAS_ZONE, id, payload, len);
@@ -99,7 +99,7 @@ static int enroll_request(struct zzb_node *node, uint8_t ep, const struct zzb_zc
 
 	sys_put_le16(v->zone_type, payload);
 	sys_put_le16(node->device->manufacturer_code, payload + 2);
-	return send(node, ep, v, ZZB_ZCL_IAS_ZONE_ENROLL_REQ, payload, sizeof(payload));
+	return send_to_cie(node, ep, v, ZZB_ZCL_IAS_ZONE_ENROLL_REQ, payload, sizeof(payload));
 }
 
 /*
@@ -123,8 +123,8 @@ static int send_status(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_i
 	payload[2] = 0;
 	payload[3] = v->zone_id;
 	sys_put_le16(MIN((now - v->since) / DELAY_MS, DELAY_MAX), payload + 4);
-	return send(node, ep, v, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION, payload,
-		    sizeof(payload));
+	return send_to_cie(node, ep, v, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION, payload,
+			   sizeof(payload));
 }
 
 /* Sends a change of ZoneStatus; a refusal off a network or during a rejoin waits for a retry */
