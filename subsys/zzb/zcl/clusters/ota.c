@@ -1,7 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <string.h>
+#include <zephyr/dfu/flash_img.h>
+#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/kernel.h>
 #include <zephyr/random/random.h>
+#include <zephyr/storage/flash_map.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/ota.h>
 
@@ -30,16 +34,37 @@
 #define TIMEOUT K_SECONDS(5)
 #define REPEATS 3
 
-/* The length of the OTA header (ZCL 11.4.2) */
-#define HEADER_LEN 56
+/* The OTA header and the header of a sub-element (ZCL 11.4.2, 11.4.3) */
+#define HEADER_LEN  56
+#define ELEMENT_LEN 6
+#define FILE_ID     0x0beef11e
 
-/* The download into the upload slot, which one node of the binary owns at a time (section 3) */
-static struct {
+/* The tag of the Upgrade Image sub-element (ZCL Table 11-5) */
+#define UPGRADE_IMAGE 0x0000
+
+/*
+ * The download into the upload slot, which one node of the binary owns at a time (section 3), and
+ * the parser of the OTA file
+ */
+struct download {
 	/* NULL while no node downloads */
 	struct zzb_node *owner;
 	/* The image size of the Query Next Image Response */
 	uint32_t size;
-} dl;
+	struct flash_img_context flash;
+	/* The OTA header, then the header of each sub-element, as it arrives */
+	uint8_t hdr[HEADER_LEN];
+	uint8_t hdr_len;
+	uint8_t hdr_got;
+	/* Octets of the header or sub-element after hdr that are still to come */
+	uint32_t left;
+	/* Whether those octets go to the upload slot */
+	bool writing;
+	/* Whether the file has an Upgrade Image */
+	bool image;
+};
+
+static struct download dl;
 
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_OTA_UPGRADE_SERVER_ID, ZZB_ZCL_EUI64, 0, struct zzb_zcl_ota,
@@ -198,38 +223,6 @@ static void end_req(struct zzb_node *node, const struct zzb_endpoint *ep, uint8_
 	request(node, ep, ZZB_ZCL_OTA_UPGRADE_END, payload, sizeof(payload));
 }
 
-/* ZCL 11.13.5.4: the download of the file version of size octets starts at offset 0 */
-static void start_download(struct zzb_node *node, const struct zzb_endpoint *ep, uint32_t version,
-			   uint32_t size)
-{
-	struct zzb_zcl_ota *v = values_of(ep);
-
-	/* The firmware has one upload slot */
-	if (dl.owner != NULL) {
-		return;
-	}
-
-	dl.owner = node;
-	dl.size = size;
-	set(node, ep, ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_OTA_DOWNLOADING);
-	set(node, ep, ZZB_ZCL_OTA_IMAGE_TYPE_ID, v->image_type);
-	set(node, ep, ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION, version);
-	set(node, ep, ZZB_ZCL_OTA_FILE_OFFSET, 0);
-	block_req(node, ep);
-}
-
-/* After the last block the client sends Upgrade End Request, and the download is complete */
-static void complete(struct zzb_node *node, const struct zzb_endpoint *ep)
-{
-	struct zzb_zcl_ota *v = values_of(ep);
-
-	end_req(node, ep, ZZB_ZCL_SUCCESS);
-	set(node, ep, ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
-	v->tries = 0;
-	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_OTA, false);
-	k_work_cancel_delayable(&node->zcl.ota_timer);
-}
-
 /* Ends a download without a frame; the next query follows one interval later */
 static void end(struct zzb_node *node, const struct zzb_endpoint *ep)
 {
@@ -242,6 +235,167 @@ static void end(struct zzb_node *node, const struct zzb_endpoint *ep)
 	set(node, ep, ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION, 0xffffffff);
 	set(node, ep, ZZB_ZCL_OTA_IMAGE_TYPE_ID, 0xffff);
 	arm(node, v, INTERVAL);
+}
+
+/* Ends a download with Upgrade End Request INVALID_IMAGE or ABORT */
+static void fail(struct zzb_node *node, const struct zzb_endpoint *ep, uint8_t status)
+{
+	end_req(node, ep, status);
+	end(node, ep);
+}
+
+/* ZCL 11.13.5.4: the download of the file version of size octets starts at offset 0 */
+static void start_download(struct zzb_node *node, const struct zzb_endpoint *ep, uint32_t version,
+			   uint32_t size)
+{
+	struct zzb_zcl_ota *v = values_of(ep);
+
+	/* The firmware has one upload slot */
+	if (dl.owner != NULL) {
+		return;
+	}
+
+	dl = (struct download){
+		.owner = node,
+		.size = size,
+		.hdr_len = HEADER_LEN,
+	};
+	set(node, ep, ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_OTA_DOWNLOADING);
+	set(node, ep, ZZB_ZCL_OTA_IMAGE_TYPE_ID, v->image_type);
+	set(node, ep, ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION, version);
+	set(node, ep, ZZB_ZCL_OTA_FILE_OFFSET, 0);
+	if (flash_img_init(&dl.flash) != 0) {
+		fail(node, ep, ZZB_ZCL_ABORT);
+		return;
+	}
+
+	block_req(node, ep);
+}
+
+/*
+ * ZCL 11.4.2: the identifier, a header version 0x01xx, the image of the Query Next Image Response
+ * and its image size. The sub-elements follow the header length.
+ */
+static uint8_t file_header(const struct zzb_node *node, const struct zzb_zcl_ota *v)
+{
+	const uint8_t *h = dl.hdr;
+
+	if (sys_get_le32(h) != FILE_ID || sys_get_le16(h + 4) >> 8 != 0x01 ||
+	    sys_get_le16(h + 10) != node->device->manufacturer_code ||
+	    sys_get_le16(h + 12) != v->image_type_id ||
+	    sys_get_le32(h + 14) != v->downloaded_file_version || sys_get_le32(h + 52) != dl.size) {
+		return ZZB_ZCL_INVALID_IMAGE;
+	}
+
+	dl.left = MAX(sys_get_le16(h + 6), HEADER_LEN) - HEADER_LEN;
+	return ZZB_ZCL_SUCCESS;
+}
+
+/*
+ * ZCL 11.4.3: a sub-element whose data start at offset ends within the file, and the one Upgrade
+ * Image fits the upload slot
+ */
+static uint8_t element(uint32_t offset)
+{
+	uint16_t tag = sys_get_le16(dl.hdr);
+	uint32_t len = sys_get_le32(dl.hdr + 2);
+
+	if (len > dl.size - offset) {
+		return ZZB_ZCL_INVALID_IMAGE;
+	}
+
+	if (tag == UPGRADE_IMAGE && (dl.image || len > dl.flash.flash_area->fa_size)) {
+		return ZZB_ZCL_INVALID_IMAGE;
+	}
+
+	dl.image = dl.image || tag == UPGRADE_IMAGE;
+	dl.writing = tag == UPGRADE_IMAGE;
+	dl.left = len;
+	return ZZB_ZCL_SUCCESS;
+}
+
+/*
+ * Adds n octets at p to the header in hdr and checks it when it is complete; end is the offset in
+ * the file after them
+ */
+static uint8_t collect(const struct zzb_node *node, const struct zzb_zcl_ota *v, uint32_t end,
+		       const uint8_t *p, size_t n)
+{
+	uint8_t status;
+
+	memcpy(dl.hdr + dl.hdr_got, p, n);
+	dl.hdr_got += n;
+	if (dl.hdr_got < dl.hdr_len) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	status = dl.hdr_len == HEADER_LEN ? file_header(node, v) : element(end);
+	dl.hdr_len = ELEMENT_LEN;
+	dl.hdr_got = 0;
+	return status;
+}
+
+/* Passes n octets at p of the data after hdr, which the Upgrade Image writes to the upload slot */
+static uint8_t pass(const uint8_t *p, size_t n)
+{
+	dl.left -= n;
+	if (dl.writing && flash_img_buffered_write(&dl.flash, p, n, dl.left == 0) != 0) {
+		return ZZB_ZCL_ABORT;
+	}
+
+	return ZZB_ZCL_SUCCESS;
+}
+
+/*
+ * Passes len octets of the file at offset to the parser. Returns INVALID_IMAGE for a file that
+ * cannot be valid and ABORT after a flash error.
+ */
+static uint8_t parse(const struct zzb_node *node, const struct zzb_zcl_ota *v, uint32_t offset,
+		     const uint8_t *p, size_t len)
+{
+	while (len > 0) {
+		size_t n = MIN(len, dl.left > 0 ? dl.left : dl.hdr_len - dl.hdr_got);
+		uint8_t status = dl.left > 0 ? pass(p, n) : collect(node, v, offset + n, p, n);
+
+		if (status != ZZB_ZCL_SUCCESS) {
+			return status;
+		}
+
+		offset += n;
+		p += n;
+		len -= n;
+	}
+
+	return ZZB_ZCL_SUCCESS;
+}
+
+/*
+ * After the last block the file ends with a complete sub-element and has an Upgrade Image, which
+ * starts with an MCUboot image header
+ */
+static bool valid(void)
+{
+	struct mcuboot_img_header header;
+
+	return dl.left == 0 && dl.hdr_got == 0 && dl.image &&
+	       boot_read_bank_header(flash_img_get_upload_slot(), &header, sizeof(header)) == 0;
+}
+
+/* After the last block the client sends Upgrade End Request, and the download is complete */
+static void complete(struct zzb_node *node, const struct zzb_endpoint *ep)
+{
+	struct zzb_zcl_ota *v = values_of(ep);
+
+	if (!valid()) {
+		fail(node, ep, ZZB_ZCL_INVALID_IMAGE);
+		return;
+	}
+
+	end_req(node, ep, ZZB_ZCL_SUCCESS);
+	set(node, ep, ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
+	v->tries = 0;
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_OTA, false);
+	k_work_cancel_delayable(&node->zcl.ota_timer);
 }
 
 /* Armed only on a node with an OTA client */
@@ -360,6 +514,7 @@ static int block(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zz
 {
 	const struct zzb_endpoint *ep = zzb_node_endpoint(node, cmd->ep);
 	const uint8_t *p = cmd->payload;
+	uint8_t status;
 
 	if (cmd->len < 14 || sys_get_le16(p + 1) != node->device->manufacturer_code ||
 	    sys_get_le16(p + 3) != v->image_type_id ||
@@ -368,6 +523,12 @@ static int block(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zz
 	    !IN_RANGE(p[13], 1, CONFIG_ZZB_ZCL_OTA_BLOCK_SIZE) || cmd->len != 14 + p[13] ||
 	    p[13] > dl.size - v->file_offset) {
 		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	status = parse(node, v, v->file_offset, p + 14, p[13]);
+	if (status != ZZB_ZCL_SUCCESS) {
+		fail(node, ep, status);
+		return ZZB_ZCL_SUCCESS;
 	}
 
 	set(node, ep, ZZB_ZCL_OTA_FILE_OFFSET, v->file_offset + p[13]);

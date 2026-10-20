@@ -179,6 +179,7 @@ config ZZB_ZCL_DOOR_LOCK_USERS
 config ZZB_ZCL_OTA
 	bool "OTA Upgrade client"
 	depends on ZZB_ZCL && MCUBOOT_IMG_MANAGER
+	select IMG_ERASE_PROGRESSIVELY
 	help
 	  OTA Upgrade client (ZCL 11) that downloads firmware images from the
 	  trust center into the upload slot of MCUboot. The application

@@ -2,6 +2,8 @@
 
 #include <errno.h>
 #include <string.h>
+#include <zephyr/dfu/mcuboot.h>
+#include <zephyr/storage/flash_map.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/ota.h>
@@ -82,9 +84,10 @@ static struct zzb_node *ota_node;
 /* An MCUboot image: a header of 32 octets and a pattern */
 #define IMAGE_LEN 150
 
-/* The OTA file that the server offers, built by the test */
+/* The OTA file that the server offers, built by the test, and the image size of the offer */
 static uint8_t file[512];
 static size_t file_len;
+static uint32_t image_size;
 
 /* Query Next Image Request of the client: manufacturer code, image type and CurrentFileVersion */
 static const uint8_t query_req[] = {0x00, 0x34, 0x12, 0x42, 0x00, 0x00, 0x03, 0x02, 0x01};
@@ -237,6 +240,7 @@ static uint8_t wait_query(void)
 	uint8_t tsn;
 
 	zassert_ok(reboot_ota());
+	reset_frames();
 	k_sleep(K_MSEC(INTERVAL_MS + 100));
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
 	tsn = check_query(0, REQUESTER_EP);
@@ -271,10 +275,11 @@ static void add_element(uint16_t tag, uint32_t len, const uint8_t *data, size_t 
 	file_len += ELEMENT_LEN + data_len;
 }
 
-/* Writes the length of the file as the total image size of the OTA header */
+/* Writes the length of the file as the total image size of the OTA header and of the offer */
 static void finish_file(void)
 {
-	sys_put_le32(file_len, file + 52);
+	image_size = file_len;
+	sys_put_le32(image_size, file + 52);
 }
 
 /*
@@ -319,7 +324,7 @@ static void offer(uint8_t tsn)
 	uint8_t payload[13] = {0x00, 0x34, 0x12, 0x42, 0x00};
 
 	sys_put_le32(NEW_VERSION, payload + 5);
-	sys_put_le32(file_len, payload + 9);
+	sys_put_le32(image_size, payload + 9);
 	reset_frames();
 	server_cmd(tsn, ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP, payload, sizeof(payload));
 }
@@ -381,6 +386,18 @@ static bool held(void)
 	return false;
 }
 
+/* Checks that the upload slot starts with image */
+static void check_slot(const uint8_t *image)
+{
+	const struct flash_area *fa;
+	uint8_t data[IMAGE_LEN];
+
+	zassert_ok(flash_area_open(PARTITION_ID(slot1_partition), &fa));
+	zassert_ok(flash_area_read(fa, 0, data, sizeof(data)));
+	flash_area_close(fa);
+	zassert_mem_equal(data, image, IMAGE_LEN);
+}
+
 /* The defaults outside a download (ZCL Table 11-10) */
 static void check_normal(void)
 {
@@ -410,6 +427,7 @@ static void before(void *fixture)
 	reset_ota();
 	reset_fakes();
 	build_file();
+	zassert_ok(boot_erase_img_bank(PARTITION_ID(slot1_partition)));
 }
 
 static void after(void *fixture)
@@ -677,6 +695,7 @@ ZTEST(zzb_zcl_ota, test_download)
 	check_end_req(0, 0x00);
 	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
 	zassert_false(held());
+	check_slot(file + HEADER_LEN + ELEMENT_LEN);
 }
 
 /*
@@ -834,6 +853,82 @@ ZTEST(zzb_zcl_ota, test_reboot)
 	offer(check_query(0, REQUESTER_EP));
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
 	check_block_req(0, 0);
+}
+
+/*
+ * ZCL 11.4.2, 11.4.3: the client skips the OTA header up to its header length and the sub-elements
+ * other than the Upgrade Image, and writes the Upgrade Image to the upload slot
+ */
+ZTEST(zzb_zcl_ota, test_upgrade_image)
+{
+	static const uint8_t other[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+	uint8_t image[IMAGE_LEN];
+
+	build_image(image);
+	start_file(HEADER_LEN + 6);
+	add_element(0xf000, sizeof(other), other, sizeof(other));
+	add_element(0x0000, IMAGE_LEN, image, IMAGE_LEN);
+	add_element(0x0003, 8, other, 8);
+	finish_file();
+	offer(wait_query());
+	serve(file_len);
+	check_end_req(0, 0x00);
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
+	check_slot(image);
+}
+
+/*
+ * Offers the file and serves its blocks before offset end, after which the download ends with
+ * Upgrade End Request INVALID_IMAGE
+ */
+static void check_invalid(uint32_t end)
+{
+	offer(wait_query());
+	serve(end);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_end_req(0, 0x96);
+	check_normal();
+	zassert_false(held());
+}
+
+/*
+ * Section 16: an OTA header with another identifier or total image size, a second Upgrade Image, an
+ * Upgrade Image longer than the slot and a sub-element that passes the end of the file give
+ * INVALID_IMAGE at once, and an upload slot without an MCUboot image header after the last block
+ */
+ZTEST(zzb_zcl_ota, test_invalid_image)
+{
+	uint8_t image[IMAGE_LEN];
+
+	file[0] = 0x1f;
+	check_invalid(2 * BLOCK);
+
+	build_file();
+	sys_put_le32(image_size + 1, file + 52);
+	check_invalid(2 * BLOCK);
+
+	build_image(image);
+	build_file();
+	add_element(0x0000, 10, image, 10);
+	finish_file();
+	check_invalid(file_len);
+
+	start_file(HEADER_LEN);
+	add_element(0x0000, 0x69001, image, 2 * BLOCK - HEADER_LEN - ELEMENT_LEN);
+	image_size = HEADER_LEN + ELEMENT_LEN + 0x69001;
+	sys_put_le32(image_size, file + 52);
+	check_invalid(2 * BLOCK);
+
+	start_file(HEADER_LEN);
+	add_element(0x0000, IMAGE_LEN + 1, image, IMAGE_LEN);
+	finish_file();
+	check_invalid(2 * BLOCK);
+
+	image[0] = 0;
+	start_file(HEADER_LEN);
+	add_element(0x0000, IMAGE_LEN, image, IMAGE_LEN);
+	finish_file();
+	check_invalid(file_len);
 }
 
 ZTEST_SUITE(zzb_zcl_ota, NULL, setup, before, after, teardown);
