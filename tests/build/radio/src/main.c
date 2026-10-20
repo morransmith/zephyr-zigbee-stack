@@ -2,6 +2,8 @@
 
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/dfu/mcuboot.h>
+#include <zephyr/sys/reboot.h>
 #include <zzb/zcl/alarms.h>
 #include <zzb/zcl/appliance_control.h>
 #include <zzb/zcl/appliance_events.h>
@@ -28,6 +30,7 @@
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/on_off_switch_config.h>
+#include <zzb/zcl/ota.h>
 #include <zzb/zcl/poll_control.h>
 #include <zzb/zcl/power_config.h>
 #include <zzb/zcl/power_profile.h>
@@ -85,6 +88,13 @@ static struct zzb_zcl_color color = {
 	.couple_color_temp_min = 153,
 	.start_up_default = 0xffff,
 };
+
+#if defined(CONFIG_ZZB_ZCL_OTA)
+static struct zzb_zcl_ota ota = {
+	.current_file_version = 1,
+	.image_type = 0x0000,
+};
+#endif
 
 static struct zzb_zcl_power_config power_config = {
 	.mains_voltage = 2300,
@@ -308,6 +318,7 @@ static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 	ZZB_ZCL_LEVEL_SERVER(&level),
 	ZZB_ZCL_COLOR_SERVER(&color),
+	IF_ENABLED(CONFIG_ZZB_ZCL_OTA, (ZZB_ZCL_OTA_CLIENT(&ota),))
 };
 
 static const struct zzb_zcl_cluster switch_clusters[] = {
@@ -873,9 +884,16 @@ static const struct zzb_device device = {
 	.endpoint_count = ARRAY_SIZE(endpoints),
 };
 
-/* The switch toggles its bound lights after a join */
+/*
+ * A new image is confirmed once the node is back on its network, and the switch toggles its bound
+ * lights after a join
+ */
 static void bdb_event(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_bdb_status status)
 {
+	if (IS_ENABLED(CONFIG_ZZB_ZCL_OTA) && event == ZZB_BDB_EVENT_INIT &&
+	    status == ZZB_BDB_SUCCESS) {
+		boot_write_img_confirmed();
+	}
 #if defined(CONFIG_ZZB_ZCL)
 	if (event == ZZB_BDB_EVENT_STEERING && status == ZZB_BDB_SUCCESS) {
 		zzb_zcl_send_bound(node, 2, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_TOGGLE, NULL, 0);
@@ -898,6 +916,12 @@ static uint8_t zcl_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	return ZZB_ZCL_SUCCESS;
 }
 
+/* MCUboot installs the downloaded image at the reboot */
+static void ota_upgrade(struct zzb_node *node)
+{
+	sys_reboot(SYS_REBOOT_COLD);
+}
+
 int main(void)
 {
 	/* native_sim has no radio and builds no MAC */
@@ -908,6 +932,7 @@ int main(void)
 		.zcl_cb = zcl_changed,
 		.zcl_effect_cb = zcl_effect,
 		.zcl_cmd_cb = zcl_cmd,
+		.ota_cb = IS_ENABLED(CONFIG_ZZB_ZCL_OTA) ? ota_upgrade : NULL,
 	};
 	struct zzb_node *node;
 	/* Keeps the EUI-64 sources in the image, so their linking is checked */
