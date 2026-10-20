@@ -531,6 +531,25 @@ static const struct zzb_zcl_cluster ep91_clusters[] = {
 	ZZB_ZCL_IAS_ACE_CLIENT(),
 };
 
+struct zzb_zcl_on_off_switch_config switch120 = {.switch_type = 0x01};
+
+static const struct zzb_zcl_cluster ep120_clusters[] = {
+	ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SERVER(&switch120),
+	ZZB_ZCL_ON_OFF_CLIENT(),
+};
+
+struct zzb_zcl_binary_input input121;
+
+static const struct zzb_zcl_cluster ep121_clusters[] = {
+	ZZB_ZCL_BINARY_INPUT_SERVER(&input121),
+};
+
+struct zzb_zcl_metering meter122;
+
+static const struct zzb_zcl_cluster ep122_clusters[] = {
+	ZZB_ZCL_METERING_SERVER(&meter122),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -693,6 +712,27 @@ static const struct zzb_endpoint endpoints[] = {
 		.clusters = ep91_clusters,
 		.cluster_count = ARRAY_SIZE(ep91_clusters),
 	},
+	{
+		.id = SWITCH_EP,
+		.profile = 0x0104,
+		.device_id = 0x0000,
+		.clusters = ep120_clusters,
+		.cluster_count = ARRAY_SIZE(ep120_clusters),
+	},
+	{
+		.id = INPUT_EP,
+		.profile = 0x0104,
+		.device_id = 0x000c,
+		.clusters = ep121_clusters,
+		.cluster_count = ARRAY_SIZE(ep121_clusters),
+	},
+	{
+		.id = METER_EP,
+		.profile = 0x0104,
+		.device_id = 0x0053,
+		.clusters = ep122_clusters,
+		.cluster_count = ARRAY_SIZE(ep122_clusters),
+	},
 };
 
 static const struct zzb_device device = {
@@ -842,6 +882,20 @@ void check_zcl_cb(uint8_t ep, uint16_t cluster, const uint16_t *attrs, int count
 	}
 
 	zassert_equal(n, count);
+}
+
+void check_report_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *records, size_t len)
+{
+	const struct frame_copy *copy = &sent[i];
+
+	zassert_true(zzb_apsde_data_req_fake.call_count > i);
+	zassert_equal(copy->req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(copy->req.src_ep, ep);
+	zassert_equal(copy->req.cluster, cluster);
+	zassert_equal(copy->len, 3 + len);
+	zassert_equal(copy->data[0], 0x18);
+	zassert_equal(copy->data[2], ZZB_ZCL_REPORT_ATTRIBUTES);
+	zassert_mem_equal(copy->data + 3, records, len);
 }
 
 void check_alarm(int i, uint8_t ep, uint16_t cluster, uint8_t code)

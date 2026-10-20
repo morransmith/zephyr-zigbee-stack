@@ -68,8 +68,10 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/alarms.c
   zcl/clusters/ballast.c
   zcl/clusters/basic.c
+  zcl/clusters/binary_input.c
   zcl/clusters/color.c
   zcl/clusters/device_temp.c
+  zcl/clusters/electrical_measurement.c
   zcl/clusters/fan.c
   zcl/clusters/groups.c
   zcl/clusters/ias_ace.c
@@ -79,8 +81,11 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/illuminance.c
   zcl/clusters/level.c
   zcl/clusters/measurement.c
+  zcl/clusters/meter_id.c
+  zcl/clusters/metering.c
   zcl/clusters/occupancy.c
   zcl/clusters/on_off.c
+  zcl/clusters/on_off_switch_config.c
   zcl/clusters/power_config.c
   zcl/clusters/pump.c
   zcl/clusters/scenes.c

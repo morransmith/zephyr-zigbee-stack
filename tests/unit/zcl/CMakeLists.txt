@@ -11,6 +11,7 @@ target_sources(app PRIVATE
   src/attr.c
   src/ballast.c
   src/basic.c
+  src/binary_input.c
   src/client.c
   src/color.c
   src/device_temp.c
@@ -24,6 +25,7 @@ target_sources(app PRIVATE
   src/ias_zone.c
   src/identify.c
   src/level.c
+  src/metering.c
   src/on_off.c
   src/power_config.c
   src/report.c
