@@ -11,6 +11,7 @@
 #include <zzb/zcl/alarms.h>
 #include <zzb/zcl/ballast.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/binary_input.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/fan.h>
@@ -260,6 +261,11 @@ extern struct zzb_zcl_ias_wd wd86;
 
 extern struct zzb_zcl_on_off_switch_config switch120;
 
+/* Endpoint 121 is a Simple Sensor with the Binary Input server */
+#define INPUT_EP 121
+
+extern struct zzb_zcl_binary_input input121;
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
@@ -382,6 +388,12 @@ void check_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *asdu, size_
 
 /* Checks that zcl_cb reported these attributes of cluster on endpoint ep in order, and no other */
 void check_zcl_cb(uint8_t ep, uint16_t cluster, const uint16_t *attrs, int count);
+
+/*
+ * Checks that frame i is a Report Attributes of cluster from endpoint ep to the bound destinations
+ * with the attribute records
+ */
+void check_report_frame(int i, uint8_t ep, uint16_t cluster, const uint8_t *records, size_t len);
 
 /* Checks that frame i is Alarm with code of cluster from endpoint ep to the bound destinations */
 void check_alarm(int i, uint8_t ep, uint16_t cluster, uint8_t code);
