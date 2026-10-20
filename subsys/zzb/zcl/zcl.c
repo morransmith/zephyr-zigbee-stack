@@ -253,6 +253,25 @@ int zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	return node->zcl.responded ? ZZB_ZCL_RESPONDED : status;
 }
 
+int zzb_zcl_pass(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+		 const struct zzb_zcl_command *commands, size_t count)
+{
+	for (size_t i = 0; i < count; i++) {
+		if (commands[i].id != cmd->id) {
+			continue;
+		}
+
+		if (zzb_zcl_fields_len(cmd->payload, cmd->len, commands[i].fields,
+				       ZZB_ZCL_FIELDS_MAX) < 0) {
+			return ZZB_ZCL_MALFORMED_COMMAND;
+		}
+
+		return zzb_zcl_app_cmd(node, cmd);
+	}
+
+	return ZZB_ZCL_UNSUP_COMMAND;
+}
+
 /* ZCL 2.5.12.2 */
 static void default_rsp(struct zzb_node *node, const struct zzb_zcl_req *req, int status)
 {

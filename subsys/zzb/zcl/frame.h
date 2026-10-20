@@ -55,6 +55,22 @@ bool zzb_zcl_type_analog(uint8_t type);
 /* Returns the length of a type of fixed length (ZCL Table 2-11), or -ENOTSUP */
 int zzb_zcl_type_len(uint8_t type);
 
+/*
+ * A field of a command: len octets, or with count_mask a count, the bits count_mask of one octet,
+ * followed by that many items of len octets. A character string is counted with items of one octet.
+ */
+struct zzb_zcl_field {
+	uint8_t len;
+	uint8_t count_mask;
+};
+
+/*
+ * Returns the length of the fields at p, which end after count fields or at the first field with
+ * len 0, or -EINVAL if they are longer than len.
+ */
+int zzb_zcl_fields_len(const uint8_t *p, size_t len, const struct zzb_zcl_field *fields,
+		       size_t count);
+
 /* The little-endian value of an integer type of up to 8 octets at p; an int24 has 32 bits */
 uint64_t zzb_zcl_value_get(uint8_t type, const uint8_t *p);
 

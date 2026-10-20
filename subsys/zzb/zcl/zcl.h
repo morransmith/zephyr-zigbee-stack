@@ -337,6 +337,22 @@ void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t
  */
 int zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 
+#define ZZB_ZCL_FIELDS_MAX 3
+
+/* A command that a cluster passes to zcl_cmd_cb and its fields */
+struct zzb_zcl_command {
+	uint8_t id;
+	struct zzb_zcl_field fields[ZZB_ZCL_FIELDS_MAX];
+};
+
+/*
+ * Passes cmd to zcl_cmd_cb when it is in the table of count commands and its payload holds their
+ * fields; octets after them are ignored (ZCL 2.3.2). Returns MALFORMED_COMMAND for a shorter
+ * payload, UNSUP_COMMAND for a command missing from the table, otherwise as zzb_zcl_app_cmd().
+ */
+int zzb_zcl_pass(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+		 const struct zzb_zcl_command *commands, size_t count);
+
 /* Configure Reporting (ZCL 2.5.7); returns the Default Response status or ZZB_ZCL_RESPONDED */
 int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);
 

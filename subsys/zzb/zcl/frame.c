@@ -147,6 +147,27 @@ int zzb_zcl_value_len(uint8_t type, const uint8_t *p, size_t len)
 	return (size_t)n <= len ? n : -EINVAL;
 }
 
+int zzb_zcl_fields_len(const uint8_t *p, size_t len, const struct zzb_zcl_field *fields,
+		       size_t count)
+{
+	size_t n = 0;
+
+	for (size_t i = 0; i < count && fields[i].len > 0; i++) {
+		if (fields[i].count_mask == 0) {
+			n += fields[i].len;
+			continue;
+		}
+
+		if (len <= n) {
+			return -EINVAL;
+		}
+
+		n += 1 + (p[n] & fields[i].count_mask) * fields[i].len;
+	}
+
+	return n <= len ? n : -EINVAL;
+}
+
 uint64_t zzb_zcl_value_get(uint8_t type, const uint8_t *p)
 {
 	int len = MIN(zzb_zcl_type_len(type), 8);
