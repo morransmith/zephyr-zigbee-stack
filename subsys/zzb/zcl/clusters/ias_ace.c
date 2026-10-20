@@ -45,6 +45,27 @@ static const struct command server_commands[] = {
 	{ZZB_ZCL_IAS_ACE_GET_ZONE_STATUS, {{5}}},
 };
 
+/* ZCL 8.3.2.4 */
+static const struct command client_commands[] = {
+	/* Arm Notification */
+	{ZZB_ZCL_IAS_ACE_ARM_RSP, {{1}}},
+	/* Zone ID Map sections 0 to 15 */
+	{ZZB_ZCL_IAS_ACE_GET_ZONE_ID_MAP_RSP, {{32}}},
+	/* Zone ID, Zone Type, IEEE address, Zone Label */
+	{ZZB_ZCL_IAS_ACE_GET_ZONE_INFORMATION_RSP, {{11}, {1, true}}},
+	/* Zone ID, Zone Status, Audible Notification, Zone Label */
+	{ZZB_ZCL_IAS_ACE_ZONE_STATUS_CHANGED, {{4}, {1, true}}},
+	/* Panel Status, Seconds Remaining, Audible Notification, Alarm Status */
+	{ZZB_ZCL_IAS_ACE_PANEL_STATUS_CHANGED, {{4}}},
+	{ZZB_ZCL_IAS_ACE_GET_PANEL_STATUS_RSP, {{4}}},
+	/* Number of Zones and the zone IDs */
+	{ZZB_ZCL_IAS_ACE_SET_BYPASSED_ZONE_LIST, {{1, true}}},
+	/* Number of Zones and the bypass results */
+	{ZZB_ZCL_IAS_ACE_BYPASS_RSP, {{1, true}}},
+	/* Zone Status Complete, Number of Zones and the zone IDs with their Zone Status */
+	{ZZB_ZCL_IAS_ACE_GET_ZONE_STATUS_RSP, {{1}, {3, true}}},
+};
+
 /* Whether the payload holds the fields; octets after them are ignored (ZCL 2.3.2) */
 static bool fits(const struct zzb_zcl_cmd *cmd, const struct field *fields)
 {
@@ -90,8 +111,19 @@ static int server_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void
 	return pass(node, cmd, server_commands, ARRAY_SIZE(server_commands));
 }
 
+static int client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
+{
+	return pass(node, cmd, client_commands, ARRAY_SIZE(client_commands));
+}
+
 const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
 	.cmd = server_cmd,
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_client_def = {
+	.attrs = attrs,
+	.attr_count = ARRAY_SIZE(attrs),
+	.cmd = client_cmd,
 };

@@ -217,8 +217,9 @@ extern struct zzb_zcl_humidity humidity70;
 extern struct zzb_zcl_fan fan70;
 extern struct zzb_zcl_pump pump70;
 
-/* Endpoint 90 is an IAS CIE with the IAS ACE server */
-#define CIE_EP 90
+/* Endpoint 90 is an IAS CIE with the IAS ACE server, endpoint 91 a keypad with the client */
+#define CIE_EP    90
+#define KEYPAD_EP 91
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
@@ -274,7 +275,7 @@ extern struct effect_calls effect_calls;
 struct zcl_cmd_calls {
 	int count;
 	struct zzb_zcl_cmd cmd[8];
-	uint8_t payload[8][16];
+	uint8_t payload[8][32];
 };
 
 extern struct zcl_cmd_calls zcl_cmd_calls;

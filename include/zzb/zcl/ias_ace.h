@@ -87,6 +87,7 @@ enum zzb_zcl_ias_ace_alarm_status {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_client_def;
 
 /**
  * An IAS ACE server, which the IAS CIE has (DTL). Its commands go to zcl_cmd_cb after the length
@@ -99,6 +100,17 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_def;
 		.id = ZZB_ZCL_IAS_ACE,                                                             \
 		.server = true,                                                                    \
 		.def = &zzb_zcl_ias_ace_def,                                                       \
+	}
+
+/**
+ * An IAS ACE client, which the IAS ACE device has (DTL). The commands of the server go to
+ * zcl_cmd_cb after the length checks; the client sends its commands with zzb_zcl_send_bound().
+ */
+#define ZZB_ZCL_IAS_ACE_CLIENT()                                                                   \
+	{                                                                                          \
+		.id = ZZB_ZCL_IAS_ACE,                                                             \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_ias_ace_client_def,                                                \
 	}
 
 #ifdef __cplusplus
