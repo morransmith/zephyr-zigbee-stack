@@ -170,6 +170,7 @@ int zzb_mac_start_op(struct zzb_node *node, enum zzb_mac_op op)
 	}
 
 	mac->op = op;
+	set_rx_on_when_idle(node, true);
 	return 0;
 }
 
@@ -178,6 +179,7 @@ void zzb_mac_end_op(struct zzb_node *node)
 	net_buf_unref(node->mac.cmd_buf);
 	node->mac.cmd_buf = NULL;
 	node->mac.op = ZZB_MAC_OP_NONE;
+	set_rx_on_when_idle(node, false);
 }
 
 void zzb_mac_cmd_done(struct zzb_node *node, enum zzb_mac_status status, bool frame_pending)

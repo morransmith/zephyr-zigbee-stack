@@ -84,6 +84,26 @@ ZTEST(zzb_mac_scan, test_channel_access_failure_skips_channel)
 	zassert_equal(sent_count, 2);
 }
 
+/* The scan starts the radio on every channel */
+ZTEST(zzb_mac_scan, test_sleepy_node_receives_during_the_scan)
+{
+	mac_init_sleepy();
+
+	zassert_ok(zzb_mlme_scan_req(node, BIT(11) | BIT(15), 0));
+	k_sleep(K_MSEC(100));
+
+	zassert_equal(zzb_mlme_scan_conf_fake.call_count, 1);
+	zassert_equal(sent_count, 2);
+	for (int i = 0; i < sent_count; i++) {
+		zassert_true(sent[i].radio.started);
+		zassert_true(sent[i].radio.rx_on_when_idle);
+	}
+
+	zassert_equal(radio.channel, 11);
+	zassert_false(radio.rx_on_when_idle);
+	zassert_false(radio.started);
+}
+
 ZTEST(zzb_mac_scan, test_invalid_or_second_scan_is_rejected)
 {
 	zassert_equal(zzb_mlme_scan_req(node, BIT(11), 15), -EINVAL);
