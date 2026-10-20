@@ -240,9 +240,9 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
 /**
  * Called on the stack thread for a cluster-specific command that the application carries out, such
  * as a command of Window Covering, after the checks of the stack. The payload is valid during the
- * call. Returns the status of the Default Response. A recalled Window Covering scene comes as Go To
- * Lift Percentage and Go To Tilt Percentage, with unicast false, src_addr, src_ep and tsn 0, and
- * its status is ignored.
+ * call. Returns the status of the Default Response, unless the application answers the command
+ * with zzb_zcl_cmd_respond(). A recalled Window Covering scene comes as Go To Lift Percentage and
+ * Go To Tilt Percentage, with unicast false, src_addr, src_ep and tsn 0, and its status is ignored.
  */
 typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 
@@ -260,6 +260,22 @@ typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_
  */
 int zzb_zcl_attr_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
 		     const void *value);
+
+/**
+ * @brief Answer a command that zcl_cmd_cb receives.
+ *
+ * Runs on the stack thread within zcl_cmd_cb. Sends the cluster-specific command id with the
+ * payload to the source of cmd, with the TSN of cmd, the opposite direction and Disable Default
+ * Response 1. Then no Default Response follows, and the status that zcl_cmd_cb returns is ignored
+ * (ZCL 2.5.12.2).
+ *
+ * @retval 0 on success.
+ * @retval -EINVAL cmd did not come as unicast, such as a command that the stack builds.
+ * @retval -ENOBUFS no buffer or transmission table entry is free; the Default Response follows the
+ * status that zcl_cmd_cb returns.
+ */
+int zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+			const uint8_t *payload, size_t len);
 
 /**
  * @brief Send a cluster-specific command of a client cluster to the bound destinations.

@@ -270,13 +270,20 @@ extern struct effect_calls effect_calls;
 struct zcl_cmd_calls {
 	int count;
 	struct zzb_zcl_cmd cmd[8];
-	uint8_t payload[8][4];
+	uint8_t payload[8][16];
 };
 
 extern struct zcl_cmd_calls zcl_cmd_calls;
 
 /* The status that zcl_cmd_cb returns, ZZB_ZCL_SUCCESS after reset_fakes() */
 extern uint8_t zcl_cmd_status;
+
+/*
+ * With zcl_cmd_responds, false after reset_fakes(), zcl_cmd_cb answers every command with
+ * zzb_zcl_cmd_respond(): command 0x42 with the payload 0xaa. zcl_cmd_respond_err is its result.
+ */
+extern bool zcl_cmd_responds;
+extern int zcl_cmd_respond_err;
 
 /* A membership of the APS group table, kept by the fakes of the group functions; ep 0 is free */
 struct membership {

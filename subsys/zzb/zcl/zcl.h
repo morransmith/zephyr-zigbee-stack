@@ -86,6 +86,8 @@ struct zzb_zcl {
 	struct k_work_delayable mains_alarm_timer;
 	/* Raises the device temperature alarms when their dwell has passed */
 	struct k_work_delayable temp_alarm_timer;
+	/* zcl_cmd_cb has answered the command it processes */
+	bool responded;
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -142,11 +144,11 @@ int zzb_zcl_send_bindings(struct zzb_node *node, const struct zzb_endpoint *ep, 
 			  const uint8_t *payload, size_t len);
 
 /*
- * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload;
- * an error drops it
+ * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload.
+ * Returns an error of zzb_zcl_send().
  */
-void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
-		     enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len);
+int zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
+		    enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len);
 
 /* The server or client instance of cluster id on ep, or NULL */
 const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep, uint16_t id,
@@ -301,16 +303,22 @@ void zzb_zcl_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t a
  */
 void zzb_zcl_reset(struct zzb_node *node);
 
-/* Sends the cluster-specific response id with the payload to cmd, which a cmd hook processes */
-void zzb_zcl_cmd_reply(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
-		       const uint8_t *payload, size_t len);
+/*
+ * Sends the cluster-specific response id with the payload to cmd, which a cmd hook processes.
+ * Returns an error of zzb_zcl_send().
+ */
+int zzb_zcl_cmd_reply(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+		      const uint8_t *payload, size_t len);
 
 /* Calls zcl_effect_cb */
 void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t effect,
 		    uint8_t variant);
 
-/* Passes cmd to zcl_cmd_cb; returns its status, or ZZB_ZCL_SUCCESS without it */
-uint8_t zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
+/*
+ * Passes cmd to zcl_cmd_cb; returns its status, ZZB_ZCL_RESPONDED when the application has answered
+ * the command, or ZZB_ZCL_SUCCESS without zcl_cmd_cb
+ */
+int zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 
 /* Configure Reporting (ZCL 2.5.7); returns the Default Response status or ZZB_ZCL_RESPONDED */
 int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);

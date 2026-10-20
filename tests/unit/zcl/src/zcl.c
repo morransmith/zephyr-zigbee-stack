@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <zephyr/ztest.h>
+#include <zzb/zcl/window_covering.h>
 
 #include "common/node.h"
 #include "fakes.h"
@@ -53,6 +54,38 @@ ZTEST(zzb_zcl, test_client_command)
 	zassert_equal(cmd_calls.count, 1);
 	zassert_false(cmd_calls.cmd.server);
 	zassert_equal_ptr(cmd_calls.values, &values3);
+}
+
+/* ZCL 2.5.12.2: the answer of the application replaces the Default Response, also of an error */
+ZTEST(zzb_zcl, test_app_response)
+{
+	static const uint8_t rsp[] = {0x19, 0x24, 0x42, 0xaa};
+
+	zcl_cmd_responds = true;
+	zcl_cmd_status = ZZB_ZCL_INVALID_FIELD;
+	receive_ep(COVERING_EP, ZZB_ZCL_WINDOW_COVERING, (uint8_t[]){0x01, 0x24, 0x00}, 3);
+	zassert_ok(zcl_cmd_respond_err);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_frame(0, COVERING_EP, ZZB_ZCL_WINDOW_COVERING, rsp, sizeof(rsp));
+}
+
+/* The application answers only a unicast */
+ZTEST(zzb_zcl, test_app_response_broadcast)
+{
+	const struct zzb_apsde_ind ind = {
+		.dst_addr = 0xfffd,
+		.dst_ep = COVERING_EP,
+		.src_addr = REQUESTER_ADDR,
+		.src_ep = REQUESTER_EP,
+		.profile = 0x0104,
+		.cluster = ZZB_ZCL_WINDOW_COVERING,
+	};
+
+	zcl_cmd_responds = true;
+	receive_ind(&ind, (uint8_t[]){0x01, 0x25, 0x00}, 3);
+	zassert_equal(zcl_cmd_calls.count, 1);
+	zassert_equal(zcl_cmd_respond_err, -EINVAL);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
 }
 
 /* ZCL 2.4.1.1.4: with Disable Default Response 1 only an error gets a Default Response */

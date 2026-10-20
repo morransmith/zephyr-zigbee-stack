@@ -142,8 +142,8 @@ int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint
 	return req.err;
 }
 
-void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
-		     enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len)
+int zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
+		    enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len)
 {
 	const struct zzb_zcl_hdr hdr = {
 		.type = type,
@@ -163,14 +163,32 @@ void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 		.tx_options = ZZB_APS_TX_ACK,
 	};
 
-	zzb_zcl_send(node, &aps, &hdr, payload, len);
+	return zzb_zcl_send(node, &aps, &hdr, payload, len);
 }
 
-void zzb_zcl_cmd_reply(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
-		       const uint8_t *payload, size_t len)
+int zzb_zcl_cmd_reply(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+		      const uint8_t *payload, size_t len)
 {
-	zzb_zcl_respond(node, CONTAINER_OF(cmd, struct zzb_zcl_req, cmd), ZZB_ZCL_FRAME_CLUSTER, id,
-			payload, len);
+	return zzb_zcl_respond(node, CONTAINER_OF(cmd, struct zzb_zcl_req, cmd),
+			       ZZB_ZCL_FRAME_CLUSTER, id, payload, len);
+}
+
+/* A command that the stack builds is never unicast, so it is not taken for a struct zzb_zcl_req */
+int zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+			const uint8_t *payload, size_t len)
+{
+	int err;
+
+	if (!cmd->unicast) {
+		return -EINVAL;
+	}
+
+	err = zzb_zcl_cmd_reply(node, cmd, id, payload, len);
+	if (err == 0) {
+		node->zcl.responded = true;
+	}
+
+	return err;
 }
 
 int zzb_zcl_client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
@@ -186,9 +204,17 @@ void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t
 	}
 }
 
-uint8_t zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+int zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
-	return node->zcl_cmd_cb != NULL ? node->zcl_cmd_cb(node, cmd) : ZZB_ZCL_SUCCESS;
+	uint8_t status;
+
+	if (node->zcl_cmd_cb == NULL) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	node->zcl.responded = false;
+	status = node->zcl_cmd_cb(node, cmd);
+	return node->zcl.responded ? ZZB_ZCL_RESPONDED : status;
 }
 
 /* ZCL 2.5.12.2 */
