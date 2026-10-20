@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <zephyr/kernel.h>
+#include <zephyr/random/random.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/ota.h>
 
@@ -141,6 +142,53 @@ static void tick(struct k_work *work)
 	query(node, first(node));
 }
 
+/* value is own or the wildcard of a manufacturer code or image type (ZCL 11.4.2.5, 11.4.2.6) */
+static bool matches(uint16_t value, uint16_t own)
+{
+	return value == own || value == 0xffff;
+}
+
+/* ZCL 11.13.3.4, 11.13.3.5.1: whether a broadcast Image Notify asks the client for a query */
+static bool notified(const struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+		     const struct zzb_zcl_ota *v)
+{
+	/* The payload length of each payload type */
+	static const uint8_t lens[] = {2, 4, 6, 10};
+	const uint8_t *p = cmd->payload;
+	uint32_t version;
+
+	if (cmd->len < 2 || p[0] >= ARRAY_SIZE(lens) || cmd->len < lens[p[0]] ||
+	    !IN_RANGE(p[1], 1, 100)) {
+		return false;
+	}
+
+	if ((p[0] >= 1 && !matches(sys_get_le16(p + 2), node->device->manufacturer_code)) ||
+	    (p[0] >= 2 && !matches(sys_get_le16(p + 4), v->image_type))) {
+		return false;
+	}
+
+	version = p[0] == 3 ? sys_get_le32(p + 6) : 0xffffffff;
+	if (version != 0xffffffff &&
+	    (version == v->current_file_version || version == v->downloaded_file_version)) {
+		return false;
+	}
+
+	return sys_rand32_get() % 100 + 1 <= p[1];
+}
+
+/* ZCL 11.13.3.4: a unicast starts a query at once, a broadcast after its checks */
+static int image_notify(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_ota *v)
+{
+	if (v->image_upgrade_status != ZZB_ZCL_OTA_NORMAL ||
+	    (!cmd->unicast && !notified(node, cmd, v))) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	v->server_ep = cmd->src_ep;
+	query(node, zzb_node_endpoint(node, cmd->ep));
+	return ZZB_ZCL_SUCCESS;
+}
+
 /* ZCL 11.13.5 */
 static int query_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, struct zzb_zcl_ota *v)
 {
@@ -179,6 +227,8 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	}
 
 	switch (cmd->id) {
+	case ZZB_ZCL_OTA_IMAGE_NOTIFY:
+		return image_notify(node, cmd, values);
 	case ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP:
 		return query_rsp(node, cmd, values);
 	default:
@@ -194,10 +244,13 @@ static void start(struct zzb_node *node, uint8_t ep, void *values)
 	}
 }
 
-/* The reset of the node restarts the query interval */
+/* The reset of the node restarts the query interval, to endpoint 1 of the trust center */
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
+	struct zzb_zcl_ota *v = values;
+
 	if (first(node)->id == ep) {
+		v->server_ep = SERVER_EP;
 		arm(node, INTERVAL);
 	}
 }

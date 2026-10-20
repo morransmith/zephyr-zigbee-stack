@@ -197,6 +197,23 @@ static void reset_ota(void)
 	zzb_call_sync(&work, reset_handler);
 }
 
+/* Passes Image Notify with the payload from src_addr and src_ep to dst_addr and endpoint dst_ep */
+static void notify(uint16_t src_addr, uint8_t src_ep, uint16_t dst_addr, uint8_t dst_ep,
+		   const uint8_t *payload, size_t len)
+{
+	uint8_t frame[16] = {0x19, 0x20, ZZB_ZCL_OTA_IMAGE_NOTIFY};
+
+	zassert_true(3 + len <= sizeof(frame));
+	memcpy(frame + 3, payload, len);
+	receive_from(src_addr, src_ep, dst_addr, dst_ep, frame, 3 + len);
+}
+
+/* Passes Image Notify with the payload from endpoint 1 of the trust center as a broadcast */
+static void broadcast_notify(const uint8_t *payload, size_t len)
+{
+	notify(REQUESTER_ADDR, REQUESTER_EP, 0xffff, OTA_EP, payload, len);
+}
+
 /* Waits for the first query after a reboot and returns its TSN, then calls reset_frames() */
 static uint8_t wait_query(void)
 {
@@ -372,6 +389,72 @@ ZTEST(zzb_zcl_ota, test_unsupported)
 	command_from(REQUESTER_ADDR, SECOND_EP, 0x10, ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP,
 		     (uint8_t[]){0x98}, 1, 0x81);
 	command(0x11, 0x09, (uint8_t[]){0x98}, 1, 0x81);
+}
+
+/*
+ * ZCL 11.13.3.4: a unicast Image Notify of the trust center starts a query at once, to the endpoint
+ * of the notify, and restarts the interval. An Image Notify of another node is ignored. The reset
+ * of the node sends the queries to endpoint 1 again.
+ */
+ZTEST(zzb_zcl_ota, test_notify_unicast)
+{
+	zassert_ok(reboot_ota());
+	k_sleep(K_MSEC(INTERVAL_MS / 2));
+	notify(OTHER_ADDR, REQUESTER_EP, NODE_ADDR, OTA_EP, (uint8_t[]){0x00, 0x64}, 2);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	notify(REQUESTER_ADDR, 5, NODE_ADDR, OTA_EP, (uint8_t[]){0x00, 0x64}, 2);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_query(0, 5);
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 1);
+
+	k_sleep(K_MSEC(INTERVAL_MS - 100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_query(1, 5);
+
+	reset_ota();
+	k_sleep(K_MSEC(INTERVAL_MS + 100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	check_query(2, REQUESTER_EP);
+}
+
+/*
+ * ZCL 11.13.3.4, 11.13.3.5.1: a broadcast Image Notify is ignored when it is malformed, when its
+ * manufacturer code or image type is another one, or when it offers CurrentFileVersion. Otherwise
+ * QueryJitter 100 starts a query, also to the broadcast endpoint and with the wildcards.
+ */
+ZTEST(zzb_zcl_ota, test_notify_broadcast)
+{
+	static const uint8_t current[] = {0x03, 0x64, 0x34, 0x12, 0x42,
+					  0x00, 0x00, 0x03, 0x02, 0x01};
+	static const uint8_t short_type3[] = {0x03, 0x64, 0x34, 0x12, 0x42, 0x00, 0x00, 0x04, 0x02};
+	static const uint8_t newer[] = {0x03, 0x64, 0x34, 0x12, 0x42, 0x00, 0x00, 0x04, 0x02, 0x01};
+	static const uint8_t wildcards[] = {0x03, 0x64, 0xff, 0xff, 0xff,
+					    0xff, 0xff, 0xff, 0xff, 0xff};
+
+	zassert_ok(reboot_ota());
+	broadcast_notify((uint8_t[]){0x04, 0x64}, 2);
+	broadcast_notify((uint8_t[]){0x00, 0x00}, 2);
+	broadcast_notify((uint8_t[]){0x00, 0x65}, 2);
+	broadcast_notify((uint8_t[]){0x00}, 1);
+	broadcast_notify((uint8_t[]){0x01, 0x64, 0x34}, 3);
+	broadcast_notify(short_type3, sizeof(short_type3));
+	broadcast_notify((uint8_t[]){0x01, 0x64, 0x35, 0x12}, 4);
+	broadcast_notify((uint8_t[]){0x02, 0x64, 0xff, 0xff, 0x43, 0x00}, 6);
+	broadcast_notify(current, sizeof(current));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	broadcast_notify((uint8_t[]){0x00, 0x64}, 2);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_query(0, REQUESTER_EP);
+	broadcast_notify((uint8_t[]){0x02, 0x64, 0x34, 0x12, 0x42, 0x00}, 6);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	broadcast_notify(newer, sizeof(newer));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	notify(REQUESTER_ADDR, REQUESTER_EP, NODE_ADDR, 0xff, wildcards, sizeof(wildcards));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
+	check_query(3, REQUESTER_EP);
 }
 
 ZTEST_SUITE(zzb_zcl_ota, NULL, setup, before, after, teardown);
