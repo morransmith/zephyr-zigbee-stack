@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/time.h>
 
 #include "common/node.h"
@@ -18,6 +19,17 @@
 
 /* The bits of TimeStatus that a remote write changes (ZCL 3.12.2.2.2) */
 #define WRITABLE_STATUS (ZZB_ZCL_TIME_SYNCHRONIZED | ZZB_ZCL_TIME_SUPERSEDING)
+
+/* The Time server of a coordinator with zigpy-znp */
+#define COORDINATOR    0x0000
+#define COORDINATOR_EP 1
+
+/* The next request of the Time client without and with a valid response */
+#define RETRY  K_SECONDS(60)
+#define RESYNC K_HOURS(24)
+
+/* Read Attributes of Time, TimeStatus, TimeZone and LocalTime */
+static const uint8_t read_req[] = {0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x07, 0x00};
 
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_TIME_TIME, ZZB_ZCL_UTC, ZZB_ZCL_WRITE, struct zzb_zcl_time, time),
@@ -177,6 +189,162 @@ const struct zzb_zcl_cluster_def zzb_zcl_time_def = {
 	.changed = changed,
 	.refresh = refresh,
 };
+
+/* The first endpoint with a Time client, or NULL */
+static const struct zzb_endpoint *client(const struct zzb_node *node)
+{
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		const struct zzb_endpoint *ep = &node->device->endpoints[i];
+
+		if (zzb_zcl_find_cluster(ep, ZZB_ZCL_TIME, false) != NULL) {
+			return ep;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * Sends Read Attributes from the Time client on ep to its bound destinations, or without a binding
+ * to the coordinator
+ */
+static void request(struct zzb_node *node, const struct zzb_endpoint *ep)
+{
+	const struct zzb_zcl_hdr hdr = {
+		.type = ZZB_ZCL_FRAME_GLOBAL,
+		.flags = ZZB_ZCL_DISABLE_DEFAULT_RSP,
+		.tsn = node->zcl.tsn,
+		.cmd = ZZB_ZCL_READ_ATTRIBUTES,
+	};
+	const struct zzb_apsde_req aps = {
+		.dst_mode = ZZB_APS_ADDR_SHORT,
+		.dst_addr = COORDINATOR,
+		.dst_ep = COORDINATOR_EP,
+		.profile = ep->profile,
+		.cluster = ZZB_ZCL_TIME,
+		.src_ep = ep->id,
+		.tx_options = ZZB_APS_TX_ACK,
+	};
+
+	/* zzb_zcl_send_bindings() sends with the same TSN and advances the counter */
+	node->zcl.time_tsn = hdr.tsn;
+	if (zzb_zcl_send_bindings(node, ep, ZZB_ZCL_TIME, ZZB_ZCL_FRAME_GLOBAL, false,
+				  ZZB_ZCL_READ_ATTRIBUTES, read_req, sizeof(read_req)) == -ENOENT) {
+		zzb_zcl_send(node, &aps, &hdr, read_req, sizeof(read_req));
+	}
+
+	k_work_reschedule_for_queue(&zzb_workq, &node->zcl.time_timer, RETRY);
+}
+
+/* Armed only on a node with a Time client */
+static void tick(struct k_work *work)
+{
+	struct zzb_node *node =
+		CONTAINER_OF(k_work_delayable_from_work(work), struct zzb_node, zcl.time_timer);
+
+	request(node, client(node));
+}
+
+/* The first endpoint with a Time client sends the requests */
+static void client_start(struct zzb_node *node, uint8_t ep, void *values)
+{
+	const struct zzb_endpoint *first = client(node);
+
+	if (first->id == ep) {
+		request(node, first);
+	}
+}
+
+/* The reset of the node clears the clock, so the requests start again */
+static void client_reset(struct zzb_node *node, uint8_t ep, void *values)
+{
+	k_work_reschedule_for_queue(&zzb_workq, &node->zcl.time_timer, RETRY);
+}
+
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_time_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.start = client_start,
+	.reset = client_reset,
+	.cmd = zzb_zcl_client_cmd,
+};
+
+void zzb_zcl_time_init(struct zzb_node *node)
+{
+	k_work_init_delayable(&node->zcl.time_timer, tick);
+}
+
+/*
+ * Puts the value of attribute id from its record with SUCCESS and type in a Read Attributes
+ * Response (ZCL 2.5.2) in *value; false without one
+ */
+static bool find(const struct zzb_zcl_cmd *cmd, uint16_t id, uint8_t type, uint32_t *value)
+{
+	const uint8_t *p = cmd->payload;
+	size_t left = cmd->len;
+
+	while (left >= 3) {
+		uint16_t attr = sys_get_le16(p);
+		int len;
+
+		/* A record with an error has no value */
+		if (p[2] != ZZB_ZCL_SUCCESS) {
+			p += 3;
+			left -= 3;
+			continue;
+		}
+
+		len = left > 3 ? zzb_zcl_value_len(p[3], p + 4, left - 4) : -EINVAL;
+		if (len < 0) {
+			return false;
+		}
+
+		if (attr == id && p[3] == type) {
+			*value = zzb_zcl_value_get(type, p + 4);
+			return true;
+		}
+
+		p += 4 + len;
+		left -= 4 + len;
+	}
+
+	return false;
+}
+
+int zzb_zcl_time_read_rsp(struct zzb_node *node, const struct zzb_zcl_req *req)
+{
+	const struct zzb_zcl_cmd *cmd = &req->cmd;
+	uint32_t utc;
+	uint32_t status;
+	uint32_t local;
+	uint32_t offset = 0;
+
+	if (req->cluster->server || req->cluster->id != ZZB_ZCL_TIME) {
+		return ZZB_ZCL_UNSUP_COMMAND;
+	}
+
+	/* ZCL 3.12.2.2.2: a server without Master and Synchronized has no defined time */
+	if (cmd->tsn != node->zcl.time_tsn || !find(cmd, ZZB_ZCL_TIME_TIME, ZZB_ZCL_UTC, &utc) ||
+	    utc == NO_TIME || !find(cmd, ZZB_ZCL_TIME_STATUS, ZZB_ZCL_MAP8, &status) ||
+	    !(status & (ZZB_ZCL_TIME_MASTER | ZZB_ZCL_TIME_SYNCHRONIZED))) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	/* Without LocalTime and TimeZone the offset stays 0 */
+	if (find(cmd, ZZB_ZCL_TIME_LOCAL_TIME, ZZB_ZCL_UINT32, &local)) {
+		offset = local - utc;
+	} else {
+		find(cmd, ZZB_ZCL_TIME_ZONE, ZZB_ZCL_INT32, &offset);
+	}
+
+	zzb_zcl_clock_set(node, utc, offset);
+	k_work_reschedule_for_queue(&zzb_workq, &node->zcl.time_timer, RESYNC);
+	return ZZB_ZCL_SUCCESS;
+}
 
 void zzb_zcl_clock_set(struct zzb_node *node, uint32_t utc, int32_t offset)
 {

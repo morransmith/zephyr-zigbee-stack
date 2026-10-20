@@ -103,6 +103,10 @@ struct zzb_zcl {
 	/* Tries again the IAS Zone notifications refused off a network */
 	struct k_work_delayable ias_zone_timer;
 	struct zzb_zcl_clock clock;
+	/* Sends the requests of the Time client */
+	struct k_work_delayable time_timer;
+	/* TSN of the last request of the Time client */
+	uint8_t time_tsn;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;
 	/* The frame being processed, for the hooks; NULL outside the processing of a frame */
@@ -361,6 +365,14 @@ uint32_t zzb_zcl_clock_utc(const struct zzb_node *node);
  * clock of the node plus its offset; 0xffffffff without time
  */
 uint32_t zzb_zcl_clock_local(const struct zzb_node *node);
+
+void zzb_zcl_time_init(struct zzb_node *node);
+
+/*
+ * Read Attributes Response (ZCL 2.5.2): sets the clock of the node from a valid response to the
+ * request of the Time client and returns SUCCESS, or returns UNSUP_COMMAND for another instance
+ */
+int zzb_zcl_time_read_rsp(struct zzb_node *node, const struct zzb_zcl_req *req);
 
 #define ZZB_ZCL_FIELDS_MAX 3
 

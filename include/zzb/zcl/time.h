@@ -66,6 +66,7 @@ struct zzb_zcl_time {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_time_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_time_client_def;
 
 /** A Time server with the values v, a pointer to struct zzb_zcl_time. */
 #define ZZB_ZCL_TIME_SERVER(v)                                                                     \
@@ -74,6 +75,19 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_time_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_time *)NULL),                                 \
 		.def = &zzb_zcl_time_def,                                                          \
+	}
+
+/**
+ * A Time client. The first endpoint with one sets the clock of the node from a Time server: it
+ * reads Time, TimeStatus, TimeZone and LocalTime from its bound destinations, or without a binding
+ * from endpoint 1 of the coordinator, at the start, 60 s after a request without a valid response
+ * or after the reset of the node, and 24 h after a valid response.
+ */
+#define ZZB_ZCL_TIME_CLIENT()                                                                      \
+	{                                                                                          \
+		.id = ZZB_ZCL_TIME,                                                                \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_time_client_def,                                                   \
 	}
 
 /**

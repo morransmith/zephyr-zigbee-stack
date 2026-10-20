@@ -206,6 +206,9 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req)
 		return zzb_zcl_configure_reporting(node, req);
 	case ZZB_ZCL_READ_REPORTING:
 		return zzb_zcl_read_reporting(node, req);
+	/* The Time client sets the clock of the node from the response */
+	case ZZB_ZCL_READ_ATTRIBUTES_RSP:
+		return zzb_zcl_time_read_rsp(node, req);
 	/* A client takes the reports of its bindings; their values do not reach the application */
 	case ZZB_ZCL_REPORT_ATTRIBUTES:
 		return req->cluster->server ? ZZB_ZCL_UNSUP_COMMAND : ZZB_ZCL_SUCCESS;

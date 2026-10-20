@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 #include <errno.h>
+#include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/time.h>
 
@@ -10,14 +11,27 @@
 #include "storage/settings.h"
 #include "zcl/zcl.h"
 
-/* A second node, whose Time server does not change the local time of the test node */
-#define TIME_EUI64 0x00124b0001020305ULL
-#define SERVER_EP  110
+/*
+ * A second node, whose Time server does not change the local time of the test node and whose Time
+ * clients send their requests only in these tests. Endpoint 110 has a Time server, endpoints 111
+ * and 112 a Time client each.
+ */
+#define TIME_EUI64     0x00124b0001020305ULL
+#define SERVER_EP      110
+#define TIME_CLIENT_EP 111
 
 static struct zzb_zcl_time time110;
 
 static const struct zzb_zcl_cluster ep110_clusters[] = {
 	ZZB_ZCL_TIME_SERVER(&time110),
+};
+
+static const struct zzb_zcl_cluster ep111_clusters[] = {
+	ZZB_ZCL_TIME_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster ep112_clusters[] = {
+	ZZB_ZCL_TIME_CLIENT(),
 };
 
 static const struct zzb_endpoint time_endpoints[] = {
@@ -27,6 +41,20 @@ static const struct zzb_endpoint time_endpoints[] = {
 		.device_id = 0x0050,
 		.clusters = ep110_clusters,
 		.cluster_count = ARRAY_SIZE(ep110_clusters),
+	},
+	{
+		.id = TIME_CLIENT_EP,
+		.profile = 0x0104,
+		.device_id = 0x0051,
+		.clusters = ep111_clusters,
+		.cluster_count = ARRAY_SIZE(ep111_clusters),
+	},
+	{
+		.id = 112,
+		.profile = 0x0104,
+		.device_id = 0x0051,
+		.clusters = ep112_clusters,
+		.cluster_count = ARRAY_SIZE(ep112_clusters),
 	},
 };
 
@@ -95,6 +123,48 @@ static void reset_time(void)
 	zzb_call_sync(&work, reset_handler);
 }
 
+/* Checks that frame i is the request of the Time client with tsn to the bound destinations */
+static void check_bound_request(int i, uint8_t tsn)
+{
+	const uint8_t req[] = {0x10, tsn, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x07, 0x00};
+
+	zassert_true(zzb_apsde_data_req_fake.call_count > i);
+	zassert_equal(sent[i].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(sent[i].req.src_ep, TIME_CLIENT_EP);
+	zassert_equal(sent[i].req.profile, 0x0104);
+	zassert_equal(sent[i].req.cluster, ZZB_ZCL_TIME);
+	zassert_equal(sent[i].req.tx_options, ZZB_APS_TX_ACK);
+	zassert_equal(sent[i].len, sizeof(req));
+	zassert_mem_equal(sent[i].data, req, sizeof(req));
+}
+
+/* The TSN of the request of the Time client that zzb_zcl_start() sent */
+static uint8_t start_tsn(void)
+{
+	zassert_ok(reboot_time());
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	return time_node->zcl.tsn - 1;
+}
+
+/* Passes a Read Attributes Response with tsn and the records to the Time client on endpoint 111 */
+static void respond(uint8_t tsn, const uint8_t *records, size_t len)
+{
+	uint8_t frame[32] = {0x18, tsn, 0x01};
+
+	zassert_true(3 + len <= sizeof(frame));
+	memcpy(frame + 3, records, len);
+	receive_time(TIME_CLIENT_EP, frame, 3 + len);
+}
+
+static int (*take_frame)(struct zzb_node *node, struct net_buf *buf,
+			 const struct zzb_apsde_req *req);
+
+/* APSDE-DATA.request of a node without bindings */
+static int no_binding(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_req *req)
+{
+	return req->dst_mode == ZZB_APS_ADDR_BINDING ? -ENOENT : take_frame(node, buf, req);
+}
+
 static void set_status(uint8_t value)
 {
 	zassert_ok(
@@ -123,6 +193,19 @@ static void before(void *fixture)
 static void after(void *fixture)
 {
 	check_no_buffer_leak();
+}
+
+static void stop_handler(struct k_work *work)
+{
+	zzb_zcl_init(time_node);
+}
+
+/* zzb_zcl_init() stops the requests of the Time clients before the other suites */
+static void teardown(void *fixture)
+{
+	struct k_work work;
+
+	zzb_call_sync(&work, stop_handler);
 }
 
 /* Section 16: the clock of the node runs from its setting and the reset of the node clears it */
@@ -327,4 +410,141 @@ ZTEST(zzb_zcl_time, test_server_settings)
 	zassert_equal(time110.valid_until_time, 0xffffffff);
 }
 
-ZTEST_SUITE(zzb_zcl_time, NULL, setup, before, after, NULL);
+/*
+ * Section 16: the first endpoint with a Time client sends Read Attributes of Time, TimeStatus,
+ * TimeZone and LocalTime to its bound destinations at the start, and again 60 s after a request
+ * without a valid response
+ */
+ZTEST(zzb_zcl_time, test_client_request)
+{
+	uint8_t tsn = start_tsn();
+
+	check_bound_request(0, tsn);
+	tsn = time_node->zcl.tsn;
+	k_sleep(K_SECONDS(59));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	k_sleep(K_SECONDS(2));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_bound_request(1, tsn);
+}
+
+/* Without a binding the request goes to endpoint 1 of the coordinator, where zigpy-znp has Time */
+ZTEST(zzb_zcl_time, test_client_without_binding)
+{
+	uint8_t tsn;
+
+	take_frame = zzb_apsde_data_req_fake.custom_fake;
+	zzb_apsde_data_req_fake.custom_fake = no_binding;
+	zassert_ok(reboot_time());
+	tsn = time_node->zcl.tsn - 1;
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_frame(1, TIME_CLIENT_EP, ZZB_ZCL_TIME,
+		    (uint8_t[]){0x10, tsn, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x07, 0x00},
+		    11);
+}
+
+/*
+ * The response of zigpy (TimeStatus 0x05, Master and MasterZoneDst) sets the clock with the offset
+ * LocalTime - Time, and gets a Default Response by the general rule. The next request follows 24 h
+ * later.
+ */
+ZTEST(zzb_zcl_time, test_client_response)
+{
+	uint8_t tsn = start_tsn();
+	const uint8_t rsp[] = {0x08, tsn,  0x01, 0x00, 0x00, 0x00, 0xe2, 0x00, 0x00, 0x00, 0x20,
+			       0x01, 0x00, 0x00, 0x18, 0x05, 0x02, 0x00, 0x00, 0x2b, 0x10, 0x0e,
+			       0x00, 0x00, 0x07, 0x00, 0x00, 0x23, 0x20, 0x1c, 0x00, 0x20};
+
+	receive_time(TIME_CLIENT_EP, rsp, sizeof(rsp));
+	check_frame(1, TIME_CLIENT_EP, ZZB_ZCL_TIME, (uint8_t[]){0x10, tsn, 0x0b, 0x01, 0x00}, 5);
+	zassert_equal(zzb_zcl_clock_utc(time_node), 0x20000000);
+	zassert_equal(time_node->zcl.clock.offset, 7200);
+
+	k_sleep(K_SECONDS(61));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	/* 24 h and 1 s after the response */
+	k_sleep(K_SECONDS(24 * 60 * 60 - 60));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	check_bound_request(2, tsn + 1);
+}
+
+/* Without LocalTime the offset is TimeZone, without both 0; Synchronized suffices */
+ZTEST(zzb_zcl_time, test_client_offset)
+{
+	static const uint8_t zone[] = {0x00, 0x00, 0x00, 0xe2, 0x00, 0x00, 0x00, 0x20,
+				       0x01, 0x00, 0x00, 0x18, 0x02, 0x02, 0x00, 0x00,
+				       0x2b, 0xf0, 0xf1, 0xff, 0xff, 0x07, 0x00, 0x86};
+	static const uint8_t utc_only[] = {0x00, 0x00, 0x00, 0xe2, 0x00, 0x00, 0x00, 0x30,
+					   0x01, 0x00, 0x00, 0x18, 0x01, 0x02, 0x00, 0x86};
+	uint8_t tsn = start_tsn();
+
+	respond(tsn, zone, sizeof(zone));
+	zassert_equal(zzb_zcl_clock_utc(time_node), 0x20000000);
+	zassert_equal(time_node->zcl.clock.offset, -3600);
+
+	respond(tsn, utc_only, sizeof(utc_only));
+	zassert_equal(zzb_zcl_clock_utc(time_node), 0x30000000);
+	zassert_equal(time_node->zcl.clock.offset, 0);
+}
+
+/*
+ * A response with another TSN, without a valid Time of type UTC or without Master or Synchronized
+ * leaves the node without time, and the next request follows 60 s later
+ */
+ZTEST(zzb_zcl_time, test_client_invalid_response)
+{
+	static const uint8_t valid[] = {0x00, 0x00, 0x00, 0xe2, 0x00, 0x00, 0x00,
+					0x20, 0x01, 0x00, 0x00, 0x18, 0x01};
+	static const uint8_t no_time[] = {0x00, 0x00, 0x00, 0xe2, 0xff, 0xff, 0xff,
+					  0xff, 0x01, 0x00, 0x00, 0x18, 0x01};
+	static const uint8_t unsupported[] = {0x00, 0x00, 0x86, 0x01, 0x00, 0x00, 0x18, 0x01};
+	static const uint8_t not_utc[] = {0x00, 0x00, 0x00, 0x23, 0x00, 0x00, 0x00,
+					  0x20, 0x01, 0x00, 0x00, 0x18, 0x01};
+	static const uint8_t not_synchronized[] = {0x00, 0x00, 0x00, 0xe2, 0x00, 0x00, 0x00,
+						   0x20, 0x01, 0x00, 0x00, 0x18, 0x0c};
+	static const uint8_t no_status[] = {0x00, 0x00, 0x00, 0xe2, 0x00, 0x00,
+					    0x00, 0x20, 0x01, 0x00, 0x86};
+	uint8_t tsn = start_tsn();
+
+	respond(tsn + 1, valid, sizeof(valid));
+	respond(tsn, no_time, sizeof(no_time));
+	respond(tsn, unsupported, sizeof(unsupported));
+	respond(tsn, not_utc, sizeof(not_utc));
+	respond(tsn, not_synchronized, sizeof(not_synchronized));
+	respond(tsn, no_status, sizeof(no_status));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(zzb_zcl_clock_utc(time_node), 0xffffffff);
+
+	k_sleep(K_SECONDS(61));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+}
+
+/* A Read Attributes Response to another client or to a Time server gets UNSUP_COMMAND */
+ZTEST(zzb_zcl_time, test_client_response_elsewhere)
+{
+	static const uint8_t to_on_off[] = {0x08, 0x40, 0x01, 0x00, 0x00, 0x00, 0x10, 0x01};
+	static const uint8_t to_server[] = {0x00, 0x41, 0x01, 0x00, 0x00, 0x00, 0xe2, 0x00,
+					    0x00, 0x00, 0x20, 0x01, 0x00, 0x00, 0x18, 0x01};
+
+	receive_ep(CLIENT_EP, ZZB_ZCL_ON_OFF, to_on_off, sizeof(to_on_off));
+	check_frame(0, CLIENT_EP, ZZB_ZCL_ON_OFF, (uint8_t[]){0x10, 0x40, 0x0b, 0x01, 0x81}, 5);
+	receive_time(SERVER_EP, to_server, sizeof(to_server));
+	check_frame(1, SERVER_EP, ZZB_ZCL_TIME, (uint8_t[]){0x18, 0x41, 0x0b, 0x01, 0x81}, 5);
+	zassert_equal(zzb_zcl_clock_utc(time_node), 0xffffffff);
+}
+
+/* The reset of the node clears the clock, and the requests start again 60 s later */
+ZTEST(zzb_zcl_time, test_client_reset)
+{
+	static const uint8_t valid[] = {0x00, 0x00, 0x00, 0xe2, 0x00, 0x00, 0x00,
+					0x20, 0x01, 0x00, 0x00, 0x18, 0x01};
+
+	respond(start_tsn(), valid, sizeof(valid));
+	zassert_equal(zzb_zcl_clock_utc(time_node), 0x20000000);
+	reset_time();
+	zassert_equal(zzb_zcl_clock_utc(time_node), 0xffffffff);
+	k_sleep(K_SECONDS(61));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+}
+
+ZTEST_SUITE(zzb_zcl_time, NULL, setup, before, after, teardown);
