@@ -9,6 +9,7 @@
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/level.h>
 #include <zzb/zcl/on_off.h>
+#include <zzb/zcl/time.h>
 #include <zzb/zzb.h>
 
 #include "aps/aps.h"
@@ -95,8 +96,9 @@ static struct zzb_zcl_ias_zone zone = {
 };
 
 /*
- * Basic, Identify, Groups, On/Off and Level Control servers of a Dimmable Light, and an IAS Zone
- * server of a contact switch, since the parent sends to endpoint 1 only
+ * Basic, Identify, Groups, On/Off and Level Control servers of a Dimmable Light, an IAS Zone server
+ * of a contact switch and a Time client, since the parent sends to endpoint 1 only. The Time client
+ * sends its first request 60 s after the reset of the node, when the other tests have ended.
  */
 static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
@@ -105,6 +107,7 @@ static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 	ZZB_ZCL_LEVEL_SERVER(&level),
 	ZZB_ZCL_IAS_ZONE_SERVER(&zone),
+	ZZB_ZCL_TIME_CLIENT(),
 };
 
 /* An On/Off Switch, the initiator of finding & binding */
@@ -511,6 +514,38 @@ ZTEST(zzb_bdb_integration, test_ias_zone)
 	zassert_equal(parent_log.zcl_len, 2 + sizeof(notification));
 	zassert_equal(parent_log.zcl[0], 0x19);
 	zassert_mem_equal(parent_log.zcl + 2, notification, sizeof(notification));
+}
+
+/*
+ * Without a binding the Time client reads the time from endpoint 1 of the coordinator. zigpy
+ * answers with Time, TimeStatus 0x05 (Master, MasterZoneDst), TimeZone and LocalTime.
+ */
+ZTEST(zzb_bdb_integration, test_time)
+{
+	static const uint8_t read[] = {0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x07, 0x00};
+	uint8_t rsp[] = {0x18, 0x00, 0x01, 0x00, 0x00, 0x00, 0xe2, 0x00, 0x00, 0x00, 0x30,
+			 0x01, 0x00, 0x00, 0x18, 0x05, 0x02, 0x00, 0x00, 0x2b, 0x10, 0x0e,
+			 0x00, 0x00, 0x07, 0x00, 0x00, 0x23, 0x20, 0x1c, 0x00, 0x30};
+	uint32_t utc;
+	uint32_t local;
+
+	steer();
+	zassert_equal(zzb_zcl_time_get(child, &utc, &local), -ENODATA);
+	k_sleep(K_SECONDS(60));
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_TIME);
+	zassert_equal(parent_log.zcl_src_ep, 1);
+	zassert_equal(parent_log.zcl_dst_ep, 1);
+	zassert_equal(parent_log.zcl_len, 3 + sizeof(read));
+	zassert_equal(parent_log.zcl[0], 0x10);
+	zassert_equal(parent_log.zcl[2], 0x00);
+	zassert_mem_equal(parent_log.zcl + 3, read, sizeof(read));
+
+	rsp[1] = parent_log.zcl[1];
+	parent_send_zcl(ZZB_ZCL_TIME, rsp, sizeof(rsp));
+	k_sleep(K_MSEC(100));
+	zassert_ok(zzb_zcl_time_get(child, &utc, &local));
+	zassert_equal(utc, 0x30000000);
+	zassert_equal(local, 0x30000000 + 7200);
 }
 
 /* BDB 8.4: the coordinator finds the identifying light, then ends the identification */
