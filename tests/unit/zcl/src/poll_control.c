@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/poll_control.h>
@@ -166,6 +167,35 @@ static void write_attrs(uint8_t ep, const uint8_t *records, size_t len, const ui
 	reset_fakes();
 	receive_poll(ep, frame, 3 + len);
 	check_frame(0, ep, ZZB_ZCL_POLL_CONTROL, rsp, 3 + statuses_len);
+}
+
+/* Writes Check-inInterval qs to endpoint ep after reset_fakes() */
+static void set_check_in(uint8_t ep, uint32_t qs)
+{
+	const uint8_t records[] = {0x00, 0x00, 0x23, qs, qs >> 8, qs >> 16, qs >> 24};
+
+	write_attrs(ep, records, sizeof(records), (uint8_t[]){0x00}, 1);
+}
+
+/* Checks that frame i is a Check-in with seq from endpoint 160 to its bound destinations */
+static void check_check_in(int i, uint8_t seq)
+{
+	zassert_true(zzb_apsde_data_req_fake.call_count > i);
+	zassert_equal(sent[i].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(sent[i].req.src_ep, POLL_EP);
+	zassert_equal(sent[i].req.profile, 0x0104);
+	zassert_equal(sent[i].req.cluster, ZZB_ZCL_POLL_CONTROL);
+	zassert_equal(sent[i].req.tx_options, ZZB_APS_TX_ACK);
+	zassert_equal(sent[i].len, 3);
+	zassert_mem_equal(sent[i].data, ((uint8_t[]){0x19, seq, 0x00}), 3);
+}
+
+/* Whether the last call of zzb_nwk_poll_hold() set the bit of ZCL */
+static bool held(void)
+{
+	zassert_true(zzb_nwk_poll_hold_fake.call_count > 0);
+	zassert_equal(zzb_nwk_poll_hold_fake.arg1_val, ZZB_NWK_HOLD_ZCL);
+	return zzb_nwk_poll_hold_fake.arg2_val;
 }
 
 static void *setup(void)
@@ -374,6 +404,78 @@ ZTEST(zzb_zcl_poll_control, test_settings)
 	zassert_ok(reboot_poll());
 	zassert_equal(poll160.check_in_interval, 0x3840);
 	zassert_equal(poll160.long_poll_interval, 0x14);
+}
+
+/*
+ * ZCL 3.16.4.4: the server sends Check-in to its bound destinations every Check-inInterval, the
+ * first one interval after the start. The reset of the node ends the hold of the window.
+ */
+ZTEST(zzb_zcl_poll_control, test_check_in)
+{
+	uint8_t seq;
+
+	set_check_in(POLL_EP, 40);
+	zassert_ok(reboot_poll());
+	seq = poll_node->zcl.tsn;
+	k_sleep(K_MSEC(9900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_check_in(1, seq);
+	k_sleep(K_SECONDS(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	check_check_in(2, seq + 1);
+
+	zassert_true(held());
+	reset_poll();
+	zassert_false(held());
+}
+
+/*
+ * ZCL 3.16.4.4: a sent check-in holds the fast poll rate for 7.68 s. A check-in that cannot be
+ * sent opens no window, and the next one follows after the interval.
+ */
+ZTEST(zzb_zcl_poll_control, test_check_in_window)
+{
+	set_check_in(POLL_EP, 40);
+	k_sleep(K_MSEC(10100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	zassert_true(held());
+	k_sleep(K_MSEC(7480));
+	zassert_true(held());
+	k_sleep(K_MSEC(200));
+	zassert_false(held());
+
+	/* Without a binding */
+	zzb_apsde_data_req_fake.custom_fake = NULL;
+	zzb_apsde_data_req_fake.return_val = -ENOENT;
+	k_sleep(K_MSEC(2320));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	zassert_false(held());
+	k_sleep(K_SECONDS(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
+}
+
+/*
+ * ZCL 3.16.6.3: a new Check-inInterval restarts the interval, and Check-inInterval 0 stops the
+ * check-ins
+ */
+ZTEST(zzb_zcl_poll_control, test_check_in_interval_change)
+{
+	uint8_t seq = poll_node->zcl.tsn;
+
+	set_check_in(POLL_EP, 40);
+	k_sleep(K_SECONDS(6));
+	set_check_in(POLL_EP, 48);
+	k_sleep(K_MSEC(11900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	check_check_in(1, seq);
+
+	set_check_in(POLL_EP, 0);
+	k_sleep(K_SECONDS(60));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
 }
 
 ZTEST_SUITE(zzb_zcl_poll_control, NULL, setup, before, after, teardown);

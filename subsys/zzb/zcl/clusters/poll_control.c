@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/poll_control.h>
 
 #include "common/node.h"
+#include "common/queue.h"
 #include "nwk/nwk.h"
 #include "zcl/zcl.h"
 
@@ -21,6 +23,9 @@
 /* The range of Check-inInterval and LongPollInterval (ZCL Table 3-132) */
 #define INTERVAL_MAX  0x6e0000
 #define LONG_POLL_MIN 0x04
+
+/* The server fast polls for the responses after a check-in (ZCL 3.16.4.4) */
+#define WINDOW_MS 7680
 
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL, ZZB_ZCL_UINT32,
@@ -78,18 +83,110 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 	return check_value(values, attr->id, value);
 }
 
+/* The values of the Poll Control server on ep, or NULL */
+static struct zzb_zcl_poll_control *server(const struct zzb_endpoint *ep)
+{
+	const struct zzb_zcl_cluster *cl = zzb_zcl_find_cluster(ep, ZZB_ZCL_POLL_CONTROL, true);
+
+	return cl != NULL ? cl->values : NULL;
+}
+
 /* Whether ep is the first endpoint with a Poll Control server */
 static bool first(const struct zzb_node *node, uint8_t ep)
 {
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *e = &node->device->endpoints[i];
 
-		if (zzb_zcl_find_cluster(e, ZZB_ZCL_POLL_CONTROL, true) != NULL) {
+		if (server(e) != NULL) {
 			return e->id == ep;
 		}
 	}
 
 	return false;
+}
+
+static int64_t ms(uint32_t qs)
+{
+	return (int64_t)qs * QS_MS;
+}
+
+/* The time t of a timer event, or INT64_MAX for 0, which stands for none */
+static int64_t due(int64_t t)
+{
+	return t != 0 ? t : INT64_MAX;
+}
+
+/*
+ * Arms the timer for the earliest check-in or end of a window of the node, or stops it, and holds
+ * the fast poll rate while a window is open
+ */
+static void schedule(struct zzb_node *node)
+{
+	int64_t next = INT64_MAX;
+	bool hold = false;
+
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		const struct zzb_zcl_poll_control *v = server(&node->device->endpoints[i]);
+
+		if (v != NULL) {
+			next = MIN(next, MIN(due(v->next_check_in), due(v->window_end)));
+			hold = hold || v->window_end != 0;
+		}
+	}
+
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_ZCL, hold);
+	if (next == INT64_MAX) {
+		k_work_cancel_delayable(&node->zcl.poll_control_timer);
+		return;
+	}
+
+	k_work_reschedule_for_queue(&zzb_workq, &node->zcl.poll_control_timer,
+				    K_MSEC(MAX(next - k_uptime_get(), 0)));
+}
+
+/* The next check-in follows one Check-inInterval from now (ZCL 3.16.6.3) */
+static void restart(struct zzb_node *node, struct zzb_zcl_poll_control *v)
+{
+	v->next_check_in =
+		v->check_in_interval != 0 ? k_uptime_get() + ms(v->check_in_interval) : 0;
+	schedule(node);
+}
+
+/* ZCL 3.16.4.4; a check-in that cannot be sent opens no window */
+static void check_in(struct zzb_node *node, const struct zzb_endpoint *ep,
+		     struct zzb_zcl_poll_control *v, int64_t now)
+{
+	v->next_check_in = now + ms(v->check_in_interval);
+	if (zzb_zcl_send_bindings(node, ep, ZZB_ZCL_POLL_CONTROL, ZZB_ZCL_FRAME_CLUSTER, true,
+				  ZZB_ZCL_POLL_CONTROL_CHECK_IN, NULL, 0) == 0) {
+		v->window_end = now + WINDOW_MS;
+	}
+}
+
+static void tick(struct k_work *work)
+{
+	struct zzb_node *node = CONTAINER_OF(k_work_delayable_from_work(work), struct zzb_node,
+					     zcl.poll_control_timer);
+	int64_t now = k_uptime_get();
+
+	for (size_t i = 0; i < node->device->endpoint_count; i++) {
+		const struct zzb_endpoint *ep = &node->device->endpoints[i];
+		struct zzb_zcl_poll_control *v = server(ep);
+
+		if (v == NULL) {
+			continue;
+		}
+
+		if (due(v->window_end) <= now) {
+			v->window_end = 0;
+		}
+
+		if (due(v->next_check_in) <= now) {
+			check_in(node, ep, v, now);
+		}
+	}
+
+	schedule(node);
 }
 
 /* The server on the first endpoint sets the poll intervals of NWK */
@@ -103,9 +200,14 @@ static void set_intervals(struct zzb_node *node, uint8_t ep, const struct zzb_zc
 
 static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
 {
-	if (attr == ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL ||
-	    attr == ZZB_ZCL_POLL_CONTROL_SHORT_POLL_INTERVAL) {
+	switch (attr) {
+	case ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL:
+		restart(node, values);
+		break;
+	case ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL:
+	case ZZB_ZCL_POLL_CONTROL_SHORT_POLL_INTERVAL:
 		set_intervals(node, ep, values);
+		break;
 	}
 }
 
@@ -142,7 +244,7 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	}
 }
 
-/* The limits of the application keep their values */
+/* The limits of the application keep their values; zzb_zcl_init() has stopped the timer */
 static void init(void *values)
 {
 	struct zzb_zcl_poll_control *v = values;
@@ -151,11 +253,15 @@ static void init(void *values)
 	v->long_poll_interval = LONG_POLL_DEFAULT;
 	v->short_poll_interval = SHORT_POLL_DEFAULT;
 	v->fast_poll_timeout = FAST_POLL_TIMEOUT_DEFAULT;
+	v->next_check_in = 0;
+	v->window_end = 0;
 }
 
+/* Nothing is sent at a join; the first check-in follows one interval after the start */
 static void start(struct zzb_node *node, uint8_t ep, void *values)
 {
 	set_intervals(node, ep, values);
+	restart(node, values);
 }
 
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value)
@@ -165,11 +271,15 @@ static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value
 
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
+	struct zzb_zcl_poll_control *v = values;
+
 	set(node, ep, ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL, CHECK_IN_INTERVAL_DEFAULT);
 	set(node, ep, ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL, LONG_POLL_DEFAULT);
 	set(node, ep, ZZB_ZCL_POLL_CONTROL_SHORT_POLL_INTERVAL, SHORT_POLL_DEFAULT);
 	set(node, ep, ZZB_ZCL_POLL_CONTROL_FAST_POLL_TIMEOUT, FAST_POLL_TIMEOUT_DEFAULT);
-	set_intervals(node, ep, values);
+	v->window_end = 0;
+	schedule(node);
+	set_intervals(node, ep, v);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_poll_control_def = {
@@ -182,3 +292,9 @@ const struct zzb_zcl_cluster_def zzb_zcl_poll_control_def = {
 	.check = check,
 	.changed = changed,
 };
+
+void zzb_zcl_poll_control_init(struct zzb_node *node)
+{
+	k_work_init_delayable(&node->zcl.poll_control_timer, tick);
+	zzb_nwk_poll_hold(node, ZZB_NWK_HOLD_ZCL, false);
+}

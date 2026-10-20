@@ -41,6 +41,7 @@
 
 #include "aps/aps.h"
 #include "common/buf.h"
+#include "nwk/nwk.h"
 
 DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_buf *,
 			const struct zzb_apsde_req *);
@@ -48,6 +49,7 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
 /* By default every IEEE address resolves to the requester */
 DECLARE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, uint16_t *);
+DECLARE_FAKE_VOID_FUNC(zzb_nwk_poll_hold, struct zzb_node *, enum zzb_nwk_hold, bool);
 DECLARE_FAKE_VOID_FUNC(zzb_nwk_set_poll_intervals, struct zzb_node *, uint32_t, uint32_t);
 
 #define NODE_EUI64 0x00124b0001020304ULL

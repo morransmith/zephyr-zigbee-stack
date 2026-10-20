@@ -37,7 +37,8 @@ extern "C" {
  * changes them with zzb_zcl_attr_set(); they are read-only, and 0 means no limit. The stack keeps
  * and saves the other four: check_in_interval and fast_poll_timeout are writable, and Set Long
  * Poll Interval, Set Short Poll Interval and zzb_zcl_attr_set() change the poll intervals. The
- * server on the first endpoint with one sets the poll intervals of the node.
+ * server on the first endpoint with one sets the poll intervals of the node. Every server sends
+ * Check-in to its bound destinations every check_in_interval.
  */
 struct zzb_zcl_poll_control {
 	/** Up to 0x6e0000, 0 turns the check-ins off; default 0x3840 (1 h). */
@@ -52,6 +53,10 @@ struct zzb_zcl_poll_control {
 	uint32_t long_poll_interval_min;
 	/** zigpy writes fast_poll_timeout 120, so 0 or at least 120 for ZHA. */
 	uint16_t fast_poll_timeout_max;
+	/** Internal: k_uptime_get() of the next check-in, 0 without check-ins. */
+	int64_t next_check_in;
+	/** Internal: k_uptime_get() at the end of the window after a check-in, 0 outside it. */
+	int64_t window_end;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_poll_control_def;
