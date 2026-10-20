@@ -42,6 +42,16 @@ struct zzb_zcl_report {
 	int64_t retry;
 };
 
+/* The clock of the node (Time); not saved */
+struct zzb_zcl_clock {
+	bool set;
+	/* UTC time at k_uptime_get() uptime */
+	uint32_t utc;
+	int64_t uptime;
+	/* Local time minus UTC time */
+	int32_t offset;
+};
+
 /* Entry of the scene table (ZCL Table 3-41); names are not stored */
 struct zzb_zcl_scene {
 	bool in_use;
@@ -90,6 +100,7 @@ struct zzb_zcl {
 	struct k_work_delayable ias_wd_timer;
 	/* Tries again the IAS Zone notifications refused off a network */
 	struct k_work_delayable ias_zone_timer;
+	struct zzb_zcl_clock clock;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;
 	/* The frame being processed, for the hooks; NULL outside the processing of a frame */
@@ -336,6 +347,15 @@ void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t
  * the command, or ZZB_ZCL_SUCCESS without zcl_cmd_cb
  */
 int zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
+
+/* Sets the clock of the node to the UTC time utc and the local time utc + offset */
+void zzb_zcl_clock_set(struct zzb_node *node, uint32_t utc, int32_t offset);
+
+/* The UTC time of the clock of the node, or 0xffffffff without time */
+uint32_t zzb_zcl_clock_utc(const struct zzb_node *node);
+
+/* The local time of the clock of the node, or 0xffffffff without time */
+uint32_t zzb_zcl_clock_local(const struct zzb_node *node);
 
 #define ZZB_ZCL_FIELDS_MAX 3
 

@@ -31,6 +31,7 @@ target_sources(app PRIVATE
   src/schedule.c
   src/sensors.c
   src/thermostat.c
+  src/time.c
   src/window_covering.c
   src/zcl.c
 )
