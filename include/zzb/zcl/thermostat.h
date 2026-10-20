@@ -45,6 +45,7 @@ extern "C" {
 
 /** Commands received (ZCL Table 6-35). */
 #define ZZB_ZCL_THERMOSTAT_SETPOINT_RAISE_LOWER 0x00
+#define ZZB_ZCL_THERMOSTAT_SET_WEEKLY_SCHEDULE  0x01
 
 /** Thermostat User Interface Configuration cluster (ZCL 6.6). */
 #define ZZB_ZCL_THERMOSTAT_UI 0x0204
@@ -77,11 +78,33 @@ enum zzb_zcl_system_mode {
 	ZZB_ZCL_SYSTEM_MODE_SLEEP = 0x09,
 };
 
+/** Mode bits of a sequence of the weekly schedule (ZCL Table 6-38). */
+#define ZZB_ZCL_SCHEDULE_HEAT BIT(0)
+#define ZZB_ZCL_SCHEDULE_COOL BIT(1)
+
+/** A transition of the weekly schedule (ZCL 6.3.2.3.2). */
+struct zzb_zcl_schedule_transition {
+	/** Minutes since midnight, 0 to 1439. */
+	uint16_t time;
+	/** Within their absolute limits, INT16_MIN when the mode of the day lacks it. */
+	int16_t heating;
+	int16_t cooling;
+};
+
+/** A day of the weekly schedule. */
+struct zzb_zcl_schedule_day {
+	/** ZZB_ZCL_SCHEDULE_HEAT and ZZB_ZCL_SCHEDULE_COOL, 0 for a day without transitions. */
+	uint8_t mode;
+	uint8_t count;
+	/** count transitions in the order of the command, each at a different time. */
+	struct zzb_zcl_schedule_transition transitions[CONFIG_ZZB_ZCL_SCHEDULE_TRANSITIONS];
+};
+
 /**
  * Values of a Thermostat server (ZCL 6.3.2.2). Temperatures are in 0.01 degrees Celsius, INT16_MIN
  * (the non-value 0x8000) when unknown. The application fills the fields up to system_mode_default
  * before zzb_node_init() and changes them with zzb_zcl_attr_set(); they are read-only. The stack
- * keeps the other fields, which are writable and saved.
+ * keeps the other fields, the writable attributes, which are saved, and the weekly schedule.
  */
 struct zzb_zcl_thermostat {
 	/** With local_temperature_calibration applied by the application. */
@@ -130,6 +153,12 @@ struct zzb_zcl_thermostat {
 	uint8_t system_mode;
 	/** ZCL Table 6-23; with bit 0 the application follows the weekly schedule. */
 	uint8_t thermostat_programming_operation_mode;
+	/**
+	 * Weekly schedule, element n for bit n of Day of Week (ZCL Table 6-37): 0 Sunday to 6
+	 * Saturday, 7 Away or Vacation. The stack has no clock: the application reads the schedule
+	 * on the stack thread and applies its setpoints with zzb_zcl_attr_set().
+	 */
+	struct zzb_zcl_schedule_day schedule[8];
 };
 
 /**

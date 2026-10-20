@@ -339,6 +339,8 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	switch (cmd->id) {
 	case ZZB_ZCL_THERMOSTAT_SETPOINT_RAISE_LOWER:
 		return setpoint_raise_lower(node, cmd, values);
+	case ZZB_ZCL_THERMOSTAT_SET_WEEKLY_SCHEDULE:
+		return zzb_zcl_schedule_set(node, cmd, values);
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
 	}

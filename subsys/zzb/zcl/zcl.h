@@ -16,6 +16,7 @@
 #include "zcl/frame.h"
 
 struct zzb_node;
+struct zzb_zcl_thermostat;
 
 /* ASDU handle of ZCL frames; their confirm is ignored */
 #define ZZB_ZCL_HANDLE 0xfd
@@ -367,6 +368,13 @@ int zzb_zcl_alarms_load(struct zzb_node *node, int index, size_t len, settings_r
 
 /* Clears the alarm table, sets AlarmCount 0 with zcl_cb and deletes the records */
 void zzb_zcl_alarms_reset(struct zzb_node *node);
+
+/*
+ * Set Weekly Schedule (ZCL 6.3.2.3.2) to the Thermostat server with the values v; returns the
+ * status of the Default Response
+ */
+int zzb_zcl_schedule_set(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+			 struct zzb_zcl_thermostat *v);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);
