@@ -4,6 +4,7 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/basic.h>
+#include <zzb/zcl/door_lock.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/ias_zone.h>
 #include <zzb/zcl/identify.h>
@@ -91,13 +92,21 @@ static struct zzb_zcl_level level = {
 	.start_up_default = 0xff,
 };
 
+static struct zzb_zcl_door_lock lock = {
+	.lock_state = ZZB_ZCL_DOOR_LOCK_UNLOCKED,
+	.actuator_enabled = true,
+	.min_pin_code_length = 4,
+	.max_pin_code_length = 8,
+};
+
 static struct zzb_zcl_ias_zone zone = {
 	.zone_type = 0x0015,
 };
 
 /*
  * Basic, Identify, Groups, On/Off and Level Control servers of a Dimmable Light, an IAS Zone server
- * of a contact switch and a Time client, since the parent sends to endpoint 1 only. The Time client
+ * of a contact switch, a Door Lock server and a Time client, since the parent sends to endpoint 1
+ * only. The Time client
  * sends its first request 60 s after the reset of the node, when the other tests have ended.
  */
 static const struct zzb_zcl_cluster light[] = {
@@ -107,6 +116,7 @@ static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 	ZZB_ZCL_LEVEL_SERVER(&level),
 	ZZB_ZCL_IAS_ZONE_SERVER(&zone),
+	ZZB_ZCL_DOOR_LOCK_SERVER(&lock),
 	ZZB_ZCL_TIME_CLIENT(),
 };
 
@@ -514,6 +524,39 @@ ZTEST(zzb_bdb_integration, test_ias_zone)
 	zassert_equal(parent_log.zcl_len, 2 + sizeof(notification));
 	zassert_equal(parent_log.zcl[0], 0x19);
 	zassert_mem_equal(parent_log.zcl + 2, notification, sizeof(notification));
+}
+
+/*
+ * ZHA binds Door Lock and sends Lock Door without a code. The lock answers with Lock Door Response
+ * SUCCESS and sends Operation Event Notification of RF source to the binding: Lock, no user, an
+ * empty code, no time and empty data.
+ */
+ZTEST(zzb_bdb_integration, test_door_lock)
+{
+	static const uint8_t lock_door[] = {0x01, 0x30, 0x00};
+	static const uint8_t event[] = {0x20, 0x01, 0x01, 0xff, 0xff, 0x00,
+					0xff, 0xff, 0xff, 0xff, 0x00};
+	uint8_t bind[22] = {0x23};
+
+	steer();
+	sys_put_le64(child->eui64, bind + 1);
+	bind[9] = 1;
+	sys_put_le16(ZZB_ZCL_DOOR_LOCK, bind + 10);
+	bind[12] = ZZB_APS_ADDR_EXT;
+	sys_put_le64(PARENT_EUI64, bind + 13);
+	bind[21] = 1;
+	parent_send_zdo(ZZB_ZDP_BIND_REQ, bind, sizeof(bind));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zdo_cluster, ZZB_ZDP_BIND_REQ | 0x8000);
+
+	parent_send_zcl(ZZB_ZCL_DOOR_LOCK, lock_door, sizeof(lock_door));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_frames, 2);
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_DOOR_LOCK);
+	zassert_equal(parent_log.zcl_dst_ep, 1);
+	zassert_equal(parent_log.zcl_len, 2 + sizeof(event));
+	zassert_equal(parent_log.zcl[0], 0x19);
+	zassert_mem_equal(parent_log.zcl + 2, event, sizeof(event));
 }
 
 /*
