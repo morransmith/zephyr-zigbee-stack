@@ -88,9 +88,9 @@ void zzb_nwk_poll_start(struct zzb_node *node)
 	schedule(node);
 }
 
-void zzb_nwk_poll_now(struct zzb_node *node)
+void zzb_nwk_poll_after(struct zzb_node *node, k_timeout_t delay)
 {
 	if (node->sleepy && zzb_nwk_neighbor_parent(node) != NULL) {
-		zzb_timer_arm(&node->nwk.poll_timer, K_NO_WAIT);
+		zzb_timer_arm(&node->nwk.poll_timer, delay);
 	}
 }

@@ -169,6 +169,8 @@ struct zzb_nwk {
 	bool join_secure;
 	/* Waits for the rejoin response */
 	struct k_work_delayable timer;
+	/* A sleepy node has polled the candidate for the rejoin response */
+	bool rejoin_polled;
 	/* PAN ID, network address and channel before a rejoin, restored when it fails */
 	uint16_t prev_pan_id;
 	uint16_t prev_short_addr;
@@ -444,8 +446,8 @@ void zzb_nwk_poll_init(struct zzb_node *node);
 /* Starts the polls of a sleepy node with a parent, the first after one interval */
 void zzb_nwk_poll_start(struct zzb_node *node);
 
-/* Polls the parent of a sleepy node at once */
-void zzb_nwk_poll_now(struct zzb_node *node);
+/* Polls the parent of a sleepy node after delay, unless the next poll is due earlier */
+void zzb_nwk_poll_after(struct zzb_node *node, k_timeout_t delay);
 
 void zzb_nwk_ed_timeout_init(struct zzb_node *node);
 

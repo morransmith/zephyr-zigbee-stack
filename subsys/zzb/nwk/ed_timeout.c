@@ -75,10 +75,13 @@ static void keepalive_handler(struct k_work *work)
 		return;
 	}
 
+	/* A sleepy node fetches the response with this poll */
+	zzb_nwk_poll_after(node, K_USEC(ZZB_MAC_RESPONSE_WAIT_US));
+
 	/* Only a keepalive waits for the response (R22 3.6.10.3) */
 	if (!nwk->ed_timeout_due) {
 		nwk->ed_timeout_wait = true;
-		arm(node, K_USEC(ZZB_MAC_RESPONSE_WAIT_US));
+		arm(node, K_USEC((node->sleepy ? 2 : 1) * ZZB_MAC_RESPONSE_WAIT_US));
 	}
 
 	nwk->ed_timeout_due = false;
