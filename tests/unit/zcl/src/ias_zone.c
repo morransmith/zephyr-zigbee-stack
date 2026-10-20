@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <zephyr/kernel.h>
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
@@ -21,9 +22,10 @@ static void *setup(void)
 	return NULL;
 }
 
-/* Each test starts without a CIE and without records */
+/* Each test starts without a CIE, without records and with ZoneStatus 0 */
 static void before(void *fixture)
 {
+	zone80.zone_status = 0;
 	reset_node();
 	reset_fakes();
 }
@@ -107,6 +109,18 @@ static void enroll(void)
 	write_cie(CIE_EUI64, CIE_EP);
 	zassert_equal(enroll_response(0x00, 5), ZZB_ZCL_SUCCESS);
 	reset_fakes();
+}
+
+/* Sets ZoneStatus of endpoint 80 as the application does */
+static void set_status(uint16_t status)
+{
+	zassert_ok(zzb_zcl_attr_set(test_node(), ZONE_EP, ZZB_ZCL_IAS_ZONE, ZZB_ZCL_IAS_ZONE_STATUS,
+				    &status));
+}
+
+static bool timer_armed(void)
+{
+	return k_work_delayable_is_pending(&test_node()->zcl.ias_zone_timer);
 }
 
 /*
@@ -208,6 +222,68 @@ ZTEST(zzb_zcl_ias_zone, test_not_authorized)
 		      ZZB_ZCL_MALFORMED_COMMAND);
 	write_cie(UINT64_MAX, CIE_EP);
 	zassert_equal(enroll_response(0x00, 3), ZZB_ZCL_NOT_AUTHORIZED);
+}
+
+/* ZCL 8.2.2.3.1: a change of ZoneStatus of an enrolled zone */
+ZTEST(zzb_zcl_ias_zone, test_notification)
+{
+	enroll();
+	set_status(ZZB_ZCL_IAS_ZONE_STATUS_ALARM1 | ZZB_ZCL_IAS_ZONE_STATUS_TAMPER);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_zone_cmd(0, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
+		       (uint8_t[]){0x05, 0x00, 0x00, 0x05, 0x00, 0x00}, 6);
+	zassert_false(timer_armed());
+
+	set_status(0x0005);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+}
+
+/* ZCL 8.2.2.1.3: trip-to-pair before enrollment; nothing without the address of a CIE */
+ZTEST(zzb_zcl_ias_zone, test_trip_to_pair)
+{
+	set_status(0x0001);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	write_cie(CIE_EUI64, CIE_EP);
+	reset_fakes();
+	set_status(0x0000);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_zone_cmd(0, ZZB_ZCL_IAS_ZONE_ENROLL_REQ, (uint8_t[]){0x15, 0x00, 0x34, 0x12}, 4);
+}
+
+/*
+ * A notification refused off a network or during a rejoin waits and is tried again after 5 s with
+ * the ZoneStatus of that time; its delay counts from the first change not sent (ZCL 8.2.2.3.1.5).
+ * Another error, such as no buffer, counts as sent.
+ */
+ZTEST(zzb_zcl_ias_zone, test_notification_retry)
+{
+	int (*take)(struct zzb_node *, struct net_buf *, const struct zzb_apsde_req *) =
+		zzb_apsde_data_req_fake.custom_fake;
+
+	enroll();
+	zzb_apsde_data_req_fake.custom_fake = NULL;
+	zzb_apsde_data_req_fake.return_val = -ENOBUFS;
+	set_status(0x0004);
+	zassert_false(timer_armed());
+
+	zzb_apsde_data_req_fake.return_val = -ENOTCONN;
+	set_status(0x0001);
+	zassert_true(timer_armed());
+	k_sleep(K_SECONDS(2));
+	zzb_apsde_data_req_fake.return_val = -EBUSY;
+	set_status(0x0003);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+
+	zzb_apsde_data_req_fake.custom_fake = take;
+	k_sleep(K_MSEC(4900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
+	/* 7 s in quarter seconds */
+	check_zone_cmd(3, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION,
+		       (uint8_t[]){0x03, 0x00, 0x00, 0x05, 0x1c, 0x00}, 6);
+	zassert_false(timer_armed());
 }
 
 /* Section 15: the enrollment and the endpoint of the CIE are saved, and the reset deletes them */

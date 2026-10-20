@@ -43,9 +43,9 @@ extern "C" {
 
 /**
  * Values of an IAS Zone server (ZCL 8.2.2.1). The application fills zone_type before
- * zzb_node_init() and changes zone_status with zzb_zcl_attr_set(); both are read-only. The stack
- * keeps the enrollment in the other fields and saves it: the CIE writes ias_cie_address and enrolls
- * the zone with Zone Enroll Response.
+ * zzb_node_init() and changes zone_status with zzb_zcl_attr_set(), which sends the change to the
+ * CIE; both are read-only. The stack keeps the enrollment in the other fields and saves it: the CIE
+ * writes ias_cie_address and enrolls the zone with Zone Enroll Response.
  */
 struct zzb_zcl_ias_zone {
 	/** ZoneState: 0x00 not enrolled, 0x01 enrolled. */
@@ -60,6 +60,10 @@ struct zzb_zcl_ias_zone {
 	uint8_t zone_id;
 	/** Internal: the endpoint of the CIE, from which it wrote ias_cie_address. */
 	uint8_t cie_ep;
+	/** Internal: k_uptime_get() at the first change of zone_status not sent. */
+	int64_t since;
+	/** Internal: k_uptime_get() at which a refused notification is tried again, or 0. */
+	int64_t retry;
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_def;
