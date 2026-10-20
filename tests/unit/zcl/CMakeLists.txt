@@ -30,6 +30,7 @@ target_sources(app PRIVATE
   src/metering.c
   src/on_off.c
   src/ota.c
+  src/ota_file.c
   src/poll_control.c
   src/power_config.c
   src/power_profile.c
@@ -42,3 +43,9 @@ target_sources(app PRIVATE
   src/window_covering.c
   src/zcl.c
 )
+
+include(${ZEPHYR_ZZB_MODULE_DIR}/tests/common/ota_file.cmake)
+set(gen_dir ${ZEPHYR_BINARY_DIR}/include/generated)
+set(image ${ZEPHYR_ZZB_MODULE_DIR}/tests/common/mcuboot_image.bin)
+generate_inc_file_for_target(app ${image} ${gen_dir}/mcuboot_image.bin.inc)
+zzb_ota_file(${image} 0x1234 0x0042 0x01020400 ${gen_dir}/mcuboot_image.zigbee.inc)
