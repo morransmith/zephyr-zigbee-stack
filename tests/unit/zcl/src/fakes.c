@@ -20,6 +20,7 @@ DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
 DEFINE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, uint16_t *);
 DEFINE_FAKE_VOID_FUNC(zzb_nwk_poll_hold, struct zzb_node *, enum zzb_nwk_hold, bool);
+DEFINE_FAKE_VOID_FUNC(zzb_nwk_poll_fast, struct zzb_node *);
 DEFINE_FAKE_VOID_FUNC(zzb_nwk_set_poll_intervals, struct zzb_node *, uint32_t, uint32_t);
 DEFINE_FAKE_VALUE_FUNC(bool, zzb_aps_bound, struct zzb_node *, uint8_t, uint16_t, uint16_t,
 		       uint8_t);
@@ -879,6 +880,7 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_bdb_identify_query_rsp);
 	RESET_FAKE(zzb_aps_resolve_ext);
 	RESET_FAKE(zzb_nwk_poll_hold);
+	RESET_FAKE(zzb_nwk_poll_fast);
 	RESET_FAKE(zzb_nwk_set_poll_intervals);
 	RESET_FAKE(zzb_aps_bound);
 	FFF_RESET_HISTORY();

@@ -6,6 +6,7 @@
 
 #include "common/node.h"
 #include "common/queue.h"
+#include "nwk/nwk.h"
 #include "zcl/zcl.h"
 
 /* Time and UTCTime: not a value (ZCL 2.6.2.24) */
@@ -206,7 +207,7 @@ static const struct zzb_endpoint *client(const struct zzb_node *node)
 
 /*
  * Sends Read Attributes from the Time client on ep to its bound destinations, or without a binding
- * to the coordinator
+ * to the coordinator. A sleepy node polls fast for the response.
  */
 static void request(struct zzb_node *node, const struct zzb_endpoint *ep)
 {
@@ -225,12 +226,18 @@ static void request(struct zzb_node *node, const struct zzb_endpoint *ep)
 		.src_ep = ep->id,
 		.tx_options = ZZB_APS_TX_ACK,
 	};
+	int err;
 
 	/* zzb_zcl_send_bindings() sends with the same TSN and advances the counter */
 	node->zcl.time_tsn = hdr.tsn;
-	if (zzb_zcl_send_bindings(node, ep, ZZB_ZCL_TIME, ZZB_ZCL_FRAME_GLOBAL, false,
-				  ZZB_ZCL_READ_ATTRIBUTES, read_req, sizeof(read_req)) == -ENOENT) {
-		zzb_zcl_send(node, &aps, &hdr, read_req, sizeof(read_req));
+	err = zzb_zcl_send_bindings(node, ep, ZZB_ZCL_TIME, ZZB_ZCL_FRAME_GLOBAL, false,
+				    ZZB_ZCL_READ_ATTRIBUTES, read_req, sizeof(read_req));
+	if (err == -ENOENT) {
+		err = zzb_zcl_send(node, &aps, &hdr, read_req, sizeof(read_req));
+	}
+
+	if (err == 0) {
+		zzb_nwk_poll_fast(node);
 	}
 
 	k_work_reschedule_for_queue(&zzb_workq, &node->zcl.time_timer, RETRY);

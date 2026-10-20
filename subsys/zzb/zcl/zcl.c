@@ -160,6 +160,10 @@ static void send_bound_handler(struct k_work *work)
 
 	req->err = zzb_zcl_send_bindings(req->node, ep, req->cluster, ZZB_ZCL_FRAME_CLUSTER,
 					 to_client, req->cmd, req->payload, req->len);
+	/* A sleepy node fetches the response, such as Lock Door Response */
+	if (req->err == 0) {
+		zzb_nwk_poll_fast(req->node);
+	}
 }
 
 int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t cmd,

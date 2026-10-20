@@ -23,7 +23,10 @@ static void after(void *fixture)
 	check_no_buffer_leak();
 }
 
-/* Off With Effect of the On/Off client on endpoint 1, which has no definition */
+/*
+ * Off With Effect of the On/Off client on endpoint 1, which has no definition. A sleepy node polls
+ * fast for the response.
+ */
 ZTEST(zzb_zcl_client, test_send_bound)
 {
 	uint8_t tsn = test_node()->zcl.tsn;
@@ -38,6 +41,8 @@ ZTEST(zzb_zcl_client, test_send_bound)
 	zassert_equal(sent[0].handle, ZZB_ZCL_HANDLE);
 	zassert_equal(sent[0].len, 5);
 	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, tsn, 0x40, 0x00, 0x01}), 5);
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 1);
+	zassert_equal_ptr(zzb_nwk_poll_fast_fake.arg0_val, test_node());
 }
 
 /*
@@ -75,12 +80,13 @@ ZTEST(zzb_zcl_client, test_send_bound_too_long)
 	zassert_ok(zzb_zcl_send_bound(test_node(), 1, ON_OFF, 0x40, payload, sizeof(payload) - 1));
 }
 
-/* An error of APSDE-DATA.request, such as off a network, is returned */
+/* An error of APSDE-DATA.request, such as off a network, is returned, and nothing waits */
 ZTEST(zzb_zcl_client, test_send_bound_error)
 {
 	zzb_apsde_data_req_fake.custom_fake = NULL;
 	zzb_apsde_data_req_fake.return_val = -ENOTCONN;
 	zassert_equal(zzb_zcl_send_bound(test_node(), 1, ON_OFF, 0x02, NULL, 0), -ENOTCONN);
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 0);
 }
 
 /* The DTL requires ClusterRevision on every client cluster */
