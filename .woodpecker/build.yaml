@@ -37,7 +37,8 @@ steps:
     image: *image
     depends_on: [west]
     commands:
-      # Installs esptool from the hal_espressif requirements into this step's container.
+      # Installs esptool and imgtool from the requirements of hal_espressif and mcuboot into this
+      # step's container.
       - west packages pip --install
       - >-
         west twister -T tests --build-only -O twister-out-hw --inline-logs
