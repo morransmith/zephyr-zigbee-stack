@@ -267,12 +267,12 @@ int zzb_zcl_attr_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16
  * Runs on the stack thread within zcl_cmd_cb. Sends the cluster-specific command id with the
  * payload to the source of cmd, with the TSN of cmd, the opposite direction and Disable Default
  * Response 1. Then no Default Response follows, and the status that zcl_cmd_cb returns is ignored
- * (ZCL 2.5.12.2).
+ * (ZCL 2.5.12.2). After an error the Default Response carries that status.
  *
  * @retval 0 on success.
  * @retval -EINVAL cmd did not come as unicast, such as a command that the stack builds.
- * @retval -ENOBUFS no buffer or transmission table entry is free; the Default Response follows the
- * status that zcl_cmd_cb returns.
+ * @retval -EMSGSIZE the frame is longer than the ASDU of 82 octets.
+ * @retval -ENOBUFS no buffer or transmission table entry is free.
  */
 int zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
 			const uint8_t *payload, size_t len);
@@ -287,6 +287,7 @@ int zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, ui
  *
  * @retval 0 on success.
  * @retval -ENOENT the endpoint has no instance of the cluster, or the cluster no binding.
+ * @retval -EMSGSIZE the frame is longer than the ASDU of 82 octets.
  * @retval -ENOBUFS no buffer or transmission table entry is free.
  * @retval -ENOTCONN the node is not on a network.
  * @retval -EBUSY the network layer runs a procedure, such as a rejoin.

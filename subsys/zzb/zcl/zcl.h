@@ -120,8 +120,8 @@ struct zzb_zcl_req {
 };
 
 /*
- * Sends a ZCL frame with hdr and the payload through APSDE-DATA with aps. Returns -ENOBUFS without
- * a buffer or an error of APSDE-DATA.request.
+ * Sends a ZCL frame with hdr and the payload through APSDE-DATA with aps. Returns -EMSGSIZE for a
+ * frame longer than ZZB_APS_MAX_ASDU, -ENOBUFS without a buffer or an error of APSDE-DATA.request.
  */
 int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
 		 const struct zzb_zcl_hdr *hdr, const uint8_t *payload, size_t len);

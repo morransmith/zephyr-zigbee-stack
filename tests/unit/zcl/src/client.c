@@ -65,6 +65,16 @@ ZTEST(zzb_zcl_client, test_send_bound_without_instance)
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
 }
 
+/* A payload that does not fit in the ASDU with the ZCL header is refused */
+ZTEST(zzb_zcl_client, test_send_bound_too_long)
+{
+	static const uint8_t payload[ZZB_APS_MAX_ASDU - 2];
+
+	zassert_equal(zzb_zcl_send_bound(test_node(), 1, ON_OFF, 0x40, payload, sizeof(payload)),
+		      -EMSGSIZE);
+	zassert_ok(zzb_zcl_send_bound(test_node(), 1, ON_OFF, 0x40, payload, sizeof(payload) - 1));
+}
+
 /* An error of APSDE-DATA.request, such as off a network, is returned */
 ZTEST(zzb_zcl_client, test_send_bound_error)
 {

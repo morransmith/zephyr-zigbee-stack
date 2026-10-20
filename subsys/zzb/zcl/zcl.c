@@ -32,9 +32,14 @@ const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep
 int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
 		 const struct zzb_zcl_hdr *hdr, const uint8_t *payload, size_t len)
 {
-	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	struct net_buf *buf;
 	int err;
 
+	if (zzb_zcl_hdr_len(hdr) + len > ZZB_APS_MAX_ASDU) {
+		return -EMSGSIZE;
+	}
+
+	buf = zzb_buf_alloc(K_NO_WAIT);
 	if (buf == NULL) {
 		return -ENOBUFS;
 	}
