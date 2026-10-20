@@ -15,3 +15,16 @@ tests:
     platform_allow:
       - nrf52840dk/nrf52840
     extra_args: FILE_SUFFIX=custom_l2
+  zzb.build.radio.ota:
+    build_only: true
+    sysbuild: true
+    platform_allow:
+      - nrf52840dk/nrf52840
+      - esp32c6_devkitc/esp32c6/hpcore
+      - esp32h2_devkitm/esp32h2
+    extra_args: SB_CONFIG_BOOTLOADER_MCUBOOT=y
+    extra_configs:
+      - CONFIG_STREAM_FLASH=y
+      - CONFIG_IMG_MANAGER=y
+      - CONFIG_ZZB_ZCL_OTA=y
+      - CONFIG_REBOOT=y
