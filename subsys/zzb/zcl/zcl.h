@@ -279,7 +279,7 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);
 const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, uint16_t id);
 
 /* The value of an attribute of an integer type other than EUI64, with the bits of its ZCL value */
-uint32_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr);
+uint64_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr);
 
 /* Writes the value of attr of cl in its ZCL encoding; returns its length or -ENOSPC */
 int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,

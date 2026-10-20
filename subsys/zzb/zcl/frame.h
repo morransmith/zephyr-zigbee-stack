@@ -55,10 +55,10 @@ bool zzb_zcl_type_analog(uint8_t type);
 /* Returns the length of a type of fixed length (ZCL Table 2-11), or -ENOTSUP */
 int zzb_zcl_type_len(uint8_t type);
 
-/* The little-endian value of an integer type of up to 4 octets at p */
-uint32_t zzb_zcl_value_get(uint8_t type, const uint8_t *p);
+/* The little-endian value of an integer type of up to 8 octets at p */
+uint64_t zzb_zcl_value_get(uint8_t type, const uint8_t *p);
 
-/* Writes value in the length of an integer type of up to 4 octets to p */
-void zzb_zcl_value_put(uint8_t type, uint32_t value, uint8_t *p);
+/* Writes value in the length of an integer type of up to 8 octets to p */
+void zzb_zcl_value_put(uint8_t type, uint64_t value, uint8_t *p);
 
 #endif /* ZZB_SUBSYS_ZCL_FRAME_H_ */
