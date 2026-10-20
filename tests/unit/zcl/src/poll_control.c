@@ -665,4 +665,31 @@ ZTEST(zzb_zcl_poll_control, test_reset_clients)
 	zassert_false(held());
 }
 
+/*
+ * The client on endpoint 5 of the test node passes Check-in to zcl_cmd_cb; other commands get
+ * UNSUP_COMMAND
+ */
+ZTEST(zzb_zcl_poll_control, test_client)
+{
+	static const uint8_t check_in[] = {0x19, 0x50, 0x00};
+	static const uint8_t other[] = {0x09, 0x51, 0x01};
+	static const uint8_t other_rsp[] = {0x10, 0x51, 0x0b, 0x01, 0x81};
+	const struct zzb_zcl_cmd *cmd = &zcl_cmd_calls.cmd[0];
+
+	receive_ep(CLIENT_EP, ZZB_ZCL_POLL_CONTROL, check_in, sizeof(check_in));
+	zassert_equal(zcl_cmd_calls.count, 1);
+	zassert_equal(cmd->ep, CLIENT_EP);
+	zassert_equal(cmd->cluster, ZZB_ZCL_POLL_CONTROL);
+	zassert_equal(cmd->id, ZZB_ZCL_POLL_CONTROL_CHECK_IN);
+	zassert_equal(cmd->tsn, 0x50);
+	zassert_equal(cmd->len, 0);
+	zassert_false(cmd->server);
+	zassert_true(cmd->unicast);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	receive_ep(CLIENT_EP, ZZB_ZCL_POLL_CONTROL, other, sizeof(other));
+	check_frame(0, CLIENT_EP, ZZB_ZCL_POLL_CONTROL, other_rsp, sizeof(other_rsp));
+	zassert_equal(zcl_cmd_calls.count, 1);
+}
+
 ZTEST_SUITE(zzb_zcl_poll_control, NULL, setup, before, after, teardown);

@@ -436,6 +436,26 @@ const struct zzb_zcl_cluster_def zzb_zcl_poll_control_def = {
 	.changed = changed,
 };
 
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+/* Check-in has no fields (ZCL 3.16.4.4.1) */
+static const struct zzb_zcl_command client_commands[] = {
+	{ZZB_ZCL_POLL_CONTROL_CHECK_IN},
+};
+
+static int client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
+{
+	return zzb_zcl_pass(node, cmd, client_commands, ARRAY_SIZE(client_commands));
+}
+
+const struct zzb_zcl_cluster_def zzb_zcl_poll_control_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.cmd = client_cmd,
+};
+
 void zzb_zcl_poll_control_init(struct zzb_node *node)
 {
 	k_work_init_delayable(&node->zcl.poll_control_timer, tick);

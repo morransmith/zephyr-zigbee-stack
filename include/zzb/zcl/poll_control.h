@@ -74,6 +74,7 @@ struct zzb_zcl_poll_control {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_poll_control_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_poll_control_client_def;
 
 /** A Poll Control server with the values v, a pointer to struct zzb_zcl_poll_control. */
 #define ZZB_ZCL_POLL_CONTROL_SERVER(v)                                                             \
@@ -82,6 +83,17 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_poll_control_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_poll_control *)NULL),                         \
 		.def = &zzb_zcl_poll_control_def,                                                  \
+	}
+
+/**
+ * A Poll Control client. Check-in goes to zcl_cmd_cb; the application answers with Check-in
+ * Response through zzb_zcl_cmd_respond().
+ */
+#define ZZB_ZCL_POLL_CONTROL_CLIENT()                                                              \
+	{                                                                                          \
+		.id = ZZB_ZCL_POLL_CONTROL,                                                        \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_poll_control_client_def,                                           \
 	}
 
 #ifdef __cplusplus

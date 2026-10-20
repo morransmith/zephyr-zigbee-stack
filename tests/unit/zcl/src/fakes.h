@@ -32,6 +32,7 @@
 #include <zzb/zcl/occupancy.h>
 #include <zzb/zcl/on_off.h>
 #include <zzb/zcl/on_off_switch_config.h>
+#include <zzb/zcl/poll_control.h>
 #include <zzb/zcl/power_config.h>
 #include <zzb/zcl/power_profile.h>
 #include <zzb/zcl/pump.h>
