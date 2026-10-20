@@ -13,6 +13,7 @@
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/device_temp.h>
+#include <zzb/zcl/door_lock.h>
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/ias_ace.h>
@@ -250,6 +251,11 @@ extern struct zzb_zcl_ias_wd wd86;
 /* Endpoint 90 is an IAS CIE with the IAS ACE server, endpoint 91 a keypad with the client */
 #define CIE_EP    90
 #define KEYPAD_EP 91
+
+/* Endpoint 100 is a Door Lock with a Door Lock server, locked and with codes of 4 to 8 octets */
+#define DOOR_LOCK_EP 100
+
+extern struct zzb_zcl_door_lock lock100;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
