@@ -43,6 +43,9 @@ extern "C" {
 #define ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE    0x0025
 #define ZZB_ZCL_THERMOSTAT_RUNNING_STATE                 0x0029
 
+/** Commands received (ZCL Table 6-35). */
+#define ZZB_ZCL_THERMOSTAT_SETPOINT_RAISE_LOWER 0x00
+
 /** Values of ControlSequenceOfOperation (ZCL Table 6-15). */
 enum zzb_zcl_control_sequence {
 	ZZB_ZCL_SEQUENCE_COOLING_ONLY = 0x00,

@@ -11,6 +11,11 @@
 #define CALIBRATION_MIN -25
 #define CALIBRATION_MAX 25
 
+/* Mode of Setpoint Raise/Lower (ZCL Table 6-36) */
+#define MODE_HEAT 0x00
+#define MODE_COOL 0x01
+#define MODE_BOTH 0x02
+
 /* The default setpoints of ZCL Table 6-13, 26 and 20 degrees Celsius */
 #define DEFAULT_COOLING 2600
 #define DEFAULT_HEATING 2000
@@ -250,6 +255,88 @@ static void set_temperature(struct zzb_node *node, uint8_t ep, uint16_t attr, in
 	set(node, ep, attr, (uint16_t)t);
 }
 
+/*
+ * Moves the heating setpoint of the occupied or unoccupied pair by amount within its limits and,
+ * while the thermostat heats and cools, below the cooling setpoint by the dead band
+ */
+static void raise_heating(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_thermostat *v,
+			  bool occupied, int amount)
+{
+	int16_t heating = occupied ? v->occupied_heating_setpoint : v->unoccupied_heating_setpoint;
+	int16_t cooling = occupied ? v->occupied_cooling_setpoint : v->unoccupied_cooling_setpoint;
+	int t = CLAMP(heating + amount, v->min_heat_setpoint_limit, v->max_heat_setpoint_limit);
+
+	if (heats_and_cools(v)) {
+		t = MIN(t, cooling - dead_band(v));
+	}
+
+	set_temperature(node, ep,
+			occupied ? ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT
+				 : ZZB_ZCL_THERMOSTAT_UNOCCUPIED_HEATING_SETPOINT,
+			t);
+}
+
+static void raise_cooling(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_thermostat *v,
+			  bool occupied, int amount)
+{
+	int16_t heating = occupied ? v->occupied_heating_setpoint : v->unoccupied_heating_setpoint;
+	int16_t cooling = occupied ? v->occupied_cooling_setpoint : v->unoccupied_cooling_setpoint;
+	int t = CLAMP(cooling + amount, v->min_cool_setpoint_limit, v->max_cool_setpoint_limit);
+
+	if (heats_and_cools(v)) {
+		t = MAX(t, heating + dead_band(v));
+	}
+
+	set_temperature(node, ep,
+			occupied ? ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT
+				 : ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT,
+			t);
+}
+
+/* ZCL 6.3.2.3.1; the unoccupied setpoints change while bit 0 of Occupancy is 0 */
+static int setpoint_raise_lower(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+				const struct zzb_zcl_thermostat *v)
+{
+	bool occupied = v->occupancy & BIT(0);
+	uint8_t mode;
+	int amount;
+
+	if (cmd->len < 2) {
+		return ZZB_ZCL_MALFORMED_COMMAND;
+	}
+
+	mode = cmd->payload[0];
+	amount = 10 * (int8_t)cmd->payload[1];
+	if (mode > MODE_BOTH) {
+		return ZZB_ZCL_INVALID_FIELD;
+	}
+
+	/* A raise moves the cooling setpoint first and a lower the heating one, so both can move */
+	if (mode != MODE_HEAT && amount > 0) {
+		raise_cooling(node, cmd->ep, v, occupied, amount);
+	}
+
+	if (mode != MODE_COOL) {
+		raise_heating(node, cmd->ep, v, occupied, amount);
+	}
+
+	if (mode != MODE_HEAT && amount <= 0) {
+		raise_cooling(node, cmd->ep, v, occupied, amount);
+	}
+
+	return ZZB_ZCL_SUCCESS;
+}
+
+static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
+{
+	switch (cmd->id) {
+	case ZZB_ZCL_THERMOSTAT_SETPOINT_RAISE_LOWER:
+		return setpoint_raise_lower(node, cmd, values);
+	default:
+		return ZZB_ZCL_UNSUP_COMMAND;
+	}
+}
+
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	const struct zzb_zcl_thermostat *v = values;
@@ -278,6 +365,7 @@ const struct zzb_zcl_cluster_def zzb_zcl_thermostat_def = {
 	.attr_count = ARRAY_SIZE(attrs),
 	.init = init,
 	.reset = reset,
+	.cmd = cmd,
 	.check = check,
 	.changed = changed,
 };

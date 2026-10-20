@@ -60,6 +60,18 @@ static uint8_t write_calibration(int8_t calibration)
 		     (uint8_t)calibration);
 }
 
+/* Sends Setpoint Raise/Lower to endpoint 60 after reset_fakes() and returns its Default Response */
+static uint8_t raise_lower(uint8_t mode, int8_t amount)
+{
+	const uint8_t req[] = {0x01, ++tsn, ZZB_ZCL_THERMOSTAT_SETPOINT_RAISE_LOWER, mode, amount};
+
+	reset_fakes();
+	receive_ep(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, req, sizeof(req));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x18, tsn, 0x0b, 0x00}), 4);
+	return sent[0].data[4];
+}
+
 static void set_sequence(uint8_t sequence)
 {
 	zassert_ok(zzb_zcl_attr_set(test_node(), THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT,
@@ -271,6 +283,73 @@ ZTEST(zzb_zcl_thermostat, test_calibration)
 				    ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_CALIBRATION, &value));
 	zassert_ok(reboot());
 	zassert_equal(thermostat60.local_temperature_calibration, 25);
+}
+
+/*
+ * ZCL 6.3.2.3.1: Setpoint Raise/Lower moves the heating setpoint (mode 0), the cooling setpoint
+ * (mode 1) or both (mode 2) by 10 x Amount, the occupied ones, or the unoccupied ones while bit 0
+ * of Occupancy is 0
+ */
+ZTEST(zzb_zcl_thermostat, test_raise_lower)
+{
+	static const uint16_t heating[] = {ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT};
+	uint8_t unoccupied = 0;
+
+	zassert_equal(raise_lower(0, 10), ZZB_ZCL_SUCCESS);
+	check_setpoints(2600, 2100, 2600, 2000);
+	check_zcl_cb(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, heating, 1);
+	zassert_equal(raise_lower(1, -5), ZZB_ZCL_SUCCESS);
+	check_setpoints(2550, 2100, 2600, 2000);
+	zassert_equal(raise_lower(2, 10), ZZB_ZCL_SUCCESS);
+	check_setpoints(2650, 2200, 2600, 2000);
+
+	zassert_ok(zzb_zcl_attr_set(test_node(), THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT,
+				    ZZB_ZCL_THERMOSTAT_OCCUPANCY, &unoccupied));
+	zassert_equal(raise_lower(2, -10), ZZB_ZCL_SUCCESS);
+	check_setpoints(2650, 2200, 2500, 1900);
+}
+
+/*
+ * Section 16: a setpoint stays within its limits and, with ControlSequenceOfOperation 4 or 5, apart
+ * from the other setpoint of its pair by the dead band, which does not move. A raise of both moves
+ * the cooling setpoint first, a lower the heating setpoint.
+ */
+ZTEST(zzb_zcl_thermostat, test_raise_lower_limits)
+{
+	zassert_equal(raise_lower(0, 127), ZZB_ZCL_SUCCESS);
+	check_setpoints(2600, 2350, 2600, 2000);
+	zassert_equal(raise_lower(1, -128), ZZB_ZCL_SUCCESS);
+	check_setpoints(2600, 2350, 2600, 2000);
+	zassert_equal(raise_lower(2, 10), ZZB_ZCL_SUCCESS);
+	check_setpoints(2700, 2450, 2600, 2000);
+	zassert_equal(raise_lower(2, -10), ZZB_ZCL_SUCCESS);
+	check_setpoints(2600, 2350, 2600, 2000);
+
+	set_sequence(ZZB_ZCL_SEQUENCE_HEATING_ONLY);
+	zassert_equal(raise_lower(0, 127), ZZB_ZCL_SUCCESS);
+	check_setpoints(2600, 3000, 2600, 2000);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_MIN_HEAT_SETPOINT_LIMIT, 1500),
+		      ZZB_ZCL_SUCCESS);
+	zassert_equal(raise_lower(0, -128), ZZB_ZCL_SUCCESS);
+	zassert_equal(raise_lower(0, -128), ZZB_ZCL_SUCCESS);
+	check_setpoints(2600, 1500, 2600, 2000);
+}
+
+/*
+ * A reserved mode gives INVALID_FIELD, a payload without Amount MALFORMED_COMMAND, and Get Relay
+ * Status Log, which is not implemented, UNSUP_COMMAND
+ */
+ZTEST(zzb_zcl_thermostat, test_raise_lower_errors)
+{
+	zassert_equal(raise_lower(3, 10), ZZB_ZCL_INVALID_FIELD);
+
+	receive_ep(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, (uint8_t[]){0x01, 0x90, 0x00, 0x00}, 4);
+	check_frame(1, THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT,
+		    (uint8_t[]){0x18, 0x90, 0x0b, 0x00, ZZB_ZCL_MALFORMED_COMMAND}, 5);
+	receive_ep(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, (uint8_t[]){0x01, 0x91, 0x04}, 3);
+	check_frame(2, THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT,
+		    (uint8_t[]){0x18, 0x91, 0x0b, 0x04, ZZB_ZCL_UNSUP_COMMAND}, 5);
+	check_setpoints(2600, 2000, 2600, 2000);
 }
 
 /*
