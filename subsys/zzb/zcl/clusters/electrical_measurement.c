@@ -7,7 +7,6 @@
 /* ClusterRevision (ZCL 4.9.1.1) */
 #define REVISION 3
 
-/* ZCL marks PowerFactor R; it is reportable as the other measurements of phase A */
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_ELECTRICAL_MEASUREMENT_MEASUREMENT_TYPE, ZZB_ZCL_MAP32, 0,
 		     struct zzb_zcl_electrical_measurement, measurement_type),
@@ -44,7 +43,7 @@ static const struct zzb_zcl_attr attrs[] = {
 		     struct zzb_zcl_electrical_measurement, reactive_power),
 	ZZB_ZCL_ATTR(ZZB_ZCL_ELECTRICAL_MEASUREMENT_APPARENT_POWER, ZZB_ZCL_UINT16, ZZB_ZCL_REPORT,
 		     struct zzb_zcl_electrical_measurement, apparent_power),
-	ZZB_ZCL_ATTR(ZZB_ZCL_ELECTRICAL_MEASUREMENT_POWER_FACTOR, ZZB_ZCL_INT8, ZZB_ZCL_REPORT,
+	ZZB_ZCL_ATTR(ZZB_ZCL_ELECTRICAL_MEASUREMENT_POWER_FACTOR, ZZB_ZCL_INT8, 0,
 		     struct zzb_zcl_electrical_measurement, power_factor),
 	ZZB_ZCL_ATTR(ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_VOLTAGE_MULTIPLIER, ZZB_ZCL_UINT16,
 		     ZZB_ZCL_REPORT, struct zzb_zcl_electrical_measurement, ac_voltage_multiplier),
