@@ -418,6 +418,27 @@ static const struct zzb_zcl_cluster ep50_clusters[] = {
 	ZZB_ZCL_WINDOW_COVERING_SERVER(&covering50),
 };
 
+struct zzb_zcl_scenes scenes60;
+struct zzb_zcl_thermostat thermostat60 = {
+	.occupancy = 0x01,
+	.abs_min_heat_setpoint_limit = 700,
+	.abs_max_heat_setpoint_limit = 3000,
+	.abs_min_cool_setpoint_limit = 1600,
+	.abs_max_cool_setpoint_limit = 3200,
+	.min_setpoint_dead_band = 25,
+	.control_sequence_of_operation = ZZB_ZCL_SEQUENCE_COOLING_HEATING,
+	.system_mode_default = ZZB_ZCL_SYSTEM_MODE_AUTO,
+};
+
+struct zzb_zcl_thermostat_ui thermostat_ui60;
+
+static const struct zzb_zcl_cluster ep60_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes60),
+	ZZB_ZCL_THERMOSTAT_SERVER(&thermostat60),
+	ZZB_ZCL_THERMOSTAT_UI_SERVER(&thermostat_ui60),
+	ZZB_ZCL_THERMOSTAT_CLIENT(),
+};
+
 struct zzb_zcl_temperature temperature70;
 struct zzb_zcl_pressure pressure70;
 struct zzb_zcl_flow flow70;
@@ -530,6 +551,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x0202,
 		.clusters = ep50_clusters,
 		.cluster_count = ARRAY_SIZE(ep50_clusters),
+	},
+	{
+		.id = THERMOSTAT_EP,
+		.profile = 0x0104,
+		.device_id = 0x0301,
+		.clusters = ep60_clusters,
+		.cluster_count = ARRAY_SIZE(ep60_clusters),
 	},
 	{
 		.id = HVAC_EP,

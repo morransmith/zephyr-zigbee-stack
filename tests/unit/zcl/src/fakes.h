@@ -24,6 +24,7 @@
 #include <zzb/zcl/power_config.h>
 #include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
+#include <zzb/zcl/thermostat.h>
 #include <zzb/zcl/window_covering.h>
 
 #include "aps/aps.h"
@@ -186,6 +187,18 @@ extern struct zzb_zcl_color color41;
 
 extern struct zzb_zcl_scenes scenes50;
 extern struct zzb_zcl_window_covering covering50;
+
+/*
+ * Endpoint 60 is a Thermostat with the Scenes, Thermostat and Thermostat User Interface
+ * Configuration servers and a Thermostat client. The Thermostat server has the absolute limits of
+ * ZCL Table 6-11, MinSetpointDeadBand 2.5 degrees Celsius, ControlSequenceOfOperation 4, Occupancy
+ * 1 and the factory SystemMode Auto.
+ */
+#define THERMOSTAT_EP 60
+
+extern struct zzb_zcl_scenes scenes60;
+extern struct zzb_zcl_thermostat thermostat60;
+extern struct zzb_zcl_thermostat_ui thermostat_ui60;
 
 /*
  * Endpoint 70 has the measurement servers, a Fan Control server with FanModeSequence 0x02 and a
