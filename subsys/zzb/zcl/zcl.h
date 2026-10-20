@@ -356,7 +356,10 @@ void zzb_zcl_clock_set(struct zzb_node *node, uint32_t utc, int32_t offset);
 /* The UTC time of the clock of the node, or 0xffffffff without time */
 uint32_t zzb_zcl_clock_utc(const struct zzb_node *node);
 
-/* The local time of the clock of the node, or 0xffffffff without time */
+/*
+ * LocalTime of the Time server on the first endpoint that has one, otherwise the UTC time of the
+ * clock of the node plus its offset; 0xffffffff without time
+ */
 uint32_t zzb_zcl_clock_local(const struct zzb_node *node);
 
 #define ZZB_ZCL_FIELDS_MAX 3
