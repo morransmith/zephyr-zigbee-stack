@@ -53,6 +53,12 @@ static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
 };
 
+/* ZCL 7.4.2.4 */
+static const struct zzb_zcl_scene_attr scene_attrs[] = {
+	{ZZB_ZCL_WINDOW_COVERING_LIFT_PERCENTAGE, ZZB_ZCL_UINT8},
+	{ZZB_ZCL_WINDOW_COVERING_TILT_PERCENTAGE, ZZB_ZCL_UINT8},
+};
+
 /* The axes of the type, as in ZHA 2.3.1 */
 static bool lift(const struct zzb_zcl_window_covering *v)
 {
@@ -135,6 +141,35 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	return zzb_zcl_app_cmd(node, cmd);
 }
 
+/* Passes Go To Lift Percentage or Go To Tilt Percentage of a recalled scene to zcl_cmd_cb */
+static void go_to(struct zzb_node *node, uint8_t ep, uint8_t id, uint8_t percentage)
+{
+	const struct zzb_zcl_cmd cmd = {
+		.ep = ep,
+		.cluster = ZZB_ZCL_WINDOW_COVERING,
+		.id = id,
+		.payload = &percentage,
+		.len = 1,
+	};
+
+	zzb_zcl_app_cmd(node, &cmd);
+}
+
+/* The motor moves at its own speed, so the transition time is ignored; 0xff is unknown */
+static void recall(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set,
+		   size_t count, uint32_t transition_ds)
+{
+	const struct zzb_zcl_window_covering *v = values;
+
+	if (count > 0 && lift(v) && set[0] <= PERCENTAGE_MAX) {
+		go_to(node, ep, ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, set[0]);
+	}
+
+	if (count > 1 && tilt(v) && set[1] <= PERCENTAGE_MAX) {
+		go_to(node, ep, ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, set[1]);
+	}
+}
+
 static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32_t value)
 {
 	if (attr->id == ZZB_ZCL_WINDOW_COVERING_MODE && (value & ~MODE_BITS)) {
@@ -160,8 +195,11 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 const struct zzb_zcl_cluster_def zzb_zcl_window_covering_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
+	.scene_attrs = scene_attrs,
+	.scene_attr_count = ARRAY_SIZE(scene_attrs),
 	.init = init,
 	.reset = reset,
 	.cmd = cmd,
 	.check = check,
+	.recall = recall,
 };

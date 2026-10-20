@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <zephyr/ztest.h>
+#include <zzb/zcl/scenes.h>
 #include <zzb/zcl/window_covering.h>
 
 #include "fakes.h"
@@ -37,6 +38,34 @@ static void command(uint8_t id, const uint8_t *payload, size_t len, uint8_t stat
 	memcpy(frame + 3, payload, len);
 	receive_ep(COVERING_EP, ZZB_ZCL_WINDOW_COVERING, frame, 3 + len);
 	check_frame(frames, COVERING_EP, ZZB_ZCL_WINDOW_COVERING, rsp, sizeof(rsp));
+}
+
+/* Stores scene id of group 0 on endpoint 50 with Store Scene */
+static void store_scene(uint8_t id)
+{
+	const uint8_t rsp[] = {0x19, ++tsn, 0x04, 0x00, 0x00, 0x00, id};
+	int frames = zzb_apsde_data_req_fake.call_count;
+
+	receive_ep(COVERING_EP, ZZB_ZCL_SCENES, (uint8_t[]){0x01, tsn, 0x04, 0x00, 0x00, id}, 6);
+	check_frame(frames, COVERING_EP, ZZB_ZCL_SCENES, rsp, sizeof(rsp));
+}
+
+/* Recalls scene id of group 0 on endpoint 50 with Recall Scene and a transition time of 5 s */
+static void recall_scene(uint8_t id)
+{
+	const uint8_t req[] = {0x01, ++tsn, 0x05, 0x00, 0x00, id, 0x32, 0x00};
+	const uint8_t rsp[] = {0x18, tsn, 0x0b, 0x05, 0x00};
+	int frames = zzb_apsde_data_req_fake.call_count;
+
+	receive_ep(COVERING_EP, ZZB_ZCL_SCENES, req, sizeof(req));
+	check_frame(frames, COVERING_EP, ZZB_ZCL_SCENES, rsp, sizeof(rsp));
+}
+
+/* The application sets CurrentPositionLiftPercentage or CurrentPositionTiltPercentage */
+static void set_position(uint16_t attr, uint8_t percentage)
+{
+	zassert_ok(zzb_zcl_attr_set(test_node(), COVERING_EP, ZZB_ZCL_WINDOW_COVERING, attr,
+				    &percentage));
 }
 
 /* Checks that call i of zcl_cmd_cb got the command id of endpoint 50 with the payload */
@@ -159,6 +188,59 @@ ZTEST(zzb_zcl_window_covering, test_axes)
 	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_VALUE, NULL, 0, ZZB_ZCL_UNSUP_COMMAND);
 	covering50.window_covering_type = 0x00;
 	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_VALUE, NULL, 0, ZZB_ZCL_UNSUP_COMMAND);
+}
+
+/*
+ * ZCL 7.4.2.4: Store Scene stores the positions that the application set, and Recall Scene passes
+ * them to zcl_cmd_cb as Go To Lift Percentage and Go To Tilt Percentage without a source, ignoring
+ * the transition time and the status of zcl_cmd_cb (section 16). Setting a position makes
+ * SceneValid FALSE.
+ */
+ZTEST(zzb_zcl_window_covering, test_scene)
+{
+	static const uint8_t view[] = {0x01, 0x70, 0x01, 0x00, 0x00, 0x01};
+	static const uint8_t view_rsp[] = {0x19, 0x70, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00,
+					   0x00, 0x00, 0x02, 0x01, 0x02, 0x1e, 0x3c};
+
+	set_position(ZZB_ZCL_WINDOW_COVERING_LIFT_PERCENTAGE, 30);
+	set_position(ZZB_ZCL_WINDOW_COVERING_TILT_PERCENTAGE, 60);
+	store_scene(1);
+	receive_ep(COVERING_EP, ZZB_ZCL_SCENES, view, sizeof(view));
+	check_frame(1, COVERING_EP, ZZB_ZCL_SCENES, view_rsp, sizeof(view_rsp));
+
+	set_position(ZZB_ZCL_WINDOW_COVERING_LIFT_PERCENTAGE, 80);
+	zassert_false(scenes50.scene_valid);
+
+	zcl_cmd_status = ZZB_ZCL_INVALID_FIELD;
+	recall_scene(1);
+	zassert_equal(zcl_cmd_calls.count, 2);
+	check_cmd(0, ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, (uint8_t[]){30}, 1);
+	check_cmd(1, ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, (uint8_t[]){60}, 1);
+	zassert_false(zcl_cmd_calls.cmd[0].unicast);
+	zassert_equal(zcl_cmd_calls.cmd[0].src_addr, 0);
+	zassert_equal(zcl_cmd_calls.cmd[0].src_ep, 0);
+	zassert_equal(zcl_cmd_calls.cmd[0].tsn, 0);
+	zassert_equal(covering50.current_position_lift_percentage, 80);
+	zassert_true(scenes50.scene_valid);
+}
+
+/* A recall skips an axis that the type lacks and an unknown position */
+ZTEST(zzb_zcl_window_covering, test_scene_axes)
+{
+	set_position(ZZB_ZCL_WINDOW_COVERING_LIFT_PERCENTAGE, 30);
+	set_position(ZZB_ZCL_WINDOW_COVERING_TILT_PERCENTAGE, 0xff);
+	store_scene(1);
+	recall_scene(1);
+	zassert_equal(zcl_cmd_calls.count, 1);
+	check_cmd(0, ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, (uint8_t[]){30}, 1);
+
+	reset_fakes();
+	covering50.window_covering_type = 0x07;
+	set_position(ZZB_ZCL_WINDOW_COVERING_TILT_PERCENTAGE, 60);
+	store_scene(2);
+	recall_scene(2);
+	zassert_equal(zcl_cmd_calls.count, 1);
+	check_cmd(0, ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, (uint8_t[]){60}, 1);
 }
 
 /*

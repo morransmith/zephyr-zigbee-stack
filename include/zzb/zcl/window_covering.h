@@ -42,8 +42,8 @@ extern "C" {
 /**
  * Values of a Window Covering server (ZCL 7.4.2.1). The application fills the fields before mode
  * before zzb_node_init() and changes them with zzb_zcl_attr_set(); they are read-only. Mode is
- * writable and saved. The commands go to zcl_cmd_cb; the application moves the covering and sets
- * its position.
+ * writable and saved. The commands and the positions of a recalled scene go to zcl_cmd_cb; the
+ * application moves the covering and sets its position.
  */
 struct zzb_zcl_window_covering {
 	/**

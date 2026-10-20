@@ -178,9 +178,10 @@ extern struct zzb_zcl_on_off on_off41;
 extern struct zzb_zcl_level level41;
 extern struct zzb_zcl_color color41;
 
-/* The Window Covering server of a Tilt Blind - Lift and Tilt (type 0x08) on endpoint 50 */
+/* The Scenes and Window Covering servers of a Tilt Blind - Lift and Tilt (0x08) on endpoint 50 */
 #define COVERING_EP 50
 
+extern struct zzb_zcl_scenes scenes50;
 extern struct zzb_zcl_window_covering covering50;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */

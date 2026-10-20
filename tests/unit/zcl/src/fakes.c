@@ -84,6 +84,7 @@ struct zzb_zcl_color color41 = {
 	.couple_color_temp_min = COLOR_COUPLE_MIN,
 	.start_up_default = 0xffff,
 };
+struct zzb_zcl_scenes scenes50;
 struct zzb_zcl_window_covering covering50 = {
 	.window_covering_type = 0x08,
 };
@@ -412,6 +413,7 @@ static const struct zzb_zcl_cluster ep41_clusters[] = {
 };
 
 static const struct zzb_zcl_cluster ep50_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes50),
 	ZZB_ZCL_WINDOW_COVERING_SERVER(&covering50),
 };
 
