@@ -362,6 +362,7 @@ void zzb_zcl_init(struct zzb_node *node)
 	k_work_cancel_delayable(&node->zcl.color_timer);
 	k_work_cancel_delayable(&node->zcl.mains_alarm_timer);
 	k_work_cancel_delayable(&node->zcl.temp_alarm_timer);
+	k_work_cancel_delayable(&node->zcl.ias_wd_timer);
 	node->zcl = (struct zzb_zcl){
 		.tsn = sys_rand8_get(),
 	};
@@ -372,6 +373,7 @@ void zzb_zcl_init(struct zzb_node *node)
 	zzb_zcl_color_init(node);
 	zzb_zcl_power_config_init(node);
 	zzb_zcl_device_temp_init(node);
+	zzb_zcl_ias_wd_init(node);
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];

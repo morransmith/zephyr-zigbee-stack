@@ -16,6 +16,7 @@
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/ias_ace.h>
+#include <zzb/zcl/ias_wd.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
@@ -216,6 +217,15 @@ extern struct zzb_zcl_flow flow70;
 extern struct zzb_zcl_humidity humidity70;
 extern struct zzb_zcl_fan fan70;
 extern struct zzb_zcl_pump pump70;
+
+/* Endpoints 85 and 86 are Warning Devices with an IAS WD server each */
+#define WD_EP 85
+
+extern struct zzb_zcl_ias_wd wd85;
+extern struct zzb_zcl_ias_wd wd86;
+
+/* Endpoint 87 is an IAS CIE with an IAS WD client */
+#define WD_CLIENT_EP 87
 
 /* Endpoint 90 is an IAS CIE with the IAS ACE server, endpoint 91 a keypad with the client */
 #define CIE_EP    90

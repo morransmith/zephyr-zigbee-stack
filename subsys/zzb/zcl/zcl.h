@@ -86,6 +86,8 @@ struct zzb_zcl {
 	struct k_work_delayable mains_alarm_timer;
 	/* Raises the device temperature alarms when their dwell has passed */
 	struct k_work_delayable temp_alarm_timer;
+	/* Ends the warnings of IAS WD after their duration */
+	struct k_work_delayable ias_wd_timer;
 	/* zcl_cmd_cb has answered the command it processes */
 	bool responded;
 };
@@ -233,6 +235,7 @@ void zzb_zcl_on_off_switch(struct zzb_node *node, uint8_t ep, bool on_off);
 
 void zzb_zcl_power_config_init(struct zzb_node *node);
 void zzb_zcl_device_temp_init(struct zzb_node *node);
+void zzb_zcl_ias_wd_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*
