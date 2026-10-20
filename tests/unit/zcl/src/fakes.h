@@ -179,12 +179,13 @@ extern struct zzb_zcl_level level41;
 extern struct zzb_zcl_color color41;
 
 /*
- * The Thermostat server of a Thermostat on endpoint 60 with the absolute limits of ZCL Table 6-11,
- * MinSetpointDeadBand 2.5 degrees Celsius, ControlSequenceOfOperation 4, occupied, and the factory
- * SystemMode Auto
+ * The Scenes and Thermostat servers of a Thermostat on endpoint 60. The Thermostat has the absolute
+ * limits of ZCL Table 6-11, MinSetpointDeadBand 2.5 degrees Celsius, ControlSequenceOfOperation 4,
+ * Occupancy 1 and the factory SystemMode Auto.
  */
 #define THERMOSTAT_EP 60
 
+extern struct zzb_zcl_scenes scenes60;
 extern struct zzb_zcl_thermostat thermostat60;
 
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */

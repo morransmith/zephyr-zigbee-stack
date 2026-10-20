@@ -353,6 +353,31 @@ ZTEST(zzb_zcl_thermostat, test_raise_lower_errors)
 }
 
 /*
+ * ZCL 6.3.2.6: the scene extension field set is OccupiedCoolingSetpoint, OccupiedHeatingSetpoint
+ * and SystemMode, which a recall writes at once and without the checks. Scene 1 of group 0 has
+ * the cooling setpoint 1500, below its limit and the heating setpoint 2500, and Cool.
+ */
+ZTEST(zzb_zcl_thermostat, test_scene_recall)
+{
+	static const uint8_t add[] = {0x01, 0xa0, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+				      0x01, 0x02, 0x05, 0xdc, 0x05, 0xc4, 0x09, 0x03};
+	static const uint8_t add_rsp[] = {0x19, 0xa0, 0x00, 0x00, 0x00, 0x00, 0x01};
+	static const uint8_t recall[] = {0x01, 0xa1, 0x05, 0x00, 0x00, 0x01};
+	static const uint8_t recall_rsp[] = {0x18, 0xa1, 0x0b, 0x05, 0x00};
+	static const uint16_t attrs[] = {0x0011, 0x0012, 0x001c};
+
+	receive_ep(THERMOSTAT_EP, ZZB_ZCL_SCENES, add, sizeof(add));
+	check_frame(0, THERMOSTAT_EP, ZZB_ZCL_SCENES, add_rsp, sizeof(add_rsp));
+	receive_ep(THERMOSTAT_EP, ZZB_ZCL_SCENES, recall, sizeof(recall));
+	check_frame(1, THERMOSTAT_EP, ZZB_ZCL_SCENES, recall_rsp, sizeof(recall_rsp));
+
+	check_setpoints(1500, 2500, 2600, 2000);
+	zassert_equal(thermostat60.system_mode, ZZB_ZCL_SYSTEM_MODE_COOL);
+	check_zcl_cb(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, attrs, ARRAY_SIZE(attrs));
+	zassert_true(scenes60.scene_valid);
+}
+
+/*
  * SystemMode 0x02 and above 0x09 are reserved, and ControlSequenceOfOperation excludes the modes of
  * ZCL Table 6-15. The cases are ControlSequenceOfOperation, SystemMode and the status.
  */

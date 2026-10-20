@@ -97,6 +97,13 @@ static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
 };
 
+/* ZCL 6.3.2.6 */
+static const struct zzb_zcl_scene_attr scene_attrs[] = {
+	{ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT, ZZB_ZCL_INT16},
+	{ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, ZZB_ZCL_INT16},
+	{ZZB_ZCL_THERMOSTAT_SYSTEM_MODE, ZZB_ZCL_ENUM8},
+};
+
 static uint8_t valid(bool cond)
 {
 	return cond ? ZZB_ZCL_SUCCESS : ZZB_ZCL_INVALID_VALUE;
@@ -337,6 +344,15 @@ static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *value
 	}
 }
 
+/* The values are written at once and without the checks; the transition time is ignored */
+static void recall(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set_values,
+		   size_t count, uint32_t transition_ds)
+{
+	for (size_t i = 0; i < count; i++) {
+		set(node, ep, scene_attrs[i].id, set_values[i]);
+	}
+}
+
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	const struct zzb_zcl_thermostat *v = values;
@@ -363,9 +379,12 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 const struct zzb_zcl_cluster_def zzb_zcl_thermostat_def = {
 	.attrs = attrs,
 	.attr_count = ARRAY_SIZE(attrs),
+	.scene_attrs = scene_attrs,
+	.scene_attr_count = ARRAY_SIZE(scene_attrs),
 	.init = init,
 	.reset = reset,
 	.cmd = cmd,
 	.check = check,
 	.changed = changed,
+	.recall = recall,
 };

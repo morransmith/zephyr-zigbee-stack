@@ -395,6 +395,7 @@ static const struct zzb_zcl_cluster ep41_clusters[] = {
 	ZZB_ZCL_COLOR_SERVER(&color41),
 };
 
+struct zzb_zcl_scenes scenes60;
 struct zzb_zcl_thermostat thermostat60 = {
 	.occupancy = 0x01,
 	.abs_min_heat_setpoint_limit = 700,
@@ -407,6 +408,7 @@ struct zzb_zcl_thermostat thermostat60 = {
 };
 
 static const struct zzb_zcl_cluster ep60_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes60),
 	ZZB_ZCL_THERMOSTAT_SERVER(&thermostat60),
 };
 
