@@ -413,6 +413,7 @@ static const struct zzb_zcl_cluster ep60_clusters[] = {
 	ZZB_ZCL_SCENES_SERVER(&scenes60),
 	ZZB_ZCL_THERMOSTAT_SERVER(&thermostat60),
 	ZZB_ZCL_THERMOSTAT_UI_SERVER(&thermostat_ui60),
+	ZZB_ZCL_THERMOSTAT_CLIENT(),
 };
 
 static const struct zzb_endpoint endpoints[] = {

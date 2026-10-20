@@ -146,6 +146,7 @@ struct zzb_zcl_thermostat_ui {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_thermostat_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_thermostat_client_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_thermostat_ui_def;
 
 /** A Thermostat server with the values v, a pointer to struct zzb_zcl_thermostat. */
@@ -155,6 +156,14 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_thermostat_ui_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_thermostat *)NULL),                           \
 		.def = &zzb_zcl_thermostat_def,                                                    \
+	}
+
+/** A Thermostat client; it accepts reports and the responses of a Thermostat server. */
+#define ZZB_ZCL_THERMOSTAT_CLIENT()                                                                \
+	{                                                                                          \
+		.id = ZZB_ZCL_THERMOSTAT,                                                          \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_thermostat_client_def,                                             \
 	}
 
 /**

@@ -179,9 +179,10 @@ extern struct zzb_zcl_level level41;
 extern struct zzb_zcl_color color41;
 
 /*
- * The Scenes, Thermostat and Thermostat User Interface Configuration servers of a Thermostat on
- * endpoint 60. The Thermostat has the absolute limits of ZCL Table 6-11, MinSetpointDeadBand 2.5
- * degrees Celsius, ControlSequenceOfOperation 4, Occupancy 1 and the factory SystemMode Auto.
+ * Endpoint 60 is a Thermostat with the Scenes, Thermostat and Thermostat User Interface
+ * Configuration servers and a Thermostat client. The Thermostat server has the absolute limits of
+ * ZCL Table 6-11, MinSetpointDeadBand 2.5 degrees Celsius, ControlSequenceOfOperation 4, Occupancy
+ * 1 and the factory SystemMode Auto.
  */
 #define THERMOSTAT_EP 60
 
