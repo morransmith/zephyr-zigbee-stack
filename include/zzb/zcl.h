@@ -206,6 +206,12 @@ struct zzb_zcl_cluster_def {
 	 * Alarms.
 	 */
 	void (*alarm_reset)(struct zzb_node *node, uint8_t ep, void *values, uint8_t code);
+	/**
+	 * Updates the values that the cluster computes before Read Attributes reads them and
+	 * before a write checks them, on the stack thread, or NULL. These attributes are not
+	 * reportable, not non-volatile and not in the scene extension field set.
+	 */
+	void (*refresh)(struct zzb_node *node, uint8_t ep, void *values);
 };
 
 /** A cluster on an endpoint. */

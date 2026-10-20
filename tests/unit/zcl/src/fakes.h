@@ -270,6 +270,10 @@ extern int cmd_status;
 /* The value struct passed to the last call of the check hook of the test cluster */
 extern const void *check_values;
 
+/* Calls of the refresh hook of the test cluster, which sets the bits refresh_bits in 0x000b */
+extern int refresh_calls;
+extern uint16_t refresh_bits;
+
 /* Calls of the changed hook of the test cluster and of zcl_cb, in order */
 struct changed_calls {
 	int count;

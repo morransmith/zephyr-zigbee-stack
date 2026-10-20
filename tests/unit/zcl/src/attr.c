@@ -195,6 +195,29 @@ ZTEST(zzb_zcl_attr, test_check_read_only)
 	zassert_equal(values1.map8, 0x0f);
 }
 
+/* Section 16: the refresh hook updates the values before a read and before the checks of a write */
+ZTEST(zzb_zcl_attr, test_refresh)
+{
+	static const uint8_t read[] = {0x00, 0x67, 0x00, 0x0b, 0x00};
+	static const uint8_t read_rsp[] = {0x18, 0x67, 0x01, 0x0b, 0x00, 0x00, 0x19, 0x01, 0x00};
+	static const uint8_t write[] = {0x00, 0x68, 0x02, 0x04, 0x00, 0x18, 0x0f};
+	static const uint8_t write_rsp[] = {0x18, 0x68, 0x04, 0x88, 0x04, 0x00};
+	uint8_t map8 = 1;
+
+	refresh_bits = BIT(0);
+	receive(TEST_CLUSTER, read, sizeof(read));
+	check_frame(0, 1, TEST_CLUSTER, read_rsp, sizeof(read_rsp));
+	zassert_equal(refresh_calls, 1);
+
+	values1.map16 = 0;
+	receive(TEST_CLUSTER, write, sizeof(write));
+	check_frame(1, 1, TEST_CLUSTER, write_rsp, sizeof(write_rsp));
+	zassert_equal(refresh_calls, 2);
+
+	zassert_ok(zzb_zcl_attr_set(test_node(), 1, TEST_CLUSTER, 0x0004, &map8));
+	zassert_equal(refresh_calls, 3);
+}
+
 /* Section 15: a record with an unknown version or length fails the boot */
 ZTEST(zzb_zcl_attr, test_bad_record)
 {

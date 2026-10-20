@@ -386,6 +386,10 @@ static int set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t id,
 		return -EINVAL;
 	}
 
+	if (cl->def->refresh != NULL) {
+		cl->def->refresh(node, ep, cl->values);
+	}
+
 	/* READ_ONLY refuses remote writes only */
 	v = field_get(value, ZZB_ZCL_STORAGE_SIZE(attr->type));
 	if (check_value(cl, attr, v) == ZZB_ZCL_INVALID_VALUE) {

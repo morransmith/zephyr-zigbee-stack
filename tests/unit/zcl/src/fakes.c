@@ -108,6 +108,8 @@ struct zzb_zcl_basic basic = {
 struct cmd_calls cmd_calls;
 int cmd_status;
 const void *check_values;
+int refresh_calls;
+uint16_t refresh_bits;
 struct changed_calls hook_calls;
 struct zcl_cb_calls zcl_cb_calls;
 struct effect_calls effect_calls;
@@ -218,6 +220,14 @@ static uint8_t test_check(const void *values, const struct zzb_zcl_attr *attr, u
 	return attr->id == 0x0003 && value > TEST_E8_MAX ? ZZB_ZCL_INVALID_VALUE : ZZB_ZCL_SUCCESS;
 }
 
+static void test_refresh(struct zzb_node *node, uint8_t ep, void *values)
+{
+	struct test_values *v = values;
+
+	refresh_calls++;
+	v->map16 |= refresh_bits;
+}
+
 static void test_changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
 {
 	zassert_true(hook_calls.count < ARRAY_SIZE(hook_calls.attr));
@@ -310,6 +320,7 @@ static const struct zzb_zcl_cluster_def test_def = {
 	.cmd = test_cmd,
 	.check = test_check,
 	.changed = test_changed,
+	.refresh = test_refresh,
 };
 
 static void scene_recall(struct zzb_node *node, uint8_t ep, void *values, const uint32_t *set,
@@ -743,6 +754,8 @@ void reset_fakes(void)
 	cmd_calls = (struct cmd_calls){0};
 	cmd_status = ZZB_ZCL_SUCCESS;
 	check_values = NULL;
+	refresh_calls = 0;
+	refresh_bits = 0;
 	hook_calls = (struct changed_calls){0};
 	zcl_cb_calls = (struct zcl_cb_calls){0};
 	effect_calls = (struct effect_calls){0};
