@@ -12,7 +12,7 @@
 #include "nwk/nwk.h"
 
 /* The trust center is at 0x0000 (R22 4.6.2.2); other devices are neighbors or in nwkAddressMap */
-static int resolve_ext(struct zzb_node *node, uint64_t ext_addr, uint16_t *addr)
+int zzb_aps_resolve_ext(struct zzb_node *node, uint64_t ext_addr, uint16_t *addr)
 {
 	struct zzb_nwk_neighbor *nb;
 
@@ -63,7 +63,7 @@ static int resolve_dst(struct zzb_node *node, const struct zzb_apsde_req *req,
 	case ZZB_APS_ADDR_EXT:
 		hdr->dst_ep = req->dst_ep;
 		*dst_ext = req->dst_ext;
-		return resolve_ext(node, req->dst_ext, dst);
+		return zzb_aps_resolve_ext(node, req->dst_ext, dst);
 	default:
 		return -ENOTSUP;
 	}
