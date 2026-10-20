@@ -103,6 +103,25 @@ ZTEST(zzb_aps_binding, test_limits)
 	zassert_ok(zzb_apsme_bind_req(node, &binding));
 }
 
+/* Poll Control checks the source of its commands with it (section 16) */
+ZTEST(zzb_aps_binding, test_bound)
+{
+	zassert_ok(zzb_apsme_bind_req(node, &to_tc));
+	/* The trust center address is unknown, so the destination does not resolve */
+	zassert_false(zzb_aps_bound(node, 1, 0x0006, 0x0000, 1));
+
+	zassert_ok(zzb_apsme_set_tc_addr(node, TC_EUI64));
+	zassert_true(zzb_aps_bound(node, 1, 0x0006, 0x0000, 1));
+	zassert_false(zzb_aps_bound(node, 2, 0x0006, 0x0000, 1));
+	zassert_false(zzb_aps_bound(node, 1, 0x0008, 0x0000, 1));
+	zassert_false(zzb_aps_bound(node, 1, 0x0006, 0x0000, 2));
+	zassert_false(zzb_aps_bound(node, 1, 0x0006, 0x1234, 1));
+
+	/* to_group has group address 0x1234 */
+	zassert_ok(zzb_apsme_bind_req(node, &to_group));
+	zassert_false(zzb_aps_bound(node, 1, 0x0006, 0x1234, 0));
+}
+
 /* ZHA writes bindings once, during pairing (section 14) */
 ZTEST(zzb_aps_binding, test_table_survives_a_reboot)
 {

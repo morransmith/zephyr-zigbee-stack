@@ -99,6 +99,25 @@ int zzb_apsme_unbind_req(struct zzb_node *node, const struct zzb_aps_binding *bi
 	return 0;
 }
 
+bool zzb_aps_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t addr,
+		   uint8_t src_ep)
+{
+	uint16_t dst;
+
+	ARRAY_FOR_EACH_PTR(node->aps.aib.bindings, entry) {
+		if (!entry->in_use || entry->dst_mode != ZZB_APS_ADDR_EXT || entry->src_ep != ep ||
+		    entry->cluster != cluster || entry->dst_ep != src_ep) {
+			continue;
+		}
+
+		if (zzb_aps_resolve_ext(node, entry->dst_ext, &dst) == 0 && dst == addr) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void zzb_aps_binding_delete(struct zzb_node *node)
 {
 	for (int i = 0; i < ARRAY_SIZE(node->aps.aib.bindings); i++) {
