@@ -220,6 +220,7 @@ static void test_reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x0001, 0);
 	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x0002, 0);
+	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x000f, 0);
 }
 
 static void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
@@ -275,6 +276,7 @@ static const struct zzb_zcl_attr test_attrs[] = {
 		     struct test_values, i8),
 	ZZB_ZCL_ATTR(0x000d, ZZB_ZCL_UINT32, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u32),
 	ZZB_ZCL_ATTR(0x000e, ZZB_ZCL_ENUM16, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, e16),
+	ZZB_ZCL_ATTR(0x000f, ZZB_ZCL_EUI64, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, eui64),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, TEST_REVISION),
 };
 

@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
 
 #include "common/node.h"
@@ -13,8 +14,8 @@
 /* Room for zcl/254/ffff/ffff */
 #define KEY_LEN 20
 
-/* Version and the longest value of a non-volatile attribute */
-#define RECORD_MAX_LEN 5
+/* Version and the longest value of a non-volatile attribute, an EUI64 */
+#define RECORD_MAX_LEN 9
 
 const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, uint16_t id)
 {
@@ -37,9 +38,11 @@ static const void *field(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_
 }
 
 /* The value of a field of size octets */
-static uint32_t field_get(const void *f, size_t size)
+static uint64_t field_get(const void *f, size_t size)
 {
 	switch (size) {
+	case 8:
+		return *(const uint64_t *)f;
 	case 4:
 		return *(const uint32_t *)f;
 	case 2:
@@ -86,6 +89,13 @@ int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
 		p[0] = n;
 		memcpy(p + 1, octstr + 1, n);
 		return 1 + n;
+	case ZZB_ZCL_EUI64:
+		if (len < sizeof(uint64_t)) {
+			return -ENOSPC;
+		}
+
+		sys_put_le64(*(const uint64_t *)field(cl, attr), p);
+		return sizeof(uint64_t);
 	default:
 		n = zzb_zcl_type_len(attr->type);
 		if (len < n) {
@@ -108,8 +118,14 @@ static uint8_t check_value(const struct zzb_zcl_cluster *cl, const struct zzb_zc
 	return cl->def->check != NULL ? cl->def->check(cl->values, attr, value) : ZZB_ZCL_SUCCESS;
 }
 
+/* The value of type at p; zzb_zcl_value_get() reads at most 4 octets */
+static uint64_t value_get(uint8_t type, const uint8_t *p)
+{
+	return type == ZZB_ZCL_EUI64 ? sys_get_le64(p) : zzb_zcl_value_get(type, p);
+}
+
 uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
-			   uint8_t type, const uint8_t *p, uint32_t *value)
+			   uint8_t type, const uint8_t *p, uint64_t *value)
 {
 	if (type != attr->type) {
 		return ZZB_ZCL_INVALID_DATA_TYPE;
@@ -121,17 +137,23 @@ uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zc
 		return ZZB_ZCL_READ_ONLY;
 	}
 
-	*value = zzb_zcl_value_get(type, p);
-	return check_value(cl, attr, *value);
+	*value = value_get(type, p);
+
+	/* The check hook takes values of up to 32 bits */
+	return type == ZZB_ZCL_EUI64 ? ZZB_ZCL_SUCCESS : check_value(cl, attr, *value);
 }
 
 bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
-			uint32_t value)
+			uint64_t value)
 {
 	uint8_t *f = (uint8_t *)cl->values + attr->offset;
-	bool changed = zzb_zcl_attr_value(cl, attr) != value;
+	size_t size = ZZB_ZCL_STORAGE_SIZE(attr->type);
+	bool changed = field_get(f, size) != value;
 
-	switch (ZZB_ZCL_STORAGE_SIZE(attr->type)) {
+	switch (size) {
+	case 8:
+		*(uint64_t *)f = value;
+		break;
 	case 4:
 		*(uint32_t *)f = value;
 		break;
@@ -232,7 +254,7 @@ int zzb_zcl_attr_load(struct zzb_node *node, const char *key, size_t len, settin
 		return err;
 	}
 
-	zzb_zcl_attr_write(cl, attr, zzb_zcl_value_get(attr->type, rec + 1));
+	zzb_zcl_attr_write(cl, attr, value_get(attr->type, rec + 1));
 	return 0;
 }
 
@@ -367,7 +389,8 @@ static int set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t id,
 		return -ENOENT;
 	}
 
-	if ((attr->flags & ZZB_ZCL_CONST) || ZZB_ZCL_IS_STRING(attr->type)) {
+	if ((attr->flags & ZZB_ZCL_CONST) || ZZB_ZCL_IS_STRING(attr->type) ||
+	    attr->type == ZZB_ZCL_EUI64) {
 		return -EINVAL;
 	}
 

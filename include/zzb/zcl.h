@@ -30,6 +30,7 @@ enum zzb_zcl_type {
 	ZZB_ZCL_ENUM16 = 0x31,
 	ZZB_ZCL_OCTSTR = 0x41,
 	ZZB_ZCL_STRING = 0x42,
+	ZZB_ZCL_EUI64 = 0xf0,
 };
 
 #define ZZB_ZCL_IS_STRING(type) ((type) == ZZB_ZCL_OCTSTR || (type) == ZZB_ZCL_STRING)
@@ -46,7 +47,8 @@ enum zzb_zcl_type {
  * has a field of 4 octets.
  */
 #define ZZB_ZCL_STORAGE_SIZE(type)                                                                 \
-	((type) == ZZB_ZCL_MAP32 || (type) == ZZB_ZCL_UINT24 || (type) == ZZB_ZCL_UINT32 ? 4       \
+	((type) == ZZB_ZCL_EUI64 ? 8                                                               \
+	 : (type) == ZZB_ZCL_MAP32 || (type) == ZZB_ZCL_UINT24 || (type) == ZZB_ZCL_UINT32 ? 4     \
 	 : ZZB_ZCL_IS_WORD(type)                             ? 2                                   \
 	 : ZZB_ZCL_IS_STRING(type)                           ? sizeof(void *)                      \
 							     : ZZB_ZCL_IS_BYTE(type))
@@ -61,7 +63,9 @@ enum zzb_zcl_type {
 
 /**
  * An attribute. A character string is stored as a const char pointer, an octet string as a const
- * uint8_t pointer to its length octet; both are read-only, and NULL reads as an empty string.
+ * uint8_t pointer to its length octet; both are read-only, and NULL reads as an empty string. An
+ * EUI64 is stored as a uint64_t; it is not reportable, not in a scene extension field set, and a
+ * write of it does not call the check hook.
  */
 struct zzb_zcl_attr {
 	uint16_t id;
@@ -245,11 +249,12 @@ typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_
  *
  * Runs on the stack thread. value points to a value of the type of the field: uint8_t, int8_t or
  * bool for the one-octet types, uint16_t or int16_t for the two-octet types, uint32_t for
- * ZZB_ZCL_UINT24, ZZB_ZCL_UINT32 and ZZB_ZCL_MAP32. A non-volatile attribute is saved. zcl_cb is not called.
+ * ZZB_ZCL_UINT24, ZZB_ZCL_UINT32 and ZZB_ZCL_MAP32. A non-volatile attribute is saved. zcl_cb is
+ * not called.
  *
  * @retval 0 on success.
  * @retval -ENOENT the node has no server cluster with the attribute on the endpoint.
- * @retval -EINVAL the attribute is a constant or a string, or the value is out of range.
+ * @retval -EINVAL the attribute is a constant, a string or an EUI64, or the value is out of range.
  */
 int zzb_zcl_attr_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
 		     const void *value);

@@ -259,7 +259,7 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);
 /* The attribute id of cl, or NULL */
 const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, uint16_t id);
 
-/* The value of an attribute of an integer type, with the bits of its ZCL value */
+/* The value of an attribute of an integer type other than EUI64, with the bits of its ZCL value */
 uint32_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr);
 
 /* Writes the value of attr of cl in its ZCL encoding; returns its length or -ENOSPC */
@@ -271,11 +271,11 @@ int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
  * the status and, with ZZB_ZCL_SUCCESS, the value in *value.
  */
 uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
-			   uint8_t type, const uint8_t *p, uint32_t *value);
+			   uint8_t type, const uint8_t *p, uint64_t *value);
 
 /* Writes value to the field of attr of cl; returns whether the value changed */
 bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
-			uint32_t value);
+			uint64_t value);
 
 /*
  * Loads the record zcl/<key> of a non-volatile attribute; -EINVAL for an unknown version or

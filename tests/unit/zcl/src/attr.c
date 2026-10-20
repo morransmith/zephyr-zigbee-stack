@@ -20,6 +20,7 @@ static void *setup(void)
 #define RECORD_I8    "zzb/0/zcl/1/0f00/000c"
 #define RECORD_U32   "zzb/0/zcl/1/0f00/000d"
 #define RECORD_E16   "zzb/0/zcl/1/0f00/000e"
+#define RECORD_EUI64 "zzb/0/zcl/1/0f00/000f"
 
 /* Every test starts without the record, since ztest orders tests by name */
 static void before(void *fixture)
@@ -33,6 +34,7 @@ static void before(void *fixture)
 	zassert_ok(settings_delete(RECORD_I8));
 	zassert_ok(settings_delete(RECORD_U32));
 	zassert_ok(settings_delete(RECORD_E16));
+	zassert_ok(settings_delete(RECORD_EUI64));
 }
 
 static void after(void *fixture)
@@ -59,9 +61,10 @@ ZTEST(zzb_zcl_attr, test_wide_types)
 	static const uint8_t req[] = {0x00, 0x62, 0x02, 0x08, 0x00, 0x29, 0xfe, 0xff, 0x09, 0x00,
 				      0x22, 0x56, 0x34, 0x12, 0x0a, 0x00, 0x1b, 0xef, 0xcd, 0xab,
 				      0x89, 0x0c, 0x00, 0x28, 0xfd, 0x0d, 0x00, 0x23, 0x04, 0x03,
-				      0x02, 0x01, 0x0e, 0x00, 0x31, 0x15, 0x00};
+				      0x02, 0x01, 0x0e, 0x00, 0x31, 0x15, 0x00, 0x0f, 0x00, 0xf0,
+				      0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11};
 	static const uint8_t rsp[] = {0x18, 0x62, 0x04, 0x00};
-	uint8_t rec[5];
+	uint8_t rec[9];
 
 	receive(TEST_CLUSTER, req, sizeof(req));
 	check_frame(0, 1, TEST_CLUSTER, rsp, sizeof(rsp));
@@ -71,12 +74,16 @@ ZTEST(zzb_zcl_attr, test_wide_types)
 	zassert_equal(values1.i8, -3);
 	zassert_equal(values1.u32, 0x01020304);
 	zassert_equal(values1.e16, 0x0015);
+	zassert_equal(values1.eui64, 0x1122334455667788);
 	zassert_equal(settings_load_one(RECORD_U24, rec, sizeof(rec)), 4);
 	zassert_mem_equal(rec, ((uint8_t[]){0x01, 0x56, 0x34, 0x12}), 4);
 	zassert_equal(settings_load_one(RECORD_I8, rec, sizeof(rec)), 2);
 	zassert_mem_equal(rec, ((uint8_t[]){0x01, 0xfd}), 2);
 	zassert_equal(settings_load_one(RECORD_E16, rec, sizeof(rec)), 3);
 	zassert_mem_equal(rec, ((uint8_t[]){0x01, 0x15, 0x00}), 3);
+	zassert_equal(settings_load_one(RECORD_EUI64, rec, sizeof(rec)), 9);
+	zassert_mem_equal(rec, ((uint8_t[]){0x01, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11}),
+			  9);
 
 	values1 = (struct test_values){0};
 	zassert_ok(reboot());
@@ -86,6 +93,7 @@ ZTEST(zzb_zcl_attr, test_wide_types)
 	zassert_equal(values1.i8, -3);
 	zassert_equal(values1.u32, 0x01020304);
 	zassert_equal(values1.e16, 0x0015);
+	zassert_equal(values1.eui64, 0x1122334455667788);
 }
 
 /* The check hook gets the value struct of the instance on the endpoint */
@@ -107,6 +115,9 @@ ZTEST(zzb_zcl_attr, test_bad_record)
 	zassert_ok(settings_save_one(RECORD, (uint8_t[]){0x01, 0x78}, 2));
 	zassert_equal(reboot(), -EINVAL);
 	zassert_ok(settings_delete(RECORD));
+	zassert_ok(settings_save_one(RECORD_EUI64, (uint8_t[]){0x01, 0x04, 0x03, 0x02, 0x01}, 5));
+	zassert_equal(reboot(), -EINVAL);
+	zassert_ok(settings_delete(RECORD_EUI64));
 	zassert_ok(reboot());
 }
 
@@ -132,17 +143,20 @@ ZTEST(zzb_zcl_attr, test_unknown_records)
 /* Section 16: the reset sets the defaults as a remote change does, then deletes the records */
 ZTEST(zzb_zcl_attr, test_reset)
 {
-	static const uint8_t req[] = {0x00, 0x61, 0x02, 0x01, 0x00, 0x20,
-				      0x05, 0x02, 0x00, 0x21, 0x07, 0x00};
+	static const uint8_t req[] = {0x00, 0x61, 0x02, 0x01, 0x00, 0x20, 0x05, 0x02,
+				      0x00, 0x21, 0x07, 0x00, 0x0f, 0x00, 0xf0, 0x08,
+				      0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01};
 
 	receive(TEST_CLUSTER, req, sizeof(req));
 	reset_fakes();
 	reset_node();
 	zassert_equal(values1.u8, 0);
 	zassert_equal(values1.u16, 0);
-	zassert_equal(zcl_cb_calls.count, 2);
+	zassert_equal(values1.eui64, 0);
+	zassert_equal(zcl_cb_calls.count, 3);
 	zassert_equal(zcl_cb_calls.attr[0], 0x0001);
 	zassert_equal(zcl_cb_calls.attr[1], 0x0002);
+	zassert_equal(zcl_cb_calls.attr[2], 0x000f);
 
 	values1.u16 = 9;
 	zassert_ok(reboot());
@@ -178,6 +192,7 @@ ZTEST(zzb_zcl_attr, test_attr_set_errors)
 	uint8_t two = 2;
 	uint16_t u16 = 1;
 	uint32_t u24 = 0x1000000;
+	uint64_t eui64 = 1;
 
 	zassert_equal(zzb_zcl_attr_set(node, 9, TEST_CLUSTER, 0x0002, &u16), -ENOENT);
 	zassert_equal(zzb_zcl_attr_set(node, 1, 0x0300, 0x0002, &u16), -ENOENT);
@@ -190,6 +205,7 @@ ZTEST(zzb_zcl_attr, test_attr_set_errors)
 	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0000, &two), -EINVAL);
 	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0003, &big), -EINVAL);
 	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x0009, &u24), -EINVAL);
+	zassert_equal(zzb_zcl_attr_set(node, 1, TEST_CLUSTER, 0x000f, &eui64), -EINVAL);
 	zassert_equal(hook_calls.count, 0);
 }
 
