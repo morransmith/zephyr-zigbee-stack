@@ -126,23 +126,26 @@ static int dead_band(const struct zzb_zcl_thermostat *v)
 	return 10 * v->min_setpoint_dead_band;
 }
 
-/* ZCL 6.3.2.2.2.2: whether t is a valid heating setpoint in the pair with cooling */
-static bool heating_valid(const struct zzb_zcl_thermostat *v, int16_t t, int16_t cooling)
+/*
+ * Whether t is a valid heating setpoint: within its limits and, while the thermostat heats and
+ * cools, with room for the cooling setpoint above it by the dead band (section 16)
+ */
+static bool heating_valid(const struct zzb_zcl_thermostat *v, int16_t t)
 {
 	if (t < v->min_heat_setpoint_limit || t > v->max_heat_setpoint_limit) {
 		return false;
 	}
 
-	return !heats_and_cools(v) || t <= cooling - dead_band(v);
+	return !heats_and_cools(v) || t + dead_band(v) <= v->max_cool_setpoint_limit;
 }
 
-static bool cooling_valid(const struct zzb_zcl_thermostat *v, int16_t t, int16_t heating)
+static bool cooling_valid(const struct zzb_zcl_thermostat *v, int16_t t)
 {
 	if (t < v->min_cool_setpoint_limit || t > v->max_cool_setpoint_limit) {
 		return false;
 	}
 
-	return !heats_and_cools(v) || t >= heating + dead_band(v);
+	return !heats_and_cools(v) || t - dead_band(v) >= v->min_heat_setpoint_limit;
 }
 
 /* AbsMin <= min <= the heating setpoints <= max <= AbsMax */
@@ -188,13 +191,11 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 
 	switch (attr->id) {
 	case ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT:
-		return valid(cooling_valid(v, t, v->occupied_heating_setpoint));
-	case ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT:
-		return valid(heating_valid(v, t, v->occupied_cooling_setpoint));
 	case ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT:
-		return valid(cooling_valid(v, t, v->unoccupied_heating_setpoint));
+		return valid(cooling_valid(v, t));
+	case ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT:
 	case ZZB_ZCL_THERMOSTAT_UNOCCUPIED_HEATING_SETPOINT:
-		return valid(heating_valid(v, t, v->unoccupied_cooling_setpoint));
+		return valid(heating_valid(v, t));
 	case ZZB_ZCL_THERMOSTAT_MIN_HEAT_SETPOINT_LIMIT:
 		return valid(heat_limits(v, t, v->max_heat_setpoint_limit));
 	case ZZB_ZCL_THERMOSTAT_MAX_HEAT_SETPOINT_LIMIT:
@@ -207,18 +208,6 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 		return valid(mode_valid(v->control_sequence_of_operation, value));
 	default:
 		return ZZB_ZCL_SUCCESS;
-	}
-}
-
-/* ZCL 6.3.2.2.2.1, CCB 2477: LocalTemperatureCalibration out of range takes the nearer end */
-static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
-{
-	const struct zzb_zcl_thermostat *v = values;
-	int8_t calibration =
-		CLAMP(v->local_temperature_calibration, CALIBRATION_MIN, CALIBRATION_MAX);
-
-	if (attr == ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_CALIBRATION) {
-		zzb_zcl_store(node, ep, ZZB_ZCL_THERMOSTAT, attr, (uint8_t)calibration);
 	}
 }
 
@@ -265,18 +254,70 @@ static void set_temperature(struct zzb_node *node, uint8_t ep, uint16_t attr, in
 }
 
 /*
+ * ZCL 6.3.2.2.2.2: a setpoint closer to the other setpoint of its pair than the dead band moves the
+ * other one, which check() has kept within its limits (section 16)
+ */
+static void keep_dead_band(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_thermostat *v,
+			   uint16_t attr)
+{
+	bool occupied = attr == ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT ||
+			attr == ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT;
+	int16_t heating = occupied ? v->occupied_heating_setpoint : v->unoccupied_heating_setpoint;
+	int16_t cooling = occupied ? v->occupied_cooling_setpoint : v->unoccupied_cooling_setpoint;
+
+	if (!heats_and_cools(v) || heating <= cooling - dead_band(v)) {
+		return;
+	}
+
+	if (attr == ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT ||
+	    attr == ZZB_ZCL_THERMOSTAT_UNOCCUPIED_HEATING_SETPOINT) {
+		set_temperature(node, ep,
+				occupied ? ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT
+					 : ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT,
+				heating + dead_band(v));
+		return;
+	}
+
+	set_temperature(node, ep,
+			occupied ? ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT
+				 : ZZB_ZCL_THERMOSTAT_UNOCCUPIED_HEATING_SETPOINT,
+			cooling - dead_band(v));
+}
+
+/* ZCL 6.3.2.2.2.1, CCB 2477: LocalTemperatureCalibration out of range takes the nearer end */
+static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t attr)
+{
+	const struct zzb_zcl_thermostat *v = values;
+
+	switch (attr) {
+	case ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_CALIBRATION:
+		zzb_zcl_store(node, ep, ZZB_ZCL_THERMOSTAT, attr,
+			      (uint8_t)CLAMP(v->local_temperature_calibration, CALIBRATION_MIN,
+					     CALIBRATION_MAX));
+		break;
+	case ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT:
+	case ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT:
+	case ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT:
+	case ZZB_ZCL_THERMOSTAT_UNOCCUPIED_HEATING_SETPOINT:
+		keep_dead_band(node, ep, v, attr);
+		break;
+	default:
+		break;
+	}
+}
+
+/*
  * Moves the heating setpoint of the occupied or unoccupied pair by amount within its limits and,
- * while the thermostat heats and cools, below the cooling setpoint by the dead band
+ * while the thermostat heats and cools, with room for the cooling setpoint above it
  */
 static void raise_heating(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_thermostat *v,
 			  bool occupied, int amount)
 {
 	int16_t heating = occupied ? v->occupied_heating_setpoint : v->unoccupied_heating_setpoint;
-	int16_t cooling = occupied ? v->occupied_cooling_setpoint : v->unoccupied_cooling_setpoint;
 	int t = CLAMP(heating + amount, v->min_heat_setpoint_limit, v->max_heat_setpoint_limit);
 
 	if (heats_and_cools(v)) {
-		t = MIN(t, cooling - dead_band(v));
+		t = MIN(t, v->max_cool_setpoint_limit - dead_band(v));
 	}
 
 	set_temperature(node, ep,
@@ -288,12 +329,11 @@ static void raise_heating(struct zzb_node *node, uint8_t ep, const struct zzb_zc
 static void raise_cooling(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_thermostat *v,
 			  bool occupied, int amount)
 {
-	int16_t heating = occupied ? v->occupied_heating_setpoint : v->unoccupied_heating_setpoint;
 	int16_t cooling = occupied ? v->occupied_cooling_setpoint : v->unoccupied_cooling_setpoint;
 	int t = CLAMP(cooling + amount, v->min_cool_setpoint_limit, v->max_cool_setpoint_limit);
 
 	if (heats_and_cools(v)) {
-		t = MAX(t, heating + dead_band(v));
+		t = MAX(t, v->min_heat_setpoint_limit + dead_band(v));
 	}
 
 	set_temperature(node, ep,
@@ -320,7 +360,10 @@ static int setpoint_raise_lower(struct zzb_node *node, const struct zzb_zcl_cmd 
 		return ZZB_ZCL_INVALID_FIELD;
 	}
 
-	/* A raise moves the cooling setpoint first and a lower the heating one, so both can move */
+	/*
+	 * A raise moves the cooling setpoint first and a lower the heating one, so that the first
+	 * does not move the second by the dead band
+	 */
 	if (mode != MODE_HEAT && amount > 0) {
 		raise_cooling(node, cmd->ep, v, occupied, amount);
 	}

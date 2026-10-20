@@ -223,38 +223,45 @@ ZTEST(zzb_zcl_thermostat, test_limits)
 }
 
 /*
- * ZCL 6.3.2.2.2.2: with ControlSequenceOfOperation 4 or 5 the heating setpoint stays below the
- * cooling setpoint of its pair by 10 x MinSetpointDeadBand, and the other setpoint does not move.
- * The other sequences do not need the dead band.
+ * Section 16: with ControlSequenceOfOperation 4 or 5 a setpoint closer to the other setpoint of its
+ * pair (occupied, unoccupied) than 10 x MinSetpointDeadBand moves the other setpoint, with zcl_cb,
+ * or gives INVALID_VALUE when the other setpoint would leave its limits (ZCL 6.3.2.2.2.2). The
+ * other sequences do not need the dead band.
  */
 ZTEST(zzb_zcl_thermostat, test_dead_band)
 {
-	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2351),
-		      ZZB_ZCL_INVALID_VALUE);
-	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2350),
-		      ZZB_ZCL_SUCCESS);
-	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT, 2599),
-		      ZZB_ZCL_INVALID_VALUE);
-	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT, 2700),
-		      ZZB_ZCL_SUCCESS);
-	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT, 2249),
-		      ZZB_ZCL_INVALID_VALUE);
-	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT, 2250),
-		      ZZB_ZCL_SUCCESS);
-	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_HEATING_SETPOINT, 2001),
-		      ZZB_ZCL_INVALID_VALUE);
-	check_setpoints(2700, 2350, 2250, 2000);
+	static const uint16_t moved[] = {0x0011, 0x0012};
 
-	set_sequence(ZZB_ZCL_SEQUENCE_COOLING_HEATING_REHEAT);
-	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2451),
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2500),
+		      ZZB_ZCL_SUCCESS);
+	check_setpoints(2750, 2500, 2600, 2000);
+	check_zcl_cb(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, moved, ARRAY_SIZE(moved));
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2951),
 		      ZZB_ZCL_INVALID_VALUE);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2950),
+		      ZZB_ZCL_SUCCESS);
+	check_setpoints(3200, 2950, 2600, 2000);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT, 1700),
+		      ZZB_ZCL_SUCCESS);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT, 2100),
+		      ZZB_ZCL_SUCCESS);
+	check_setpoints(1700, 1450, 2100, 1850);
+
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_MIN_HEAT_SETPOINT_LIMIT, 1400),
+		      ZZB_ZCL_SUCCESS);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT, 1649),
+		      ZZB_ZCL_INVALID_VALUE);
+	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_COOLING_SETPOINT, 1650),
+		      ZZB_ZCL_SUCCESS);
+	check_setpoints(1650, 1400, 2100, 1850);
+
 	set_sequence(ZZB_ZCL_SEQUENCE_HEATING_ONLY);
 	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_OCCUPIED_HEATING_SETPOINT, 2900),
 		      ZZB_ZCL_SUCCESS);
 	set_sequence(ZZB_ZCL_SEQUENCE_COOLING_ONLY);
 	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_UNOCCUPIED_COOLING_SETPOINT, 1600),
 		      ZZB_ZCL_SUCCESS);
-	check_setpoints(2700, 2900, 1600, 2000);
+	check_setpoints(1650, 2900, 1600, 1850);
 }
 
 /*
@@ -310,29 +317,30 @@ ZTEST(zzb_zcl_thermostat, test_raise_lower)
 }
 
 /*
- * Section 16: a setpoint stays within its limits and, with ControlSequenceOfOperation 4 or 5, apart
- * from the other setpoint of its pair by the dead band, which does not move. A raise of both moves
- * the cooling setpoint first, a lower the heating setpoint.
+ * Section 16: a setpoint stays within its limits and, with ControlSequenceOfOperation 4 or 5, moves
+ * the other setpoint of its pair by the dead band within the limits of that setpoint. A raise of
+ * both moves the cooling setpoint first, a lower the heating setpoint.
  */
 ZTEST(zzb_zcl_thermostat, test_raise_lower_limits)
 {
 	zassert_equal(raise_lower(0, 127), ZZB_ZCL_SUCCESS);
-	check_setpoints(2600, 2350, 2600, 2000);
+	check_setpoints(3200, 2950, 2600, 2000);
 	zassert_equal(raise_lower(1, -128), ZZB_ZCL_SUCCESS);
-	check_setpoints(2600, 2350, 2600, 2000);
+	check_setpoints(1920, 1670, 2600, 2000);
 	zassert_equal(raise_lower(2, 10), ZZB_ZCL_SUCCESS);
-	check_setpoints(2700, 2450, 2600, 2000);
+	check_setpoints(2020, 1770, 2600, 2000);
 	zassert_equal(raise_lower(2, -10), ZZB_ZCL_SUCCESS);
-	check_setpoints(2600, 2350, 2600, 2000);
+	check_setpoints(1920, 1670, 2600, 2000);
 
 	set_sequence(ZZB_ZCL_SEQUENCE_HEATING_ONLY);
 	zassert_equal(raise_lower(0, 127), ZZB_ZCL_SUCCESS);
-	check_setpoints(2600, 3000, 2600, 2000);
+	zassert_equal(raise_lower(0, 127), ZZB_ZCL_SUCCESS);
+	check_setpoints(1920, 3000, 2600, 2000);
 	zassert_equal(write_temperature(ZZB_ZCL_THERMOSTAT_MIN_HEAT_SETPOINT_LIMIT, 1500),
 		      ZZB_ZCL_SUCCESS);
 	zassert_equal(raise_lower(0, -128), ZZB_ZCL_SUCCESS);
 	zassert_equal(raise_lower(0, -128), ZZB_ZCL_SUCCESS);
-	check_setpoints(2600, 1500, 2600, 2000);
+	check_setpoints(1920, 1500, 2600, 2000);
 }
 
 /*
@@ -355,23 +363,24 @@ ZTEST(zzb_zcl_thermostat, test_raise_lower_errors)
 /*
  * ZCL 6.3.2.6: the scene extension field set is OccupiedCoolingSetpoint, OccupiedHeatingSetpoint
  * and SystemMode, which a recall writes at once and without the checks. Scene 1 of group 0 has
- * the cooling setpoint 1500, below its limit and the heating setpoint 2500, and Cool.
+ * the cooling setpoint 1500, below its limit, the heating setpoint 1200 and Cool. The heating
+ * setpoint moves by the dead band when the cooling setpoint is written.
  */
 ZTEST(zzb_zcl_thermostat, test_scene_recall)
 {
 	static const uint8_t add[] = {0x01, 0xa0, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-				      0x01, 0x02, 0x05, 0xdc, 0x05, 0xc4, 0x09, 0x03};
+				      0x01, 0x02, 0x05, 0xdc, 0x05, 0xb0, 0x04, 0x03};
 	static const uint8_t add_rsp[] = {0x19, 0xa0, 0x00, 0x00, 0x00, 0x00, 0x01};
 	static const uint8_t recall[] = {0x01, 0xa1, 0x05, 0x00, 0x00, 0x01};
 	static const uint8_t recall_rsp[] = {0x18, 0xa1, 0x0b, 0x05, 0x00};
-	static const uint16_t attrs[] = {0x0011, 0x0012, 0x001c};
+	static const uint16_t attrs[] = {0x0012, 0x0011, 0x0012, 0x001c};
 
 	receive_ep(THERMOSTAT_EP, ZZB_ZCL_SCENES, add, sizeof(add));
 	check_frame(0, THERMOSTAT_EP, ZZB_ZCL_SCENES, add_rsp, sizeof(add_rsp));
 	receive_ep(THERMOSTAT_EP, ZZB_ZCL_SCENES, recall, sizeof(recall));
 	check_frame(1, THERMOSTAT_EP, ZZB_ZCL_SCENES, recall_rsp, sizeof(recall_rsp));
 
-	check_setpoints(1500, 2500, 2600, 2000);
+	check_setpoints(1500, 1200, 2600, 2000);
 	zassert_equal(thermostat60.system_mode, ZZB_ZCL_SYSTEM_MODE_COOL);
 	check_zcl_cb(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT, attrs, ARRAY_SIZE(attrs));
 	zassert_true(scenes60.scene_valid);
