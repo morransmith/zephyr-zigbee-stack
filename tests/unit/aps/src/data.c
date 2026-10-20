@@ -615,6 +615,21 @@ ZTEST(zzb_aps_data, test_ack_wait_holds_the_poll_rate)
 	zassert_false(held());
 }
 
+/* The sender of a request, such as a coordinator that interviews the node, sends the next one */
+ZTEST(zzb_aps_data, test_delivered_frame_polls_fast)
+{
+	static const uint8_t frame[] = {0x00, 0x01, 0x06, 0x00, 0x04, 0x01, 0x02, 0x67, 0x01};
+
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 1);
+	zassert_equal_ptr(zzb_nwk_poll_fast_fake.arg0_val, node);
+
+	/* A duplicate and an ACK */
+	receive(frame, sizeof(frame), CHILD_ADDR, true);
+	receive_ack(0x00);
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 1);
+}
+
 /* R22 2.2.8.4.4: the same APS counter, a higher frame counter */
 ZTEST(zzb_aps_data, test_retransmission_with_a_new_frame_counter)
 {

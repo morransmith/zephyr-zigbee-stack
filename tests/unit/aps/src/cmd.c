@@ -134,6 +134,7 @@ ZTEST(zzb_aps_cmd, test_captured_transport_key)
 	zassert_equal(zzb_apsme_transport_key_ind_fake.arg4_val, 0);
 	zassert_mem_equal(transported_key, key, sizeof(key));
 	zassert_equal(zzb_nlde_data_req_fake.call_count, 0);
+	zassert_equal(zzb_nwk_poll_fast_fake.call_count, 0);
 }
 
 static int ind_nlde_calls;
