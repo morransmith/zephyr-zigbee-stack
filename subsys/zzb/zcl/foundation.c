@@ -54,10 +54,10 @@ static int read_attributes(struct zzb_node *node, const struct zzb_zcl_req *req)
 
 /* A record of Write Attributes after the checks */
 struct write_record {
-	uint16_t id;
+	uint64_t value;
 	const struct zzb_zcl_attr *attr;
+	uint16_t id;
 	uint8_t status;
-	uint32_t value;
 };
 
 /* Every record has an attribute ID and a data type */

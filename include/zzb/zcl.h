@@ -27,8 +27,10 @@ enum zzb_zcl_type {
 	ZZB_ZCL_INT8 = 0x28,
 	ZZB_ZCL_INT16 = 0x29,
 	ZZB_ZCL_ENUM8 = 0x30,
+	ZZB_ZCL_ENUM16 = 0x31,
 	ZZB_ZCL_OCTSTR = 0x41,
 	ZZB_ZCL_STRING = 0x42,
+	ZZB_ZCL_EUI64 = 0xf0,
 };
 
 #define ZZB_ZCL_IS_STRING(type) ((type) == ZZB_ZCL_OCTSTR || (type) == ZZB_ZCL_STRING)
@@ -37,14 +39,16 @@ enum zzb_zcl_type {
 	 (type) == ZZB_ZCL_INT8 || (type) == ZZB_ZCL_ENUM8)
 
 #define ZZB_ZCL_IS_WORD(type)                                                                      \
-	((type) == ZZB_ZCL_MAP16 || (type) == ZZB_ZCL_UINT16 || (type) == ZZB_ZCL_INT16)
+	((type) == ZZB_ZCL_MAP16 || (type) == ZZB_ZCL_UINT16 || (type) == ZZB_ZCL_INT16 ||         \
+	 (type) == ZZB_ZCL_ENUM16)
 
 /**
  * Size of the value struct field of a type; 0 for a type that the stack does not store. A uint24
  * has a field of 4 octets.
  */
 #define ZZB_ZCL_STORAGE_SIZE(type)                                                                 \
-	((type) == ZZB_ZCL_MAP32 || (type) == ZZB_ZCL_UINT24 || (type) == ZZB_ZCL_UINT32 ? 4       \
+	((type) == ZZB_ZCL_EUI64 ? 8                                                               \
+	 : (type) == ZZB_ZCL_MAP32 || (type) == ZZB_ZCL_UINT24 || (type) == ZZB_ZCL_UINT32 ? 4     \
 	 : ZZB_ZCL_IS_WORD(type)                             ? 2                                   \
 	 : ZZB_ZCL_IS_STRING(type)                           ? sizeof(void *)                      \
 							     : ZZB_ZCL_IS_BYTE(type))
@@ -59,7 +63,9 @@ enum zzb_zcl_type {
 
 /**
  * An attribute. A character string is stored as a const char pointer, an octet string as a const
- * uint8_t pointer to its length octet; both are read-only, and NULL reads as an empty string.
+ * uint8_t pointer to its length octet; both are read-only, and NULL reads as an empty string. An
+ * EUI64 is stored as a uint64_t; it is not reportable, not in a scene extension field set, and a
+ * write of it does not call the check hook.
  */
 struct zzb_zcl_attr {
 	uint16_t id;
@@ -100,6 +106,7 @@ struct zzb_zcl_attr {
 enum zzb_zcl_status {
 	ZZB_ZCL_SUCCESS = 0x00,
 	ZZB_ZCL_FAILURE = 0x01,
+	ZZB_ZCL_NOT_AUTHORIZED = 0x7e,
 	ZZB_ZCL_MALFORMED_COMMAND = 0x80,
 	ZZB_ZCL_UNSUP_COMMAND = 0x81,
 	ZZB_ZCL_INVALID_FIELD = 0x85,
@@ -130,6 +137,8 @@ struct zzb_zcl_cmd {
 	size_t len;
 	/** The command came as a NWK unicast to the endpoint, which ZCL responses may answer. */
 	bool unicast;
+	/** The command addresses the server instance (direction 0), otherwise the client. */
+	bool server;
 };
 
 /** An attribute of the scene extension field set of a cluster (ZCL 3.7.2.4.2). */
@@ -230,11 +239,12 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
 				    uint8_t effect, uint8_t variant);
 
 /**
- * Called on the stack thread for a cluster-specific command that the application carries out, a
- * command of Window Covering, after the checks of the stack. The payload is valid during the call.
- * Returns the status of the Default Response. A recalled Window Covering scene comes as Go To Lift
- * Percentage and Go To Tilt Percentage, with unicast false, src_addr, src_ep and tsn 0, and its
- * status is ignored.
+ * Called on the stack thread for a cluster-specific command that the application carries out, such
+ * as a command of Window Covering, after the checks of the stack. The payload is valid during the
+ * call. Returns the status of the Default Response, unless the application answers the command
+ * with zzb_zcl_cmd_respond(). A recalled Window Covering scene comes as Go To Lift Percentage and
+ * Go To Tilt Percentage, and the end of an IAS WD warning as Start Warning with all fields 0, with
+ * unicast false, src_addr, src_ep and tsn 0; their status is ignored.
  */
 typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 
@@ -243,24 +253,43 @@ typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_
  *
  * Runs on the stack thread. value points to a value of the type of the field: uint8_t, int8_t or
  * bool for the one-octet types, uint16_t or int16_t for the two-octet types, uint32_t for
- * ZZB_ZCL_UINT24, ZZB_ZCL_UINT32 and ZZB_ZCL_MAP32. A non-volatile attribute is saved. zcl_cb is not called.
+ * ZZB_ZCL_UINT24, ZZB_ZCL_UINT32 and ZZB_ZCL_MAP32. A non-volatile attribute is saved. zcl_cb is
+ * not called.
  *
  * @retval 0 on success.
  * @retval -ENOENT the node has no server cluster with the attribute on the endpoint.
- * @retval -EINVAL the attribute is a constant or a string, or the value is out of range.
+ * @retval -EINVAL the attribute is a constant, a string or an EUI64, or the value is out of range.
  */
 int zzb_zcl_attr_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr,
 		     const void *value);
 
 /**
- * @brief Send a cluster-specific command of a client cluster to the bound destinations.
+ * @brief Answer a command that zcl_cmd_cb receives.
  *
- * Runs on the stack thread. The command goes from the client instance of the cluster on the
- * endpoint to the destinations of its bindings, with Disable Default Response 1. The application
- * builds the payload; no confirm follows.
+ * Runs on the stack thread within zcl_cmd_cb. Sends the cluster-specific command id with the
+ * payload to the source of cmd, with the TSN of cmd, the opposite direction and Disable Default
+ * Response 1. Then no Default Response follows, and the status that zcl_cmd_cb returns is ignored
+ * (ZCL 2.5.12.2). After an error the Default Response carries that status.
  *
  * @retval 0 on success.
- * @retval -ENOENT the endpoint has no client instance of the cluster, or the cluster no binding.
+ * @retval -EINVAL cmd did not come as unicast, such as a command that the stack builds.
+ * @retval -EMSGSIZE the frame is longer than the ASDU of 82 octets.
+ * @retval -ENOBUFS no buffer or transmission table entry is free.
+ */
+int zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+			const uint8_t *payload, size_t len);
+
+/**
+ * @brief Send a cluster-specific command of a cluster to the bound destinations.
+ *
+ * Runs on the stack thread. The command goes from the client instance of the cluster on the
+ * endpoint, or from the server instance, with the direction to the client, when the endpoint has no
+ * client instance, to the destinations of its bindings, with Disable Default Response 1. The
+ * application builds the payload; no confirm follows.
+ *
+ * @retval 0 on success.
+ * @retval -ENOENT the endpoint has no instance of the cluster, or the cluster no binding.
+ * @retval -EMSGSIZE the frame is longer than the ASDU of 82 octets.
  * @retval -ENOBUFS no buffer or transmission table entry is free.
  * @retval -ENOTCONN the node is not on a network.
  * @retval -EBUSY the network layer runs a procedure, such as a rejoin.

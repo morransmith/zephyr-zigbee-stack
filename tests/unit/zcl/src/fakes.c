@@ -18,9 +18,11 @@ DEFINE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_bu
 		       const struct zzb_apsde_req *);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 DEFINE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
+DEFINE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, uint16_t *);
 
 struct test_values values1;
 struct test_values values2;
+struct test_values values3;
 
 static const uint8_t product_code[] = {0x03, 0x00, 'Z', 'Z'};
 
@@ -111,6 +113,8 @@ struct zcl_cb_calls zcl_cb_calls;
 struct effect_calls effect_calls;
 struct zcl_cmd_calls zcl_cmd_calls;
 uint8_t zcl_cmd_status;
+bool zcl_cmd_responds;
+int zcl_cmd_respond_err;
 struct frame_copy sent[8];
 struct membership memberships[CONFIG_ZZB_APS_GROUP_COUNT];
 
@@ -213,6 +217,8 @@ static void test_changed(struct zzb_node *node, uint8_t ep, void *values, uint16
 	zassert_true(hook_calls.count < ARRAY_SIZE(hook_calls.attr));
 	zassert_equal_ptr(values, ep == 1 ? &values1 : &values2);
 	hook_calls.ep[hook_calls.count] = ep;
+	hook_calls.src_ep[hook_calls.count] =
+		node->zcl.received != NULL ? node->zcl.received->src_ep : 0;
 	hook_calls.attr[hook_calls.count++] = attr;
 }
 
@@ -220,6 +226,7 @@ static void test_reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x0001, 0);
 	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x0002, 0);
+	zzb_zcl_set(node, ep, TEST_CLUSTER, 0x000f, 0);
 }
 
 static void record_zcl_cb(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
@@ -253,6 +260,10 @@ static uint8_t record_zcl_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *c
 	zassert_true(cmd->len <= sizeof(zcl_cmd_calls.payload[i]));
 	zcl_cmd_calls.cmd[i] = *cmd;
 	memcpy(zcl_cmd_calls.payload[i], cmd->payload, cmd->len);
+	if (zcl_cmd_responds) {
+		zcl_cmd_respond_err = zzb_zcl_cmd_respond(node, cmd, 0x42, (uint8_t[]){0xaa}, 1);
+	}
+
 	return zcl_cmd_status;
 }
 
@@ -274,6 +285,8 @@ static const struct zzb_zcl_attr test_attrs[] = {
 	ZZB_ZCL_ATTR(0x000c, ZZB_ZCL_INT8, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT | ZZB_ZCL_NV,
 		     struct test_values, i8),
 	ZZB_ZCL_ATTR(0x000d, ZZB_ZCL_UINT32, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u32),
+	ZZB_ZCL_ATTR(0x000e, ZZB_ZCL_ENUM16, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, e16),
+	ZZB_ZCL_ATTR(0x000f, ZZB_ZCL_EUI64, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, eui64),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, TEST_REVISION),
 };
 
@@ -337,6 +350,7 @@ static const struct zzb_zcl_cluster ep2_clusters[] = {
 static const struct zzb_zcl_cluster ep3_clusters[] = {
 	{.id = ON_OFF},
 	ZZB_ZCL_ON_OFF_SERVER(&on_off3),
+	{.id = TEST_CLUSTER, .values = &values3, .def = &test_def},
 };
 
 static const struct zzb_zcl_cluster ep5_clusters[] = {
@@ -460,6 +474,39 @@ static const struct zzb_zcl_cluster ep71_clusters[] = {
 	ZZB_ZCL_HUMIDITY_CLIENT(),    ZZB_ZCL_FAN_CLIENT(),      ZZB_ZCL_PUMP_CLIENT(),
 };
 
+struct zzb_zcl_ias_zone zone80 = {.zone_type = 0x0015};
+
+static const struct zzb_zcl_cluster ep80_clusters[] = {
+	ZZB_ZCL_IAS_ZONE_SERVER(&zone80),
+};
+
+static const struct zzb_zcl_cluster ep81_clusters[] = {
+	ZZB_ZCL_IAS_ZONE_CLIENT(),
+};
+
+struct zzb_zcl_ias_wd wd85;
+struct zzb_zcl_ias_wd wd86;
+
+static const struct zzb_zcl_cluster ep85_clusters[] = {
+	ZZB_ZCL_IAS_WD_SERVER(&wd85),
+};
+
+static const struct zzb_zcl_cluster ep86_clusters[] = {
+	ZZB_ZCL_IAS_WD_SERVER(&wd86),
+};
+
+static const struct zzb_zcl_cluster ep87_clusters[] = {
+	ZZB_ZCL_IAS_WD_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster ep90_clusters[] = {
+	ZZB_ZCL_IAS_ACE_SERVER(),
+};
+
+static const struct zzb_zcl_cluster ep91_clusters[] = {
+	ZZB_ZCL_IAS_ACE_CLIENT(),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -573,9 +620,59 @@ static const struct zzb_endpoint endpoints[] = {
 		.clusters = ep71_clusters,
 		.cluster_count = ARRAY_SIZE(ep71_clusters),
 	},
+	{
+		.id = ZONE_EP,
+		.profile = 0x0104,
+		.device_id = 0x0402,
+		.clusters = ep80_clusters,
+		.cluster_count = ARRAY_SIZE(ep80_clusters),
+	},
+	{
+		.id = ZONE_CLIENT_EP,
+		.profile = 0x0104,
+		.device_id = 0x0400,
+		.clusters = ep81_clusters,
+		.cluster_count = ARRAY_SIZE(ep81_clusters),
+	},
+	{
+		.id = WD_EP,
+		.profile = 0x0104,
+		.device_id = 0x0403,
+		.clusters = ep85_clusters,
+		.cluster_count = ARRAY_SIZE(ep85_clusters),
+	},
+	{
+		.id = 86,
+		.profile = 0x0104,
+		.device_id = 0x0403,
+		.clusters = ep86_clusters,
+		.cluster_count = ARRAY_SIZE(ep86_clusters),
+	},
+	{
+		.id = WD_CLIENT_EP,
+		.profile = 0x0104,
+		.device_id = 0x0400,
+		.clusters = ep87_clusters,
+		.cluster_count = ARRAY_SIZE(ep87_clusters),
+	},
+	{
+		.id = CIE_EP,
+		.profile = 0x0104,
+		.device_id = 0x0400,
+		.clusters = ep90_clusters,
+		.cluster_count = ARRAY_SIZE(ep90_clusters),
+	},
+	{
+		.id = KEYPAD_EP,
+		.profile = 0x0104,
+		.device_id = 0x0401,
+		.clusters = ep91_clusters,
+		.cluster_count = ARRAY_SIZE(ep91_clusters),
+	},
 };
 
 static const struct zzb_device device = {
+	.manufacturer_code = 0x1234,
 	.power_source = ZZB_POWER_MAINS,
 	.endpoints = endpoints,
 	.endpoint_count = ARRAY_SIZE(endpoints),
@@ -593,6 +690,12 @@ static int apsde_data_req_take(struct zzb_node *node, struct net_buf *buf,
 	memcpy(copy->data, buf->data, buf->len);
 	copy->len = buf->len;
 	net_buf_unref(buf);
+	return 0;
+}
+
+static int resolve_requester(struct zzb_node *node, uint64_t ext_addr, uint16_t *addr)
+{
+	*addr = REQUESTER_ADDR;
 	return 0;
 }
 
@@ -619,9 +722,11 @@ void reset_fakes(void)
 	RESET_FAKE(zzb_apsde_data_req);
 	RESET_FAKE(zzb_bdb_identify_end);
 	RESET_FAKE(zzb_bdb_identify_query_rsp);
+	RESET_FAKE(zzb_aps_resolve_ext);
 	FFF_RESET_HISTORY();
 
 	zzb_apsde_data_req_fake.custom_fake = apsde_data_req_take;
+	zzb_aps_resolve_ext_fake.custom_fake = resolve_requester;
 	cmd_calls = (struct cmd_calls){0};
 	cmd_status = ZZB_ZCL_SUCCESS;
 	check_values = NULL;
@@ -630,6 +735,8 @@ void reset_fakes(void)
 	effect_calls = (struct effect_calls){0};
 	zcl_cmd_calls = (struct zcl_cmd_calls){0};
 	zcl_cmd_status = ZZB_ZCL_SUCCESS;
+	zcl_cmd_responds = false;
+	zcl_cmd_respond_err = 0;
 	recall_calls = (struct recall_calls){0};
 	alarm_reset_calls = (struct alarm_reset_calls){0};
 	memset(memberships, 0, sizeof(memberships));

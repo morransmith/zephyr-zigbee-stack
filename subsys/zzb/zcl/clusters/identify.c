@@ -96,7 +96,7 @@ static int identify_query(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	}
 
 	sys_put_le16(v->identify_time, rsp);
-	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_IDENTIFY_QUERY_RSP, rsp, sizeof(rsp));
+	zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_IDENTIFY_QUERY_RSP, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
 }
 

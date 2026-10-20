@@ -212,11 +212,14 @@ ZTEST(zzb_zcl_window_covering, test_scene)
 	zassert_false(scenes50.scene_valid);
 
 	zcl_cmd_status = ZZB_ZCL_INVALID_FIELD;
+	zcl_cmd_responds = true;
 	recall_scene(1);
+	zassert_equal(zcl_cmd_respond_err, -EINVAL);
 	zassert_equal(zcl_cmd_calls.count, 2);
 	check_cmd(0, ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, (uint8_t[]){30}, 1);
 	check_cmd(1, ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, (uint8_t[]){60}, 1);
 	zassert_false(zcl_cmd_calls.cmd[0].unicast);
+	zassert_true(zcl_cmd_calls.cmd[0].server);
 	zassert_equal(zcl_cmd_calls.cmd[0].src_addr, 0);
 	zassert_equal(zcl_cmd_calls.cmd[0].src_ep, 0);
 	zassert_equal(zcl_cmd_calls.cmd[0].tsn, 0);

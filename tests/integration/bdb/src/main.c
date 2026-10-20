@@ -5,6 +5,7 @@
 #include <zephyr/ztest.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/groups.h>
+#include <zzb/zcl/ias_zone.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/level.h>
 #include <zzb/zcl/on_off.h>
@@ -89,13 +90,21 @@ static struct zzb_zcl_level level = {
 	.start_up_default = 0xff,
 };
 
-/* Basic, Identify, Groups, On/Off and Level Control servers of a Dimmable Light */
+static struct zzb_zcl_ias_zone zone = {
+	.zone_type = 0x0015,
+};
+
+/*
+ * Basic, Identify, Groups, On/Off and Level Control servers of a Dimmable Light, and an IAS Zone
+ * server of a contact switch, since the parent sends to endpoint 1 only
+ */
 static const struct zzb_zcl_cluster light[] = {
 	ZZB_ZCL_BASIC_SERVER(&basic),
 	ZZB_ZCL_IDENTIFY_SERVER(&identify),
 	ZZB_ZCL_GROUPS_SERVER(),
 	ZZB_ZCL_ON_OFF_SERVER(&on_off),
 	ZZB_ZCL_LEVEL_SERVER(&level),
+	ZZB_ZCL_IAS_ZONE_SERVER(&zone),
 };
 
 /* An On/Off Switch, the initiator of finding & binding */
@@ -464,6 +473,44 @@ ZTEST(zzb_bdb_integration, test_group)
 	parent_send_group_zcl(0x0043, ZZB_ZCL_ON_OFF, off, sizeof(off));
 	k_sleep(K_MSEC(100));
 	zassert_true(on_off.on_off);
+}
+
+/*
+ * ZHA enrolls an IAS Zone: it writes its IEEE address to IAS_CIE_Address from endpoint 1, after
+ * which the zone sends Zone Enroll Request to that address, the trust center, then ZHA sends Zone
+ * Enroll Response. A change of ZoneStatus sends Zone Status Change Notification with the zone ID.
+ */
+ZTEST(zzb_bdb_integration, test_ias_zone)
+{
+	static const uint8_t enroll_req[] = {0x01, 0x15, 0x00, 0x00, 0x00};
+	static const uint8_t enroll_rsp[] = {0x01, 0x61, 0x00, 0x00, 0x05};
+	static const uint8_t notification[] = {0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x00};
+	uint8_t write[14] = {0x00, 0x60, 0x02, 0x10, 0x00, 0xf0};
+	uint16_t status = ZZB_ZCL_IAS_ZONE_STATUS_ALARM1;
+
+	steer();
+	sys_put_le64(PARENT_EUI64, write + 6);
+	parent_send_zcl(ZZB_ZCL_IAS_ZONE, write, sizeof(write));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_frames, 2);
+	zassert_equal(parent_log.zcl_cluster, ZZB_ZCL_IAS_ZONE);
+	zassert_equal(parent_log.zcl_dst_ep, 1);
+	zassert_equal(parent_log.zcl_len, 2 + sizeof(enroll_req));
+	zassert_equal(parent_log.zcl[0], 0x19);
+	zassert_mem_equal(parent_log.zcl + 2, enroll_req, sizeof(enroll_req));
+
+	parent_send_zcl(ZZB_ZCL_IAS_ZONE, enroll_rsp, sizeof(enroll_rsp));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_frames, 3);
+	zassert_equal(zone.zone_state, 1);
+	zassert_equal(zone.zone_id, 5);
+
+	zassert_ok(zzb_zcl_attr_set(child, 1, ZZB_ZCL_IAS_ZONE, ZZB_ZCL_IAS_ZONE_STATUS, &status));
+	k_sleep(K_MSEC(100));
+	zassert_equal(parent_log.zcl_frames, 4);
+	zassert_equal(parent_log.zcl_len, 2 + sizeof(notification));
+	zassert_equal(parent_log.zcl[0], 0x19);
+	zassert_mem_equal(parent_log.zcl + 2, notification, sizeof(notification));
 }
 
 /* BDB 8.4: the coordinator finds the identifying light, then ends the identification */

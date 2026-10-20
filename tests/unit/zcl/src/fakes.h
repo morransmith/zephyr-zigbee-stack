@@ -15,6 +15,9 @@
 #include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
+#include <zzb/zcl/ias_ace.h>
+#include <zzb/zcl/ias_wd.h>
+#include <zzb/zcl/ias_zone.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
@@ -34,6 +37,8 @@ DECLARE_FAKE_VALUE_FUNC(int, zzb_apsde_data_req, struct zzb_node *, struct net_b
 			const struct zzb_apsde_req *);
 DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_end, struct zzb_node *, uint8_t);
 DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, uint16_t, uint8_t);
+/* By default every IEEE address resolves to the requester */
+DECLARE_FAKE_VALUE_FUNC(int, zzb_aps_resolve_ext, struct zzb_node *, uint64_t, uint16_t *);
 
 #define NODE_EUI64 0x00124b0001020304ULL
 #define NODE_ADDR  0x5678
@@ -43,8 +48,8 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, u
 #define REQUESTER_EP   0x01
 
 /*
- * A cluster of the test: a server on endpoints 1 and 2, not on endpoint 3. Endpoint 2 also has the
- * servers of the stack.
+ * A cluster of the test: a server on endpoints 1 and 2, a client with the same definition on
+ * endpoint 3. Endpoint 2 also has the servers of the stack.
  */
 #define TEST_CLUSTER 0x0f00
 
@@ -55,9 +60,9 @@ DECLARE_FAKE_VOID_FUNC(zzb_bdb_identify_query_rsp, struct zzb_node *, uint8_t, u
 #define ON_OFF ZZB_ZCL_ON_OFF
 
 /*
- * Values of the test cluster, attributes 0x0000 to 0x000d in this order; 0x0000 to 0x0002, 0x0008
- * and 0x000c are reportable, 0x0002, 0x0008 to 0x000a, 0x000c and 0x000d are saved, 0x000b is
- * read-only. The reset sets 0x0001 and 0x0002 to 0.
+ * Values of the test cluster, attributes 0x0000 to 0x000f in this order; 0x0000 to 0x0002, 0x0008
+ * and 0x000c are reportable, 0x0002, 0x0008 to 0x000a and 0x000c to 0x000f are saved, 0x000b is
+ * read-only. The reset sets 0x0001, 0x0002 and 0x000f to 0.
  */
 struct test_values {
 	bool b;
@@ -74,6 +79,8 @@ struct test_values {
 	uint16_t map16;
 	int8_t i8;
 	uint32_t u32;
+	uint16_t e16;
+	uint64_t eui64;
 };
 
 /* ClusterRevision of the test cluster */
@@ -81,6 +88,7 @@ struct test_values {
 
 extern struct test_values values1;
 extern struct test_values values2;
+extern struct test_values values3;
 
 /* The Basic, Identify, Groups, Scenes and On/Off servers on endpoint 2 */
 extern struct zzb_zcl_basic basic;
@@ -213,6 +221,30 @@ extern struct zzb_zcl_humidity humidity70;
 extern struct zzb_zcl_fan fan70;
 extern struct zzb_zcl_pump pump70;
 
+/*
+ * Endpoint 80 is a contact switch with an IAS Zone server, ZoneType 0x0015. The device has the
+ * manufacturer code 0x1234.
+ */
+#define ZONE_EP 80
+
+extern struct zzb_zcl_ias_zone zone80;
+
+/* Endpoint 81 is an IAS CIE with the IAS Zone client */
+#define ZONE_CLIENT_EP 81
+
+/* Endpoints 85 and 86 are Warning Devices with an IAS WD server each */
+#define WD_EP 85
+
+extern struct zzb_zcl_ias_wd wd85;
+extern struct zzb_zcl_ias_wd wd86;
+
+/* Endpoint 87 is an IAS CIE with an IAS WD client */
+#define WD_CLIENT_EP 87
+
+/* Endpoint 90 is an IAS CIE with the IAS ACE server, endpoint 91 a keypad with the client */
+#define CIE_EP    90
+#define KEYPAD_EP 91
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
@@ -237,6 +269,8 @@ struct changed_calls {
 	int count;
 	uint8_t ep[64];
 	uint16_t attr[64];
+	/* The source endpoint of node->zcl.received at the call of the hook, 0 when NULL */
+	uint8_t src_ep[64];
 };
 
 extern struct changed_calls hook_calls;
@@ -267,13 +301,20 @@ extern struct effect_calls effect_calls;
 struct zcl_cmd_calls {
 	int count;
 	struct zzb_zcl_cmd cmd[8];
-	uint8_t payload[8][4];
+	uint8_t payload[8][32];
 };
 
 extern struct zcl_cmd_calls zcl_cmd_calls;
 
 /* The status that zcl_cmd_cb returns, ZZB_ZCL_SUCCESS after reset_fakes() */
 extern uint8_t zcl_cmd_status;
+
+/*
+ * With zcl_cmd_responds, false after reset_fakes(), zcl_cmd_cb answers every command with
+ * zzb_zcl_cmd_respond(): command 0x42 with the payload 0xaa. zcl_cmd_respond_err is its result.
+ */
+extern bool zcl_cmd_responds;
+extern int zcl_cmd_respond_err;
 
 /* A membership of the APS group table, kept by the fakes of the group functions; ep 0 is free */
 struct membership {

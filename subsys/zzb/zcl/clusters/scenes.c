@@ -316,7 +316,7 @@ static int respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t
 
 	sys_put_le16(group, rsp + 1);
 	rsp[3] = id;
-	zzb_zcl_cmd_respond(node, cmd, cmd->id, rsp, sizeof(rsp));
+	zzb_zcl_cmd_reply(node, cmd, cmd->id, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -377,7 +377,7 @@ static int view_scene(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 		     rsp + 4);
 	rsp[6] = 0;
 	memcpy(rsp + 7, s->data, s->data_len);
-	zzb_zcl_cmd_respond(node, cmd, cmd->id, rsp, 7 + s->data_len);
+	zzb_zcl_cmd_reply(node, cmd, cmd->id, rsp, 7 + s->data_len);
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -580,7 +580,7 @@ static int remove_all(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	}
 
 	sys_put_le16(group, rsp + 1);
-	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_SCENES_REMOVE_ALL_SCENES, rsp, sizeof(rsp));
+	zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_SCENES_REMOVE_ALL_SCENES, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -610,8 +610,8 @@ static int get_scene_membership(struct zzb_node *node, const struct zzb_zcl_cmd 
 		return ZZB_ZCL_SUCCESS;
 	}
 
-	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_SCENES_GET_SCENE_MEMBERSHIP, rsp,
-			    rsp[0] == ZZB_ZCL_SUCCESS ? n : 4);
+	zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_SCENES_GET_SCENE_MEMBERSHIP, rsp,
+			  rsp[0] == ZZB_ZCL_SUCCESS ? n : 4);
 	return ZZB_ZCL_RESPONDED;
 }
 

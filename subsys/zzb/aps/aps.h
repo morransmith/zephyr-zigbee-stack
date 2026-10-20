@@ -291,6 +291,12 @@ int zzb_apsme_request_key_req(struct zzb_node *node, uint64_t dst_addr);
 int zzb_apsme_verify_key_req(struct zzb_node *node, uint64_t dst_addr, enum zzb_aps_key_type type);
 
 /*
+ * The network address of ext_addr in *addr: 0x0000 for apsTrustCenterAddress, otherwise that of a
+ * neighbor with a relationship or of an entry of nwkAddressMap. Returns -ENOENT without one.
+ */
+int zzb_aps_resolve_ext(struct zzb_node *node, uint64_t ext_addr, uint16_t *addr);
+
+/*
  * APSDE-DATA.request. buf holds the ASDU after the headroom of its headers, at most
  * ZZB_APSDE_HEADROOM, and its metadata the ASDU handle. Binding sends a frame to every bound
  * destination that resolves, and one confirm follows. Returns -ENOTSUP for fragmentation or

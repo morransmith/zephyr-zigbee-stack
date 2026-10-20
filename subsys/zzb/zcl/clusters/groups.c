@@ -39,7 +39,7 @@ static int respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t
 	}
 
 	sys_put_le16(group, rsp + 1);
-	zzb_zcl_cmd_respond(node, cmd, cmd->id, rsp, sizeof(rsp));
+	zzb_zcl_cmd_reply(node, cmd, cmd->id, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -69,7 +69,7 @@ static int view_group(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint
 	}
 
 	sys_put_le16(group, rsp + 1);
-	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_GROUPS_VIEW_GROUP, rsp, sizeof(rsp));
+	zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_GROUPS_VIEW_GROUP, rsp, sizeof(rsp));
 	return ZZB_ZCL_RESPONDED;
 }
 
@@ -109,7 +109,7 @@ static int get_group_membership(struct zzb_node *node, const struct zzb_zcl_cmd 
 		sys_put_le16(groups[i], rsp + 2 + 2 * i);
 	}
 
-	zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_GROUPS_GET_GROUP_MEMBERSHIP, rsp, 2 + 2 * n);
+	zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_GROUPS_GET_GROUP_MEMBERSHIP, rsp, 2 + 2 * n);
 	return ZZB_ZCL_RESPONDED;
 }
 

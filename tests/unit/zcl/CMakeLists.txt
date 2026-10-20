@@ -19,6 +19,9 @@ target_sources(app PRIVATE
   src/frame.c
   src/groups.c
   src/hvac.c
+  src/ias_ace.c
+  src/ias_wd.c
+  src/ias_zone.c
   src/identify.c
   src/level.c
   src/on_off.c

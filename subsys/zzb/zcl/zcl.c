@@ -32,9 +32,14 @@ const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep
 int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
 		 const struct zzb_zcl_hdr *hdr, const uint8_t *payload, size_t len)
 {
-	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	struct net_buf *buf;
 	int err;
 
+	if (zzb_zcl_hdr_len(hdr) + len > ZZB_APS_MAX_ASDU) {
+		return -EMSGSIZE;
+	}
+
+	buf = zzb_buf_alloc(K_NO_WAIT);
 	if (buf == NULL) {
 		return -ENOBUFS;
 	}
@@ -101,6 +106,29 @@ int zzb_zcl_send_bindings(struct zzb_node *node, const struct zzb_endpoint *ep, 
 	return zzb_zcl_send(node, &aps, &hdr, payload, len);
 }
 
+int zzb_zcl_send_ext(struct zzb_node *node, const struct zzb_endpoint *ep, uint64_t dst_ext,
+		     uint8_t dst_ep, uint16_t cluster, uint8_t cmd, const uint8_t *payload,
+		     size_t len)
+{
+	const struct zzb_zcl_hdr hdr = {
+		.type = ZZB_ZCL_FRAME_CLUSTER,
+		.flags = ZZB_ZCL_DISABLE_DEFAULT_RSP | ZZB_ZCL_TO_CLIENT,
+		.tsn = node->zcl.tsn++,
+		.cmd = cmd,
+	};
+	const struct zzb_apsde_req aps = {
+		.dst_mode = ZZB_APS_ADDR_EXT,
+		.dst_ext = dst_ext,
+		.dst_ep = dst_ep,
+		.profile = ep->profile,
+		.cluster = cluster,
+		.src_ep = ep->id,
+		.tx_options = ZZB_APS_TX_ACK,
+	};
+
+	return zzb_zcl_send(node, &aps, &hdr, payload, len);
+}
+
 struct send_bound_req {
 	struct k_work work;
 	struct zzb_node *node;
@@ -116,14 +144,22 @@ static void send_bound_handler(struct k_work *work)
 {
 	struct send_bound_req *req = CONTAINER_OF(work, struct send_bound_req, work);
 	const struct zzb_endpoint *ep = zzb_node_endpoint(req->node, req->ep);
+	bool to_client;
 
-	if (ep == NULL || zzb_zcl_find_cluster(ep, req->cluster, false) == NULL) {
+	if (ep == NULL) {
 		req->err = -ENOENT;
 		return;
 	}
 
-	req->err = zzb_zcl_send_bindings(req->node, ep, req->cluster, ZZB_ZCL_FRAME_CLUSTER, false,
-					 req->cmd, req->payload, req->len);
+	/* The client instance sends when the endpoint has both */
+	to_client = zzb_zcl_find_cluster(ep, req->cluster, false) == NULL;
+	if (to_client && zzb_zcl_find_cluster(ep, req->cluster, true) == NULL) {
+		req->err = -ENOENT;
+		return;
+	}
+
+	req->err = zzb_zcl_send_bindings(req->node, ep, req->cluster, ZZB_ZCL_FRAME_CLUSTER,
+					 to_client, req->cmd, req->payload, req->len);
 }
 
 int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t cmd,
@@ -142,8 +178,8 @@ int zzb_zcl_send_bound(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint
 	return req.err;
 }
 
-void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
-		     enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len)
+int zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
+		    enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len)
 {
 	const struct zzb_zcl_hdr hdr = {
 		.type = type,
@@ -163,14 +199,32 @@ void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
 		.tx_options = ZZB_APS_TX_ACK,
 	};
 
-	zzb_zcl_send(node, &aps, &hdr, payload, len);
+	return zzb_zcl_send(node, &aps, &hdr, payload, len);
 }
 
-void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
-			 const uint8_t *payload, size_t len)
+int zzb_zcl_cmd_reply(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+		      const uint8_t *payload, size_t len)
 {
-	zzb_zcl_respond(node, CONTAINER_OF(cmd, struct zzb_zcl_req, cmd), ZZB_ZCL_FRAME_CLUSTER, id,
-			payload, len);
+	return zzb_zcl_respond(node, CONTAINER_OF(cmd, struct zzb_zcl_req, cmd),
+			       ZZB_ZCL_FRAME_CLUSTER, id, payload, len);
+}
+
+/* A command that the stack builds is never unicast, so it is not taken for a struct zzb_zcl_req */
+int zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+			const uint8_t *payload, size_t len)
+{
+	int err;
+
+	if (!cmd->unicast) {
+		return -EINVAL;
+	}
+
+	err = zzb_zcl_cmd_reply(node, cmd, id, payload, len);
+	if (err == 0) {
+		node->zcl.responded = true;
+	}
+
+	return err;
 }
 
 int zzb_zcl_client_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
@@ -186,9 +240,17 @@ void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t
 	}
 }
 
-uint8_t zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+int zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
-	return node->zcl_cmd_cb != NULL ? node->zcl_cmd_cb(node, cmd) : ZZB_ZCL_SUCCESS;
+	uint8_t status;
+
+	if (node->zcl_cmd_cb == NULL) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	node->zcl.responded = false;
+	status = node->zcl_cmd_cb(node, cmd);
+	return node->zcl.responded ? ZZB_ZCL_RESPONDED : status;
 }
 
 /* ZCL 2.5.12.2 */
@@ -248,6 +310,7 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		.profile = ep->profile,
 		.cmd.unicast =
 			!ind->group && !zzb_nwk_is_broadcast(ind->dst_addr) && ind->dst_ep != 0xff,
+		.cmd.server = !(hdr->flags & ZZB_ZCL_TO_CLIENT),
 		.cluster =
 			zzb_zcl_find_cluster(ep, ind->cluster, !(hdr->flags & ZZB_ZCL_TO_CLIENT)),
 	};
@@ -258,7 +321,9 @@ static void receive(struct zzb_node *node, const struct zzb_endpoint *ep,
 		return;
 	}
 
+	node->zcl.received = &req.cmd;
 	status = process(node, &req);
+	node->zcl.received = NULL;
 
 	/* ZCL 2.5.6.3 */
 	if (hdr->type == ZZB_ZCL_FRAME_GLOBAL && hdr->cmd == ZZB_ZCL_WRITE_NO_RSP) {
@@ -322,6 +387,8 @@ void zzb_zcl_init(struct zzb_node *node)
 	k_work_cancel_delayable(&node->zcl.color_timer);
 	k_work_cancel_delayable(&node->zcl.mains_alarm_timer);
 	k_work_cancel_delayable(&node->zcl.temp_alarm_timer);
+	k_work_cancel_delayable(&node->zcl.ias_wd_timer);
+	k_work_cancel_delayable(&node->zcl.ias_zone_timer);
 	node->zcl = (struct zzb_zcl){
 		.tsn = sys_rand8_get(),
 	};
@@ -332,6 +399,8 @@ void zzb_zcl_init(struct zzb_node *node)
 	zzb_zcl_color_init(node);
 	zzb_zcl_power_config_init(node);
 	zzb_zcl_device_temp_init(node);
+	zzb_zcl_ias_wd_init(node);
+	zzb_zcl_ias_zone_init(node);
 
 	for (size_t i = 0; i < node->device->endpoint_count; i++) {
 		const struct zzb_endpoint *ep = &node->device->endpoints[i];

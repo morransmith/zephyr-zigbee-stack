@@ -86,6 +86,14 @@ struct zzb_zcl {
 	struct k_work_delayable mains_alarm_timer;
 	/* Raises the device temperature alarms when their dwell has passed */
 	struct k_work_delayable temp_alarm_timer;
+	/* Ends the warnings of IAS WD after their duration */
+	struct k_work_delayable ias_wd_timer;
+	/* Tries again the IAS Zone notifications refused off a network */
+	struct k_work_delayable ias_zone_timer;
+	/* zcl_cmd_cb has answered the command it processes */
+	bool responded;
+	/* The frame being processed, for the hooks; NULL outside the processing of a frame */
+	const struct zzb_zcl_cmd *received;
 };
 
 /* Global command identifiers (ZCL Table 2-3) */
@@ -118,8 +126,8 @@ struct zzb_zcl_req {
 };
 
 /*
- * Sends a ZCL frame with hdr and the payload through APSDE-DATA with aps. Returns -ENOBUFS without
- * a buffer or an error of APSDE-DATA.request.
+ * Sends a ZCL frame with hdr and the payload through APSDE-DATA with aps. Returns -EMSGSIZE for a
+ * frame longer than ZZB_APS_MAX_ASDU, -ENOBUFS without a buffer or an error of APSDE-DATA.request.
  */
 int zzb_zcl_send(struct zzb_node *node, const struct zzb_apsde_req *aps,
 		 const struct zzb_zcl_hdr *hdr, const uint8_t *payload, size_t len);
@@ -142,11 +150,20 @@ int zzb_zcl_send_bindings(struct zzb_node *node, const struct zzb_endpoint *ep, 
 			  const uint8_t *payload, size_t len);
 
 /*
- * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload;
- * an error drops it
+ * Sends the cluster-specific command cmd of a server from endpoint ep to the IEEE address dst_ext
+ * and dst_ep, with Disable Default Response 1 and an APS ACK request. Returns an error of
+ * zzb_zcl_send().
  */
-void zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
-		     enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len);
+int zzb_zcl_send_ext(struct zzb_node *node, const struct zzb_endpoint *ep, uint64_t dst_ext,
+		     uint8_t dst_ep, uint16_t cluster, uint8_t cmd, const uint8_t *payload,
+		     size_t len);
+
+/*
+ * Sends a response to req, a ZCL frame of type with the command identifier cmd and the payload.
+ * Returns an error of zzb_zcl_send().
+ */
+int zzb_zcl_respond(struct zzb_node *node, const struct zzb_zcl_req *req,
+		    enum zzb_zcl_frame_type type, uint8_t cmd, const uint8_t *payload, size_t len);
 
 /* The server or client instance of cluster id on ep, or NULL */
 const struct zzb_zcl_cluster *zzb_zcl_find_cluster(const struct zzb_endpoint *ep, uint16_t id,
@@ -231,6 +248,8 @@ void zzb_zcl_on_off_switch(struct zzb_node *node, uint8_t ep, bool on_off);
 
 void zzb_zcl_power_config_init(struct zzb_node *node);
 void zzb_zcl_device_temp_init(struct zzb_node *node);
+void zzb_zcl_ias_wd_init(struct zzb_node *node);
+void zzb_zcl_ias_zone_init(struct zzb_node *node);
 void zzb_zcl_report_init(struct zzb_node *node);
 
 /*
@@ -259,7 +278,7 @@ int zzb_zcl_foundation(struct zzb_node *node, const struct zzb_zcl_req *req);
 /* The attribute id of cl, or NULL */
 const struct zzb_zcl_attr *zzb_zcl_attr_find(const struct zzb_zcl_cluster *cl, uint16_t id);
 
-/* The value of an attribute of an integer type, with the bits of its ZCL value */
+/* The value of an attribute of an integer type other than EUI64, with the bits of its ZCL value */
 uint32_t zzb_zcl_attr_value(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr);
 
 /* Writes the value of attr of cl in its ZCL encoding; returns its length or -ENOSPC */
@@ -271,11 +290,11 @@ int zzb_zcl_attr_encode(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_a
  * the status and, with ZZB_ZCL_SUCCESS, the value in *value.
  */
 uint8_t zzb_zcl_attr_check(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
-			   uint8_t type, const uint8_t *p, uint32_t *value);
+			   uint8_t type, const uint8_t *p, uint64_t *value);
 
 /* Writes value to the field of attr of cl; returns whether the value changed */
 bool zzb_zcl_attr_write(const struct zzb_zcl_cluster *cl, const struct zzb_zcl_attr *attr,
-			uint32_t value);
+			uint64_t value);
 
 /*
  * Loads the record zcl/<key> of a non-volatile attribute; -EINVAL for an unknown version or
@@ -301,16 +320,22 @@ void zzb_zcl_set(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t a
  */
 void zzb_zcl_reset(struct zzb_node *node);
 
-/* Sends the cluster-specific response id with the payload to cmd, which a cmd hook processes */
-void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
-			 const uint8_t *payload, size_t len);
+/*
+ * Sends the cluster-specific response id with the payload to cmd, which a cmd hook processes.
+ * Returns an error of zzb_zcl_send().
+ */
+int zzb_zcl_cmd_reply(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
+		      const uint8_t *payload, size_t len);
 
 /* Calls zcl_effect_cb */
 void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t effect,
 		    uint8_t variant);
 
-/* Passes cmd to zcl_cmd_cb; returns its status, or ZZB_ZCL_SUCCESS without it */
-uint8_t zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
+/*
+ * Passes cmd to zcl_cmd_cb; returns its status, ZZB_ZCL_RESPONDED when the application has answered
+ * the command, or ZZB_ZCL_SUCCESS without zcl_cmd_cb
+ */
+int zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 
 /* Configure Reporting (ZCL 2.5.7); returns the Default Response status or ZZB_ZCL_RESPONDED */
 int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);
@@ -396,6 +421,13 @@ void zzb_zcl_schedule_clear(struct zzb_node *node, uint8_t ep, struct zzb_zcl_th
  */
 int zzb_zcl_schedule_load(struct zzb_node *node, const char *key, size_t len,
 			  settings_read_cb read_cb, void *cb_arg);
+
+/*
+ * Loads the record zcl/ias/<ep>, the endpoint of the CIE of the IAS Zone server on ep; -EINVAL for
+ * an unknown version or length. A record of an endpoint without an IAS Zone server is ignored.
+ */
+int zzb_zcl_ias_zone_load(struct zzb_node *node, int ep, size_t len, settings_read_cb read_cb,
+			  void *cb_arg);
 
 /* Processes a frame of APSDE-DATA.indication for an endpoint other than 0, and takes buf */
 void zzb_zcl_data_ind(struct zzb_node *node, struct net_buf *buf, const struct zzb_apsde_ind *ind);

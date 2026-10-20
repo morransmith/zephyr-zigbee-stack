@@ -225,8 +225,8 @@ int zzb_zcl_schedule_get(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 			continue;
 		}
 
-		zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE_RSP, rsp,
-				    encode(rsp, day, BIT(i), day->mode & mode));
+		zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE_RSP, rsp,
+				  encode(rsp, day, BIT(i), day->mode & mode));
 		found = true;
 	}
 
@@ -234,8 +234,8 @@ int zzb_zcl_schedule_get(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 	if (!found) {
 		const uint8_t none[] = {0, days, mode};
 
-		zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE_RSP, none,
-				    sizeof(none));
+		zzb_zcl_cmd_reply(node, cmd, ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE_RSP, none,
+				  sizeof(none));
 	}
 
 	return ZZB_ZCL_RESPONDED;

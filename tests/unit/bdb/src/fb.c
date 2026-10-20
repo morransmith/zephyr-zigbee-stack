@@ -219,6 +219,29 @@ ZTEST(zzb_bdb_fb, test_initiator_skips_respondents)
 	check_event(ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR, ZZB_BDB_SUCCESS);
 }
 
+/* DTL 43.3.1, 44.3.1, 45.3.1, 46.3.1: IAS Zone, IAS ACE and IAS WD are not bound */
+ZTEST(zzb_bdb_fb, test_initiator_skips_ias_clusters)
+{
+	static const uint8_t ias_in[] = {0x00, 0x05, 0x02, 0x05};
+	static const uint8_t ias_out[] = {0x01, 0x05};
+	const struct zzb_zdo_simple_desc desc = {
+		.ep = 1,
+		.profile = 0x0104,
+		.in_count = 2,
+		.in = ias_in,
+		.out_count = 1,
+		.out = ias_out,
+	};
+
+	query(0xffff);
+	zzb_bdb_identify_query_rsp(node, OTHER_EP, RESPONDENT, 1);
+	k_sleep(K_MSEC(5100));
+	zzb_zdo_simple_desc_conf(node, ZZB_ZDP_SUCCESS, RESPONDENT, &desc);
+	zassert_equal(zzb_zdo_ieee_addr_req_fake.call_count, 0);
+	zassert_equal(zzb_apsme_bind_req_fake.call_count, 0);
+	check_event(ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR, ZZB_BDB_SUCCESS);
+}
+
 /* BDB 8.5 step 8 */
 ZTEST(zzb_bdb_fb, test_initiator_binding_table_full)
 {
