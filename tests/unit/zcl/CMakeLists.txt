@@ -18,6 +18,7 @@ target_sources(app PRIVATE
   src/foundation.c
   src/frame.c
   src/groups.c
+  src/hvac.c
   src/identify.c
   src/level.c
   src/on_off.c
