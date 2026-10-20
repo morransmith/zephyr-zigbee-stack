@@ -100,6 +100,40 @@ ZTEST(zzb_mac_poll, test_wait_ends_without_frame_from_coordinator)
 	zassert_equal(zzb_mcps_data_ind_fake.call_count, 1);
 }
 
+/* The receiver of a sleepy node is on from the data request to the end of the poll */
+ZTEST(zzb_mac_poll, test_sleepy_node_receives_during_the_poll)
+{
+	static const uint8_t frame[] = {0x61, 0x88, 0x10, 0x62, 0x1a, 0x78, 0x56, 0x00, 0x00, 0x42};
+	static const struct {
+		bool pending;
+		const uint8_t *reply;
+		enum zzb_mac_status status;
+	} cases[] = {
+		{.status = ZZB_MAC_STATUS_NO_DATA},
+		{.pending = true, .reply = frame, .status = ZZB_MAC_STATUS_SUCCESS},
+		{.pending = true, .status = ZZB_MAC_STATUS_NO_DATA},
+	};
+
+	ARRAY_FOR_EACH_PTR(cases, c) {
+		mac_before(NULL);
+		mac_init_sleepy();
+		set_reply(c->reply, sizeof(frame));
+		parent.pending = c->pending;
+
+		zassert_ok(zzb_mlme_poll_req(node, &coord));
+		/* macMaxFrameTotalWaitTime, 157.54 ms */
+		k_sleep(K_MSEC(200));
+
+		zassert_true(sent[0].radio.rx_on_when_idle, "case %d", c - cases);
+		zassert_equal(zzb_mlme_poll_conf_fake.arg1_val, c->status, "case %d", c - cases);
+		zassert_equal(zzb_mcps_data_ind_fake.call_count, c->reply != NULL, "case %d",
+			      c - cases);
+		zassert_false(radio.rx_on_when_idle, "case %d", c - cases);
+		zassert_false(radio.started, "case %d", c - cases);
+		mac_after(NULL);
+	}
+}
+
 static void before(void *fixture)
 {
 	mac_before(fixture);

@@ -12,13 +12,14 @@
 
 /*
  * Radio devices for the custom-L2 backend, connected by an in-process medium. A frame reaches the
- * radios on the channel of its sender.
+ * radios on the channel of its sender whose receiver is on. stop() turns the receiver off and
+ * start() on, and a TX leaves it on only with RxOnWhenIdle TRUE.
  */
 extern const struct device *const fake_radios[FAKE_RADIO_COUNT];
 
 /*
- * Restores all links, the interfaces and the filters: PAN ID 0xffff, short address 0xfffe, IEEE
- * address 0
+ * Restores all links, the interfaces, the filters (PAN ID 0xffff, short address 0xfffe, IEEE
+ * address 0) and the receivers: on, with RxOnWhenIdle TRUE
  */
 void fake_radio_reset(void);
 
@@ -33,5 +34,8 @@ void fake_radio_set_rx_cb(int radio, fake_radio_rx_cb cb);
 
 /* Sends frame from radio "from" to the radios on its channel that accept it, without an ACK */
 void fake_radio_send(int from, const uint8_t *frame, size_t len);
+
+/* Returns whether the receiver of radio is on */
+bool fake_radio_rx_on(int radio);
 
 #endif /* ZZB_TESTS_COMMON_FAKE_RADIO_H_ */

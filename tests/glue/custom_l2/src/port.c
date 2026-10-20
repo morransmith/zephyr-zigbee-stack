@@ -21,6 +21,10 @@ static struct zzb_radio_port ports[FAKE_RADIO_COUNT];
 /* Data frame with ACK request from 0x1234 to 0x0000 in PAN 0x1a62, one payload byte */
 static const uint8_t unicast_frame[] = {0x61, 0x88, 0x01, 0x62, 0x1a, 0x00, 0x00, 0x34, 0x12, 0x42};
 
+/* Broadcast data frame from 0x0000 in PAN 0x1a62 */
+static const uint8_t broadcast_frame[] = {0x41, 0x88, 0x02, 0x62, 0x1a,
+					  0xff, 0xff, 0x00, 0x00, 0x42};
+
 static uint8_t rx_data[ZZB_BUF_SIZE];
 static size_t rx_len;
 
@@ -37,19 +41,20 @@ static void tx_done_fake(struct zzb_radio_port *port, struct net_buf *buf,
 	net_buf_unref(buf);
 }
 
-/* Sends frame from port 0 and returns the status of its confirm */
-static enum zzb_mac_status transmit(const uint8_t *frame, size_t len)
+/* Sends frame from port "from" and returns the status of its confirm */
+static enum zzb_mac_status transmit(int from, const uint8_t *frame, size_t len)
 {
 	struct net_buf *buf = zzb_buf_alloc(K_NO_WAIT);
+	unsigned int confirms = zzb_radio_tx_done_fake.call_count;
 	struct k_work_sync sync;
 
 	zassert_not_null(buf);
 	net_buf_add_mem(buf, frame, len);
-	zassert_ok(zzb_radio_tx(&ports[0], buf));
-	k_work_flush(&ports[0].tx_work, &sync);
-	k_work_flush(&ports[1].rx_work, &sync);
+	zassert_ok(zzb_radio_tx(&ports[from], buf));
+	k_work_flush(&ports[from].tx_work, &sync);
+	k_work_flush(&ports[1 - from].rx_work, &sync);
 
-	zassert_equal(zzb_radio_tx_done_fake.call_count, 1);
+	zassert_equal(zzb_radio_tx_done_fake.call_count, confirms + 1);
 	return zzb_radio_tx_done_fake.arg2_val;
 }
 
@@ -78,7 +83,7 @@ static void before(void *fixture)
 
 ZTEST(zzb_radio_custom_l2, test_unicast_is_received_and_acked)
 {
-	zassert_equal(transmit(unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(transmit(0, unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_SUCCESS);
 
 	zassert_equal(zzb_radio_rx_fake.call_count, 1);
 	zassert_equal_ptr(zzb_radio_rx_fake.arg0_val, &ports[1]);
@@ -90,7 +95,7 @@ ZTEST(zzb_radio_custom_l2, test_link_down_gives_no_ack)
 {
 	fake_radio_set_link(0, 1, false);
 
-	zassert_equal(transmit(unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(transmit(0, unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_NO_ACK);
 	zassert_equal(zzb_radio_rx_fake.call_count, 0);
 }
 
@@ -99,8 +104,38 @@ ZTEST(zzb_radio_custom_l2, test_frame_for_other_address_gives_no_ack)
 	set_filter(IEEE802154_FILTER_TYPE_SHORT_ADDR,
 		   &(struct ieee802154_filter){.short_addr = 0x5678});
 
-	zassert_equal(transmit(unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(transmit(0, unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_NO_ACK);
 	zassert_equal(zzb_radio_rx_fake.call_count, 0);
+}
+
+ZTEST(zzb_radio_custom_l2, test_stopped_radio_receives_after_start)
+{
+	const struct ieee802154_radio_api *api = fake_radios[1]->api;
+
+	zassert_ok(api->stop(fake_radios[1]));
+	zassert_false(fake_radio_rx_on(1));
+	zassert_equal(transmit(0, unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_NO_ACK);
+
+	zassert_ok(api->start(fake_radios[1]));
+	zassert_true(fake_radio_rx_on(1));
+	zassert_equal(transmit(0, unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_SUCCESS);
+	zassert_equal(zzb_radio_rx_fake.call_count, 1);
+}
+
+/* As on esp32, RxOnWhenIdle FALSE turns the receiver off only after the next TX */
+ZTEST(zzb_radio_custom_l2, test_rx_on_when_idle_false_turns_the_receiver_off_after_tx)
+{
+	const struct ieee802154_radio_api *api = fake_radios[1]->api;
+	const struct ieee802154_config config = {.rx_on_when_idle = false};
+
+	zassert_ok(api->configure(fake_radios[1], IEEE802154_CONFIG_RX_ON_WHEN_IDLE, &config));
+	zassert_equal(transmit(0, unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_SUCCESS);
+
+	zassert_equal(transmit(1, broadcast_frame, sizeof(broadcast_frame)),
+		      ZZB_MAC_STATUS_SUCCESS);
+	zassert_false(fake_radio_rx_on(1));
+	zassert_equal(transmit(0, unicast_frame, sizeof(unicast_frame)), ZZB_MAC_STATUS_NO_ACK);
+	zassert_equal(zzb_radio_rx_fake.call_count, 1);
 }
 
 ZTEST(zzb_radio_custom_l2, test_eui64_is_read_from_link_address)

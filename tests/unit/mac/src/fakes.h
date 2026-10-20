@@ -25,7 +25,9 @@ struct radio_state {
 	uint16_t pan_id;
 	uint16_t short_addr;
 	uint16_t channel;
+	/* Set by start(), cleared by stop() */
 	bool started;
+	bool rx_on_when_idle;
 };
 
 struct sent_frame {
@@ -66,6 +68,7 @@ extern struct zzb_node *node;
 extern struct rx_copy data_ind;
 extern struct rx_copy beacon;
 
+DECLARE_FAKE_VALUE_FUNC(int, radio_start, const struct device *);
 DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_conf, struct zzb_node *, uint8_t, enum zzb_mac_status);
 DECLARE_FAKE_VOID_FUNC(zzb_mcps_data_ind, struct zzb_node *, struct net_buf *);
 DECLARE_FAKE_VOID_FUNC(zzb_mlme_scan_conf, struct zzb_node *, enum zzb_mac_status);
@@ -77,7 +80,12 @@ DECLARE_FAKE_VOID_FUNC(zzb_mlme_beacon_notify_ind, struct zzb_node *, struct net
 /* Suite hooks shared by the MAC suites: one node, its MAC initialized again before each test */
 void *mac_setup(void);
 void mac_before(void *fixture);
-/* Checks that the MAC is idle and has released every buffer */
+/* Initializes the MAC again as the MAC of a sleepy node, on a radio with RxOnWhenIdle */
+void mac_init_sleepy(void);
+/*
+ * Checks that the MAC is idle and has released every buffer, and that a node that is not sleepy
+ * has not called configure() or stop()
+ */
 void mac_after(void *fixture);
 
 /* Runs the stack thread until it waits, without advancing the time */
