@@ -934,4 +934,22 @@ ZTEST(zzb_zcl_door_lock, test_programming_events)
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
 }
 
+/*
+ * The DTL requires ClusterRevision on the Door Lock client of the Door Lock Controller, which
+ * accepts the commands of the server
+ */
+ZTEST(zzb_zcl_door_lock, test_client)
+{
+	static const uint8_t read[] = {0x08, 0x70, 0x00, 0xfd, 0xff};
+	static const uint8_t read_rsp[] = {0x10, 0x70, 0x01, 0xfd, 0xff, 0x00, 0x21, 0x03, 0x00};
+	static const uint8_t event[] = {0x09, 0x71, 0x20, 0x01, 0x01, 0xff, 0xff,
+					0x00, 0xff, 0xff, 0xff, 0xff, 0x00};
+
+	receive_ep(DOOR_LOCK_CLIENT_EP, ZZB_ZCL_DOOR_LOCK, read, sizeof(read));
+	check_frame(0, DOOR_LOCK_CLIENT_EP, ZZB_ZCL_DOOR_LOCK, read_rsp, sizeof(read_rsp));
+	receive_ep(DOOR_LOCK_CLIENT_EP, ZZB_ZCL_DOOR_LOCK, event, sizeof(event));
+	check_frame(1, DOOR_LOCK_CLIENT_EP, ZZB_ZCL_DOOR_LOCK,
+		    (uint8_t[]){0x10, 0x71, 0x0b, 0x20, 0x00}, 5);
+}
+
 ZTEST_SUITE(zzb_zcl_door_lock, NULL, setup, before, after, NULL);

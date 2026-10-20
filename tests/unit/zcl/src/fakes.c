@@ -556,6 +556,10 @@ static const struct zzb_zcl_cluster ep101_clusters[] = {
 	ZZB_ZCL_DOOR_LOCK_SERVER(&lock101),
 };
 
+static const struct zzb_zcl_cluster ep102_clusters[] = {
+	ZZB_ZCL_DOOR_LOCK_CLIENT(),
+};
+
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
@@ -731,6 +735,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.device_id = 0x000a,
 		.clusters = ep101_clusters,
 		.cluster_count = ARRAY_SIZE(ep101_clusters),
+	},
+	{
+		.id = DOOR_LOCK_CLIENT_EP,
+		.profile = 0x0104,
+		.device_id = 0x000b,
+		.clusters = ep102_clusters,
+		.cluster_count = ARRAY_SIZE(ep102_clusters),
 	},
 };
 

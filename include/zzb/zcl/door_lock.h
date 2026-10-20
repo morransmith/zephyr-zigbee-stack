@@ -234,6 +234,7 @@ struct zzb_zcl_door_lock {
 };
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_door_lock_client_def;
 
 /** A Door Lock server with the values v, a pointer to struct zzb_zcl_door_lock. */
 #define ZZB_ZCL_DOOR_LOCK_SERVER(v)                                                                \
@@ -242,6 +243,17 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_door_lock *)NULL),                            \
 		.def = &zzb_zcl_door_lock_def,                                                     \
+	}
+
+/**
+ * A Door Lock client, which the Door Lock Controller has (DTL); it accepts the responses and events
+ * of the server. The application sends the commands with zzb_zcl_send_bound().
+ */
+#define ZZB_ZCL_DOOR_LOCK_CLIENT()                                                                 \
+	{                                                                                          \
+		.id = ZZB_ZCL_DOOR_LOCK,                                                           \
+		.server = false,                                                                   \
+		.def = &zzb_zcl_door_lock_client_def,                                              \
 	}
 
 #ifdef __cplusplus

@@ -784,6 +784,16 @@ void zzb_zcl_door_lock_init(struct zzb_node *node)
 	k_work_init_delayable(&node->zcl.door_lock_timer, tick);
 }
 
+static const struct zzb_zcl_attr client_attrs[] = {
+	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, REVISION),
+};
+
+const struct zzb_zcl_cluster_def zzb_zcl_door_lock_client_def = {
+	.attrs = client_attrs,
+	.attr_count = ARRAY_SIZE(client_attrs),
+	.cmd = zzb_zcl_client_cmd,
+};
+
 int zzb_zcl_door_lock_load(struct zzb_node *node, const char *key, size_t len,
 			   settings_read_cb read_cb, void *cb_arg)
 {

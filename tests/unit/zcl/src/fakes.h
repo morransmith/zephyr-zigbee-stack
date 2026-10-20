@@ -261,6 +261,9 @@ extern struct zzb_zcl_ias_wd wd86;
 extern struct zzb_zcl_door_lock lock100;
 extern struct zzb_zcl_door_lock lock101;
 
+/* Endpoint 102 is a Door Lock Controller with a Door Lock client */
+#define DOOR_LOCK_CLIENT_EP 102
+
 /* Calls of the cmd hook of the test cluster, with a copy of the last command */
 struct cmd_calls {
 	int count;
