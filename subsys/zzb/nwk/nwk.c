@@ -162,19 +162,24 @@ void zzb_mcps_data_conf(struct zzb_node *node, uint8_t handle, enum zzb_mac_stat
 	}
 }
 
-static bool for_node(const struct zzb_nib *nib, const struct zzb_nwk_hdr *hdr)
+static bool for_node(const struct zzb_node *node, const struct zzb_nwk_hdr *hdr)
 {
+	const struct zzb_nib *nib = &node->nwk.nib;
+
 	if (hdr->src == nib->short_addr) {
 		return false;
 	}
 
-	/* The destination of a multicast frame is a group, which APS checks (R22 3.6.6) */
+	/*
+	 * The destination of a multicast frame is a group, which APS checks. Multicast frames and
+	 * frames to 0xfffd go only to devices with macRxOnWhenIdle TRUE (R22 3.6.6, Table 3-69).
+	 */
 	if (hdr->flags & ZZB_NWK_MULTICAST) {
-		return hdr->type == ZZB_NWK_FRAME_DATA;
+		return hdr->type == ZZB_NWK_FRAME_DATA && !node->sleepy;
 	}
 
-	/* The receiver stays on until milestone 18, so 0xfffd is accepted */
-	return hdr->dst == nib->short_addr || hdr->dst == 0xffff || hdr->dst == 0xfffd;
+	return hdr->dst == nib->short_addr || hdr->dst == 0xffff ||
+	       (hdr->dst == 0xfffd && !node->sleepy);
 }
 
 static bool from_candidate(const struct zzb_node *node, const struct zzb_frame_meta *meta)
@@ -212,7 +217,7 @@ static int rx_frame(struct zzb_node *node, struct net_buf *buf, struct zzb_nwk_h
 	}
 
 	/* An end device drops frames with the end device initiator bit (R22 3.6.2.2) */
-	if (!for_node(&node->nwk.nib, hdr) || (hdr->flags & ZZB_NWK_ED_INITIATOR)) {
+	if (!for_node(node, hdr) || (hdr->flags & ZZB_NWK_ED_INITIATOR)) {
 		return -EINVAL;
 	}
 
