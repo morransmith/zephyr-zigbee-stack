@@ -10,6 +10,7 @@
 #include <zzb/zcl.h>
 #include <zzb/zcl/alarms.h>
 #include <zzb/zcl/appliance_control.h>
+#include <zzb/zcl/appliance_events.h>
 #include <zzb/zcl/appliance_id.h>
 #include <zzb/zcl/ballast.h>
 #include <zzb/zcl/basic.h>
@@ -255,8 +256,8 @@ extern struct zzb_zcl_ias_wd wd86;
 #define KEYPAD_EP 91
 
 /*
- * Endpoint 140 is a White Goods with the Power Profile, Appliance Control and Appliance
- * Identification servers, 141 a Home Gateway with their clients
+ * Endpoint 140 is a White Goods with the Power Profile, Appliance Control, Appliance Identification
+ * and Appliance Events and Alerts servers, 141 a Home Gateway with their clients
  */
 #define WHITE_GOODS_EP 140
 #define GATEWAY_EP     141

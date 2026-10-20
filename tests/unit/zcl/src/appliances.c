@@ -3,6 +3,7 @@
 #include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/appliance_control.h>
+#include <zzb/zcl/appliance_events.h>
 
 #include "fakes.h"
 
@@ -168,6 +169,60 @@ ZTEST(zzb_zcl_appliances, test_control_client_commands)
 	check_refused(ZZB_ZCL_APPLIANCE_CONTROL, false, malformed, ARRAY_SIZE(malformed),
 		      ZZB_ZCL_MALFORMED_COMMAND);
 	check_refused(ZZB_ZCL_APPLIANCE_CONTROL, false, &(struct test_cmd){0x02}, 1,
+		      ZZB_ZCL_UNSUP_COMMAND);
+}
+
+/*
+ * Get Alerts reaches zcl_cmd_cb of the Appliance Events and Alerts server, an unknown command gets
+ * UNSUP_COMMAND
+ */
+ZTEST(zzb_zcl_appliances, test_events_server_commands)
+{
+	static const struct test_cmd commands[] = {
+		{0x00, 0, {0}},
+	};
+
+	check_passed(ZZB_ZCL_APPLIANCE_EVENTS, true, commands, ARRAY_SIZE(commands));
+	check_refused(ZZB_ZCL_APPLIANCE_EVENTS, true, &(struct test_cmd){0x01}, 1,
+		      ZZB_ZCL_UNSUP_COMMAND);
+}
+
+/*
+ * The commands of ZCL 15.4.2.4 reach zcl_cmd_cb of the client as received: Get Alerts Response of
+ * a present warning and a recovered failure, whose Alerts Count has bits 4 to 7 set, which do not
+ * count, Alerts Notification of one alert and of none, and Event Notification of the end of the
+ * cycle
+ */
+ZTEST(zzb_zcl_appliances, test_events_client_commands)
+{
+	static const struct test_cmd commands[] = {
+		{0x00, 7, {0x12, 0x01, 0x11, 0x00, 0x02, 0x03, 0x00}},
+		{0x01, 4, {0x01, 0x01, 0x11, 0x00}},
+		{0x01, 1, {0x00}},
+		{0x02, 2, {0x00, 0x01}},
+	};
+
+	check_passed(ZZB_ZCL_APPLIANCE_EVENTS, false, commands, ARRAY_SIZE(commands));
+}
+
+/*
+ * A payload shorter than its fields gives MALFORMED_COMMAND: Get Alerts Response without Alerts
+ * Count and with 2 of the 3 octets of its second alert, Alerts Notification with 2 octets of its
+ * alert and Event Notification with one octet. An unknown command gives UNSUP_COMMAND. None
+ * reaches zcl_cmd_cb.
+ */
+ZTEST(zzb_zcl_appliances, test_events_client_malformed)
+{
+	static const struct test_cmd commands[] = {
+		{0x00, 0, {0}},
+		{0x00, 6, {0x02, 0x01, 0x11, 0x00, 0x02, 0x03}},
+		{0x01, 3, {0x01, 0x01, 0x11}},
+		{0x02, 1, {0x00}},
+	};
+
+	check_refused(ZZB_ZCL_APPLIANCE_EVENTS, false, commands, ARRAY_SIZE(commands),
+		      ZZB_ZCL_MALFORMED_COMMAND);
+	check_refused(ZZB_ZCL_APPLIANCE_EVENTS, false, &(struct test_cmd){0x03}, 1,
 		      ZZB_ZCL_UNSUP_COMMAND);
 }
 

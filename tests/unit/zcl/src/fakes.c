@@ -539,12 +539,14 @@ static const struct zzb_zcl_cluster ep140_clusters[] = {
 	ZZB_ZCL_POWER_PROFILE_SERVER(&power_profile140),
 	ZZB_ZCL_APPLIANCE_CONTROL_SERVER(&appliance_control140),
 	ZZB_ZCL_APPLIANCE_ID_SERVER(&appliance_id140),
+	ZZB_ZCL_APPLIANCE_EVENTS_SERVER(),
 };
 
 static const struct zzb_zcl_cluster ep141_clusters[] = {
 	ZZB_ZCL_POWER_PROFILE_CLIENT(),
 	ZZB_ZCL_APPLIANCE_CONTROL_CLIENT(),
 	ZZB_ZCL_APPLIANCE_ID_CLIENT(),
+	ZZB_ZCL_APPLIANCE_EVENTS_CLIENT(),
 };
 
 static const struct zzb_endpoint endpoints[] = {
