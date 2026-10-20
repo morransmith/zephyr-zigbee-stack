@@ -66,6 +66,15 @@ static const struct zzb_device ota_device = {
 
 static struct zzb_node *ota_node;
 
+/* Calls of ota_cb */
+static int ota_cb_calls;
+
+static void record_ota_cb(struct zzb_node *node)
+{
+	zassert_equal(node, ota_node);
+	ota_cb_calls++;
+}
+
 /* The query interval in milliseconds */
 #define INTERVAL_MS (CONFIG_ZZB_ZCL_OTA_QUERY_INTERVAL * 60000LL)
 
@@ -398,6 +407,35 @@ static void check_slot(const uint8_t *image)
 	zassert_mem_equal(data, image, IMAGE_LEN);
 }
 
+/* Downloads the file up to Upgrade End Request SUCCESS, then calls reset_frames() */
+static void download(void)
+{
+	offer(wait_query());
+	serve(file_len);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_end_req(0, 0x00);
+	reset_frames();
+}
+
+/* Writes the payload of Upgrade End Response for version with CurrentTime now and UpgradeTime at */
+static void put_end_rsp(uint8_t *payload, uint32_t version, uint32_t now, uint32_t at)
+{
+	sys_put_le16(OTA_MANUFACTURER, payload);
+	sys_put_le16(OTA_IMAGE_TYPE, payload + 2);
+	sys_put_le32(version, payload + 4);
+	sys_put_le32(now, payload + 8);
+	sys_put_le32(at, payload + 12);
+}
+
+/* Passes Upgrade End Response with CurrentTime now and UpgradeTime at, as zigpy */
+static void end_rsp(uint32_t now, uint32_t at)
+{
+	uint8_t payload[16];
+
+	put_end_rsp(payload, NEW_VERSION, now, at);
+	server_cmd(0x30, ZZB_ZCL_OTA_UPGRADE_END_RSP, payload, sizeof(payload));
+}
+
 /* The defaults outside a download (ZCL Table 11-10) */
 static void check_normal(void)
 {
@@ -413,6 +451,7 @@ static void *setup(void)
 		.eui64 = OTA_EUI64,
 		.device = &ota_device,
 		.zcl_cb = record_zcl_cb,
+		.ota_cb = record_ota_cb,
 	};
 
 	test_node();
@@ -428,6 +467,7 @@ static void before(void *fixture)
 	reset_fakes();
 	build_file();
 	zassert_ok(boot_erase_img_bank(PARTITION_ID(slot1_partition)));
+	ota_cb_calls = 0;
 }
 
 static void after(void *fixture)
@@ -661,8 +701,8 @@ ZTEST(zzb_zcl_ota, test_no_download)
 /*
  * ZCL 11.13.5.4, 11.13.6, 11.13.8.4: a SUCCESS starts the download with zcl_cb, the client asks for
  * the blocks from offset 0 and holds the fast poll rate while it waits for them, FileOffset follows
- * the blocks, and after the last block it sends Upgrade End Request SUCCESS and the download is
- * complete
+ * the blocks, and after the last block the download is complete and the client waits for the
+ * response to Upgrade End Request SUCCESS
  */
 ZTEST(zzb_zcl_ota, test_download)
 {
@@ -694,7 +734,7 @@ ZTEST(zzb_zcl_ota, test_download)
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
 	check_end_req(0, 0x00);
 	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
-	zassert_false(held());
+	zassert_true(held());
 	check_slot(file + HEADER_LEN + ELEMENT_LEN);
 }
 
@@ -929,6 +969,141 @@ ZTEST(zzb_zcl_ota, test_invalid_image)
 	add_element(0x0000, IMAGE_LEN, image, IMAGE_LEN);
 	finish_file();
 	check_invalid(file_len);
+}
+
+/*
+ * Section 16: Upgrade End Response with UpgradeTime 0, as zigpy sends it, requests the test upgrade
+ * of MCUboot at once and calls ota_cb. The client stays in Count down, ignores the responses and
+ * sends nothing more.
+ */
+ZTEST(zzb_zcl_ota, test_upgrade)
+{
+	download();
+	zassert_true(held());
+	end_rsp(0, 0);
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_COUNT_DOWN);
+	k_sleep(K_MSEC(10));
+	zassert_equal(ota_cb_calls, 1);
+	zassert_equal(mcuboot_swap_type(), BOOT_SWAP_TYPE_TEST);
+	zassert_false(held());
+
+	end_rsp(0, 0);
+	k_sleep(K_MINUTES(61));
+	zassert_equal(ota_cb_calls, 1);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_COUNT_DOWN);
+}
+
+/*
+ * ZCL 11.15.4: the upgrade follows UpgradeTime seconds after the response when CurrentTime is 0,
+ * otherwise UpgradeTime - CurrentTime seconds after it. An UpgradeTime below CurrentTime gets
+ * MALFORMED_COMMAND.
+ */
+ZTEST(zzb_zcl_ota, test_count_down)
+{
+	uint8_t early[16];
+
+	download();
+	end_rsp(0, 30);
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_COUNT_DOWN);
+	zassert_false(held());
+	k_sleep(K_MSEC(29900));
+	zassert_equal(ota_cb_calls, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(ota_cb_calls, 1);
+	zassert_equal(mcuboot_swap_type(), BOOT_SWAP_TYPE_TEST);
+
+	zassert_ok(boot_erase_img_bank(PARTITION_ID(slot1_partition)));
+	download();
+	put_end_rsp(early, NEW_VERSION, 0x20000010, 0x2000000f);
+	command(0x31, ZZB_ZCL_OTA_UPGRADE_END_RSP, early, sizeof(early), 0x80);
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
+	end_rsp(0x20000000, 0x2000001e);
+	k_sleep(K_MSEC(29900));
+	zassert_equal(ota_cb_calls, 1);
+	k_sleep(K_MSEC(200));
+	zassert_equal(ota_cb_calls, 2);
+}
+
+/*
+ * ZCL 11.16: UpgradeTime 0xffffffff makes the client wait and send Upgrade End Request again every
+ * 60 minutes, and an unsolicited Upgrade End Response with the wildcards starts the upgrade
+ */
+ZTEST(zzb_zcl_ota, test_upgrade_waiting)
+{
+	static const uint8_t wildcards[] = {0x19, 0x31, 0x07, 0xff, 0xff, 0xff, 0xff,
+					    0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
+					    0x00, 0x00, 0x00, 0x00, 0x00};
+
+	download();
+	end_rsp(0, 0xffffffff);
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_WAITING);
+	zassert_false(held());
+	k_sleep(K_MSEC(60 * 60000 - 100));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_end_req(0, 0x00);
+	zassert_true(held());
+
+	receive_from(REQUESTER_ADDR, REQUESTER_EP, 0xffff, 0xff, wildcards, sizeof(wildcards));
+	k_sleep(K_MSEC(10));
+	zassert_equal(ota_cb_calls, 1);
+	zassert_equal(mcuboot_swap_type(), BOOT_SWAP_TYPE_TEST);
+}
+
+/*
+ * Section 16: an Upgrade End Request without a response is sent again after 5 s, and after three
+ * repetitions the client waits as for UpgradeTime 0xffffffff
+ */
+ZTEST(zzb_zcl_ota, test_end_req_retries)
+{
+	download();
+	k_sleep(K_MSEC(4900));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+	k_sleep(K_MSEC(200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_end_req(0, 0x00);
+	k_sleep(K_SECONDS(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	k_sleep(K_MSEC(4800));
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
+	zassert_true(held());
+	k_sleep(K_MSEC(200));
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_WAITING);
+	zassert_false(held());
+
+	k_sleep(K_MSEC(60 * 60000 - 200));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 3);
+	k_sleep(K_MSEC(400));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 4);
+	check_end_req(3, 0x00);
+}
+
+/*
+ * Section 16: Upgrade End Response is ignored before the download is complete and with another
+ * file version or manufacturer code, and one shorter than 16 octets gets MALFORMED_COMMAND
+ */
+ZTEST(zzb_zcl_ota, test_end_rsp_ignored)
+{
+	uint8_t rsp[16];
+
+	put_end_rsp(rsp, NEW_VERSION, 0, 0);
+	command(0x40, ZZB_ZCL_OTA_UPGRADE_END_RSP, rsp, sizeof(rsp), 0x00);
+	offer(wait_query());
+	command(0x41, ZZB_ZCL_OTA_UPGRADE_END_RSP, rsp, sizeof(rsp), 0x00);
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOADING);
+
+	download();
+	command(0x42, ZZB_ZCL_OTA_UPGRADE_END_RSP, rsp, 15, 0x80);
+	put_end_rsp(rsp, NEW_VERSION + 1, 0, 0);
+	command(0x43, ZZB_ZCL_OTA_UPGRADE_END_RSP, rsp, sizeof(rsp), 0x00);
+	put_end_rsp(rsp, NEW_VERSION, 0, 0);
+	rsp[0] = 0x35;
+	command(0x44, ZZB_ZCL_OTA_UPGRADE_END_RSP, rsp, sizeof(rsp), 0x00);
+	k_sleep(K_MSEC(10));
+	zassert_equal(ota_cb_calls, 0);
+	zassert_equal(ota170.image_upgrade_status, ZZB_ZCL_OTA_DOWNLOAD_COMPLETE);
 }
 
 ZTEST_SUITE(zzb_zcl_ota, NULL, setup, before, after, teardown);
