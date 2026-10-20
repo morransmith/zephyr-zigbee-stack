@@ -84,6 +84,10 @@ struct zzb_zcl_color color41 = {
 	.couple_color_temp_min = COLOR_COUPLE_MIN,
 	.start_up_default = 0xffff,
 };
+struct zzb_zcl_scenes scenes50;
+struct zzb_zcl_window_covering covering50 = {
+	.window_covering_type = 0x08,
+};
 
 struct zzb_zcl_basic basic = {
 	.app_version = 1,
@@ -105,6 +109,8 @@ const void *check_values;
 struct changed_calls hook_calls;
 struct zcl_cb_calls zcl_cb_calls;
 struct effect_calls effect_calls;
+struct zcl_cmd_calls zcl_cmd_calls;
+uint8_t zcl_cmd_status;
 struct frame_copy sent[8];
 struct membership memberships[CONFIG_ZZB_APS_GROUP_COUNT];
 
@@ -239,6 +245,17 @@ static void record_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, u
 	};
 }
 
+static uint8_t record_zcl_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	int i = zcl_cmd_calls.count++;
+
+	zassert_true(i < ARRAY_SIZE(zcl_cmd_calls.cmd));
+	zassert_true(cmd->len <= sizeof(zcl_cmd_calls.payload[i]));
+	zcl_cmd_calls.cmd[i] = *cmd;
+	memcpy(zcl_cmd_calls.payload[i], cmd->payload, cmd->len);
+	return zcl_cmd_status;
+}
+
 static const struct zzb_zcl_attr test_attrs[] = {
 	ZZB_ZCL_ATTR(0x0000, ZZB_ZCL_BOOL, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT, struct test_values, b),
 	ZZB_ZCL_ATTR(0x0001, ZZB_ZCL_UINT8, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT, struct test_values, u8),
@@ -332,6 +349,7 @@ static const struct zzb_zcl_cluster ep5_clusters[] = {
 	ZZB_ZCL_ILLUMINANCE_CLIENT(),
 	ZZB_ZCL_ILLUMINANCE_LEVEL_CLIENT(),
 	ZZB_ZCL_OCCUPANCY_CLIENT(),
+	ZZB_ZCL_WINDOW_COVERING_CLIENT(),
 };
 
 static const struct zzb_zcl_cluster ep4_clusters[] = {
@@ -393,6 +411,11 @@ static const struct zzb_zcl_cluster ep41_clusters[] = {
 	ZZB_ZCL_ON_OFF_SERVER(&on_off41),
 	ZZB_ZCL_LEVEL_SERVER(&level41),
 	ZZB_ZCL_COLOR_SERVER(&color41),
+};
+
+static const struct zzb_zcl_cluster ep50_clusters[] = {
+	ZZB_ZCL_SCENES_SERVER(&scenes50),
+	ZZB_ZCL_WINDOW_COVERING_SERVER(&covering50),
 };
 
 struct zzb_zcl_temperature temperature70;
@@ -502,6 +525,13 @@ static const struct zzb_endpoint endpoints[] = {
 		.cluster_count = ARRAY_SIZE(ep41_clusters),
 	},
 	{
+		.id = COVERING_EP,
+		.profile = 0x0104,
+		.device_id = 0x0202,
+		.clusters = ep50_clusters,
+		.cluster_count = ARRAY_SIZE(ep50_clusters),
+	},
+	{
 		.id = HVAC_EP,
 		.profile = 0x0104,
 		.device_id = 0x0303,
@@ -546,6 +576,7 @@ struct zzb_node *test_node(void)
 		.device = &device,
 		.zcl_cb = record_zcl_cb,
 		.zcl_effect_cb = record_effect,
+		.zcl_cmd_cb = record_zcl_cmd,
 	};
 
 	if (node == NULL) {
@@ -569,6 +600,8 @@ void reset_fakes(void)
 	hook_calls = (struct changed_calls){0};
 	zcl_cb_calls = (struct zcl_cb_calls){0};
 	effect_calls = (struct effect_calls){0};
+	zcl_cmd_calls = (struct zcl_cmd_calls){0};
+	zcl_cmd_status = ZZB_ZCL_SUCCESS;
 	recall_calls = (struct recall_calls){0};
 	alarm_reset_calls = (struct alarm_reset_calls){0};
 	memset(memberships, 0, sizeof(memberships));

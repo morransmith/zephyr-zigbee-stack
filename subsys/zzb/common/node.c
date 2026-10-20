@@ -109,6 +109,7 @@ static void init_handler(struct k_work *work)
 		.bdb_cb = cfg->bdb_cb,
 		.zcl_cb = cfg->zcl_cb,
 		.zcl_effect_cb = cfg->zcl_effect_cb,
+		.zcl_cmd_cb = cfg->zcl_cmd_cb,
 	};
 	memcpy(node->install_key, key, sizeof(key));
 

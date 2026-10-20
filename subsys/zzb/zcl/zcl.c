@@ -186,6 +186,11 @@ void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t
 	}
 }
 
+uint8_t zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return node->zcl_cmd_cb != NULL ? node->zcl_cmd_cb(node, cmd) : ZZB_ZCL_SUCCESS;
+}
+
 /* ZCL 2.5.12.2 */
 static void default_rsp(struct zzb_node *node, const struct zzb_zcl_req *req, int status)
 {

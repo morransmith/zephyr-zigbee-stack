@@ -26,5 +26,6 @@ target_sources(app PRIVATE
   src/report.c
   src/scenes.c
   src/sensors.c
+  src/window_covering.c
   src/zcl.c
 )

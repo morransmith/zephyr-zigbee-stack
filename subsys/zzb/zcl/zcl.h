@@ -308,6 +308,9 @@ void zzb_zcl_cmd_respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, u
 void zzb_zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint8_t effect,
 		    uint8_t variant);
 
+/* Passes cmd to zcl_cmd_cb; returns its status, or ZZB_ZCL_SUCCESS without it */
+uint8_t zzb_zcl_app_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
+
 /* Configure Reporting (ZCL 2.5.7); returns the Default Response status or ZZB_ZCL_RESPONDED */
 int zzb_zcl_configure_reporting(struct zzb_node *node, const struct zzb_zcl_req *req);
 

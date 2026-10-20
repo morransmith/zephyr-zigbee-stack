@@ -229,6 +229,15 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
 				    uint8_t effect, uint8_t variant);
 
 /**
+ * Called on the stack thread for a cluster-specific command that the application carries out, a
+ * command of Window Covering, after the checks of the stack. The payload is valid during the call.
+ * Returns the status of the Default Response. A recalled Window Covering scene comes as Go To Lift
+ * Percentage and Go To Tilt Percentage, with unicast false, src_addr, src_ep and tsn 0, and its
+ * status is ignored.
+ */
+typedef uint8_t (*zzb_zcl_cmd_cb_t)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
+
+/**
  * @brief Set an attribute of a server cluster on an endpoint.
  *
  * Runs on the stack thread. value points to a value of the type of the field: uint8_t, int8_t or

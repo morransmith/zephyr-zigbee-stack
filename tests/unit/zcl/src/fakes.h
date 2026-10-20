@@ -24,6 +24,7 @@
 #include <zzb/zcl/power_config.h>
 #include <zzb/zcl/pump.h>
 #include <zzb/zcl/scenes.h>
+#include <zzb/zcl/window_covering.h>
 
 #include "aps/aps.h"
 #include "common/buf.h"
@@ -180,6 +181,12 @@ extern struct zzb_zcl_on_off on_off41;
 extern struct zzb_zcl_level level41;
 extern struct zzb_zcl_color color41;
 
+/* The Scenes and Window Covering servers of a Tilt Blind - Lift and Tilt (0x08) on endpoint 50 */
+#define COVERING_EP 50
+
+extern struct zzb_zcl_scenes scenes50;
+extern struct zzb_zcl_window_covering covering50;
+
 /*
  * Endpoint 70 has the measurement servers, a Fan Control server with FanModeSequence 0x02 and a
  * Pump Configuration and Control server; endpoint 71 has the clients of these clusters
@@ -242,6 +249,18 @@ struct effect_calls {
 };
 
 extern struct effect_calls effect_calls;
+
+/* Calls of zcl_cmd_cb, with copies of the commands and their payloads */
+struct zcl_cmd_calls {
+	int count;
+	struct zzb_zcl_cmd cmd[8];
+	uint8_t payload[8][4];
+};
+
+extern struct zcl_cmd_calls zcl_cmd_calls;
+
+/* The status that zcl_cmd_cb returns, ZZB_ZCL_SUCCESS after reset_fakes() */
+extern uint8_t zcl_cmd_status;
 
 /* A membership of the APS group table, kept by the fakes of the group functions; ep 0 is free */
 struct membership {
