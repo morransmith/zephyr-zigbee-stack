@@ -254,6 +254,9 @@ static const struct zzb_zcl_attr test_attrs[] = {
 	ZZB_ZCL_ATTR(0x0009, ZZB_ZCL_UINT24, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u24),
 	ZZB_ZCL_ATTR(0x000a, ZZB_ZCL_MAP32, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, map32),
 	ZZB_ZCL_ATTR(0x000b, ZZB_ZCL_MAP16, 0, struct test_values, map16),
+	ZZB_ZCL_ATTR(0x000c, ZZB_ZCL_INT8, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT | ZZB_ZCL_NV,
+		     struct test_values, i8),
+	ZZB_ZCL_ATTR(0x000d, ZZB_ZCL_UINT32, ZZB_ZCL_WRITE | ZZB_ZCL_NV, struct test_values, u32),
 	ZZB_ZCL_ATTR_CONST(0xfffd, ZZB_ZCL_UINT16, TEST_REVISION),
 };
 

@@ -23,6 +23,8 @@ enum zzb_zcl_type {
 	ZZB_ZCL_UINT8 = 0x20,
 	ZZB_ZCL_UINT16 = 0x21,
 	ZZB_ZCL_UINT24 = 0x22,
+	ZZB_ZCL_UINT32 = 0x23,
+	ZZB_ZCL_INT8 = 0x28,
 	ZZB_ZCL_INT16 = 0x29,
 	ZZB_ZCL_ENUM8 = 0x30,
 	ZZB_ZCL_OCTSTR = 0x41,
@@ -32,7 +34,7 @@ enum zzb_zcl_type {
 #define ZZB_ZCL_IS_STRING(type) ((type) == ZZB_ZCL_OCTSTR || (type) == ZZB_ZCL_STRING)
 #define ZZB_ZCL_IS_BYTE(type)                                                                      \
 	((type) == ZZB_ZCL_BOOL || (type) == ZZB_ZCL_MAP8 || (type) == ZZB_ZCL_UINT8 ||            \
-	 (type) == ZZB_ZCL_ENUM8)
+	 (type) == ZZB_ZCL_INT8 || (type) == ZZB_ZCL_ENUM8)
 
 #define ZZB_ZCL_IS_WORD(type)                                                                      \
 	((type) == ZZB_ZCL_MAP16 || (type) == ZZB_ZCL_UINT16 || (type) == ZZB_ZCL_INT16)
@@ -42,7 +44,7 @@ enum zzb_zcl_type {
  * has a field of 4 octets.
  */
 #define ZZB_ZCL_STORAGE_SIZE(type)                                                                 \
-	((type) == ZZB_ZCL_MAP32 || (type) == ZZB_ZCL_UINT24 ? 4                                   \
+	((type) == ZZB_ZCL_MAP32 || (type) == ZZB_ZCL_UINT24 || (type) == ZZB_ZCL_UINT32 ? 4       \
 	 : ZZB_ZCL_IS_WORD(type)                             ? 2                                   \
 	 : ZZB_ZCL_IS_STRING(type)                           ? sizeof(void *)                      \
 							     : ZZB_ZCL_IS_BYTE(type))
@@ -229,9 +231,9 @@ typedef void (*zzb_zcl_effect_cb_t)(struct zzb_node *node, uint8_t ep, uint16_t 
 /**
  * @brief Set an attribute of a server cluster on an endpoint.
  *
- * Runs on the stack thread. value points to a value of the type of the field: uint8_t or bool for
- * the one-octet types, uint16_t or int16_t for the two-octet types, uint32_t for ZZB_ZCL_UINT24 and
- * ZZB_ZCL_MAP32. A non-volatile attribute is saved. zcl_cb is not called.
+ * Runs on the stack thread. value points to a value of the type of the field: uint8_t, int8_t or
+ * bool for the one-octet types, uint16_t or int16_t for the two-octet types, uint32_t for
+ * ZZB_ZCL_UINT24, ZZB_ZCL_UINT32 and ZZB_ZCL_MAP32. A non-volatile attribute is saved. zcl_cb is not called.
  *
  * @retval 0 on success.
  * @retval -ENOENT the node has no server cluster with the attribute on the endpoint.

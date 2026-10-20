@@ -357,6 +357,10 @@ int zzb_zcl_read_reporting(struct zzb_node *node, const struct zzb_zcl_req *req)
 /* The number that the bits of a value of type stand for */
 static int64_t number(uint8_t type, uint32_t value)
 {
+	if (type == ZZB_ZCL_INT8) {
+		return (int8_t)value;
+	}
+
 	if (type == ZZB_ZCL_INT16) {
 		return (int16_t)value;
 	}

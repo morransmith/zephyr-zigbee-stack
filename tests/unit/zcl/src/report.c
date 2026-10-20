@@ -198,7 +198,7 @@ ZTEST(zzb_zcl_report, test_read_reporting_configuration_fits)
 static void configure(uint16_t attr, uint8_t type, uint16_t min, uint16_t max, uint16_t change)
 {
 	uint8_t req[13] = {0x00, 0x60, 0x06, 0x00};
-	size_t len = type == ZZB_ZCL_BOOL ? 11 : (type == ZZB_ZCL_UINT8 ? 12 : 13);
+	size_t len = type == ZZB_ZCL_BOOL ? 11 : (ZZB_ZCL_IS_BYTE(type) ? 12 : 13);
 
 	sys_put_le16(attr, req + 4);
 	req[6] = type;
@@ -286,6 +286,23 @@ ZTEST(zzb_zcl_report, test_signed_change)
 	set(0x0008, 3);
 	k_sleep(K_MSEC(10));
 	check_report(0, (uint8_t[]){0x08, 0x00, 0x29, 0x03, 0x00}, 5);
+}
+
+/* The reportable change of an int8 is measured with its sign */
+ZTEST(zzb_zcl_report, test_signed_change_int8)
+{
+	int8_t i8 = 2;
+
+	values1.i8 = -2;
+	configure(0x000c, ZZB_ZCL_INT8, 0, 0, 5);
+	zassert_ok(zzb_zcl_attr_set(test_node(), 1, TEST_CLUSTER, 0x000c, &i8));
+	k_sleep(K_MSEC(10));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+
+	i8 = 3;
+	zassert_ok(zzb_zcl_attr_set(test_node(), 1, TEST_CLUSTER, 0x000c, &i8));
+	k_sleep(K_MSEC(10));
+	check_report(0, (uint8_t[]){0x0c, 0x00, 0x28, 0x03}, 4);
 }
 
 /* A change within the minimum interval after the last report waits for its end */
