@@ -46,6 +46,14 @@ extern "C" {
 /** Commands received (ZCL Table 6-35). */
 #define ZZB_ZCL_THERMOSTAT_SETPOINT_RAISE_LOWER 0x00
 
+/** Thermostat User Interface Configuration cluster (ZCL 6.6). */
+#define ZZB_ZCL_THERMOSTAT_UI 0x0204
+
+/** Attributes (ZCL Table 6-49). */
+#define ZZB_ZCL_THERMOSTAT_UI_TEMPERATURE_DISPLAY_MODE        0x0000
+#define ZZB_ZCL_THERMOSTAT_UI_KEYPAD_LOCKOUT                  0x0001
+#define ZZB_ZCL_THERMOSTAT_UI_SCHEDULE_PROGRAMMING_VISIBILITY 0x0002
+
 /** Values of ControlSequenceOfOperation (ZCL Table 6-15). */
 enum zzb_zcl_control_sequence {
 	ZZB_ZCL_SEQUENCE_COOLING_ONLY = 0x00,
@@ -124,7 +132,21 @@ struct zzb_zcl_thermostat {
 	uint8_t thermostat_programming_operation_mode;
 };
 
+/**
+ * Values of a Thermostat User Interface Configuration server (ZCL 6.6.2.1), writable and saved. The
+ * application applies them to its display and keypad.
+ */
+struct zzb_zcl_thermostat_ui {
+	/** 0x00 Celsius, 0x01 Fahrenheit. */
+	uint8_t temperature_display_mode;
+	/** 0x00 no lockout, 0x01 to 0x05 the levels of lockout of the device. */
+	uint8_t keypad_lockout;
+	/** 0x01 hides the local programming of the weekly schedule. */
+	uint8_t schedule_programming_visibility;
+};
+
 extern const struct zzb_zcl_cluster_def zzb_zcl_thermostat_def;
+extern const struct zzb_zcl_cluster_def zzb_zcl_thermostat_ui_def;
 
 /** A Thermostat server with the values v, a pointer to struct zzb_zcl_thermostat. */
 #define ZZB_ZCL_THERMOSTAT_SERVER(v)                                                               \
@@ -133,6 +155,18 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_thermostat_def;
 		.server = true,                                                                    \
 		.values = (1 ? (v) : (struct zzb_zcl_thermostat *)NULL),                           \
 		.def = &zzb_zcl_thermostat_def,                                                    \
+	}
+
+/**
+ * A Thermostat User Interface Configuration server with the values v, a pointer to struct
+ * zzb_zcl_thermostat_ui.
+ */
+#define ZZB_ZCL_THERMOSTAT_UI_SERVER(v)                                                            \
+	{                                                                                          \
+		.id = ZZB_ZCL_THERMOSTAT_UI,                                                       \
+		.server = true,                                                                    \
+		.values = (1 ? (v) : (struct zzb_zcl_thermostat_ui *)NULL),                        \
+		.def = &zzb_zcl_thermostat_ui_def,                                                 \
 	}
 
 #ifdef __cplusplus

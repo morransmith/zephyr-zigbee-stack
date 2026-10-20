@@ -79,6 +79,7 @@ zephyr_library_sources_ifdef(CONFIG_ZZB_ZCL
   zcl/clusters/power_config.c
   zcl/clusters/scenes.c
   zcl/clusters/thermostat.c
+  zcl/clusters/thermostat_ui.c
   zcl/foundation.c
   zcl/frame.c
   zcl/report.c

@@ -407,9 +407,12 @@ struct zzb_zcl_thermostat thermostat60 = {
 	.system_mode_default = ZZB_ZCL_SYSTEM_MODE_AUTO,
 };
 
+struct zzb_zcl_thermostat_ui thermostat_ui60;
+
 static const struct zzb_zcl_cluster ep60_clusters[] = {
 	ZZB_ZCL_SCENES_SERVER(&scenes60),
 	ZZB_ZCL_THERMOSTAT_SERVER(&thermostat60),
+	ZZB_ZCL_THERMOSTAT_UI_SERVER(&thermostat_ui60),
 };
 
 static const struct zzb_endpoint endpoints[] = {

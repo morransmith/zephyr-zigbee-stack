@@ -400,4 +400,38 @@ ZTEST(zzb_zcl_thermostat, test_system_mode)
 	zassert_equal(thermostat60.system_mode, ZZB_ZCL_SYSTEM_MODE_HEAT);
 }
 
+/*
+ * ZCL 6.6.2.1: the attributes of Thermostat User Interface Configuration are written within their
+ * ranges and saved, and the reset restores 0. The first command writes TemperatureDisplayMode 2,
+ * KeypadLockout 6 and ScheduleProgrammingVisibility 2, the second 1, 5 and 1.
+ */
+ZTEST(zzb_zcl_thermostat, test_ui)
+{
+	static const uint8_t req1[] = {0x00, 0xb0, 0x02, 0x00, 0x00, 0x30, 0x02, 0x01,
+				       0x00, 0x30, 0x06, 0x02, 0x00, 0x30, 0x02};
+	static const uint8_t rsp1[] = {0x18, 0xb0, 0x04, 0x87, 0x00, 0x00,
+				       0x87, 0x01, 0x00, 0x87, 0x02, 0x00};
+	static const uint8_t req2[] = {0x00, 0xb1, 0x02, 0x00, 0x00, 0x30, 0x01, 0x01,
+				       0x00, 0x30, 0x05, 0x02, 0x00, 0x30, 0x01};
+	static const uint16_t reset_attrs[] = {0x0000, 0x0001, 0x0002};
+
+	receive_ep(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT_UI, req1, sizeof(req1));
+	check_frame(0, THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT_UI, rsp1, sizeof(rsp1));
+	receive_ep(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT_UI, req2, sizeof(req2));
+	check_frame(1, THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT_UI, (uint8_t[]){0x18, 0xb1, 0x04, 0x00},
+		    4);
+
+	zassert_ok(reboot());
+	zassert_equal(thermostat_ui60.temperature_display_mode, 1);
+	zassert_equal(thermostat_ui60.keypad_lockout, 5);
+	zassert_equal(thermostat_ui60.schedule_programming_visibility, 1);
+
+	reset_fakes();
+	reset_node();
+	zassert_equal(thermostat_ui60.temperature_display_mode, 0);
+	zassert_equal(thermostat_ui60.keypad_lockout, 0);
+	zassert_equal(thermostat_ui60.schedule_programming_visibility, 0);
+	check_zcl_cb(THERMOSTAT_EP, ZZB_ZCL_THERMOSTAT_UI, reset_attrs, ARRAY_SIZE(reset_attrs));
+}
+
 ZTEST_SUITE(zzb_zcl_thermostat, NULL, setup, before, after, NULL);
