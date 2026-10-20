@@ -9,6 +9,9 @@
 #include <zzb/zcl/device_temp.h>
 #include <zzb/zcl/fan.h>
 #include <zzb/zcl/groups.h>
+#include <zzb/zcl/ias_ace.h>
+#include <zzb/zcl/ias_wd.h>
+#include <zzb/zcl/ias_zone.h>
 #include <zzb/zcl/identify.h>
 #include <zzb/zcl/illuminance.h>
 #include <zzb/zcl/level.h>
@@ -24,8 +27,9 @@
 
 /*
  * An Extended Color Light, a Color Dimmer Switch, a Dimmable Ballast, an Occupancy Sensor, a Window
- * Covering, a Window Covering Controller, a Thermostat, a Heating/Cooling Unit, a Pump and a Pump
- * Controller (Home Automation profile)
+ * Covering, a Window Covering Controller, a Thermostat, a Heating/Cooling Unit, a Pump, a Pump
+ * Controller, an IAS Zone, an IAS Warning Device, an IAS ACE keypad and an IAS CIE (Home Automation
+ * profile)
  */
 #if defined(CONFIG_ZZB_ZCL)
 static struct zzb_zcl_basic basic = {
@@ -99,6 +103,10 @@ static struct zzb_zcl_identify thermostat_identify;
 static struct zzb_zcl_identify unit_identify;
 static struct zzb_zcl_identify pump_identify;
 static struct zzb_zcl_identify pump_controller_identify;
+static struct zzb_zcl_identify zone_identify;
+static struct zzb_zcl_identify wd_identify;
+static struct zzb_zcl_identify keypad_identify;
+static struct zzb_zcl_identify cie_identify;
 static struct zzb_zcl_scenes covering_scenes;
 static struct zzb_zcl_scenes pump_scenes;
 
@@ -167,6 +175,20 @@ static struct zzb_zcl_pressure pressure = {
 	.scaled_value = INT16_MIN,
 	.min_scaled_value = INT16_MIN,
 	.max_scaled_value = INT16_MIN,
+};
+
+static struct zzb_zcl_ias_zone contact = {
+	.zone_type = 0x0015,
+};
+
+static struct zzb_zcl_ias_zone siren_zone = {
+	.zone_type = 0x0225,
+};
+
+static struct zzb_zcl_ias_wd siren;
+
+static struct zzb_zcl_ias_zone keypad_zone = {
+	.zone_type = 0x021d,
 };
 
 static struct zzb_zcl_flow flow = {
@@ -273,6 +295,32 @@ static const struct zzb_zcl_cluster pump_controller_clusters[] = {
 	ZZB_ZCL_PRESSURE_CLIENT(),
 	ZZB_ZCL_FLOW_CLIENT(),
 };
+
+static const struct zzb_zcl_cluster zone_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&zone_identify),
+	ZZB_ZCL_IAS_ZONE_SERVER(&contact),
+};
+
+static const struct zzb_zcl_cluster wd_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&wd_identify),
+	ZZB_ZCL_GROUPS_SERVER(),
+	ZZB_ZCL_IAS_ZONE_SERVER(&siren_zone),
+	ZZB_ZCL_IAS_WD_SERVER(&siren),
+};
+
+static const struct zzb_zcl_cluster keypad_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&keypad_identify),
+	ZZB_ZCL_IAS_ZONE_SERVER(&keypad_zone),
+	ZZB_ZCL_IAS_ACE_CLIENT(),
+};
+
+static const struct zzb_zcl_cluster cie_clusters[] = {
+	ZZB_ZCL_IDENTIFY_SERVER(&cie_identify),
+	ZZB_ZCL_IAS_ACE_SERVER(),
+	ZZB_ZCL_IDENTIFY_CLIENT(),
+	ZZB_ZCL_IAS_ZONE_CLIENT(),
+	ZZB_ZCL_IAS_WD_CLIENT(),
+};
 #else
 /* native_sim builds no ZCL, so the definitions of the stack clusters do not exist */
 static const struct zzb_zcl_cluster light[] = {
@@ -373,6 +421,32 @@ static const struct zzb_zcl_cluster pump_controller_clusters[] = {
 	{.id = ZZB_ZCL_PRESSURE},
 	{.id = ZZB_ZCL_FLOW},
 };
+
+static const struct zzb_zcl_cluster zone_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_IAS_ZONE, .server = true},
+};
+
+static const struct zzb_zcl_cluster wd_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_GROUPS, .server = true},
+	{.id = ZZB_ZCL_IAS_ZONE, .server = true},
+	{.id = ZZB_ZCL_IAS_WD, .server = true},
+};
+
+static const struct zzb_zcl_cluster keypad_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_IAS_ZONE, .server = true},
+	{.id = ZZB_ZCL_IAS_ACE},
+};
+
+static const struct zzb_zcl_cluster cie_clusters[] = {
+	{.id = ZZB_ZCL_IDENTIFY, .server = true},
+	{.id = ZZB_ZCL_IAS_ACE, .server = true},
+	{.id = ZZB_ZCL_IDENTIFY},
+	{.id = ZZB_ZCL_IAS_ZONE},
+	{.id = ZZB_ZCL_IAS_WD},
+};
 #endif
 
 static const struct zzb_endpoint endpoints[] = {
@@ -456,6 +530,38 @@ static const struct zzb_endpoint endpoints[] = {
 		.clusters = pump_controller_clusters,
 		.cluster_count = ARRAY_SIZE(pump_controller_clusters),
 	},
+	{
+		.id = 11,
+		.profile = 0x0104,
+		.device_id = 0x0402,
+		.device_version = 1,
+		.clusters = zone_clusters,
+		.cluster_count = ARRAY_SIZE(zone_clusters),
+	},
+	{
+		.id = 12,
+		.profile = 0x0104,
+		.device_id = 0x0403,
+		.device_version = 1,
+		.clusters = wd_clusters,
+		.cluster_count = ARRAY_SIZE(wd_clusters),
+	},
+	{
+		.id = 13,
+		.profile = 0x0104,
+		.device_id = 0x0401,
+		.device_version = 1,
+		.clusters = keypad_clusters,
+		.cluster_count = ARRAY_SIZE(keypad_clusters),
+	},
+	{
+		.id = 14,
+		.profile = 0x0104,
+		.device_id = 0x0400,
+		.device_version = 1,
+		.clusters = cie_clusters,
+		.cluster_count = ARRAY_SIZE(cie_clusters),
+	},
 };
 
 static const struct zzb_device device = {
@@ -483,7 +589,7 @@ static void zcl_effect(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint
 {
 }
 
-/* The window covering has no motor here */
+/* The window covering has no motor, the warning device no siren and the CIE no panel here */
 static uint8_t zcl_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
 	return ZZB_ZCL_SUCCESS;
