@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/identify.h>
 
+#include "common/node.h"
 #include "fakes.h"
 
 static void *setup(void)
@@ -188,6 +190,35 @@ ZTEST(zzb_zcl_groups, test_group_requests)
 	receive_ind(&ind, (uint8_t[]){0x01, 0x75, 0x03, 0x05, 0x00}, 5);
 	zassert_false(zzb_aps_group_member(test_node(), 0x0005, 2));
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 0);
+}
+
+/* zzb_zcl_groups_add_group() sends Add Group from the client on endpoint 5 */
+ZTEST(zzb_zcl_groups, test_send_add_group)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_groups_add_group(test_node(), CLIENT_EP, 0x1234, "ab", 2));
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_GROUPS);
+	zassert_equal(sent[0].len, 8);
+	zassert_mem_equal(sent[0].data,
+			  ((uint8_t[]){0x11, next_tsn, 0x00, 0x34, 0x12, 0x02, 'a', 'b'}), 8);
+
+	/* A name longer than 16 characters is refused */
+	zassert_equal(
+		zzb_zcl_groups_add_group(test_node(), CLIENT_EP, 0x1234, "abcdefghijklmnopq", 17),
+		-EINVAL);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+}
+
+/* zzb_zcl_groups_remove_group() sends Remove Group from the client on endpoint 5 */
+ZTEST(zzb_zcl_groups, test_send_remove_group)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_groups_remove_group(test_node(), CLIENT_EP, 0x1234));
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_GROUPS);
+	zassert_equal(sent[0].len, 5);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next_tsn, 0x03, 0x34, 0x12}), 5);
 }
 
 ZTEST_SUITE(zzb_zcl_groups, NULL, setup, before, after, NULL);
