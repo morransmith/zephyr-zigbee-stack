@@ -3,6 +3,7 @@
 #ifndef ZZB_INCLUDE_ZZB_ZCL_GROUPS_H_
 #define ZZB_INCLUDE_ZZB_ZCL_GROUPS_H_
 
+#include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -19,6 +20,9 @@ extern "C" {
 #define ZZB_ZCL_GROUPS_REMOVE_GROUP             0x03
 #define ZZB_ZCL_GROUPS_REMOVE_ALL_GROUPS        0x04
 #define ZZB_ZCL_GROUPS_ADD_GROUP_IF_IDENTIFYING 0x05
+
+/** Bit of NameSupport (ZCL 3.6.2.2.1). */
+#define ZZB_ZCL_GROUPS_NAME_SUPPORT_NAMES BIT(7)
 
 extern const struct zzb_zcl_cluster_def zzb_zcl_groups_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_groups_client_def;
