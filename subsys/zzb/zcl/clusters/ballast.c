@@ -10,9 +10,6 @@
 /* The lowest BallastFactorAdjustment (ZCL Table 5.32) */
 #define FACTOR_ADJUSTMENT_MIN 0x64
 
-/* Unknown LampBurnHours, or a LampBurnHoursTripPoint without alarm */
-#define NO_HOURS 0xffffff
-
 /* Alarm code of LampBurnHoursTripPoint, sent with bit 0 of LampAlarmMode (ZCL 5.3.2.2.4.6) */
 #define BURN_HOURS_ALARM 0x01
 
@@ -71,14 +68,17 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 /* Follows the condition of the lamp burn hours alarm and raises the alarm when it starts */
 static void update(struct zzb_node *node, uint8_t ep, struct zzb_zcl_ballast *v, bool notify)
 {
-	bool holds = v->lamp_burn_hours_trip_point != NO_HOURS && v->lamp_burn_hours != NO_HOURS &&
-		     v->lamp_burn_hours >= v->lamp_burn_hours_trip_point;
+	bool holds =
+		v->lamp_burn_hours_trip_point != ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_TRIP_POINT_OFF &&
+		v->lamp_burn_hours != ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_UNKNOWN &&
+		v->lamp_burn_hours >= v->lamp_burn_hours_trip_point;
 	bool started = holds && !v->burn_hours_alarm;
 
 	v->burn_hours_alarm = holds;
 	if (started) {
 		zzb_zcl_alarm_raise(node, ep, ZZB_ZCL_BALLAST, BURN_HOURS_ALARM,
-				    v->lamp_alarm_mode & BIT(0), notify);
+				    v->lamp_alarm_mode & ZZB_ZCL_BALLAST_LAMP_ALARM_MODE_BURN_HOURS,
+				    notify);
 	}
 }
 
@@ -100,7 +100,8 @@ static void alarm_reset(struct zzb_node *node, uint8_t ep, void *values, uint8_t
 
 	if ((code == BURN_HOURS_ALARM || code == 0xff) && v->burn_hours_alarm) {
 		zzb_zcl_alarm_raise(node, ep, ZZB_ZCL_BALLAST, BURN_HOURS_ALARM,
-				    v->lamp_alarm_mode & BIT(0), true);
+				    v->lamp_alarm_mode & ZZB_ZCL_BALLAST_LAMP_ALARM_MODE_BURN_HOURS,
+				    true);
 	}
 }
 
@@ -111,12 +112,12 @@ static void init(void *values)
 
 	v->min_level = v->physical_min_level;
 	v->max_level = v->physical_max_level;
-	v->intrinsic_ballast_factor = 0xff;
-	v->ballast_factor_adjustment = 0xff;
-	v->lamp_rated_hours = 0xffffff;
+	v->intrinsic_ballast_factor = ZZB_ZCL_BALLAST_INTRINSIC_FACTOR_UNKNOWN;
+	v->ballast_factor_adjustment = ZZB_ZCL_BALLAST_FACTOR_ADJUSTMENT_OFF;
+	v->lamp_rated_hours = ZZB_ZCL_BALLAST_LAMP_RATED_HOURS_UNKNOWN;
 	v->lamp_burn_hours = 0;
 	v->lamp_alarm_mode = 0;
-	v->lamp_burn_hours_trip_point = NO_HOURS;
+	v->lamp_burn_hours_trip_point = ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_TRIP_POINT_OFF;
 	v->burn_hours_alarm = false;
 }
 
@@ -131,12 +132,13 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 
 	set(node, ep, ZZB_ZCL_BALLAST_MIN_LEVEL, v->physical_min_level);
 	set(node, ep, ZZB_ZCL_BALLAST_MAX_LEVEL, v->physical_max_level);
-	set(node, ep, ZZB_ZCL_BALLAST_INTRINSIC_FACTOR, 0xff);
-	set(node, ep, ZZB_ZCL_BALLAST_FACTOR_ADJUSTMENT, 0xff);
-	set(node, ep, ZZB_ZCL_BALLAST_LAMP_RATED_HOURS, 0xffffff);
+	set(node, ep, ZZB_ZCL_BALLAST_INTRINSIC_FACTOR, ZZB_ZCL_BALLAST_INTRINSIC_FACTOR_UNKNOWN);
+	set(node, ep, ZZB_ZCL_BALLAST_FACTOR_ADJUSTMENT, ZZB_ZCL_BALLAST_FACTOR_ADJUSTMENT_OFF);
+	set(node, ep, ZZB_ZCL_BALLAST_LAMP_RATED_HOURS, ZZB_ZCL_BALLAST_LAMP_RATED_HOURS_UNKNOWN);
 	set(node, ep, ZZB_ZCL_BALLAST_LAMP_BURN_HOURS, 0);
 	set(node, ep, ZZB_ZCL_BALLAST_LAMP_ALARM_MODE, 0);
-	set(node, ep, ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_TRIP_POINT, NO_HOURS);
+	set(node, ep, ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_TRIP_POINT,
+	    ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_TRIP_POINT_OFF);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_ballast_def = {
