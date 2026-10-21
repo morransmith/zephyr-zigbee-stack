@@ -38,6 +38,18 @@ Sensors produce synthetic values. The device types that run on a battery are sle
 
 A short press toggles OnOff, and led0 shows it. The level and the color go to the console. Finding & binding: target.
 
+## Combinations
+
+### dual_relay
+
+| Endpoint | Device type | ID | Clusters |
+|---|---|---|---|
+| 1 | On/Off Light | 0x0100 | Basic, Identify, Groups, Scenes, On/Off |
+| 2 | On/Off Light | 0x0100 | Identify, Groups, Scenes, On/Off |
+| 3 | On/Off Light Switch | 0x0103 | Identify; clients Identify, On/Off |
+
+Two relays and a wall switch. Short presses toggle relay 1, relay 2 and the lights bound to endpoint 3 in turn. led0 shows relay 1 and led1 relay 2. Finding & binding: initiator on endpoint 3.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
