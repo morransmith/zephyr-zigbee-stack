@@ -4,7 +4,6 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
-#include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/groups.h>
 #include <zzb/zcl/ias_ace.h>
@@ -20,20 +19,37 @@ LOG_MODULE_REGISTER(ias, LOG_LEVEL_INF);
 
 #define IAS_EP 1
 
+#if defined(CONFIG_SAMPLE_IAS_ZONE)
+#define DEVICE_ID ZZB_DEVICE_IAS_ZONE
+#define ZONE_TYPE ZZB_ZCL_IAS_ZONE_TYPE_CONTACT_SWITCH
+#elif defined(CONFIG_SAMPLE_IAS_WARNING_DEVICE)
+#define DEVICE_ID ZZB_DEVICE_IAS_WD
+#define ZONE_TYPE ZZB_ZCL_IAS_ZONE_TYPE_STANDARD_WARNING_DEVICE
+#elif defined(CONFIG_SAMPLE_IAS_ACE)
+#define DEVICE_ID ZZB_DEVICE_IAS_ACE
+#define ZONE_TYPE ZZB_ZCL_IAS_ZONE_TYPE_KEYPAD
+#elif defined(CONFIG_SAMPLE_IAS_CIE)
+#define DEVICE_ID ZZB_DEVICE_IAS_CIE
+#endif
+
+/* The warning that an alarm of an armed panel starts: 10 s, the strobe on 50 % of each second */
+#define WARNING_DURATION  10
+#define STROBE_DUTY_CYCLE 50
+
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
 	.power_source = SAMPLE_BASIC_POWER_SOURCE,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 #if defined(CONFIG_SAMPLE_SLEEPY)
-/* Two AA cells at 3.0 V and 100 % */
+/* Two AA cells of 1.5 V, at 3.0 V and 100 % */
 static struct zzb_zcl_power_config power_config = {
 	.battery_voltage = 30,
 	.battery_percentage_remaining = 200,
-	.battery_size = 0x03,
+	.battery_size = ZZB_ZCL_POWER_CONFIG_BATTERY_SIZE_AA,
 	.battery_quantity = 2,
 	.battery_rated_voltage = 15,
 };
@@ -43,7 +59,7 @@ static struct zzb_zcl_identify identify;
 
 #if defined(CONFIG_SAMPLE_ZONE)
 static struct zzb_zcl_ias_zone zone = {
-	.zone_type = CONFIG_SAMPLE_ZONE_TYPE,
+	.zone_type = ZONE_TYPE,
 };
 #endif
 
@@ -79,9 +95,9 @@ static const struct zzb_zcl_cluster ias[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = IAS_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = ias,
 		.cluster_count = ARRAY_SIZE(ias),
 	},
@@ -129,17 +145,18 @@ static void zone_alarm(struct zzb_node *node)
 #endif
 
 #if defined(CONFIG_SAMPLE_IAS_WARNING_DEVICE)
-/* Stop is warning mode 0 without strobe; another command with a duration of 0 changes nothing */
+/* Stop is warning mode Stop without strobe; another command with a duration of 0 changes nothing */
 static uint8_t start_warning(const struct zzb_zcl_cmd *cmd)
 {
-	uint8_t mode = FIELD_GET(ZZB_ZCL_IAS_WD_WARNING_MODE, cmd->payload[0]);
-	bool strobe = FIELD_GET(ZZB_ZCL_IAS_WD_STROBE, cmd->payload[0]);
-	uint16_t duration = sys_get_le16(&cmd->payload[1]);
+	struct zzb_zcl_ias_wd_start_warning start;
 
-	LOG_INF("warning mode %u strobe %u for %u s", mode, strobe, duration);
-	if (mode == 0 && !strobe) {
+	zzb_zcl_ias_wd_start_warning_parse(cmd, &start);
+	LOG_INF("warning mode %u strobe %u for %u s", start.warning_mode, start.strobe,
+		start.warning_duration);
+	if (start.warning_mode == ZZB_ZCL_IAS_WD_WARNING_MODE_STOP &&
+	    start.strobe == ZZB_ZCL_IAS_WD_STROBE_NONE) {
 		warning = false;
-	} else if (duration > 0) {
+	} else if (start.warning_duration > 0) {
 		warning = true;
 	}
 
@@ -149,32 +166,30 @@ static uint8_t start_warning(const struct zzb_zcl_cmd *cmd)
 
 static uint8_t wd_cmd(const struct zzb_zcl_cmd *cmd)
 {
+	struct zzb_zcl_ias_wd_squawk squawk;
+
 	if (cmd->id == ZZB_ZCL_IAS_WD_START_WARNING) {
 		return start_warning(cmd);
 	}
 
-	LOG_INF("squawk 0x%02x", cmd->payload[0]);
+	zzb_zcl_ias_wd_squawk_parse(cmd, &squawk);
+	LOG_INF("squawk mode %u strobe %u level %u", squawk.squawk_mode, squawk.strobe,
+		squawk.squawk_level);
 	return ZZB_ZCL_SUCCESS;
 }
 #endif
 
 #if defined(CONFIG_SAMPLE_IAS_ACE)
+/* The code of the panel of ZHA */
+static const uint8_t code[] = {'1', '2', '3', '4'};
+
 /* Arm with Arm All Zones and with Disarm in turn */
 static void keypad_arm(struct zzb_node *node)
 {
 	static bool disarm;
-	/* Arm Mode, Arm/Disarm Code "1234" and Zone ID (ZCL Figure 8-6) */
-	const uint8_t arm[] = {
-		disarm ? ZZB_ZCL_IAS_ACE_MODE_DISARM : ZZB_ZCL_IAS_ACE_MODE_ALL_ZONES,
-		4,
-		'1',
-		'2',
-		'3',
-		'4',
-		atomic_get(&zone_id),
-	};
-	int err = zzb_zcl_send_bound(node, IAS_EP, ZZB_ZCL_IAS_ACE, ZZB_ZCL_IAS_ACE_ARM, arm,
-				     sizeof(arm));
+	int err = zzb_zcl_ias_ace_arm(
+		node, IAS_EP, disarm ? ZZB_ZCL_IAS_ACE_MODE_DISARM : ZZB_ZCL_IAS_ACE_MODE_ALL_ZONES,
+		code, sizeof(code), atomic_get(&zone_id));
 
 	if (err) {
 		LOG_ERR("Arm %d", err);
@@ -185,16 +200,30 @@ static void keypad_arm(struct zzb_node *node)
 	disarm = !disarm;
 }
 
-/* Arm Notification and Panel Status are 0 for disarmed and 1 to 3 for armed */
+/* led0 is on while some zones are armed; the other values leave it */
 static uint8_t keypad_cmd(const struct zzb_zcl_cmd *cmd)
 {
-	if (cmd->id != ZZB_ZCL_IAS_ACE_ARM_RSP && cmd->id != ZZB_ZCL_IAS_ACE_PANEL_STATUS_CHANGED) {
+	struct zzb_zcl_ias_ace_arm_rsp rsp;
+	struct zzb_zcl_ias_ace_panel_status_changed panel;
+
+	if (cmd->id == ZZB_ZCL_IAS_ACE_ARM_RSP) {
+		zzb_zcl_ias_ace_arm_rsp_parse(cmd, &rsp);
+		LOG_INF("arm notification %u", rsp.arm_notification);
+		if (rsp.arm_notification <= ZZB_ZCL_IAS_ACE_ALL_ZONES_ARMED) {
+			sample_led(rsp.arm_notification != ZZB_ZCL_IAS_ACE_ALL_ZONES_DISARMED);
+		}
+
 		return ZZB_ZCL_SUCCESS;
 	}
 
-	LOG_INF("panel 0x%02x", cmd->payload[0]);
-	if (cmd->payload[0] <= ZZB_ZCL_IAS_ACE_PANEL_ARMED_AWAY) {
-		sample_led(cmd->payload[0] != ZZB_ZCL_IAS_ACE_PANEL_DISARMED);
+	if (cmd->id != ZZB_ZCL_IAS_ACE_PANEL_STATUS_CHANGED) {
+		return ZZB_ZCL_SUCCESS;
+	}
+
+	zzb_zcl_ias_ace_panel_status_changed_parse(cmd, &panel);
+	LOG_INF("panel status %u", panel.panel_status);
+	if (panel.panel_status <= ZZB_ZCL_IAS_ACE_PANEL_ARMED_AWAY) {
+		sample_led(panel.panel_status != ZZB_ZCL_IAS_ACE_PANEL_DISARMED);
 	}
 
 	return ZZB_ZCL_SUCCESS;
@@ -205,65 +234,48 @@ static uint8_t keypad_cmd(const struct zzb_zcl_cmd *cmd)
 /* The panel: disarmed or armed away (all zones) */
 static atomic_t armed;
 
-/* Burglar with strobe and medium siren for 10 s, strobe 50 % at medium level (ZCL Figure 8-21) */
-static const uint8_t burglar_warning[] = {
-	FIELD_PREP(ZZB_ZCL_IAS_WD_WARNING_MODE, 1) | FIELD_PREP(ZZB_ZCL_IAS_WD_STROBE, 1) |
-		FIELD_PREP(ZZB_ZCL_IAS_WD_SIREN_LEVEL, 1),
-	10,
-	0,
-	50,
-	1,
-};
-
-/* Panel Status, Seconds Remaining, Audible Notification and Alarm Status (ZCL Figure 8-15) */
-static void panel_status(uint8_t status[4])
+static enum zzb_zcl_ias_ace_panel_status panel_status(void)
 {
-	status[0] = atomic_get(&armed) ? ZZB_ZCL_IAS_ACE_PANEL_ARMED_AWAY
-				       : ZZB_ZCL_IAS_ACE_PANEL_DISARMED;
-	status[1] = 0;
-	status[2] = ZZB_ZCL_IAS_ACE_AUDIBLE_DEFAULT;
-	status[3] = ZZB_ZCL_IAS_ACE_ALARM_NONE;
+	return atomic_get(&armed) ? ZZB_ZCL_IAS_ACE_PANEL_ARMED_AWAY
+				  : ZZB_ZCL_IAS_ACE_PANEL_DISARMED;
 }
 
 /* ZCL 8.3.2.4.5: every change of the panel goes to the bound keypads */
 static void panel_set(struct zzb_node *node, bool on)
 {
-	uint8_t status[4];
 	int err;
 
 	atomic_set(&armed, on);
 	sample_led(on);
 	LOG_INF("panel %s", on ? "armed" : "disarmed");
-	panel_status(status);
-	err = zzb_zcl_send_bound(node, IAS_EP, ZZB_ZCL_IAS_ACE,
-				 ZZB_ZCL_IAS_ACE_PANEL_STATUS_CHANGED, status, sizeof(status));
+	err = zzb_zcl_ias_ace_panel_status_changed(node, IAS_EP, panel_status(), 0,
+						   ZZB_ZCL_IAS_ACE_AUDIBLE_DEFAULT,
+						   ZZB_ZCL_IAS_ACE_ALARM_NONE);
 	if (err) {
 		LOG_ERR("Panel Status Changed %d", err);
-	}
-}
-
-static void respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
-		    const uint8_t *payload, size_t len)
-{
-	int err = zzb_zcl_cmd_respond(node, cmd, id, payload, len);
-
-	if (err) {
-		LOG_ERR("response 0x%02x %d", id, err);
 	}
 }
 
 /* Every Arm Mode other than Disarm arms all zones; Arm Response gives the result */
 static uint8_t arm(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
-	bool on = cmd->payload[0] != ZZB_ZCL_IAS_ACE_MODE_DISARM;
-	uint8_t notification =
-		on ? ZZB_ZCL_IAS_ACE_ALL_ZONES_ARMED : ZZB_ZCL_IAS_ACE_ALL_ZONES_DISARMED;
+	struct zzb_zcl_ias_ace_arm request;
+	bool on;
+	int err;
 
-	if (cmd->payload[0] > ZZB_ZCL_IAS_ACE_MODE_ALL_ZONES) {
+	zzb_zcl_ias_ace_arm_parse(cmd, &request);
+	if (request.arm_mode > ZZB_ZCL_IAS_ACE_MODE_ALL_ZONES) {
 		return ZZB_ZCL_INVALID_FIELD;
 	}
 
-	respond(node, cmd, ZZB_ZCL_IAS_ACE_ARM_RSP, &notification, sizeof(notification));
+	on = request.arm_mode != ZZB_ZCL_IAS_ACE_MODE_DISARM;
+	err = zzb_zcl_ias_ace_arm_rsp(node, cmd,
+				      on ? ZZB_ZCL_IAS_ACE_ALL_ZONES_ARMED
+					 : ZZB_ZCL_IAS_ACE_ALL_ZONES_DISARMED);
+	if (err) {
+		LOG_ERR("Arm Response %d", err);
+	}
+
 	if (on != atomic_get(&armed)) {
 		panel_set(node, on);
 	}
@@ -271,32 +283,40 @@ static uint8_t arm(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	return ZZB_ZCL_SUCCESS;
 }
 
-/* Zone Enroll Response with code 0 (success) and a new zone ID */
+/* Every zone is enrolled with a new zone ID */
 static uint8_t enroll(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
 	static uint8_t next_id;
-	const uint8_t rsp[] = {0x00, next_id};
+	struct zzb_zcl_ias_zone_enroll_req request;
+	int err;
 
-	next_id++;
-	LOG_INF("zone 0x%04x type 0x%04x ID %u", cmd->src_addr, sys_get_le16(cmd->payload), rsp[1]);
-	respond(node, cmd, ZZB_ZCL_IAS_ZONE_ENROLL_RSP, rsp, sizeof(rsp));
+	zzb_zcl_ias_zone_enroll_req_parse(cmd, &request);
+	LOG_INF("zone 0x%04x type 0x%04x ID %u", cmd->src_addr, request.zone_type, next_id);
+	err = zzb_zcl_ias_zone_enroll_rsp(node, cmd, ZZB_ZCL_IAS_ZONE_ENROLL_SUCCESS, next_id++);
+	if (err) {
+		LOG_ERR("Zone Enroll Response %d", err);
+	}
+
 	return ZZB_ZCL_SUCCESS;
 }
 
-/* Zone Status Change Notification: an alarm of an armed panel starts the warning devices */
+/* An alarm of an armed panel starts a burglar warning of the bound warning devices */
 static uint8_t zone_status(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
-	uint16_t status = sys_get_le16(cmd->payload);
+	struct zzb_zcl_ias_zone_status_change_notification change;
 	int err;
 
-	LOG_INF("zone ID %u status 0x%04x", cmd->payload[3], status);
-	if (!atomic_get(&armed) ||
-	    !(status & (ZZB_ZCL_IAS_ZONE_STATUS_ALARM1 | ZZB_ZCL_IAS_ZONE_STATUS_ALARM2))) {
+	zzb_zcl_ias_zone_status_change_notification_parse(cmd, &change);
+	LOG_INF("zone ID %u status 0x%04x", change.zone_id, change.zone_status);
+	if (!atomic_get(&armed) || !(change.zone_status & (ZZB_ZCL_IAS_ZONE_STATUS_ALARM1 |
+							   ZZB_ZCL_IAS_ZONE_STATUS_ALARM2))) {
 		return ZZB_ZCL_SUCCESS;
 	}
 
-	err = zzb_zcl_send_bound(node, IAS_EP, ZZB_ZCL_IAS_WD, ZZB_ZCL_IAS_WD_START_WARNING,
-				 burglar_warning, sizeof(burglar_warning));
+	err = zzb_zcl_ias_wd_start_warning(node, IAS_EP, ZZB_ZCL_IAS_WD_WARNING_MODE_BURGLAR,
+					   ZZB_ZCL_IAS_WD_STROBE_PARALLEL,
+					   ZZB_ZCL_IAS_WD_SIREN_LEVEL_MEDIUM, WARNING_DURATION,
+					   STROBE_DUTY_CYCLE, ZZB_ZCL_IAS_WD_STROBE_LEVEL_MEDIUM);
 	if (err) {
 		LOG_ERR("Start Warning %d", err);
 	}
@@ -306,7 +326,7 @@ static uint8_t zone_status(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 
 static uint8_t cie_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
-	uint8_t status[4];
+	int err;
 
 	if (cmd->cluster == ZZB_ZCL_IAS_ZONE) {
 		return cmd->id == ZZB_ZCL_IAS_ZONE_ENROLL_REQ ? enroll(node, cmd)
@@ -317,8 +337,13 @@ static uint8_t cie_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 	case ZZB_ZCL_IAS_ACE_ARM:
 		return arm(node, cmd);
 	case ZZB_ZCL_IAS_ACE_GET_PANEL_STATUS:
-		panel_status(status);
-		respond(node, cmd, ZZB_ZCL_IAS_ACE_GET_PANEL_STATUS_RSP, status, sizeof(status));
+		err = zzb_zcl_ias_ace_get_panel_status_rsp(node, cmd, panel_status(), 0,
+							   ZZB_ZCL_IAS_ACE_AUDIBLE_DEFAULT,
+							   ZZB_ZCL_IAS_ACE_ALARM_NONE);
+		if (err) {
+			LOG_ERR("Get Panel Status Response %d", err);
+		}
+
 		return ZZB_ZCL_SUCCESS;
 	default:
 		/* The panel has no zone table, bypass or emergency state */

@@ -27,6 +27,18 @@ LOG_MODULE_REGISTER(energy, LOG_LEVEL_INF);
 
 #define ENERGY_EP 1
 
+#if defined(CONFIG_SAMPLE_SMART_PLUG)
+#define DEVICE_ID ZZB_DEVICE_SMART_PLUG
+#elif defined(CONFIG_SAMPLE_METER_INTERFACE)
+#define DEVICE_ID ZZB_DEVICE_METER_INTERFACE
+#elif defined(CONFIG_SAMPLE_CONSUMPTION_AWARENESS_DEVICE)
+#define DEVICE_ID ZZB_DEVICE_CONSUMPTION_AWARENESS
+#elif defined(CONFIG_SAMPLE_WHITE_GOODS)
+#define DEVICE_ID ZZB_DEVICE_WHITE_GOODS
+#elif defined(CONFIG_SAMPLE_HOME_GATEWAY)
+#define DEVICE_ID ZZB_DEVICE_HOME_GATEWAY
+#endif
+
 /* The load of the Smart Plug: 60 W at 230 V, metered every 10 s */
 #define PLUG_VOLTAGE    230
 #define PLUG_CURRENT_MA 261
@@ -46,9 +58,9 @@ LOG_MODULE_REGISTER(energy, LOG_LEVEL_INF);
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
-	.power_source = 0x01,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.power_source = ZZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 static struct zzb_zcl_identify identify;
@@ -62,23 +74,24 @@ static struct zzb_zcl_on_off on_off = {
 
 /* RMSCurrent in mA, RMSVoltage and the power in V and W */
 static struct zzb_zcl_electrical_measurement measurement = {
-	.measurement_type = 0x09,
-	.ac_frequency = 0xffff,
-	.ac_frequency_min = 0xffff,
-	.ac_frequency_max = 0xffff,
+	.measurement_type = ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_ACTIVE |
+			    ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_PHASE_A,
+	.ac_frequency = ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN,
+	.ac_frequency_min = ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN,
+	.ac_frequency_max = ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN,
 	.ac_frequency_multiplier = 1,
 	.ac_frequency_divisor = 1,
-	.rms_voltage = 0xffff,
-	.rms_voltage_min = 0xffff,
-	.rms_voltage_max = 0xffff,
-	.rms_current = 0xffff,
-	.rms_current_min = 0xffff,
-	.rms_current_max = 0xffff,
-	.active_power = INT16_MIN,
-	.active_power_min = INT16_MIN,
-	.active_power_max = INT16_MIN,
-	.reactive_power = INT16_MIN,
-	.apparent_power = 0xffff,
+	.rms_voltage = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN,
+	.rms_voltage_min = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN,
+	.rms_voltage_max = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN,
+	.rms_current = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN,
+	.rms_current_min = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN,
+	.rms_current_max = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN,
+	.active_power = ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN,
+	.active_power_min = ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN,
+	.active_power_max = ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN,
+	.reactive_power = ZZB_ZCL_ELECTRICAL_MEASUREMENT_REACTIVE_POWER_UNKNOWN,
+	.apparent_power = ZZB_ZCL_ELECTRICAL_MEASUREMENT_APPARENT_POWER_UNKNOWN,
 	.ac_voltage_multiplier = 1,
 	.ac_voltage_divisor = 1,
 	.ac_current_multiplier = 1,
@@ -89,12 +102,12 @@ static struct zzb_zcl_electrical_measurement measurement = {
 #endif
 
 #if defined(CONFIG_SAMPLE_METER_INTERFACE)
-/* A gas meter in m3 */
+/* A gas meter in m3 with three decimals */
 static struct zzb_zcl_metering metering = {
-	.unit_of_measure = 0x01,
+	.unit_of_measure = ZZB_ZCL_METERING_UNIT_OF_MEASURE_M3,
 	.multiplier = 1,
 	.divisor = 1000,
-	.metering_device_type = 0x01,
+	.metering_device_type = ZZB_ZCL_METERING_DEVICE_TYPE_GAS,
 };
 
 static struct zzb_zcl_meter_id meter_id = {
@@ -104,24 +117,28 @@ static struct zzb_zcl_meter_id meter_id = {
 #elif defined(CONFIG_SAMPLE_METERING)
 /* kWh and kW with three decimals */
 static struct zzb_zcl_metering metering = {
+	.unit_of_measure = ZZB_ZCL_METERING_UNIT_OF_MEASURE_KWH,
 	.multiplier = 1,
 	.divisor = 1000,
-	.summation_formatting = 0x2b,
-	.demand_formatting = 0x2b,
+	.summation_formatting = ZZB_ZCL_METERING_FORMATTING(5, 3, false),
+	.demand_formatting = ZZB_ZCL_METERING_FORMATTING(5, 3, false),
+	.metering_device_type = ZZB_ZCL_METERING_DEVICE_TYPE_ELECTRIC,
 };
 #endif
 
 #if defined(CONFIG_SAMPLE_WHITE_GOODS)
+/* One power profile; Energy in Wh with one decimal */
 static struct zzb_zcl_power_profile power_profile = {
 	.total_profile_num = 1,
-	.energy_formatting = 0x01,
+	.energy_formatting = ZZB_ZCL_POWER_PROFILE_FORMATTING(0, 1, false),
 };
 
 static struct zzb_zcl_appliance_control appliance_control;
 static struct zzb_zcl_appliance_id appliance_id;
 
+/* Logs of up to 60 octets */
 static struct zzb_zcl_appliance_stats appliance_stats = {
-	.log_max_size = 0x3c,
+	.log_max_size = 60,
 	.log_queue_max_size = 1,
 };
 #endif
@@ -169,9 +186,9 @@ static const struct zzb_zcl_cluster energy[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = ENERGY_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = energy,
 		.cluster_count = ARRAY_SIZE(energy),
 	},
@@ -289,44 +306,33 @@ static void meter_start(struct zzb_node *node)
 /* Appliance Status: idle, running, paused or finished (ZCL Table 15-9) */
 static atomic_t program = ATOMIC_INIT(ZZB_ZCL_APPLIANCE_IDLE);
 
-/* The power profile with its energy phase (ZCL Figure 3-72) */
-static const uint8_t profile[] = {
-	/* TotalProfileNum, PowerProfileID, Num of Transferred Phases */
-	1,
-	1,
-	1,
-	/* EnergyPhaseID, MacroPhaseID */
-	1,
-	1,
-	/* ExpectedDuration, PeakPower, Energy and MaxActivationDelay, 0xffff for the first phase */
-	PROGRAM_MINUTES,
-	0,
-	PHASE_PEAK_W & 0xff,
-	PHASE_PEAK_W >> 8,
-	PHASE_ENERGY & 0xff,
-	PHASE_ENERGY >> 8,
-	0xff,
-	0xff,
+/* The power profile and its energy phase, the whole program */
+#define PROFILE_ID 1
+#define PHASE_ID   1
+
+static const struct zzb_zcl_power_profile_phase phase = {
+	.energy_phase_id = PHASE_ID,
+	.macro_phase_id = PHASE_ID,
+	.expected_duration = PROGRAM_MINUTES,
+	.peak_power = PHASE_PEAK_W,
+	.energy = PHASE_ENERGY,
+	.max_activation_delay = ZZB_ZCL_POWER_PROFILE_ACTIVATION_DELAY_FIRST,
 };
 
 static void program_end(struct k_work *work);
 
 static K_WORK_DELAYABLE_DEFINE(program_work, program_end);
 
-static void respond(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, uint8_t id,
-		    const uint8_t *payload, size_t len)
+static void check(int err, const char *response)
 {
-	int err = zzb_zcl_cmd_respond(node, cmd, id, payload, len);
-
 	if (err) {
-		LOG_ERR("response 0x%02x %d", id, err);
+		LOG_ERR("%s %d", response, err);
 	}
 }
 
 /* ZCL 15.2.4.1.2: a new state goes as Signal State Notification */
-static void program_set(struct zzb_node *node, uint8_t status)
+static void program_set(struct zzb_node *node, enum zzb_zcl_appliance_status status)
 {
-	const uint8_t state[] = {status, ZZB_ZCL_APPLIANCE_REMOTE_CONTROL};
 	int err;
 
 	if (atomic_set(&program, status) == status) {
@@ -341,12 +347,10 @@ static void program_set(struct zzb_node *node, uint8_t status)
 
 	sample_led(status == ZZB_ZCL_APPLIANCE_RUNNING);
 	LOG_INF("appliance status 0x%02x", status);
-	err = zzb_zcl_send_bound(node, ENERGY_EP, ZZB_ZCL_APPLIANCE_CONTROL,
-				 ZZB_ZCL_APPLIANCE_CONTROL_SIGNAL_STATE_NOTIFICATION, state,
-				 sizeof(state));
-	if (err) {
-		LOG_ERR("Signal State Notification %d", err);
-	}
+	err = zzb_zcl_appliance_control_signal_state_notification(
+		node, ENERGY_EP, status, ZZB_ZCL_APPLIANCE_REMOTE_CONTROL,
+		ZZB_ZCL_APPLIANCE_DEVICE_STATUS2_PROPRIETARY_0);
+	check(err, "Signal State Notification");
 }
 
 static void program_end(struct k_work *work)
@@ -354,8 +358,7 @@ static void program_end(struct k_work *work)
 	program_set(timer_node, ZZB_ZCL_APPLIANCE_END_PROGRAMMED);
 }
 
-/* PowerProfileState of the program (ZCL Table 3-140) */
-static uint8_t profile_state(void)
+static enum zzb_zcl_power_profile_state profile_state(void)
 {
 	switch (atomic_get(&program)) {
 	case ZZB_ZCL_APPLIANCE_RUNNING:
@@ -371,23 +374,29 @@ static uint8_t profile_state(void)
 
 static uint8_t profile_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
-	/*
-	 * Power Profile Count and one record: PowerProfileID, EnergyPhaseID,
-	 * PowerProfileRemoteControl and PowerProfileState (ZCL Figure 3-74)
-	 */
-	const uint8_t state[] = {1, 1, 1, power_profile.energy_remote, profile_state()};
+	const struct zzb_zcl_power_profile_record record = {
+		.power_profile_id = PROFILE_ID,
+		.energy_phase_id = PHASE_ID,
+		.remote_control = power_profile.energy_remote,
+		.state = profile_state(),
+	};
+	struct zzb_zcl_power_profile_request request;
 
 	switch (cmd->id) {
 	case ZZB_ZCL_POWER_PROFILE_REQUEST:
-		/* PowerProfileID 0 asks for all profiles (ZCL 3.17.5.1.1.1) */
-		if (cmd->payload[0] > power_profile.total_profile_num) {
+		zzb_zcl_power_profile_request_parse(cmd, &request);
+		if (request.power_profile_id != ZZB_ZCL_POWER_PROFILE_ID_ALL &&
+		    request.power_profile_id != PROFILE_ID) {
 			return ZZB_ZCL_NOT_FOUND;
 		}
 
-		respond(node, cmd, ZZB_ZCL_POWER_PROFILE_RSP, profile, sizeof(profile));
+		check(zzb_zcl_power_profile_rsp(node, cmd, power_profile.total_profile_num,
+						PROFILE_ID, &phase, 1),
+		      "PowerProfileResponse");
 		return ZZB_ZCL_SUCCESS;
 	case ZZB_ZCL_POWER_PROFILE_STATE_REQUEST:
-		respond(node, cmd, ZZB_ZCL_POWER_PROFILE_STATE_RSP, state, sizeof(state));
+		check(zzb_zcl_power_profile_state_rsp(node, cmd, &record, 1),
+		      "PowerProfileStateResponse");
 		return ZZB_ZCL_SUCCESS;
 	default:
 		/* The appliance has no prices and no schedules */
@@ -396,7 +405,7 @@ static uint8_t profile_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 }
 
 /* Execution of a Command (ZCL 15.2.4.1); Pause holds a running program */
-static uint8_t execute(struct zzb_node *node, uint8_t command)
+static uint8_t execute(struct zzb_node *node, enum zzb_zcl_appliance_command command)
 {
 	switch (command) {
 	case ZZB_ZCL_APPLIANCE_START:
@@ -419,14 +428,17 @@ static uint8_t execute(struct zzb_node *node, uint8_t command)
 
 static uint8_t control_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
-	const uint8_t state[] = {atomic_get(&program), ZZB_ZCL_APPLIANCE_REMOTE_CONTROL};
+	struct zzb_zcl_appliance_control_execution_of_command execution;
 
 	switch (cmd->id) {
 	case ZZB_ZCL_APPLIANCE_CONTROL_EXECUTION_OF_COMMAND:
-		return execute(node, cmd->payload[0]);
+		zzb_zcl_appliance_control_execution_of_command_parse(cmd, &execution);
+		return execute(node, execution.command);
 	case ZZB_ZCL_APPLIANCE_CONTROL_SIGNAL_STATE:
-		respond(node, cmd, ZZB_ZCL_APPLIANCE_CONTROL_SIGNAL_STATE_RSP, state,
-			sizeof(state));
+		check(zzb_zcl_appliance_control_signal_state_rsp(
+			      node, cmd, atomic_get(&program), ZZB_ZCL_APPLIANCE_REMOTE_CONTROL,
+			      ZZB_ZCL_APPLIANCE_DEVICE_STATUS2_PROPRIETARY_0),
+		      "Signal State Response");
 		return ZZB_ZCL_SUCCESS;
 	default:
 		/* Write Functions and the overload commands */
@@ -437,22 +449,22 @@ static uint8_t control_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 /* The appliance has no alerts and no logs (ZCL 15.4.2.4.1, 15.5.3.2.1.3) */
 static uint8_t goods_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
-	const uint8_t none = 0;
-
 	switch (cmd->cluster) {
 	case ZZB_ZCL_POWER_PROFILE:
 		return profile_cmd(node, cmd);
 	case ZZB_ZCL_APPLIANCE_CONTROL:
 		return control_cmd(node, cmd);
 	case ZZB_ZCL_APPLIANCE_EVENTS:
-		respond(node, cmd, ZZB_ZCL_APPLIANCE_EVENTS_GET_ALERTS_RSP, &none, sizeof(none));
+		check(zzb_zcl_appliance_events_get_alerts_rsp(node, cmd, NULL, 0),
+		      "Get Alerts Response");
 		return ZZB_ZCL_SUCCESS;
 	case ZZB_ZCL_APPLIANCE_STATS:
 		if (cmd->id == ZZB_ZCL_APPLIANCE_STATS_LOG_REQUEST) {
 			return ZZB_ZCL_NOT_FOUND;
 		}
 
-		respond(node, cmd, ZZB_ZCL_APPLIANCE_STATS_LOG_QUEUE_RSP, &none, sizeof(none));
+		check(zzb_zcl_appliance_stats_log_queue_rsp(node, cmd, NULL, 0),
+		      "Log Queue Response");
 		return ZZB_ZCL_SUCCESS;
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
@@ -463,10 +475,8 @@ static uint8_t goods_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 #if defined(CONFIG_SAMPLE_HOME_GATEWAY)
 static void gateway_start(struct zzb_node *node)
 {
-	const uint8_t start = ZZB_ZCL_APPLIANCE_START;
-	int err = zzb_zcl_send_bound(node, ENERGY_EP, ZZB_ZCL_APPLIANCE_CONTROL,
-				     ZZB_ZCL_APPLIANCE_CONTROL_EXECUTION_OF_COMMAND, &start,
-				     sizeof(start));
+	int err = zzb_zcl_appliance_control_execution_of_command(node, ENERGY_EP,
+								 ZZB_ZCL_APPLIANCE_START);
 
 	if (err) {
 		LOG_ERR("Execution of a Command %d", err);
@@ -545,8 +555,8 @@ void sample_button(struct zzb_node *node)
 void sample_finding_binding(struct zzb_node *node)
 {
 #if defined(CONFIG_SAMPLE_HOME_GATEWAY)
-	/* Unicast bindings */
-	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_initiator(node, ENERGY_EP, 0xffff));
+	LOG_INF("finding & binding %d",
+		zzb_bdb_finding_binding_initiator(node, ENERGY_EP, ZZB_BDB_FB_UNICAST));
 #else
 	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_target(node, ENERGY_EP));
 #endif

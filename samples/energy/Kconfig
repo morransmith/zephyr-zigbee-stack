@@ -35,19 +35,6 @@ config SAMPLE_METER
 	bool
 	select SAMPLE_METERING
 
-config SAMPLE_DEVICE_ID
-	hex
-	default 0x0051 if SAMPLE_SMART_PLUG
-	default 0x0053 if SAMPLE_METER_INTERFACE
-	default 0x000d if SAMPLE_CONSUMPTION_AWARENESS_DEVICE
-	default 0x0052 if SAMPLE_WHITE_GOODS
-	default 0x0050 if SAMPLE_HOME_GATEWAY
-
-# The highest Rev of the revision history of the device type in the DTL
-config SAMPLE_DEVICE_VERSION
-	int
-	default 1
-
 config SAMPLE_MODEL_ID
 	string
 	default "smart_plug" if SAMPLE_SMART_PLUG

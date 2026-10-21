@@ -18,20 +18,29 @@ LOG_MODULE_REGISTER(door_lock, LOG_LEVEL_INF);
 
 #define LOCK_EP 1
 
+#if defined(CONFIG_SAMPLE_DOOR_LOCK)
+#define DEVICE_ID ZZB_DEVICE_DOOR_LOCK
+#elif defined(CONFIG_SAMPLE_DOOR_LOCK_CONTROLLER)
+#define DEVICE_ID ZZB_DEVICE_DOOR_LOCK_CONTROLLER
+#endif
+
+/* The shortest PIN code of the users, in octets */
+#define PIN_MIN 4
+
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
 	.power_source = SAMPLE_BASIC_POWER_SOURCE,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 #if defined(CONFIG_SAMPLE_SLEEPY)
-/* Two AA cells at 3.0 V and 100 % */
+/* Two AA cells of 1.5 V, at 3.0 V and 100 % */
 static struct zzb_zcl_power_config power_config = {
 	.battery_voltage = 30,
 	.battery_percentage_remaining = 200,
-	.battery_size = 0x03,
+	.battery_size = ZZB_ZCL_POWER_CONFIG_BATTERY_SIZE_AA,
 	.battery_quantity = 2,
 	.battery_rated_voltage = 15,
 };
@@ -42,12 +51,14 @@ static struct zzb_zcl_identify identify;
 #if defined(CONFIG_SAMPLE_DOOR_LOCK)
 static struct zzb_zcl_alarms alarms;
 
-/* PIN codes of 4 to 8 octets */
+/* A dead bolt without a door sensor */
 static struct zzb_zcl_door_lock lock = {
 	.lock_state = ZZB_ZCL_DOOR_LOCK_LOCKED,
+	.lock_type = ZZB_ZCL_DOOR_LOCK_TYPE_DEAD_BOLT,
 	.actuator_enabled = true,
-	.min_pin_code_length = 4,
-	.max_pin_code_length = 8,
+	.door_state = ZZB_ZCL_DOOR_LOCK_DOOR_STATE_UNDEFINED,
+	.min_pin_code_length = PIN_MIN,
+	.max_pin_code_length = ZZB_ZCL_DOOR_LOCK_PIN_MAX,
 };
 #endif
 
@@ -71,9 +82,9 @@ static const struct zzb_zcl_cluster door_lock[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = LOCK_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = door_lock,
 		.cluster_count = ARRAY_SIZE(door_lock),
 	},
@@ -125,8 +136,8 @@ static uint8_t zcl_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 static void controller_send(struct zzb_node *node)
 {
 	static bool unlock;
-	uint8_t id = unlock ? ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR : ZZB_ZCL_DOOR_LOCK_LOCK_DOOR;
-	int err = zzb_zcl_send_bound(node, LOCK_EP, ZZB_ZCL_DOOR_LOCK, id, NULL, 0);
+	int err = unlock ? zzb_zcl_door_lock_unlock_door(node, LOCK_EP, NULL, 0)
+			 : zzb_zcl_door_lock_lock_door(node, LOCK_EP, NULL, 0);
 
 	if (err) {
 		LOG_ERR("%s %d", unlock ? "Unlock Door" : "Lock Door", err);
@@ -159,8 +170,8 @@ void sample_finding_binding(struct zzb_node *node)
 #if defined(CONFIG_SAMPLE_DOOR_LOCK)
 	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_target(node, LOCK_EP));
 #else
-	/* Unicast bindings */
-	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_initiator(node, LOCK_EP, 0xffff));
+	LOG_INF("finding & binding %d",
+		zzb_bdb_finding_binding_initiator(node, LOCK_EP, ZZB_BDB_FB_UNICAST));
 #endif
 }
 

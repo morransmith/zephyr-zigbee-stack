@@ -16,16 +16,6 @@ config SAMPLE_DOOR_LOCK_CONTROLLER
 
 endchoice
 
-config SAMPLE_DEVICE_ID
-	hex
-	default 0x000a if SAMPLE_DOOR_LOCK
-	default 0x000b if SAMPLE_DOOR_LOCK_CONTROLLER
-
-# The highest Rev of the revision history of the device type in the DTL
-config SAMPLE_DEVICE_VERSION
-	int
-	default 1
-
 config SAMPLE_MODEL_ID
 	string
 	default "door_lock" if SAMPLE_DOOR_LOCK
