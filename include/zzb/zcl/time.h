@@ -32,10 +32,13 @@ extern "C" {
 #define ZZB_ZCL_TIME_MASTER_ZONE_DST BIT(2)
 #define ZZB_ZCL_TIME_SUPERSEDING     BIT(3)
 
+/** Time and the other time attributes that are not valid (ZCL 2.6.2.24, 3.12.2.2). */
+#define ZZB_ZCL_TIME_UNKNOWN 0xffffffff
+
 /**
  * Values of a Time server (ZCL 3.12.2.2). Times are seconds since 2000-01-01 00:00 UTC. The stack
  * writes time, standard_time and local_time from the clock of the node before they are read; they
- * read 0xffffffff while the node has no time. A write of time and zzb_zcl_attr_set() of it set the
+ * read ZZB_ZCL_TIME_UNKNOWN without time. A write of time and zzb_zcl_attr_set() of it set the
  * clock and last_set_time; a remote write gets READ_ONLY while ZZB_ZCL_TIME_MASTER is set. The
  * application fills time_status before zzb_node_init() and changes it with zzb_zcl_attr_set(); a
  * remote write changes only ZZB_ZCL_TIME_SYNCHRONIZED, which stays 0 while ZZB_ZCL_TIME_MASTER is
@@ -44,22 +47,22 @@ extern "C" {
  * ZZB_ZCL_TIME_MASTER_ZONE_DST is set.
  */
 struct zzb_zcl_time {
-	/** UTC time, 0x00000000 to 0xfffffffe. */
+	/** UTC time, 0x00000000 to 0xfffffffe, or ZZB_ZCL_TIME_UNKNOWN. */
 	uint32_t time;
-	/** ZCL Table 3-70. */
+	/** TimeStatus bits, ZZB_ZCL_TIME_MASTER to ZZB_ZCL_TIME_SUPERSEDING. */
 	uint8_t time_status;
 	/** Seconds added to time for standard_time, -86400 to 86400; default 0. */
 	int32_t time_zone;
-	/** UTC times of the start and the end of daylight saving time; default 0xffffffff. */
+	/** UTC times of the start and the end of DST; default ZZB_ZCL_TIME_UNKNOWN. */
 	uint32_t dst_start;
 	uint32_t dst_end;
 	/** Seconds added to standard_time from dst_start to dst_end, -86400 to 86400; default 0. */
 	int32_t dst_shift;
 	uint32_t standard_time;
 	uint32_t local_time;
-	/** The value that time was set to last; 0xffffffff after the start. */
+	/** The value that time was set to last; ZZB_ZCL_TIME_UNKNOWN after the start. */
 	uint32_t last_set_time;
-	/** UTC time up to which time may be trusted; default 0xffffffff. */
+	/** UTC time up to which time may be trusted; default ZZB_ZCL_TIME_UNKNOWN. */
 	uint32_t valid_until_time;
 	/** Internal: the bits of time_status that a remote write does not change. */
 	uint8_t fixed_status;

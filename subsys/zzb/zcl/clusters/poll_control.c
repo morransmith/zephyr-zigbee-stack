@@ -57,19 +57,20 @@ static bool above_max(const struct zzb_zcl_poll_control *v, uint32_t timeout)
 	return v->fast_poll_timeout_max != 0 && timeout > v->fast_poll_timeout_max;
 }
 
-/* ZCL 3.16.4.1, 3.16.4.2; a minimum of 0 is no limit, and Check-inInterval 0 is always valid */
+/* ZCL 3.16.4.1, 3.16.4.2; a minimum of 0 is no limit, and Check-inInterval off is always valid */
 static uint8_t check_value(const struct zzb_zcl_poll_control *v, uint16_t id, uint32_t value)
 {
 	switch (id) {
 	case ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL:
-		return valid(value == 0 ||
+		return valid(value == ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL_OFF ||
 			     (value <= INTERVAL_MAX && value >= v->check_in_interval_min &&
 			      value >= v->long_poll_interval));
 	case ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL:
 		return valid(IN_RANGE(value, LONG_POLL_MIN, INTERVAL_MAX) &&
 			     value >= v->long_poll_interval_min &&
 			     value >= v->short_poll_interval &&
-			     (v->check_in_interval == 0 || value <= v->check_in_interval));
+			     (v->check_in_interval == ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL_OFF ||
+			      value <= v->check_in_interval));
 	case ZZB_ZCL_POLL_CONTROL_SHORT_POLL_INTERVAL:
 		return valid(value != 0 && value <= v->long_poll_interval);
 	case ZZB_ZCL_POLL_CONTROL_FAST_POLL_TIMEOUT:
@@ -177,8 +178,9 @@ static void schedule(struct zzb_node *node)
 /* The next check-in follows one Check-inInterval from now (ZCL 3.16.6.3) */
 static void restart(struct zzb_node *node, struct zzb_zcl_poll_control *v)
 {
-	v->next_check_in =
-		v->check_in_interval != 0 ? k_uptime_get() + ms(v->check_in_interval) : 0;
+	v->next_check_in = v->check_in_interval != ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL_OFF
+				   ? k_uptime_get() + ms(v->check_in_interval)
+				   : 0;
 	schedule(node);
 }
 

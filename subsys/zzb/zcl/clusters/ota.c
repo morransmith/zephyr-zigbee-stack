@@ -18,9 +18,6 @@
 /* ClusterRevision (ZCL 11.3.1.1) */
 #define REVISION 4
 
-/* CurrentZigBeeStackVersion of ZigBee PRO (ZCL Table 11-6) */
-#define STACK_PRO 0x0002
-
 /* The server is the trust center, on endpoint 1 before the first Image Notify */
 #define SERVER    0x0000
 #define SERVER_EP 1
@@ -78,7 +75,8 @@ static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_OTA_FILE_OFFSET, ZZB_ZCL_UINT32, 0, struct zzb_zcl_ota, file_offset),
 	ZZB_ZCL_ATTR(ZZB_ZCL_OTA_CURRENT_FILE_VERSION, ZZB_ZCL_UINT32, 0, struct zzb_zcl_ota,
 		     current_file_version),
-	ZZB_ZCL_ATTR_CONST(ZZB_ZCL_OTA_CURRENT_STACK_VERSION, ZZB_ZCL_UINT16, STACK_PRO),
+	ZZB_ZCL_ATTR_CONST(ZZB_ZCL_OTA_CURRENT_STACK_VERSION, ZZB_ZCL_UINT16,
+			   ZZB_ZCL_OTA_STACK_VERSION_PRO),
 	ZZB_ZCL_ATTR(ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION, ZZB_ZCL_UINT32, 0, struct zzb_zcl_ota,
 		     downloaded_file_version),
 	ZZB_ZCL_ATTR(ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_ENUM8, 0, struct zzb_zcl_ota,
@@ -95,10 +93,10 @@ static void init(void *values)
 {
 	struct zzb_zcl_ota *v = values;
 
-	v->file_offset = 0xffffffff;
-	v->downloaded_file_version = 0xffffffff;
+	v->file_offset = ZZB_ZCL_OTA_FILE_OFFSET_NONE;
+	v->downloaded_file_version = ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION_NONE;
 	v->image_upgrade_status = ZZB_ZCL_OTA_NORMAL;
-	v->image_type_id = 0xffff;
+	v->image_type_id = ZZB_ZCL_OTA_IMAGE_TYPE_ID_NONE;
 	v->server_ep = SERVER_EP;
 	v->tries = 0;
 }
@@ -250,9 +248,10 @@ static void end(struct zzb_node *node, const struct zzb_endpoint *ep)
 	release(node);
 	v->tries = 0;
 	set(node, ep, ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS, ZZB_ZCL_OTA_NORMAL);
-	set(node, ep, ZZB_ZCL_OTA_FILE_OFFSET, 0xffffffff);
-	set(node, ep, ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION, 0xffffffff);
-	set(node, ep, ZZB_ZCL_OTA_IMAGE_TYPE_ID, 0xffff);
+	set(node, ep, ZZB_ZCL_OTA_FILE_OFFSET, ZZB_ZCL_OTA_FILE_OFFSET_NONE);
+	set(node, ep, ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION,
+	    ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION_NONE);
+	set(node, ep, ZZB_ZCL_OTA_IMAGE_TYPE_ID, ZZB_ZCL_OTA_IMAGE_TYPE_ID_NONE);
 	arm(node, v, INTERVAL);
 }
 

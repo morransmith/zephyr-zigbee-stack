@@ -47,7 +47,7 @@ static uint8_t status_flags(const struct zzb_zcl_binary_input *v)
 	uint8_t flags = v->status_flags & ~(ZZB_ZCL_BINARY_INPUT_FLAG_FAULT |
 					    ZZB_ZCL_BINARY_INPUT_FLAG_OUT_OF_SERVICE);
 
-	if (v->reliability != 0) {
+	if (v->reliability != ZZB_ZCL_BINARY_INPUT_RELIABILITY_NO_FAULT_DETECTED) {
 		flags |= ZZB_ZCL_BINARY_INPUT_FLAG_FAULT;
 	}
 

@@ -23,12 +23,34 @@ extern "C" {
 #define ZZB_ZCL_OTA_MANUFACTURER_ID         0x0007
 #define ZZB_ZCL_OTA_IMAGE_TYPE_ID           0x0008
 
-/** Values of ImageUpgradeStatus (ZCL Table 11-11). */
-#define ZZB_ZCL_OTA_NORMAL            0x00
-#define ZZB_ZCL_OTA_DOWNLOADING       0x01
-#define ZZB_ZCL_OTA_DOWNLOAD_COMPLETE 0x02
-#define ZZB_ZCL_OTA_WAITING           0x03
-#define ZZB_ZCL_OTA_COUNT_DOWN        0x04
+/** UpgradeServerID that is not a valid IEEE address (ZCL 11.10.1). */
+#define ZZB_ZCL_OTA_UPGRADE_SERVER_ID_UNKNOWN 0xffffffffffffffff
+
+/** FileOffset and DownloadedFileVersion outside a download, their defaults (ZCL Table 11-10). */
+#define ZZB_ZCL_OTA_FILE_OFFSET_NONE             0xffffffff
+#define ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION_NONE 0xffffffff
+
+/** Image Type ID while the client neither downloads nor waits to upgrade (ZCL 11.10.9). */
+#define ZZB_ZCL_OTA_IMAGE_TYPE_ID_NONE 0xffff
+
+/** CurrentZigBeeStackVersion and DownloadedZigBeeStackVersion (ZCL Table 11-6). */
+enum zzb_zcl_ota_stack_version {
+	ZZB_ZCL_OTA_STACK_VERSION_2006 = 0x0000,
+	ZZB_ZCL_OTA_STACK_VERSION_2007 = 0x0001,
+	ZZB_ZCL_OTA_STACK_VERSION_PRO = 0x0002,
+	ZZB_ZCL_OTA_STACK_VERSION_IP = 0x0003,
+};
+
+/** ImageUpgradeStatus (ZCL Table 11-11). */
+enum zzb_zcl_ota_image_upgrade_status {
+	ZZB_ZCL_OTA_NORMAL = 0x00,
+	ZZB_ZCL_OTA_DOWNLOADING = 0x01,
+	ZZB_ZCL_OTA_DOWNLOAD_COMPLETE = 0x02,
+	ZZB_ZCL_OTA_WAITING = 0x03,
+	ZZB_ZCL_OTA_COUNT_DOWN = 0x04,
+	ZZB_ZCL_OTA_WAIT_FOR_MORE = 0x05,
+	ZZB_ZCL_OTA_WAITING_EXTERNAL_EVENT = 0x06,
+};
 
 /** Commands that the client generates (ZCL Table 11-16). */
 #define ZZB_ZCL_OTA_QUERY_NEXT_IMAGE 0x01
@@ -54,15 +76,18 @@ struct zzb_zcl_ota {
 	uint16_t image_type;
 	/** apsTrustCenterAddress, written before a read. */
 	uint64_t upgrade_server_id;
-	/** Offset of the next block of a download; 0xffffffff outside one. */
+	/** Offset of the next block of a download; ZZB_ZCL_OTA_FILE_OFFSET_NONE outside one. */
 	uint32_t file_offset;
-	/** File version of the image of a download; 0xffffffff without one. */
+	/** File version of the image of a download, or ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION_NONE. */
 	uint32_t downloaded_file_version;
-	/** ZZB_ZCL_OTA_NORMAL to ZZB_ZCL_OTA_COUNT_DOWN. */
+	/**
+	 * enum zzb_zcl_ota_image_upgrade_status; the client takes ZZB_ZCL_OTA_NORMAL to
+	 * ZZB_ZCL_OTA_COUNT_DOWN.
+	 */
 	uint8_t image_upgrade_status;
 	/** Manufacturer code of the device definition, written before a read. */
 	uint16_t manufacturer_id;
-	/** image_type during a download; 0xffff otherwise. */
+	/** image_type during a download; ZZB_ZCL_OTA_IMAGE_TYPE_ID_NONE otherwise. */
 	uint16_t image_type_id;
 	/** Internal: the endpoint of the server, the source endpoint of the last Image Notify. */
 	uint8_t server_ep;

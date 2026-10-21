@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -31,12 +32,33 @@ extern "C" {
 #define ZZB_ZCL_BINARY_INPUT_FLAG_OVERRIDDEN     BIT(2)
 #define ZZB_ZCL_BINARY_INPUT_FLAG_OUT_OF_SERVICE BIT(3)
 
+/** Polarity (ZCL 3.14.11.16). */
+enum zzb_zcl_binary_input_polarity {
+	ZZB_ZCL_BINARY_INPUT_POLARITY_NORMAL = 0x00,
+	ZZB_ZCL_BINARY_INPUT_POLARITY_REVERSE = 0x01,
+};
+
+/** Reliability (ZCL 3.14.11.9) without MULTI-STATE-FAULT, which is for multistate clusters. */
+enum zzb_zcl_binary_input_reliability {
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_NO_FAULT_DETECTED = 0x00,
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_NO_SENSOR = 0x01,
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_OVER_RANGE = 0x02,
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_UNDER_RANGE = 0x03,
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_OPEN_LOOP = 0x04,
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_SHORTED_LOOP = 0x05,
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_NO_OUTPUT = 0x06,
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_UNRELIABLE_OTHER = 0x07,
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_PROCESS_ERROR = 0x08,
+	ZZB_ZCL_BINARY_INPUT_RELIABILITY_CONFIGURATION_ERROR = 0x0a,
+};
+
 /**
  * Values of a Binary Input (Basic) server (ZCL 3.14.5.4.2). The application fills the fields other
  * than out_of_service before zzb_node_init() and changes them with zzb_zcl_attr_set(); they are
  * read-only, except present_value, which a remote write sets while OutOfService is TRUE.
  * OutOfService is writable and saved. The stack keeps the OUT_OF_SERVICE bit of status_flags equal
- * to out_of_service and the FAULT bit set while reliability is not 0.
+ * to out_of_service and the FAULT bit set while reliability is not
+ * ZZB_ZCL_BINARY_INPUT_RELIABILITY_NO_FAULT_DETECTED.
  */
 struct zzb_zcl_binary_input {
 	/** Up to 16 printable ASCII characters, or NULL. */
@@ -46,10 +68,10 @@ struct zzb_zcl_binary_input {
 	const char *inactive_text;
 	/** The application stops setting present_value while it is TRUE. */
 	bool out_of_service;
-	/** 0 normal, 1 reverse; the application applies it to its input (ZCL 3.14.11.16). */
+	/** enum zzb_zcl_binary_input_polarity; the application applies it to its input. */
 	uint8_t polarity;
 	bool present_value;
-	/** ZCL 3.14.11.9; 0 no fault detected. */
+	/** enum zzb_zcl_binary_input_reliability. */
 	uint8_t reliability;
 	/** ZZB_ZCL_BINARY_INPUT_FLAG_* bits. */
 	uint8_t status_flags;
