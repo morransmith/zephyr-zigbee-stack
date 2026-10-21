@@ -25,10 +25,6 @@
 #define MODE_UP   0x00
 #define MODE_DOWN 0x01
 
-/* Bits of Options (ZCL Table 3-57) */
-#define EXECUTE_IF_OFF    BIT(0)
-#define COUPLE_COLOR_TEMP BIT(1)
-
 /* Commands 0x04 to 0x07 are 0x00 to 0x03 with On/Off (ZCL Table 3-59) */
 #define WITH_ON_OFF 0x04
 
@@ -292,7 +288,7 @@ static bool executes(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 		options = (options & ~p[0]) | (p[1] & p[0]);
 	}
 
-	return on_off == NULL || on_off->on_off || (options & EXECUTE_IF_OFF);
+	return on_off == NULL || on_off->on_off || (options & ZZB_ZCL_LEVEL_OPTIONS_EXECUTE_IF_OFF);
 }
 
 static int cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd, void *values)
@@ -457,7 +453,8 @@ static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t at
 {
 	const struct zzb_zcl_level *v = values;
 
-	if (attr == ZZB_ZCL_LEVEL_CURRENT_LEVEL && (v->options & COUPLE_COLOR_TEMP)) {
+	if (attr == ZZB_ZCL_LEVEL_CURRENT_LEVEL &&
+	    (v->options & ZZB_ZCL_LEVEL_OPTIONS_COUPLE_COLOR_TEMP)) {
 		zzb_zcl_color_level(node, ep, v->current_level);
 	}
 }
