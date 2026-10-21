@@ -186,6 +186,24 @@ Two relays and a wall switch. Short presses toggle relay 1, relay 2 and the ligh
 
 A battery-powered motion sensor, a sleepy end device. A short press sets Occupancy, which returns to 0 30 s after the last press; led0 shows it. Illuminance, temperature and humidity take the next value of a fixed sequence at the start and every 60 s: 1 lx to 10 klx in factors of 10, 20.00 to 24.00 degC and 40 to 60 %. Finding & binding: initiator on endpoint 1.
 
+### lock_contact
+
+| Endpoint | Device type | ID | Clusters |
+|---|---|---|---|
+| 1 | Door Lock | 0x000a | Basic, Identify, Alarms, Door Lock; client Time |
+| 2 | IAS Zone | 0x0402 | Identify, IAS Zone (contact switch) |
+
+A door lock with a contact on its door. A short press opens or closes the door: Alarm1 of the zone and DoorState of the lock follow it. Lock Door and the relock after AutoRelockTime fail while the door is open, and with AutoRelockTime above 0 the closing door locks the bolt. led0 shows the bolt. Finding & binding: target on endpoint 1.
+
+### power_strip
+
+| Endpoint | Device type | ID | Clusters |
+|---|---|---|---|
+| 1 | Smart Plug | 0x0051 | Basic, Identify, Groups, Scenes, On/Off, Metering, Electrical Measurement; clients Identify, Time |
+| 2 | Smart Plug | 0x0051 | Identify, Groups, Scenes, On/Off, Metering, Electrical Measurement; client Identify |
+
+Two metered outlets with loads of 60 W and 1500 W at 230 V. Short presses toggle outlet 1 and outlet 2 in turn; led0 shows outlet 1 and led1 outlet 2. While an outlet is on, it reports its current and power, and every 10 s its CurrentSummationDelivered grows by its energy. Finding & binding: target on endpoint 1.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
