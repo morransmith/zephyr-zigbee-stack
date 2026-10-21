@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb sensor sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_SENSOR
+	prompt "Device type"
+
+config SAMPLE_SIMPLE_SENSOR
+	bool "Simple Sensor (0x000c)"
+	select SAMPLE_SLEEPY
+
+config SAMPLE_LIGHT_SENSOR
+	bool "Light Sensor (0x0106)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_MEASURED
+
+config SAMPLE_OCCUPANCY_SENSOR
+	bool "Occupancy Sensor (0x0107)"
+	select SAMPLE_SLEEPY
+
+config SAMPLE_LIGHT_LEVEL_SENSOR
+	bool "Light Level Sensor (0x010e)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_MEASURED
+
+config SAMPLE_TEMPERATURE_SENSOR
+	bool "Temperature Sensor (0x0302)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_MEASURED
+
+config SAMPLE_PRESSURE_SENSOR
+	bool "Pressure Sensor (0x0305)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_MEASURED
+
+config SAMPLE_FLOW_SENSOR
+	bool "Flow Sensor (0x0306)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_MEASURED
+
+endchoice
+
+config SAMPLE_MEASURED
+	bool
+	help
+	  The device type sets a synthetic measured value every 60 s and at a
+	  short press.
+
+config SAMPLE_DEVICE_ID
+	hex
+	default 0x000c if SAMPLE_SIMPLE_SENSOR
+	default 0x0106 if SAMPLE_LIGHT_SENSOR
+	default 0x0107 if SAMPLE_OCCUPANCY_SENSOR
+	default 0x010e if SAMPLE_LIGHT_LEVEL_SENSOR
+	default 0x0302 if SAMPLE_TEMPERATURE_SENSOR
+	default 0x0305 if SAMPLE_PRESSURE_SENSOR
+	default 0x0306 if SAMPLE_FLOW_SENSOR
+
+# The highest Rev of the revision history of the device type in the DTL
+config SAMPLE_DEVICE_VERSION
+	int
+	default 1
+
+config SAMPLE_MODEL_ID
+	string
+	default "simple_sensor" if SAMPLE_SIMPLE_SENSOR
+	default "light_sensor" if SAMPLE_LIGHT_SENSOR
+	default "occupancy_sensor" if SAMPLE_OCCUPANCY_SENSOR
+	default "light_level_sensor" if SAMPLE_LIGHT_LEVEL_SENSOR
+	default "temperature_sensor" if SAMPLE_TEMPERATURE_SENSOR
+	default "pressure_sensor" if SAMPLE_PRESSURE_SENSOR
+	default "flow_sensor" if SAMPLE_FLOW_SENSOR
+
+source "Kconfig.zephyr"

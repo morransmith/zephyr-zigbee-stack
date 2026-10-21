@@ -1,0 +1,134 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb controller sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_CONTROLLER
+	prompt "Device type"
+
+config SAMPLE_SCENE_SELECTOR
+	bool "Scene Selector (0x0004)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_GROUPS
+	select SAMPLE_SCENES
+
+config SAMPLE_CONFIGURATION_TOOL
+	bool "Configuration Tool (0x0005)"
+	select SAMPLE_GROUPS
+
+config SAMPLE_REMOTE_CONTROL
+	bool "Remote Control (0x0006)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_GROUPS
+	select SAMPLE_ON_OFF
+	select SAMPLE_LEVEL
+	select SAMPLE_COLOR
+
+config SAMPLE_COMBINED_INTERFACE
+	bool "Combined Interface (0x0007)"
+	select SAMPLE_GROUPS
+	select SAMPLE_SCENES
+	select SAMPLE_ON_OFF
+	select SAMPLE_LEVEL
+	select SAMPLE_COLOR
+
+config SAMPLE_COLOR_CONTROLLER
+	bool "Color Controller (0x0800)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_GROUPS
+	select SAMPLE_ON_OFF
+	select SAMPLE_LEVEL
+	select SAMPLE_COLOR
+
+config SAMPLE_COLOR_SCENE_CONTROLLER
+	bool "Color Scene Controller (0x0810)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_GROUPS
+	select SAMPLE_SCENES
+	select SAMPLE_ON_OFF
+	select SAMPLE_LEVEL
+	select SAMPLE_COLOR
+
+config SAMPLE_NON_COLOR_CONTROLLER
+	bool "Non-Color Controller (0x0820)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_GROUPS
+	select SAMPLE_ON_OFF
+	select SAMPLE_LEVEL
+
+config SAMPLE_NON_COLOR_SCENE_CONTROLLER
+	bool "Non-Color Scene Controller (0x0830)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_GROUPS
+	select SAMPLE_SCENES
+	select SAMPLE_ON_OFF
+	select SAMPLE_LEVEL
+
+config SAMPLE_CONTROL_BRIDGE
+	bool "Control Bridge (0x0840)"
+	select SAMPLE_GROUPS
+	select SAMPLE_SCENES
+	select SAMPLE_ON_OFF
+	select SAMPLE_LEVEL
+	select SAMPLE_COLOR
+	select SAMPLE_SENSING
+
+config SAMPLE_ON_OFF_SENSOR
+	bool "On/Off Sensor (0x0850)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_ON_OFF
+
+endchoice
+
+config SAMPLE_GROUPS
+	bool
+
+config SAMPLE_SCENES
+	bool
+
+config SAMPLE_ON_OFF
+	bool
+
+config SAMPLE_LEVEL
+	bool
+
+config SAMPLE_COLOR
+	bool
+
+# Clients of Illuminance Measurement, Illuminance Level Sensing and Occupancy Sensing
+config SAMPLE_SENSING
+	bool
+
+config SAMPLE_DEVICE_ID
+	hex
+	default 0x0004 if SAMPLE_SCENE_SELECTOR
+	default 0x0005 if SAMPLE_CONFIGURATION_TOOL
+	default 0x0006 if SAMPLE_REMOTE_CONTROL
+	default 0x0007 if SAMPLE_COMBINED_INTERFACE
+	default 0x0800 if SAMPLE_COLOR_CONTROLLER
+	default 0x0810 if SAMPLE_COLOR_SCENE_CONTROLLER
+	default 0x0820 if SAMPLE_NON_COLOR_CONTROLLER
+	default 0x0830 if SAMPLE_NON_COLOR_SCENE_CONTROLLER
+	default 0x0840 if SAMPLE_CONTROL_BRIDGE
+	default 0x0850 if SAMPLE_ON_OFF_SENSOR
+
+# The highest Rev of the revision history of the device type in the DTL
+config SAMPLE_DEVICE_VERSION
+	int
+	default 1
+
+config SAMPLE_MODEL_ID
+	string
+	default "scene_selector" if SAMPLE_SCENE_SELECTOR
+	default "configuration_tool" if SAMPLE_CONFIGURATION_TOOL
+	default "remote_control" if SAMPLE_REMOTE_CONTROL
+	default "combined_interface" if SAMPLE_COMBINED_INTERFACE
+	default "color_controller" if SAMPLE_COLOR_CONTROLLER
+	default "color_scene_controller" if SAMPLE_COLOR_SCENE_CONTROLLER
+	default "non_color_controller" if SAMPLE_NON_COLOR_CONTROLLER
+	default "non_color_scene_controller" if SAMPLE_NON_COLOR_SCENE_CONTROLLER
+	default "control_bridge" if SAMPLE_CONTROL_BRIDGE
+	default "on_off_sensor" if SAMPLE_ON_OFF_SENSOR
+
+source "Kconfig.zephyr"
