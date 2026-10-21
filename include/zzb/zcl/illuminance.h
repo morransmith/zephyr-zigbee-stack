@@ -76,6 +76,7 @@ struct zzb_zcl_illuminance {
 	uint16_t min_measured_value;
 	/** As measured_value, or ZZB_ZCL_ILLUMINANCE_MAX_MEASURED_VALUE_UNDEFINED. */
 	uint16_t max_measured_value;
+	/** Possible error of measured_value, in its unit. */
 	uint16_t tolerance;
 	/** enum zzb_zcl_illuminance_light_sensor_type. */
 	uint8_t light_sensor_type;

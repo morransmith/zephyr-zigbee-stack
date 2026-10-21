@@ -68,15 +68,21 @@ extern "C" {
  * other fields are writable and saved.
  */
 struct zzb_zcl_ballast {
-	/** ZZB_ZCL_BALLAST_LEVEL_MIN to ZZB_ZCL_BALLAST_LEVEL_MAX, the defaults of ZCL. */
+	/** ZZB_ZCL_BALLAST_LEVEL_MIN to ZZB_ZCL_BALLAST_LEVEL_MAX, the defaults of ZCL. @{ */
 	uint8_t physical_min_level;
 	uint8_t physical_max_level;
+	/** @} */
 	/** ZZB_ZCL_BALLAST_STATUS_* bits. */
 	uint8_t ballast_status;
+	/** Lamps connected to the ballast. */
 	uint8_t lamp_quantity;
-	/** physical_min_level <= min_level <= max_level <= physical_max_level; default physical. */
+	/**
+	 * physical_min_level <= min_level <= max_level <= physical_max_level; default physical.
+	 * @{
+	 */
 	uint8_t min_level;
 	uint8_t max_level;
+	/** @} */
 	/** Percent, or ZZB_ZCL_BALLAST_INTRINSIC_FACTOR_UNKNOWN. */
 	uint8_t intrinsic_ballast_factor;
 	/** Percent, 0x64 and above, or ZZB_ZCL_BALLAST_FACTOR_ADJUSTMENT_OFF. */

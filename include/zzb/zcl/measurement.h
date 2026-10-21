@@ -57,11 +57,12 @@ extern "C" {
 
 /** Values of a Temperature Measurement server (ZCL 4.4.2.2). */
 struct zzb_zcl_temperature {
-	/** 100 x degrees Celsius. */
+	/** 100 x degrees Celsius. @{ */
 	int16_t measured_value;
 	int16_t min_measured_value;
 	int16_t max_measured_value;
 	uint16_t tolerance;
+	/** @} */
 };
 
 /** MeasuredValue of an unknown pressure and the limits that are not defined (ZCL 4.5.2.2.1). @{ */
@@ -78,16 +79,19 @@ struct zzb_zcl_temperature {
 
 /** Values of a Pressure Measurement server (ZCL 4.5.2.2). */
 struct zzb_zcl_pressure {
-	/** 10 x kPa. */
+	/** 10 x kPa. @{ */
 	int16_t measured_value;
 	int16_t min_measured_value;
 	int16_t max_measured_value;
 	uint16_t tolerance;
-	/** 10^scale x Pa. */
+	/** @} */
+	/** 10^scale x Pa. @{ */
 	int16_t scaled_value;
 	int16_t min_scaled_value;
 	int16_t max_scaled_value;
 	uint16_t scaled_tolerance;
+	/** @} */
+	/** Exponent of the scaled values, -127 to 127. */
 	int8_t scale;
 };
 
@@ -99,11 +103,12 @@ struct zzb_zcl_pressure {
 
 /** Values of a Flow Measurement server (ZCL 4.6.2.2). */
 struct zzb_zcl_flow {
-	/** 10 x m3/h. */
+	/** 10 x m3/h. @{ */
 	uint16_t measured_value;
 	uint16_t min_measured_value;
 	uint16_t max_measured_value;
 	uint16_t tolerance;
+	/** @} */
 };
 
 /** MeasuredValue of an unknown humidity and the limits that are not defined (ZCL 4.7.2.1). @{ */
@@ -114,11 +119,12 @@ struct zzb_zcl_flow {
 
 /** Values of a Relative Humidity Measurement server (ZCL 4.7.2.1). */
 struct zzb_zcl_humidity {
-	/** 100 x percent. */
+	/** 100 x percent. @{ */
 	uint16_t measured_value;
 	uint16_t min_measured_value;
 	uint16_t max_measured_value;
 	uint16_t tolerance;
+	/** @} */
 };
 
 /** Internal: referenced by the instance macros of the clusters. @{ */

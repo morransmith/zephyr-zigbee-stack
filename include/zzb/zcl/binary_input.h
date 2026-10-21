@@ -72,11 +72,13 @@ struct zzb_zcl_binary_input {
 	const char *active_text;
 	/** ZHA 2.3.1 names its binary sensor by it. */
 	const char *description;
+	/** Up to 16 printable ASCII characters, or NULL. */
 	const char *inactive_text;
 	/** The application stops setting present_value while it is TRUE. */
 	bool out_of_service;
 	/** enum zzb_zcl_binary_input_polarity; the application applies it to its input. */
 	uint8_t polarity;
+	/** The state of the input with polarity applied. */
 	bool present_value;
 	/** enum zzb_zcl_binary_input_reliability. */
 	uint8_t reliability;

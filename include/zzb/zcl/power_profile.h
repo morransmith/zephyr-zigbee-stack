@@ -104,6 +104,7 @@ enum zzb_zcl_power_profile_state {
 struct zzb_zcl_power_profile {
 	/** The number of power profiles, 1 to 0xfe. */
 	uint8_t total_profile_num;
+	/** Several energy phases may be scheduled at a time. */
 	bool multiple_scheduling;
 	/** The format of the Energy fields, ZZB_ZCL_POWER_PROFILE_FORMATTING(). */
 	uint8_t energy_formatting;
@@ -152,7 +153,9 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_power_profile_client_def;
 
 /** An energy phase of PowerProfileNotification and PowerProfileResponse (ZCL 3.17.6.1.1.1). */
 struct zzb_zcl_power_profile_phase {
+	/** Energy Phase ID, from 1 in the order of the phases. */
 	uint8_t energy_phase_id;
+	/** Macro Phase ID, which identifies the displayed name of the phase. */
 	uint8_t macro_phase_id;
 	/** Minutes. */
 	uint16_t expected_duration;
@@ -166,11 +169,13 @@ struct zzb_zcl_power_profile_phase {
 
 /** A Power Profile record of PowerProfileStateResponse (ZCL 3.17.6.3.1.1). */
 struct zzb_zcl_power_profile_record {
+	/** Power Profile ID. */
 	uint8_t power_profile_id;
 	/** ZZB_ZCL_POWER_PROFILE_ENERGY_PHASE_INVALID in the IDLE state. */
 	uint8_t energy_phase_id;
 	/** A client may schedule the power profile. */
 	bool remote_control;
+	/** Power Profile State. */
 	enum zzb_zcl_power_profile_state state;
 };
 

@@ -272,6 +272,7 @@ struct zzb_zcl_door_lock_user {
 	uint8_t type;
 	/** Octets of code. */
 	uint8_t len;
+	/** PIN code of len octets. */
 	uint8_t code[ZZB_ZCL_DOOR_LOCK_PIN_MAX];
 };
 
@@ -317,22 +318,27 @@ struct zzb_zcl_door_lock {
 	uint8_t lock_state;
 	/** enum zzb_zcl_door_lock_type. */
 	uint8_t lock_type;
+	/** The lock and unlock commands are refused while it is false. */
 	bool actuator_enabled;
 	/** enum zzb_zcl_door_lock_door_state. */
 	uint8_t door_state;
-	/** Octets, at most ZZB_ZCL_DOOR_LOCK_PIN_MAX; the defaults of ZCL are 8 and 4. */
+	/** Octets, at most ZZB_ZCL_DOOR_LOCK_PIN_MAX; the defaults of ZCL are 8 and 4. @{ */
 	uint8_t max_pin_code_length;
 	uint8_t min_pin_code_length;
+	/** @} */
 	/** ZZB_ZCL_DOOR_LOCK_SUPPORTED_MODE_* bits: a supported mode has its bit cleared. */
 	uint16_t supported_operating_modes;
 	/** Seconds, 0 disabled. */
 	uint32_t auto_relock_time;
 	/** enum zzb_zcl_door_lock_mode. */
 	uint8_t operating_mode;
+	/** Wrong codes of the RF commands that start a lockout, 0 for no limit. */
 	uint8_t wrong_code_entry_limit;
 	/** Seconds. */
 	uint8_t user_code_temporary_disable_time;
+	/** The event notifications carry 0xff octets for the codes while it is false. */
 	bool send_pin_over_the_air;
+	/** The RF commands need the code of a user. */
 	bool require_pin_for_rf_operation;
 	/** ZZB_ZCL_DOOR_LOCK_ALARM_MASK_* bits; default 0. */
 	uint16_t alarm_mask;

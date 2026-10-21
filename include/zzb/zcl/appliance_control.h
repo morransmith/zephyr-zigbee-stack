@@ -125,7 +125,9 @@ enum zzb_zcl_appliance_device_status2 {
  * times consist of the ZZB_ZCL_APPLIANCE_CONTROL_TIME_* fields.
  */
 struct zzb_zcl_appliance_control {
+	/** Start of the cycle of the appliance. */
 	uint16_t start_time;
+	/** Expected end of the cycle of the appliance. */
 	uint16_t finish_time;
 	/** Relative; 0 outside the RUNNING state. */
 	uint16_t remaining_time;
@@ -164,6 +166,7 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_control_client_def;
 
 /** Fields of Execution of a Command (ZCL 15.2.4.1.1). */
 struct zzb_zcl_appliance_control_execution_of_command {
+	/** Command for the appliance. */
 	enum zzb_zcl_appliance_command command;
 };
 
@@ -172,8 +175,11 @@ struct zzb_zcl_appliance_control_execution_of_command {
  * (ZCL 15.2.5.1.1).
  */
 struct zzb_zcl_appliance_control_signal_state_rsp {
+	/** Appliance Status. */
 	enum zzb_zcl_appliance_status appliance_status;
+	/** Remote Enable Flags. */
 	enum zzb_zcl_appliance_remote remote;
+	/** Device Status 2, the format of appliance_status2. */
 	enum zzb_zcl_appliance_device_status2 device_status2;
 	/** 24 bits in the format of device_status2; 0 when the payload lacks the field. */
 	uint32_t appliance_status2;

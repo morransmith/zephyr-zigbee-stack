@@ -75,17 +75,23 @@ struct zzb_zcl_occupancy {
 	 * Table 4-24.
 	 */
 	uint8_t occupancy_sensor_type_bitmap;
-	/** Seconds. */
+	/** Seconds. @{ */
 	uint16_t pir_occupied_to_unoccupied_delay;
 	uint16_t pir_unoccupied_to_occupied_delay;
+	/** @} */
 	/** Detections within the delay, 0x01 to 0xfe. */
 	uint8_t pir_unoccupied_to_occupied_threshold;
+	/** Seconds. @{ */
 	uint16_t ultrasonic_occupied_to_unoccupied_delay;
 	uint16_t ultrasonic_unoccupied_to_occupied_delay;
+	/** @} */
+	/** Detections within the delay, 0x01 to 0xfe. */
 	uint8_t ultrasonic_unoccupied_to_occupied_threshold;
-	/** Seconds, or ZZB_ZCL_OCCUPANCY_PHYSICAL_CONTACT_*_DELAY_NOT_REPORTED. */
+	/** Seconds, or ZZB_ZCL_OCCUPANCY_PHYSICAL_CONTACT_*_DELAY_NOT_REPORTED. @{ */
 	uint16_t physical_contact_occupied_to_unoccupied_delay;
 	uint16_t physical_contact_unoccupied_to_occupied_delay;
+	/** @} */
+	/** Detections within the delay, 0x01 to 0xfe. */
 	uint8_t physical_contact_unoccupied_to_occupied_threshold;
 };
 

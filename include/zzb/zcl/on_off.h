@@ -46,11 +46,14 @@ enum zzb_zcl_start_up_on_off {
 
 /** Values of an On/Off server (ZCL 3.8.2.2). OnOff and StartUpOnOff are saved. */
 struct zzb_zcl_on_off {
+	/** True for on. */
 	bool on_off;
+	/** False after Off With Effect until a command turns the output on. */
 	bool global_scene_control;
-	/** Tenths of a second. */
+	/** Tenths of a second. @{ */
 	uint16_t on_time;
 	uint16_t off_wait_time;
+	/** @} */
 	/** enum zzb_zcl_start_up_on_off. */
 	uint8_t start_up_on_off;
 	/**

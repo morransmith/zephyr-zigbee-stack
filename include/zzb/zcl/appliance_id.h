@@ -75,16 +75,20 @@ struct zzb_zcl_appliance_id {
 	uint64_t basic_identification;
 	/** Up to 16 characters. */
 	const char *company_name;
+	/** ID of the company. */
 	uint16_t company_id;
 	/** Up to 16 characters. */
 	const char *brand_name;
+	/** ID of the brand. */
 	uint16_t brand_id;
-	/** Octet strings, pointers to their length octet: up to 16 octets. */
+	/** Octet strings, pointers to their length octet: up to 16 octets. @{ */
 	const uint8_t *model;
 	const uint8_t *part_number;
-	/** Up to 6 octets. */
+	/** @} */
+	/** Up to 6 octets. @{ */
 	const uint8_t *product_revision;
 	const uint8_t *software_revision;
+	/** @} */
 	/** 2 octets, such as "WM" for a washing machine. */
 	const uint8_t *product_type_name;
 	/** enum zzb_zcl_appliance_id_product_type. */

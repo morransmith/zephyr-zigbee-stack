@@ -60,12 +60,15 @@ struct zzb_zcl_time {
 	uint8_t time_status;
 	/** Seconds added to time for standard_time, -86400 to 86400; default 0. */
 	int32_t time_zone;
-	/** UTC times of the start and the end of DST; default ZZB_ZCL_TIME_UNKNOWN. */
+	/** UTC times of the start and the end of DST; default ZZB_ZCL_TIME_UNKNOWN. @{ */
 	uint32_t dst_start;
 	uint32_t dst_end;
+	/** @} */
 	/** Seconds added to standard_time from dst_start to dst_end, -86400 to 86400; default 0. */
 	int32_t dst_shift;
+	/** time plus time_zone. */
 	uint32_t standard_time;
+	/** standard_time, plus dst_shift from dst_start to dst_end. */
 	uint32_t local_time;
 	/** The value that time was set to last; ZZB_ZCL_TIME_UNKNOWN after the start. */
 	uint32_t last_set_time;

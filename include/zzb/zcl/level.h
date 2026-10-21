@@ -70,12 +70,14 @@ struct zzb_zcl_level {
 	uint16_t remaining_time;
 	/** ZZB_ZCL_LEVEL_OPTIONS_* bits. */
 	uint8_t options;
+	/** Tenths of a second. */
 	uint16_t on_off_transition_time;
 	/** A level or ZZB_ZCL_LEVEL_ON_LEVEL_NONE. */
 	uint8_t on_level;
-	/** Tenths of a second or ZZB_ZCL_LEVEL_TRANSITION_TIME_NONE. */
+	/** Tenths of a second or ZZB_ZCL_LEVEL_TRANSITION_TIME_NONE. @{ */
 	uint16_t on_transition_time;
 	uint16_t off_transition_time;
+	/** @} */
 	/** A level, ZZB_ZCL_LEVEL_START_UP_MINIMUM or ZZB_ZCL_LEVEL_START_UP_PREVIOUS. */
 	uint8_t start_up_current_level;
 	/**

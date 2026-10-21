@@ -118,33 +118,38 @@ struct zzb_zcl_power_config {
 	uint8_t battery_voltage;
 	/** Units of 0.5 %, or ZZB_ZCL_POWER_CONFIG_BATTERY_PERCENTAGE_REMAINING_UNKNOWN. */
 	uint8_t battery_percentage_remaining;
+	/** Up to 16 characters. */
 	const char *battery_manufacturer;
 	/** enum zzb_zcl_power_config_battery_size. */
 	uint8_t battery_size;
 	/** Units of 10 mAh. */
 	uint16_t battery_ahr_rating;
+	/** Battery cells that power the device. */
 	uint8_t battery_quantity;
 	/** Units of 100 mV. */
 	uint8_t battery_rated_voltage;
 	/** ZZB_ZCL_POWER_CONFIG_MAINS_ALARM_MASK_* bits. */
 	uint8_t mains_alarm_mask;
-	/** Units of 100 mV, or ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE_THRESHOLD_NONE. */
+	/** Units of 100 mV, or ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE_THRESHOLD_NONE. @{ */
 	uint16_t mains_voltage_min_threshold;
 	uint16_t mains_voltage_max_threshold;
+	/** @} */
 	/** Seconds. */
 	uint16_t mains_voltage_dwell_trip_point;
 	/** ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_MASK_* bits. */
 	uint8_t battery_alarm_mask;
-	/** Units of 100 mV, or ZZB_ZCL_POWER_CONFIG_BATTERY_THRESHOLD_NONE. */
+	/** Units of 100 mV, or ZZB_ZCL_POWER_CONFIG_BATTERY_THRESHOLD_NONE. @{ */
 	uint8_t battery_voltage_min_threshold;
 	uint8_t battery_voltage_threshold1;
 	uint8_t battery_voltage_threshold2;
 	uint8_t battery_voltage_threshold3;
-	/** Percent, or ZZB_ZCL_POWER_CONFIG_BATTERY_THRESHOLD_NONE. */
+	/** @} */
+	/** Percent, or ZZB_ZCL_POWER_CONFIG_BATTERY_THRESHOLD_NONE. @{ */
 	uint8_t battery_percentage_min_threshold;
 	uint8_t battery_percentage_threshold1;
 	uint8_t battery_percentage_threshold2;
 	uint8_t battery_percentage_threshold3;
+	/** @} */
 	/**
 	 * ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE_* bits. Bits 0 to 3 follow the battery alarms;
 	 * the application may set the other bits with zzb_zcl_attr_set() and keeps bits 0 to 3 as

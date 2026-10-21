@@ -222,10 +222,13 @@ static inline int zzb_zcl_ias_ace_panel_status_changed(
 
 /** Fields of Arm (ZCL 8.3.2.3.1). */
 struct zzb_zcl_ias_ace_arm {
+	/** Arm Mode. */
 	enum zzb_zcl_ias_ace_arm_mode arm_mode;
 	/** The Arm/Disarm Code of code_len octets in the payload of the command. */
 	const uint8_t *code;
+	/** Length of code. */
 	uint8_t code_len;
+	/** Zone ID. */
 	uint8_t zone_id;
 };
 
@@ -241,6 +244,7 @@ static inline void zzb_zcl_ias_ace_arm_parse(const struct zzb_zcl_cmd *cmd,
 
 /** Fields of Arm Response (ZCL 8.3.2.4.1). */
 struct zzb_zcl_ias_ace_arm_rsp {
+	/** Arm Notification. */
 	enum zzb_zcl_ias_ace_arm_notification arm_notification;
 };
 
@@ -256,10 +260,13 @@ static inline void zzb_zcl_ias_ace_arm_rsp_parse(const struct zzb_zcl_cmd *cmd,
  * 8.3.2.4.6).
  */
 struct zzb_zcl_ias_ace_panel_status_changed {
+	/** Panel Status. */
 	enum zzb_zcl_ias_ace_panel_status panel_status;
 	/** Seconds. */
 	uint8_t seconds_remaining;
+	/** Audible Notification. */
 	enum zzb_zcl_ias_ace_audible_notification audible_notification;
+	/** Alarm Status. */
 	enum zzb_zcl_ias_ace_alarm_status alarm_status;
 };
 

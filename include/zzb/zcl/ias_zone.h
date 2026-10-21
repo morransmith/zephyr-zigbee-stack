@@ -178,6 +178,7 @@ static inline int zzb_zcl_ias_zone_enroll_rsp(struct zzb_node *node, const struc
 struct zzb_zcl_ias_zone_status_change_notification {
 	/** ZZB_ZCL_IAS_ZONE_STATUS_* bits. */
 	uint16_t zone_status;
+	/** Zone ID that the CIE has assigned. */
 	uint8_t zone_id;
 	/** Quarter seconds from the change of ZoneStatus to the notification. */
 	uint16_t delay;
@@ -197,7 +198,9 @@ static inline void zzb_zcl_ias_zone_status_change_notification_parse(
 
 /** Fields of Zone Enroll Request (ZCL 8.2.2.3.2). */
 struct zzb_zcl_ias_zone_enroll_req {
+	/** Zone Type. */
 	enum zzb_zcl_ias_zone_type zone_type;
+	/** Manufacturer code of the zone. */
 	uint16_t manufacturer_code;
 };
 

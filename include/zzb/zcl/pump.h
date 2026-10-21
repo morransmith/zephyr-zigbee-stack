@@ -121,19 +121,30 @@ enum zzb_zcl_pump_control_mode {
  * degrees Celsius; a value that is not available is the ZZB_ZCL_PUMP_*_UNKNOWN of its attribute.
  */
 struct zzb_zcl_pump {
+	/** 10 x kPa. */
 	int16_t max_pressure;
+	/** RPM. */
 	uint16_t max_speed;
+	/** 10 x m3/h. */
 	uint16_t max_flow;
+	/** 10 x kPa. @{ */
 	int16_t min_const_pressure;
 	int16_t max_const_pressure;
 	int16_t min_comp_pressure;
 	int16_t max_comp_pressure;
+	/** @} */
+	/** RPM. @{ */
 	uint16_t min_const_speed;
 	uint16_t max_const_speed;
+	/** @} */
+	/** 10 x m3/h. @{ */
 	uint16_t min_const_flow;
 	uint16_t max_const_flow;
+	/** @} */
+	/** 100 x degrees Celsius. @{ */
 	int16_t min_const_temp;
 	int16_t max_const_temp;
+	/** @} */
 	/** ZZB_ZCL_PUMP_STATUS_* bits. */
 	uint16_t pump_status;
 	/** enum zzb_zcl_pump_operation_mode. */
@@ -142,6 +153,7 @@ struct zzb_zcl_pump {
 	uint8_t effective_control_mode;
 	/** 0.005 percent of the effective maximum setpoint. */
 	int16_t capacity;
+	/** RPM. */
 	uint16_t speed;
 	/** Hours, counted by the application with zzb_zcl_attr_set(). */
 	uint32_t lifetime_running_hours;

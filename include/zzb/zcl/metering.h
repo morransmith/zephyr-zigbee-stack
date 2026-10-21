@@ -150,12 +150,14 @@ struct zzb_zcl_metering {
 	uint8_t status;
 	/** enum zzb_zcl_metering_unit_of_measure. */
 	uint8_t unit_of_measure;
-	/** 24 bits each. */
+	/** 24 bits each. @{ */
 	uint32_t multiplier;
 	uint32_t divisor;
-	/** ZZB_ZCL_METERING_FORMATTING(). */
+	/** @} */
+	/** ZZB_ZCL_METERING_FORMATTING(). @{ */
 	uint8_t summation_formatting;
 	uint8_t demand_formatting;
+	/** @} */
 	/** enum zzb_zcl_metering_device_type. */
 	uint8_t metering_device_type;
 	/** 24 bits with sign; negative is demand received from the premises. */

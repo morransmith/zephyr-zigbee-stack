@@ -54,9 +54,11 @@ extern "C" {
 struct zzb_zcl_scenes {
 	/** Scenes of the endpoint in the scene table. */
 	uint8_t scene_count;
+	/** Scene ID of the scene last invoked. */
 	uint8_t current_scene;
 	/** ZZB_ZCL_SCENES_GROUP_NONE for a scene without a group. */
 	uint16_t current_group;
+	/** The state of the endpoint is that of current_scene and current_group. */
 	bool scene_valid;
 };
 

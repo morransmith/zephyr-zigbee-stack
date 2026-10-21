@@ -108,9 +108,10 @@ enum zzb_zcl_color_mode {
 
 /** A primary of the light (ZCL 5.2.2.2.2). */
 struct zzb_zcl_color_primary {
-	/** x and y as in CurrentX and CurrentY. */
+	/** x and y as in CurrentX and CurrentY. @{ */
 	uint16_t x;
 	uint16_t y;
+	/** @} */
 	/**
 	 * ZZB_ZCL_COLOR_PRIMARY_INTENSITY_HIGHEST for the primary of the highest intensity,
 	 * ZZB_ZCL_COLOR_PRIMARY_INTENSITY_UNAVAILABLE when it is not available.
@@ -128,19 +129,22 @@ struct zzb_zcl_color_primary {
 struct zzb_zcl_color {
 	/** ZZB_ZCL_COLOR_CAP_XY, ZZB_ZCL_COLOR_CAP_TEMPERATURE or both. */
 	uint16_t color_capabilities;
-	/** The range of ColorTemperatureMireds of the light; ZCL defaults 0 and 0xfeff. */
+	/** The range of ColorTemperatureMireds of the light; ZCL defaults 0 and 0xfeff. @{ */
 	uint16_t color_temp_physical_min;
 	uint16_t color_temp_physical_max;
+	/** @} */
 	/** ColorTemperatureMireds that the highest level gives (ZCL 5.2.2.1.1). */
 	uint16_t couple_color_temp_min;
 	/** 0 to 6, or ZZB_ZCL_COLOR_NUMBER_OF_PRIMARIES_UNKNOWN. */
 	uint8_t number_of_primaries;
+	/** Primary1 to Primary6. */
 	struct zzb_zcl_color_primary primaries[6];
 	/** Tenths of a second. */
 	uint16_t remaining_time;
-	/** x and y of CIE 1931 times 65536, 0 to 0xfeff (ZCL 5.2.2.2.1.4). */
+	/** x and y of CIE 1931 times 65536, 0 to 0xfeff (ZCL 5.2.2.2.1.4). @{ */
 	uint16_t current_x;
 	uint16_t current_y;
+	/** @} */
 	/** Mireds, 1000000 / kelvins. */
 	uint16_t color_temperature;
 	/** The attributes that set the color: ZZB_ZCL_COLOR_MODE_XY or _TEMPERATURE. */

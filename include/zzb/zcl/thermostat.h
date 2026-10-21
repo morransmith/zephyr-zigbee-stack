@@ -166,15 +166,17 @@ enum zzb_zcl_thermostat_setpoint_change_source {
 struct zzb_zcl_schedule_transition {
 	/** Minutes since midnight, 0 to 1439. */
 	uint16_t time;
-	/** Within their absolute limits, INT16_MIN when the mode of the day lacks it. */
+	/** Within their absolute limits, INT16_MIN when the mode of the day lacks it. @{ */
 	int16_t heating;
 	int16_t cooling;
+	/** @} */
 };
 
 /** A day of the weekly schedule. */
 struct zzb_zcl_schedule_day {
 	/** ZZB_ZCL_SCHEDULE_HEAT and ZZB_ZCL_SCHEDULE_COOL, 0 for a day without transitions. */
 	uint8_t mode;
+	/** Number of transitions. */
 	uint8_t count;
 	/** count transitions in the order of the command, each at a different time. */
 	struct zzb_zcl_schedule_transition transitions[CONFIG_ZZB_ZCL_SCHEDULE_TRANSITIONS];
@@ -199,14 +201,16 @@ struct zzb_zcl_thermostat {
 	 * without a sensor sets.
 	 */
 	uint8_t occupancy;
-	/** Limits of the manufacturer; the defaults of ZCL are 700, 3000, 1600 and 3200. */
+	/** Limits of the manufacturer; the defaults of ZCL are 700, 3000, 1600 and 3200. @{ */
 	int16_t abs_min_heat_setpoint_limit;
 	int16_t abs_max_heat_setpoint_limit;
 	int16_t abs_min_cool_setpoint_limit;
 	int16_t abs_max_cool_setpoint_limit;
-	/** Percent. */
+	/** @} */
+	/** Percent. @{ */
 	uint8_t pi_cooling_demand;
 	uint8_t pi_heating_demand;
+	/** @} */
 	/** 0.1 degrees Celsius, 0 to 25. */
 	int8_t min_setpoint_dead_band;
 	/** enum zzb_zcl_control_sequence. */
@@ -226,16 +230,21 @@ struct zzb_zcl_thermostat {
 	uint8_t system_mode_default;
 	/** 0.1 degrees Celsius, -25 to 25, applied by the application to its measurement. */
 	int8_t local_temperature_calibration;
-	/** Within the limits of their kind; by default 2600 and 2000 within the absolute limits. */
+	/**
+	 * Within the limits of their kind; by default 2600 and 2000 within the absolute limits.
+	 * @{
+	 */
 	int16_t occupied_cooling_setpoint;
 	int16_t occupied_heating_setpoint;
 	int16_t unoccupied_cooling_setpoint;
 	int16_t unoccupied_heating_setpoint;
-	/** Within the absolute limits of their kind, which are their defaults. */
+	/** @} */
+	/** Within the absolute limits of their kind, which are their defaults. @{ */
 	int16_t min_heat_setpoint_limit;
 	int16_t max_heat_setpoint_limit;
 	int16_t min_cool_setpoint_limit;
 	int16_t max_cool_setpoint_limit;
+	/** @} */
 	/** enum zzb_zcl_system_mode, within the modes of control_sequence_of_operation. */
 	uint8_t system_mode;
 	/**

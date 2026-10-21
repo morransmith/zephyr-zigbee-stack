@@ -99,24 +99,32 @@ struct zzb_zcl_window_covering {
 	uint16_t physical_closed_limit_lift;
 	/** Tenths of a degree. */
 	uint16_t physical_closed_limit_tilt;
+	/** Centimeters. */
 	uint16_t current_position_lift;
+	/** Tenths of a degree. */
 	uint16_t current_position_tilt;
+	/** Lift actuations since the installation. */
 	uint16_t number_of_actuations_lift;
+	/** Tilt actuations since the installation. */
 	uint16_t number_of_actuations_tilt;
 	/** ZZB_ZCL_WINDOW_COVERING_CONFIG_* bits. */
 	uint8_t config_status;
 	/**
 	 * CurrentPositionLiftPercentage and CurrentPositionTiltPercentage: 0 open to 100 closed, or
 	 * ZZB_ZCL_WINDOW_COVERING_*_PERCENTAGE_UNKNOWN.
+	 * @{
 	 */
 	uint8_t current_position_lift_percentage;
 	uint8_t current_position_tilt_percentage;
-	/** Centimeters; the ZCL defaults are 0x0000 and 0xffff. */
+	/** @} */
+	/** Centimeters; the ZCL defaults are 0x0000 and 0xffff. @{ */
 	uint16_t installed_open_limit_lift;
 	uint16_t installed_closed_limit_lift;
-	/** Tenths of a degree. */
+	/** @} */
+	/** Tenths of a degree. @{ */
 	uint16_t installed_open_limit_tilt;
 	uint16_t installed_closed_limit_tilt;
+	/** @} */
 	/** ZZB_ZCL_WINDOW_COVERING_MODE_* bits; default 0. */
 	uint8_t mode;
 };

@@ -77,27 +77,34 @@ extern "C" {
 struct zzb_zcl_electrical_measurement {
 	/** ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_* bits. */
 	uint32_t measurement_type;
-	/** Hz or ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN. */
+	/** Hz or ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN. @{ */
 	uint16_t ac_frequency;
 	uint16_t ac_frequency_min;
 	uint16_t ac_frequency_max;
+	/** @} */
+	/** Of the AC frequency. @{ */
 	uint16_t ac_frequency_multiplier;
 	uint16_t ac_frequency_divisor;
-	/** V or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN. */
+	/** @} */
+	/** V or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN. @{ */
 	uint16_t rms_voltage;
 	uint16_t rms_voltage_min;
 	uint16_t rms_voltage_max;
-	/** A or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN. */
+	/** @} */
+	/** A or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN. @{ */
 	uint16_t rms_current;
 	uint16_t rms_current_min;
 	uint16_t rms_current_max;
+	/** @} */
 	/**
 	 * W, positive when delivered to the premises, or
 	 * ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN.
+	 * @{
 	 */
 	int16_t active_power;
 	int16_t active_power_min;
 	int16_t active_power_max;
+	/** @} */
 	/**
 	 * VAr, positive when delivered to the premises, or
 	 * ZZB_ZCL_ELECTRICAL_MEASUREMENT_REACTIVE_POWER_UNKNOWN.
@@ -107,13 +114,18 @@ struct zzb_zcl_electrical_measurement {
 	uint16_t apparent_power;
 	/** -100 to 100 hundredths. */
 	int8_t power_factor;
+	/** Of the RMS voltage. @{ */
 	uint16_t ac_voltage_multiplier;
 	uint16_t ac_voltage_divisor;
+	/** @} */
+	/** Of the RMS current. @{ */
 	uint16_t ac_current_multiplier;
 	uint16_t ac_current_divisor;
-	/** Of the active, reactive and apparent power. */
+	/** @} */
+	/** Of the active, reactive and apparent power. @{ */
 	uint16_t ac_power_multiplier;
 	uint16_t ac_power_divisor;
+	/** @} */
 };
 
 /** Internal: referenced by the instance macros of the clusters. @{ */

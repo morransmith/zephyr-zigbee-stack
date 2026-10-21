@@ -180,13 +180,17 @@ static inline int zzb_zcl_ias_wd_squawk(struct zzb_node *node, uint8_t ep,
 
 /** Fields of Start Warning (ZCL 8.4.2.2.1). */
 struct zzb_zcl_ias_wd_start_warning {
+	/** Warning Mode. */
 	enum zzb_zcl_ias_wd_warning_mode warning_mode;
+	/** Strobe. */
 	enum zzb_zcl_ias_wd_strobe strobe;
+	/** Siren Level. */
 	enum zzb_zcl_ias_wd_siren_level siren_level;
 	/** Seconds. */
 	uint16_t warning_duration;
 	/** Percent of each second, 0 to 100 in steps of 10. */
 	uint8_t strobe_duty_cycle;
+	/** Strobe Level. */
 	enum zzb_zcl_ias_wd_strobe_level strobe_level;
 };
 
@@ -204,8 +208,11 @@ static inline void zzb_zcl_ias_wd_start_warning_parse(const struct zzb_zcl_cmd *
 
 /** Fields of Squawk (ZCL 8.4.2.2.2). */
 struct zzb_zcl_ias_wd_squawk {
+	/** Squawk Mode. */
 	enum zzb_zcl_ias_wd_squawk_mode squawk_mode;
+	/** The strobe flashes during the squawk. */
 	bool strobe;
+	/** Squawk Level. */
 	enum zzb_zcl_ias_wd_squawk_level squawk_level;
 };
 

@@ -54,23 +54,27 @@ extern "C" {
  * other than current_temperature are saved.
  */
 struct zzb_zcl_device_temp {
+	/** Degrees Celsius. */
 	int16_t current_temperature;
 	/**
 	 * Hours above HighTempThreshold, or ZZB_ZCL_DEVICE_TEMP_OVER_TEMP_TOTAL_DWELL_UNKNOWN; a
 	 * saved value replaces it at zzb_node_init().
 	 */
 	uint16_t over_temp_total_dwell;
-	/** Follow current_temperature. */
+	/** Follow current_temperature. @{ */
 	int16_t min_temp_experienced;
 	int16_t max_temp_experienced;
+	/** @} */
 	/** ZZB_ZCL_DEVICE_TEMP_ALARM_MASK_* bits. */
 	uint8_t alarm_mask;
-	/** ZZB_ZCL_DEVICE_TEMP_THRESHOLD_NONE raises no alarm. */
+	/** ZZB_ZCL_DEVICE_TEMP_THRESHOLD_NONE raises no alarm. @{ */
 	int16_t low_temp_threshold;
 	int16_t high_temp_threshold;
-	/** Seconds, or ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE. */
+	/** @} */
+	/** Seconds, or ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE. @{ */
 	uint32_t low_temp_dwell_trip_point;
 	uint32_t high_temp_dwell_trip_point;
+	/** @} */
 	/** Internal: bit n while the condition of alarm n lasts. */
 	uint8_t alarm_active;
 	/** Internal: bit n once alarm n is raised during its condition. */

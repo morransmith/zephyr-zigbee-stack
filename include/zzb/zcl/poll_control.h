@@ -49,7 +49,9 @@ extern "C" {
 
 /** Internal: a client that has asked a Poll Control server to fast poll. */
 struct zzb_zcl_poll_control_client {
+	/** NWK address of the client. */
 	uint16_t addr;
+	/** Endpoint of the client. */
 	uint8_t ep;
 	/** k_uptime_get() at the end of its fast polling, 0 for a free entry. */
 	int64_t end;
@@ -74,7 +76,9 @@ struct zzb_zcl_poll_control {
 	uint16_t short_poll_interval;
 	/** 0x0001 to 0xffff; default 0x28 (10 s). */
 	uint16_t fast_poll_timeout;
+	/** Lower limit of check_in_interval. */
 	uint32_t check_in_interval_min;
+	/** Lower limit of long_poll_interval. */
 	uint32_t long_poll_interval_min;
 	/** zigpy writes fast_poll_timeout 120, so 0 or at least 120 for ZHA. */
 	uint16_t fast_poll_timeout_max;

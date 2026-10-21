@@ -68,19 +68,22 @@ struct zzb_zcl_meter_id {
 	uint16_t data_quality_id;
 	/** Up to 16 ASCII characters. */
 	const char *customer_name;
-	/** The length octet and up to 16 octets of UTF-8 text. */
+	/** The length octet and up to 16 octets of UTF-8 text. @{ */
 	const uint8_t *model;
 	const uint8_t *part_number;
-	/** The length octet and up to 6 octets of UTF-8 text. */
+	/** @} */
+	/** The length octet and up to 6 octets of UTF-8 text. @{ */
 	const uint8_t *product_revision;
 	const uint8_t *software_revision;
+	/** @} */
 	/** Up to 16 ASCII characters. */
 	const char *utility_name;
 	/** The point of delivery, up to 16 ASCII characters. */
 	const char *pod;
-	/** 24 bits with sign, in the unit and format of InstantaneousDemand of Metering. */
+	/** 24 bits with sign, in the unit and format of InstantaneousDemand of Metering. @{ */
 	int32_t available_power;
 	int32_t power_threshold;
+	/** @} */
 };
 
 /** Internal: referenced by the instance macros of the clusters. @{ */
