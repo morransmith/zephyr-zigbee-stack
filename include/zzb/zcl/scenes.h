@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
@@ -74,6 +75,42 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_scenes_client_def;
 		.server = false,                                                                   \
 		.def = &zzb_zcl_scenes_client_def,                                                 \
 	}
+
+/**
+ * @brief Send Store Scene to the bound destinations, which store their state as scene of group
+ * (ZCL 3.7.2.4.6).
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_scenes_store_scene(struct zzb_node *node, uint8_t ep, uint16_t group,
+					     uint8_t scene)
+{
+	uint8_t payload[3];
+
+	sys_put_le16(group, payload);
+	payload[2] = scene;
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_STORE_SCENE, payload,
+				  sizeof(payload));
+}
+
+/**
+ * @brief Send Recall Scene to the bound destinations, which recall scene of group
+ * (ZCL 3.7.2.4.7).
+ *
+ * The optional transition time is left out, so the transition time of the scene applies.
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_scenes_recall_scene(struct zzb_node *node, uint8_t ep, uint16_t group,
+					      uint8_t scene)
+{
+	uint8_t payload[3];
+
+	sys_put_le16(group, payload);
+	payload[2] = scene;
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_RECALL_SCENE, payload,
+				  sizeof(payload));
+}
 
 #ifdef __cplusplus
 }
