@@ -52,10 +52,12 @@ A short press toggles OnOff, and led0 shows the relay. The level goes to the con
 
 ### ballast
 
-| Kconfig | Device type | ID | Clusters besides Basic, Power Configuration, Device Temperature Configuration, Identify, Groups, Scenes, On/Off, Level Control, Alarms, Ballast Configuration, Illuminance Level Sensing, Illuminance Measurement client, Occupancy Sensing client |
-|---|---|---|---|
-| `CONFIG_SAMPLE_ON_OFF_BALLAST` | On/Off Ballast | 0x0108 | |
-| `CONFIG_SAMPLE_DIMMABLE_BALLAST` | Dimmable Ballast | 0x0109 | |
+| Kconfig | Device type | ID |
+|---|---|---|
+| `CONFIG_SAMPLE_ON_OFF_BALLAST` | On/Off Ballast | 0x0108 |
+| `CONFIG_SAMPLE_DIMMABLE_BALLAST` | Dimmable Ballast | 0x0109 |
+
+Both types have the Basic, Power Configuration, Device Temperature Configuration, Identify, Groups, Scenes, On/Off, Level Control, Alarms, Ballast Configuration and Illuminance Level Sensing servers and the Illuminance Measurement and Occupancy Sensing clients. The On/Off Ballast has Level Control for the commands with On/Off that a group with dimmable lights receives (DTL 29.3.1).
 
 A short press toggles OnOff, and led0 shows it. The level goes to the console, and every hour LampBurnHours grows by 1 when the lamp is on. Finding & binding: target.
 
