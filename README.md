@@ -33,7 +33,7 @@ Zephyr has no Zigbee stack of its own. The existing stacks come with vendor SDKs
 ### Standalone workspace
 
 ```sh
-west init -m https://git.morran.xyz/morran/zephyr-zigbee-stack --mr develop zzb-ws
+west init -m https://github.com/morransmith/zephyr-zigbee-stack --mr develop zzb-ws
 cd zzb-ws
 west update
 west blobs fetch hal_espressif    # ESP32 targets only
@@ -46,11 +46,11 @@ West manifest of the firmware:
 ```yaml
 manifest:
   remotes:
-    - name: morran
-      url-base: https://git.morran.xyz/morran
+    - name: zzb
+      url-base: https://github.com/morransmith
   projects:
     - name: zephyr-zigbee-stack
-      remote: morran
+      remote: zzb
       revision: develop
       import: true    # Zephyr v4.4.2 and the modules zzb needs
 ```
