@@ -336,4 +336,70 @@ ZTEST(zzb_zcl_ias_wd, test_client_revision)
 	check_frame(0, WD_CLIENT_EP, ZZB_ZCL_IAS_WD, rsp, sizeof(rsp));
 }
 
+/*
+ * ZCL 8.4.2.2.1: Start Warning goes from the client on endpoint 87 to the bound servers, here
+ * Burglar with strobe and a high siren for 60 s, a strobe duty cycle of 40 and a low strobe
+ */
+ZTEST(zzb_zcl_ias_wd, test_send_start_warning)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_ias_wd_start_warning(
+		test_node(), WD_CLIENT_EP, ZZB_ZCL_IAS_WD_WARNING_MODE_BURGLAR,
+		ZZB_ZCL_IAS_WD_STROBE_PARALLEL, ZZB_ZCL_IAS_WD_SIREN_LEVEL_HIGH, 60, 40,
+		ZZB_ZCL_IAS_WD_STROBE_LEVEL_LOW));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(sent[0].req.src_ep, WD_CLIENT_EP);
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_IAS_WD);
+	zassert_equal(sent[0].len, 8);
+	zassert_mem_equal(sent[0].data,
+			  ((uint8_t[]){0x11, next_tsn, 0x00, 0x16, 0x3c, 0x00, 0x28, 0x00}), 8);
+}
+
+/* ZCL 8.4.2.2.2: Squawk goes to the bound servers, here Disarmed with strobe, very high */
+ZTEST(zzb_zcl_ias_wd, test_send_squawk)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_ias_wd_squawk(test_node(), WD_CLIENT_EP,
+					 ZZB_ZCL_IAS_WD_SQUAWK_MODE_DISARMED, true,
+					 ZZB_ZCL_IAS_WD_SQUAWK_LEVEL_VERY_HIGH));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.src_ep, WD_CLIENT_EP);
+	zassert_equal(sent[0].len, 4);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next_tsn, 0x01, 0x1b}), 4);
+}
+
+/*
+ * ZCL 8.4.2.2.1: Start Warning of Fire Panic with strobe and a high siren for 30 s, a strobe duty
+ * cycle of 50 and a very high strobe
+ */
+ZTEST(zzb_zcl_ias_wd, test_start_warning_parse)
+{
+	static const uint8_t payload[] = {0x56, 0x1e, 0x00, 0x32, 0x03};
+	const struct zzb_zcl_cmd cmd = {.payload = payload, .len = sizeof(payload)};
+	struct zzb_zcl_ias_wd_start_warning warning;
+
+	zzb_zcl_ias_wd_start_warning_parse(&cmd, &warning);
+	zassert_equal(warning.warning_mode, ZZB_ZCL_IAS_WD_WARNING_MODE_FIRE_PANIC);
+	zassert_equal(warning.strobe, ZZB_ZCL_IAS_WD_STROBE_PARALLEL);
+	zassert_equal(warning.siren_level, ZZB_ZCL_IAS_WD_SIREN_LEVEL_HIGH);
+	zassert_equal(warning.warning_duration, 30);
+	zassert_equal(warning.strobe_duty_cycle, 50);
+	zassert_equal(warning.strobe_level, ZZB_ZCL_IAS_WD_STROBE_LEVEL_VERY_HIGH);
+}
+
+/* ZCL 8.4.2.2.2: Squawk of Armed with strobe at a high level */
+ZTEST(zzb_zcl_ias_wd, test_squawk_parse)
+{
+	const struct zzb_zcl_cmd cmd = {.payload = (uint8_t[]){0x0a}, .len = 1};
+	struct zzb_zcl_ias_wd_squawk squawk;
+
+	zzb_zcl_ias_wd_squawk_parse(&cmd, &squawk);
+	zassert_equal(squawk.squawk_mode, ZZB_ZCL_IAS_WD_SQUAWK_MODE_ARMED);
+	zassert_true(squawk.strobe);
+	zassert_equal(squawk.squawk_level, ZZB_ZCL_IAS_WD_SQUAWK_LEVEL_HIGH);
+}
+
 ZTEST_SUITE(zzb_zcl_ias_wd, NULL, setup, before, after, NULL);

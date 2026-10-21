@@ -3,6 +3,8 @@
 #ifndef ZZB_INCLUDE_ZZB_ZCL_IAS_ACE_H_
 #define ZZB_INCLUDE_ZZB_ZCL_IAS_ACE_H_
 
+#include <errno.h>
+#include <string.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -42,6 +44,9 @@ enum zzb_zcl_ias_ace_arm_mode {
 	ZZB_ZCL_IAS_ACE_MODE_NIGHT_SLEEP = 0x02,
 	ZZB_ZCL_IAS_ACE_MODE_ALL_ZONES = 0x03,
 };
+
+/** The longest Arm/Disarm Code that zzb_zcl_ias_ace_arm() sends, in octets (ZCL 8.3.2.3.1.3). */
+#define ZZB_ZCL_IAS_ACE_CODE_MAX 8
 
 /** Arm Notification of Arm Response (ZCL Table 8-16). */
 enum zzb_zcl_ias_ace_arm_notification {
@@ -86,6 +91,16 @@ enum zzb_zcl_ias_ace_alarm_status {
 	ZZB_ZCL_IAS_ACE_ALARM_EMERGENCY_PANIC = 0x06,
 };
 
+/** Bypass Result of Bypass Response (ZCL Table 8-18). */
+enum zzb_zcl_ias_ace_bypass_result {
+	ZZB_ZCL_IAS_ACE_BYPASS_ZONE_BYPASSED = 0x00,
+	ZZB_ZCL_IAS_ACE_BYPASS_ZONE_NOT_BYPASSED = 0x01,
+	ZZB_ZCL_IAS_ACE_BYPASS_NOT_ALLOWED = 0x02,
+	ZZB_ZCL_IAS_ACE_BYPASS_INVALID_ZONE_ID = 0x03,
+	ZZB_ZCL_IAS_ACE_BYPASS_UNKNOWN_ZONE_ID = 0x04,
+	ZZB_ZCL_IAS_ACE_BYPASS_INVALID_CODE = 0x05,
+};
+
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_client_def;
 
@@ -112,6 +127,146 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_client_def;
 		.server = false,                                                                   \
 		.def = &zzb_zcl_ias_ace_client_def,                                                \
 	}
+
+/**
+ * @brief Send Arm from the IAS ACE client on endpoint ep to the bound servers (ZCL 8.3.2.3.1).
+ *
+ * The code has len octets, NULL and 0 for none. zone_id is the index of the zone of the client in
+ * the zone table of the CIE, ZZB_ZCL_IAS_ZONE_ID_NONE when none is programmed.
+ *
+ * @retval -EINVAL the code is longer than ZZB_ZCL_IAS_ACE_CODE_MAX.
+ * @return the result of zzb_zcl_send_bound() otherwise.
+ */
+static inline int zzb_zcl_ias_ace_arm(struct zzb_node *node, uint8_t ep,
+				      enum zzb_zcl_ias_ace_arm_mode arm_mode, const uint8_t *code,
+				      size_t len, uint8_t zone_id)
+{
+	uint8_t payload[2 + ZZB_ZCL_IAS_ACE_CODE_MAX + 1] = {arm_mode, len};
+
+	if (len > ZZB_ZCL_IAS_ACE_CODE_MAX) {
+		return -EINVAL;
+	}
+
+	/* memcpy() needs a valid pointer also for 0 octets */
+	if (len > 0) {
+		memcpy(&payload[2], code, len);
+	}
+
+	payload[2 + len] = zone_id;
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_IAS_ACE, ZZB_ZCL_IAS_ACE_ARM, payload, 3 + len);
+}
+
+/**
+ * @brief Answer Arm within zcl_cmd_cb with Arm Response (ZCL 8.3.2.4.1).
+ *
+ * @return the result of zzb_zcl_cmd_respond().
+ */
+static inline int zzb_zcl_ias_ace_arm_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+					  enum zzb_zcl_ias_ace_arm_notification arm_notification)
+{
+	const uint8_t payload[] = {arm_notification};
+
+	return zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_IAS_ACE_ARM_RSP, payload, sizeof(payload));
+}
+
+/**
+ * @brief Answer Get Panel Status within zcl_cmd_cb with Get Panel Status Response (ZCL
+ * 8.3.2.4.6).
+ *
+ * seconds_remaining is the time left in the exit or entry delay in seconds, otherwise 0.
+ *
+ * @return the result of zzb_zcl_cmd_respond().
+ */
+static inline int
+zzb_zcl_ias_ace_get_panel_status_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+				     enum zzb_zcl_ias_ace_panel_status panel_status,
+				     uint8_t seconds_remaining,
+				     enum zzb_zcl_ias_ace_audible_notification audible_notification,
+				     enum zzb_zcl_ias_ace_alarm_status alarm_status)
+{
+	const uint8_t payload[] = {panel_status, seconds_remaining, audible_notification,
+				   alarm_status};
+
+	return zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_IAS_ACE_GET_PANEL_STATUS_RSP, payload,
+				   sizeof(payload));
+}
+
+/**
+ * @brief Send Panel Status Changed from the IAS ACE server on endpoint ep to the bound clients (ZCL
+ * 8.3.2.4.5).
+ *
+ * seconds_remaining is the time left in the exit or entry delay in seconds, otherwise 0.
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_ias_ace_panel_status_changed(
+	struct zzb_node *node, uint8_t ep, enum zzb_zcl_ias_ace_panel_status panel_status,
+	uint8_t seconds_remaining, enum zzb_zcl_ias_ace_audible_notification audible_notification,
+	enum zzb_zcl_ias_ace_alarm_status alarm_status)
+{
+	const uint8_t payload[] = {panel_status, seconds_remaining, audible_notification,
+				   alarm_status};
+
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_IAS_ACE, ZZB_ZCL_IAS_ACE_PANEL_STATUS_CHANGED,
+				  payload, sizeof(payload));
+}
+
+/** Fields of Arm (ZCL 8.3.2.3.1). */
+struct zzb_zcl_ias_ace_arm {
+	enum zzb_zcl_ias_ace_arm_mode arm_mode;
+	/** The Arm/Disarm Code of code_len octets in the payload of the command. */
+	const uint8_t *code;
+	uint8_t code_len;
+	uint8_t zone_id;
+};
+
+/** @brief Read the fields of Arm that zcl_cmd_cb of the IAS ACE server receives. */
+static inline void zzb_zcl_ias_ace_arm_parse(const struct zzb_zcl_cmd *cmd,
+					     struct zzb_zcl_ias_ace_arm *fields)
+{
+	fields->arm_mode = cmd->payload[0];
+	fields->code_len = cmd->payload[1];
+	fields->code = &cmd->payload[2];
+	fields->zone_id = cmd->payload[2 + fields->code_len];
+}
+
+/** Fields of Arm Response (ZCL 8.3.2.4.1). */
+struct zzb_zcl_ias_ace_arm_rsp {
+	enum zzb_zcl_ias_ace_arm_notification arm_notification;
+};
+
+/** @brief Read the fields of Arm Response that zcl_cmd_cb of the IAS ACE client receives. */
+static inline void zzb_zcl_ias_ace_arm_rsp_parse(const struct zzb_zcl_cmd *cmd,
+						 struct zzb_zcl_ias_ace_arm_rsp *fields)
+{
+	fields->arm_notification = cmd->payload[0];
+}
+
+/**
+ * Fields of Panel Status Changed (ZCL 8.3.2.4.5), which Get Panel Status Response also has (ZCL
+ * 8.3.2.4.6).
+ */
+struct zzb_zcl_ias_ace_panel_status_changed {
+	enum zzb_zcl_ias_ace_panel_status panel_status;
+	/** Seconds. */
+	uint8_t seconds_remaining;
+	enum zzb_zcl_ias_ace_audible_notification audible_notification;
+	enum zzb_zcl_ias_ace_alarm_status alarm_status;
+};
+
+/**
+ * @brief Read the fields of Panel Status Changed, or of Get Panel Status Response, that zcl_cmd_cb
+ * of the IAS ACE client receives.
+ */
+static inline void
+zzb_zcl_ias_ace_panel_status_changed_parse(const struct zzb_zcl_cmd *cmd,
+					   struct zzb_zcl_ias_ace_panel_status_changed *fields)
+{
+	fields->panel_status = cmd->payload[0];
+	fields->seconds_remaining = cmd->payload[1];
+	fields->audible_notification = cmd->payload[2];
+	fields->alarm_status = cmd->payload[3];
+}
 
 #ifdef __cplusplus
 }

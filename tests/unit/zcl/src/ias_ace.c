@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/ias_ace.h>
@@ -92,17 +93,41 @@ ZTEST(zzb_zcl_ias_ace, test_server_commands)
 	}
 }
 
+static int arm_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return zzb_zcl_ias_ace_arm_rsp(node, cmd, ZZB_ZCL_IAS_ACE_ALL_ZONES_DISARMED);
+}
+
 /*
- * ZCL 8.3.2.3.1.5: the application answers Arm with zzb_zcl_cmd_respond(), here with command 0x42
- * of the fakes in place of Arm Response, and no Default Response follows
+ * ZCL 8.3.2.3.1.5: the application answers Arm with Arm Response, here All Zones Disarmed, and no
+ * Default Response follows
  */
-ZTEST(zzb_zcl_ias_ace, test_arm_response)
+ZTEST(zzb_zcl_ias_ace, test_arm_rsp)
 {
 	static const uint8_t arm[] = {0x01, 0x30, 0x00, 0x00, 0x04, '1', '2', '3', '4', 0x00};
-	static const uint8_t rsp[] = {0x19, 0x30, 0x42, 0xaa};
+	static const uint8_t rsp[] = {0x19, 0x30, 0x00, 0x00};
 
-	zcl_cmd_responds = true;
+	zcl_cmd_answer = arm_rsp;
 	receive_ep(CIE_EP, ZZB_ZCL_IAS_ACE, arm, sizeof(arm));
+	zassert_ok(zcl_cmd_respond_err);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_frame(0, CIE_EP, ZZB_ZCL_IAS_ACE, rsp, sizeof(rsp));
+}
+
+static int get_panel_status_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return zzb_zcl_ias_ace_get_panel_status_rsp(node, cmd, ZZB_ZCL_IAS_ACE_PANEL_ARMED_AWAY, 0,
+						    ZZB_ZCL_IAS_ACE_AUDIBLE_MUTE,
+						    ZZB_ZCL_IAS_ACE_ALARM_NONE);
+}
+
+/* ZCL 8.3.2.4.6: the application answers Get Panel Status with Armed Away, muted, without alarm */
+ZTEST(zzb_zcl_ias_ace, test_get_panel_status_rsp)
+{
+	static const uint8_t rsp[] = {0x19, 0x33, 0x05, 0x03, 0x00, 0x00, 0x00};
+
+	zcl_cmd_answer = get_panel_status_rsp;
+	receive_ep(CIE_EP, ZZB_ZCL_IAS_ACE, (uint8_t[]){0x01, 0x33, 0x07}, 3);
 	zassert_ok(zcl_cmd_respond_err);
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
 	check_frame(0, CIE_EP, ZZB_ZCL_IAS_ACE, rsp, sizeof(rsp));
@@ -147,15 +172,17 @@ ZTEST(zzb_zcl_ias_ace, test_server_malformed)
 	zassert_equal(zcl_cmd_calls.count, 0);
 }
 
-/* Panel Status Changed goes from the server on endpoint 90 to the bound clients */
+/*
+ * Panel Status Changed goes from the server on endpoint 90 to the bound clients, here an exit delay
+ * of 30 s with the default sound
+ */
 ZTEST(zzb_zcl_ias_ace, test_panel_status_changed)
 {
-	static const uint8_t payload[] = {0x04, 0x1e, 0x01, 0x00};
 	uint8_t next_tsn = test_node()->zcl.tsn;
 
-	zassert_ok(zzb_zcl_send_bound(test_node(), CIE_EP, ZZB_ZCL_IAS_ACE,
-				      ZZB_ZCL_IAS_ACE_PANEL_STATUS_CHANGED, payload,
-				      sizeof(payload)));
+	zassert_ok(zzb_zcl_ias_ace_panel_status_changed(
+		test_node(), CIE_EP, ZZB_ZCL_IAS_ACE_PANEL_EXIT_DELAY, 30,
+		ZZB_ZCL_IAS_ACE_AUDIBLE_DEFAULT, ZZB_ZCL_IAS_ACE_ALARM_NONE));
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
 	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_BINDING);
 	zassert_equal(sent[0].req.src_ep, CIE_EP);
@@ -163,6 +190,74 @@ ZTEST(zzb_zcl_ias_ace, test_panel_status_changed)
 	zassert_equal(sent[0].len, 7);
 	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x19, next_tsn, 0x04, 0x04, 0x1e, 0x01, 0x00}),
 			  7);
+}
+
+/*
+ * ZCL 8.3.2.3.1: Arm goes from the client on endpoint 91 to the bound servers: All Zones with the
+ * code 1234 for zone 5, and Disarm without a code for no zone. A code longer than
+ * ZZB_ZCL_IAS_ACE_CODE_MAX is refused.
+ */
+ZTEST(zzb_zcl_ias_ace, test_arm)
+{
+	static const uint8_t code[ZZB_ZCL_IAS_ACE_CODE_MAX + 1] = {'1', '2', '3', '4'};
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_ias_ace_arm(test_node(), KEYPAD_EP, ZZB_ZCL_IAS_ACE_MODE_ALL_ZONES, code,
+				       4, 5));
+	zassert_ok(zzb_zcl_ias_ace_arm(test_node(), KEYPAD_EP, ZZB_ZCL_IAS_ACE_MODE_DISARM, NULL, 0,
+				       ZZB_ZCL_IAS_ZONE_ID_NONE));
+	zassert_equal(zzb_zcl_ias_ace_arm(test_node(), KEYPAD_EP, ZZB_ZCL_IAS_ACE_MODE_DISARM, code,
+					  sizeof(code), 5),
+		      -EINVAL);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 2);
+	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(sent[0].req.src_ep, KEYPAD_EP);
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_IAS_ACE);
+	zassert_equal(sent[0].len, 10);
+	zassert_mem_equal(sent[0].data,
+			  ((uint8_t[]){0x11, next_tsn, 0x00, 0x03, 0x04, '1', '2', '3', '4', 0x05}),
+			  10);
+	zassert_equal(sent[1].len, 6);
+	zassert_mem_equal(sent[1].data, ((uint8_t[]){0x11, next_tsn + 1, 0x00, 0x00, 0x00, 0xff}),
+			  6);
+}
+
+/* ZCL 8.3.2.3.1: Arm All Zones with the code 1234 for zone 5 */
+ZTEST(zzb_zcl_ias_ace, test_arm_parse)
+{
+	static const uint8_t payload[] = {0x03, 0x04, '1', '2', '3', '4', 0x05};
+	const struct zzb_zcl_cmd cmd = {.payload = payload, .len = sizeof(payload)};
+	struct zzb_zcl_ias_ace_arm arm;
+
+	zzb_zcl_ias_ace_arm_parse(&cmd, &arm);
+	zassert_equal(arm.arm_mode, ZZB_ZCL_IAS_ACE_MODE_ALL_ZONES);
+	zassert_equal_ptr(arm.code, payload + 2);
+	zassert_equal(arm.code_len, 4);
+	zassert_equal(arm.zone_id, 5);
+}
+
+/* ZCL 8.3.2.4.1: Arm Response with Already Disarmed */
+ZTEST(zzb_zcl_ias_ace, test_arm_rsp_parse)
+{
+	const struct zzb_zcl_cmd cmd = {.payload = (uint8_t[]){0x06}, .len = 1};
+	struct zzb_zcl_ias_ace_arm_rsp rsp;
+
+	zzb_zcl_ias_ace_arm_rsp_parse(&cmd, &rsp);
+	zassert_equal(rsp.arm_notification, ZZB_ZCL_IAS_ACE_ALREADY_DISARMED);
+}
+
+/* ZCL 8.3.2.4.5: Panel Status Changed with an entry delay of 20 s, the default sound and Fire */
+ZTEST(zzb_zcl_ias_ace, test_panel_status_changed_parse)
+{
+	static const uint8_t payload[] = {0x05, 0x14, 0x01, 0x02};
+	const struct zzb_zcl_cmd cmd = {.payload = payload, .len = sizeof(payload)};
+	struct zzb_zcl_ias_ace_panel_status_changed status;
+
+	zzb_zcl_ias_ace_panel_status_changed_parse(&cmd, &status);
+	zassert_equal(status.panel_status, ZZB_ZCL_IAS_ACE_PANEL_ENTRY_DELAY);
+	zassert_equal(status.seconds_remaining, 20);
+	zassert_equal(status.audible_notification, ZZB_ZCL_IAS_ACE_AUDIBLE_DEFAULT);
+	zassert_equal(status.alarm_status, ZZB_ZCL_IAS_ACE_ALARM_FIRE);
 }
 
 /*
