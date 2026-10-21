@@ -167,6 +167,46 @@ static inline int zzb_zcl_ias_wd_squawk(struct zzb_node *node, uint8_t ep,
 				  sizeof(payload));
 }
 
+/** Fields of Start Warning (ZCL 8.4.2.2.1). */
+struct zzb_zcl_ias_wd_start_warning {
+	enum zzb_zcl_ias_wd_warning_mode warning_mode;
+	enum zzb_zcl_ias_wd_strobe strobe;
+	enum zzb_zcl_ias_wd_siren_level siren_level;
+	/** Seconds. */
+	uint16_t warning_duration;
+	/** Percent of each second, 0 to 100 in steps of 10. */
+	uint8_t strobe_duty_cycle;
+	enum zzb_zcl_ias_wd_strobe_level strobe_level;
+};
+
+/** @brief Read the fields of Start Warning that zcl_cmd_cb of the IAS WD server receives. */
+static inline void zzb_zcl_ias_wd_start_warning_parse(const struct zzb_zcl_cmd *cmd,
+						      struct zzb_zcl_ias_wd_start_warning *fields)
+{
+	fields->warning_mode = FIELD_GET(ZZB_ZCL_IAS_WD_WARNING_MODE, cmd->payload[0]);
+	fields->strobe = FIELD_GET(ZZB_ZCL_IAS_WD_STROBE, cmd->payload[0]);
+	fields->siren_level = FIELD_GET(ZZB_ZCL_IAS_WD_SIREN_LEVEL, cmd->payload[0]);
+	fields->warning_duration = sys_get_le16(&cmd->payload[1]);
+	fields->strobe_duty_cycle = cmd->payload[3];
+	fields->strobe_level = cmd->payload[4];
+}
+
+/** Fields of Squawk (ZCL 8.4.2.2.2). */
+struct zzb_zcl_ias_wd_squawk {
+	enum zzb_zcl_ias_wd_squawk_mode squawk_mode;
+	bool strobe;
+	enum zzb_zcl_ias_wd_squawk_level squawk_level;
+};
+
+/** @brief Read the fields of Squawk that zcl_cmd_cb of the IAS WD server receives. */
+static inline void zzb_zcl_ias_wd_squawk_parse(const struct zzb_zcl_cmd *cmd,
+					       struct zzb_zcl_ias_wd_squawk *fields)
+{
+	fields->squawk_mode = FIELD_GET(ZZB_ZCL_IAS_WD_SQUAWK_MODE, cmd->payload[0]);
+	fields->strobe = FIELD_GET(ZZB_ZCL_IAS_WD_SQUAWK_STROBE, cmd->payload[0]);
+	fields->squawk_level = FIELD_GET(ZZB_ZCL_IAS_WD_SQUAWK_LEVEL, cmd->payload[0]);
+}
+
 #ifdef __cplusplus
 }
 #endif
