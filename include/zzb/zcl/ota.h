@@ -106,6 +106,7 @@ struct zzb_zcl_ota {
 	uint8_t tries;
 };
 
+/** Internal: referenced by the instance macro of the cluster. */
 extern const struct zzb_zcl_cluster_def zzb_zcl_ota_client_def;
 
 /**

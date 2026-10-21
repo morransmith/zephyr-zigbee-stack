@@ -356,8 +356,10 @@ struct zzb_zcl_door_lock {
 	int64_t relock;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_door_lock_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_door_lock_client_def;
+/** @} */
 
 /** A Door Lock server with the values v, a pointer to struct zzb_zcl_door_lock. */
 #define ZZB_ZCL_DOOR_LOCK_SERVER(v)                                                                \

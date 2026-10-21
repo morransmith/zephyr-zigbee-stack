@@ -108,8 +108,10 @@ enum zzb_zcl_ias_ace_bypass_result {
 	ZZB_ZCL_IAS_ACE_BYPASS_INVALID_CODE = 0x05,
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_client_def;
+/** @} */
 
 /**
  * An IAS ACE server, which the IAS CIE has (DTL). Its commands go to zcl_cmd_cb after the length

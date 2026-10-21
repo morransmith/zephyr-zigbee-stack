@@ -64,8 +64,10 @@ struct zzb_zcl_on_off {
 	bool timed;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_client_def;
+/** @} */
 
 /** An On/Off server with the values v, a pointer to struct zzb_zcl_on_off. */
 #define ZZB_ZCL_ON_OFF_SERVER(v)                                                                   \

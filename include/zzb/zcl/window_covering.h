@@ -121,8 +121,10 @@ struct zzb_zcl_window_covering {
 	uint8_t mode;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_window_covering_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_window_covering_client_def;
+/** @} */
 
 /** A Window Covering server with the values v, a pointer to struct zzb_zcl_window_covering. */
 #define ZZB_ZCL_WINDOW_COVERING_SERVER(v)                                                          \

@@ -113,8 +113,10 @@ struct zzb_zcl_power_profile {
 	uint8_t schedule_mode;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_power_profile_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_power_profile_client_def;
+/** @} */
 
 /**
  * A Power Profile server with the values v, a pointer to struct zzb_zcl_power_profile, which the

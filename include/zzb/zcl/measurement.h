@@ -121,6 +121,7 @@ struct zzb_zcl_humidity {
 	uint16_t tolerance;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_temperature_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_pressure_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_flow_def;
@@ -129,6 +130,7 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_temperature_client_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_pressure_client_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_flow_client_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_humidity_client_def;
+/** @} */
 
 /** A Temperature Measurement server with the values v, a pointer to struct zzb_zcl_temperature. */
 #define ZZB_ZCL_TEMPERATURE_SERVER(v)                                                              \

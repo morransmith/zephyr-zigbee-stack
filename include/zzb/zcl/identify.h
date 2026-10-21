@@ -36,8 +36,10 @@ struct zzb_zcl_identify {
 	uint16_t identify_time;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_identify_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_identify_client_def;
+/** @} */
 
 /** An Identify server with the values v, a pointer to struct zzb_zcl_identify. */
 #define ZZB_ZCL_IDENTIFY_SERVER(v)                                                                 \

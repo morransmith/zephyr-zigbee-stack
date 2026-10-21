@@ -91,8 +91,10 @@ struct zzb_zcl_level {
 	uint8_t stored_level;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_level_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_level_client_def;
+/** @} */
 
 /** A Level Control for Lighting server with the values v, a pointer to struct zzb_zcl_level. */
 #define ZZB_ZCL_LEVEL_SERVER(v)                                                                    \

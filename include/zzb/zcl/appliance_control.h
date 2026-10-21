@@ -131,8 +131,10 @@ struct zzb_zcl_appliance_control {
 	uint16_t remaining_time;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_control_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_control_client_def;
+/** @} */
 
 /**
  * An Appliance Control server with the values v, a pointer to struct zzb_zcl_appliance_control,

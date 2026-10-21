@@ -98,10 +98,12 @@ struct zzb_zcl_illuminance_level {
 	uint16_t illuminance_target_level;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_illuminance_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_illuminance_level_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_illuminance_level_client_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_illuminance_client_def;
+/** @} */
 
 /** An Illuminance Measurement server with the values v, a pointer to struct zzb_zcl_illuminance. */
 #define ZZB_ZCL_ILLUMINANCE_SERVER(v)                                                              \

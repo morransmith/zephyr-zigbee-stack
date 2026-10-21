@@ -96,6 +96,7 @@ struct zzb_zcl_ballast {
 	bool burn_hours_alarm;
 };
 
+/** Internal: referenced by the instance macro of the cluster. */
 extern const struct zzb_zcl_cluster_def zzb_zcl_ballast_def;
 
 /** A Ballast Configuration server with the values v, a pointer to struct zzb_zcl_ballast. */

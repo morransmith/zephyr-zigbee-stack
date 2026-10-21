@@ -161,6 +161,7 @@ struct zzb_zcl_power_config {
 	int64_t mains_since[2];
 };
 
+/** Internal: referenced by the instance macro of the cluster. */
 extern const struct zzb_zcl_cluster_def zzb_zcl_power_config_def;
 
 /** A Power Configuration server with the values v, a pointer to struct zzb_zcl_power_config. */

@@ -89,8 +89,10 @@ struct zzb_zcl_occupancy {
 	uint8_t physical_contact_unoccupied_to_occupied_threshold;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_occupancy_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_occupancy_client_def;
+/** @} */
 
 /** An Occupancy Sensing server with the values v, a pointer to struct zzb_zcl_occupancy. */
 #define ZZB_ZCL_OCCUPANCY_SERVER(v)                                                                \

@@ -86,6 +86,7 @@ struct zzb_zcl_binary_input {
 	uint32_t application_type;
 };
 
+/** Internal: referenced by the instance macro of the cluster. */
 extern const struct zzb_zcl_cluster_def zzb_zcl_binary_input_def;
 
 /** A Binary Input (Basic) server with the values v, a pointer to struct zzb_zcl_binary_input. */

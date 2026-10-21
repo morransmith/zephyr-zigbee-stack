@@ -160,8 +160,10 @@ struct zzb_zcl_color {
 	struct zzb_zcl_transition transition;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_color_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_color_client_def;
+/** @} */
 
 /** A Color Control server with the values v, a pointer to struct zzb_zcl_color. */
 #define ZZB_ZCL_COLOR_SERVER(v)                                                                    \

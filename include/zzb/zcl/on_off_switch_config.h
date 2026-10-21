@@ -50,6 +50,7 @@ struct zzb_zcl_on_off_switch_config {
 	uint8_t switch_actions;
 };
 
+/** Internal: referenced by the instance macro of the cluster. */
 extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_switch_config_def;
 
 /**

@@ -55,8 +55,10 @@ struct zzb_zcl_fan {
 	uint8_t fan_mode_sequence;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_fan_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_fan_client_def;
+/** @} */
 
 /** A Fan Control server with the values v, a pointer to struct zzb_zcl_fan. */
 #define ZZB_ZCL_FAN_SERVER(v)                                                                      \

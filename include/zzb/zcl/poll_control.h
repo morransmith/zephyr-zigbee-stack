@@ -86,8 +86,10 @@ struct zzb_zcl_poll_control {
 	struct zzb_zcl_poll_control_client clients[ZZB_ZCL_POLL_CONTROL_CLIENTS];
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_poll_control_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_poll_control_client_def;
+/** @} */
 
 /** A Poll Control server with the values v, a pointer to struct zzb_zcl_poll_control. */
 #define ZZB_ZCL_POLL_CONTROL_SERVER(v)                                                             \

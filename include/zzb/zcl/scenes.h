@@ -60,8 +60,10 @@ struct zzb_zcl_scenes {
 	bool scene_valid;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_scenes_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_scenes_client_def;
+/** @} */
 
 /**
  * A Scenes server with the values v, a pointer to struct zzb_zcl_scenes. ZCL 3.7.2.1 requires a

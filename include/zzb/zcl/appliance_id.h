@@ -93,8 +93,10 @@ struct zzb_zcl_appliance_id {
 	uint8_t ceced_specification_version;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_id_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_id_client_def;
+/** @} */
 
 /**
  * An Appliance Identification server with the values v, a pointer to struct zzb_zcl_appliance_id,

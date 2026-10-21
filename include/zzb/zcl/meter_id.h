@@ -83,8 +83,10 @@ struct zzb_zcl_meter_id {
 	int32_t power_threshold;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_meter_id_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_meter_id_client_def;
+/** @} */
 
 /** A Meter Identification server with the values v, a pointer to struct zzb_zcl_meter_id. */
 #define ZZB_ZCL_METER_ID_SERVER(v)                                                                 \

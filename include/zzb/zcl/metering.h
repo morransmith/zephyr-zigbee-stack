@@ -162,8 +162,10 @@ struct zzb_zcl_metering {
 	int32_t instantaneous_demand;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_metering_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_metering_client_def;
+/** @} */
 
 /** A Metering server with the values v, a pointer to struct zzb_zcl_metering. */
 #define ZZB_ZCL_METERING_SERVER(v)                                                                 \

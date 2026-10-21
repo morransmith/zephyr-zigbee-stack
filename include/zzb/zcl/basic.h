@@ -104,6 +104,7 @@ struct zzb_zcl_basic {
 	const char *sw_build_id;
 };
 
+/** Internal: referenced by the instance macro of the cluster. */
 extern const struct zzb_zcl_cluster_def zzb_zcl_basic_def;
 
 /** A Basic server with the values v, a pointer to struct zzb_zcl_basic. */

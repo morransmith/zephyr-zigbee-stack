@@ -75,8 +75,10 @@ struct zzb_zcl_time {
 	uint8_t fixed_status;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_time_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_time_client_def;
+/** @} */
 
 /** A Time server with the values v, a pointer to struct zzb_zcl_time. */
 #define ZZB_ZCL_TIME_SERVER(v)                                                                     \

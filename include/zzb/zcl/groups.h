@@ -37,8 +37,10 @@ extern "C" {
 /** The longest group name, in characters (ZCL 3.6.2.2.2). */
 #define ZZB_ZCL_GROUPS_NAME_MAX 16
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_groups_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_groups_client_def;
+/** @} */
 
 /**
  * A Groups server. It keeps the memberships in the APS group table and no group names. ZCL 3.6.2.1

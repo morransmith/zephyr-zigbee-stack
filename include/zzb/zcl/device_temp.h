@@ -79,6 +79,7 @@ struct zzb_zcl_device_temp {
 	int64_t alarm_since[2];
 };
 
+/** Internal: referenced by the instance macro of the cluster. */
 extern const struct zzb_zcl_cluster_def zzb_zcl_device_temp_def;
 
 /**

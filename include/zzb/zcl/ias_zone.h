@@ -127,8 +127,10 @@ struct zzb_zcl_ias_zone {
 	int64_t test_end;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_client_def;
+/** @} */
 
 /** An IAS Zone server with the values v, a pointer to struct zzb_zcl_ias_zone. */
 #define ZZB_ZCL_IAS_ZONE_SERVER(v)                                                                 \

@@ -71,8 +71,10 @@ enum zzb_zcl_appliance_event {
 	ZZB_ZCL_APPLIANCE_WRONG_DATA = 0xf7,
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_events_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_events_client_def;
+/** @} */
 
 /**
  * An Appliance Events and Alerts server, which the White Goods device has (DTL); the cluster has no

@@ -41,8 +41,10 @@ struct zzb_zcl_alarms {
 	uint16_t alarm_count;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_alarms_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_alarms_client_def;
+/** @} */
 
 /** An Alarms server with the values v, a pointer to struct zzb_zcl_alarms. */
 #define ZZB_ZCL_ALARMS_SERVER(v)                                                                   \

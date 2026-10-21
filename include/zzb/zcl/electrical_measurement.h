@@ -116,8 +116,10 @@ struct zzb_zcl_electrical_measurement {
 	uint16_t ac_power_divisor;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_electrical_measurement_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_electrical_measurement_client_def;
+/** @} */
 
 /**
  * An Electrical Measurement server with the values v, a pointer to struct
