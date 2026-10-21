@@ -30,6 +30,17 @@ extern "C" {
 #define ZZB_ZCL_APPLIANCE_CONTROL_SIGNAL_STATE_RSP          0x00
 #define ZZB_ZCL_APPLIANCE_CONTROL_SIGNAL_STATE_NOTIFICATION 0x01
 
+/** Fields of StartTime, FinishTime and RemainingTime (ZCL Table 15-4). */
+#define ZZB_ZCL_APPLIANCE_CONTROL_TIME_MINUTES  GENMASK(5, 0)
+#define ZZB_ZCL_APPLIANCE_CONTROL_TIME_ENCODING GENMASK(7, 6)
+#define ZZB_ZCL_APPLIANCE_CONTROL_TIME_HOURS    GENMASK(15, 8)
+
+/** ZZB_ZCL_APPLIANCE_CONTROL_TIME_ENCODING (ZCL Table 15-4). */
+enum zzb_zcl_appliance_control_time_encoding {
+	ZZB_ZCL_APPLIANCE_CONTROL_TIME_RELATIVE = 0x0,
+	ZZB_ZCL_APPLIANCE_CONTROL_TIME_ABSOLUTE = 0x1,
+};
+
 /**
  * Command Identification of Execution of a Command (ZCL Table 15-6); 0x80 to 0xff are
  * manufacturer-specific.
@@ -85,11 +96,22 @@ enum zzb_zcl_appliance_remote {
 	ZZB_ZCL_APPLIANCE_REMOTE_CONTROL = 0xf,
 };
 
+/** Fields of Remote Enable Flags and Device Status 2 of Signal State (ZCL Table 15-10). */
+#define ZZB_ZCL_APPLIANCE_REMOTE_FLAGS   GENMASK(3, 0)
+#define ZZB_ZCL_APPLIANCE_DEVICE_STATUS2 GENMASK(7, 4)
+
+/** Device Status 2: the format of Appliance Status 2 (ZCL Table 15-10). */
+enum zzb_zcl_appliance_device_status2 {
+	ZZB_ZCL_APPLIANCE_DEVICE_STATUS2_PROPRIETARY_0 = 0x0,
+	ZZB_ZCL_APPLIANCE_DEVICE_STATUS2_PROPRIETARY_1 = 0x1,
+	/** The 3 digits of an IRIS symptom code. */
+	ZZB_ZCL_APPLIANCE_DEVICE_STATUS2_IRIS_SYMPTOM_CODE = 0x2,
+};
+
 /**
  * Values of an Appliance Control server (ZCL 15.2.3). The application fills them before
  * zzb_node_init() and changes them with zzb_zcl_attr_set(); they are read-only and reportable. The
- * times have the encoding of ZCL Table 15-4: minutes in bits 0 to 5, 0 for relative or 1 for
- * absolute time in bits 6 and 7, hours in bits 8 to 15.
+ * times consist of the ZZB_ZCL_APPLIANCE_CONTROL_TIME_* fields.
  */
 struct zzb_zcl_appliance_control {
 	uint16_t start_time;
