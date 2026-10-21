@@ -390,6 +390,12 @@ extern uint8_t zcl_cmd_status;
 extern bool zcl_cmd_responds;
 extern int zcl_cmd_respond_err;
 
+/*
+ * With zcl_cmd_answer, NULL after reset_fakes(), zcl_cmd_cb answers every command with it in place
+ * of the answer of zcl_cmd_responds; zcl_cmd_respond_err is its result.
+ */
+extern int (*zcl_cmd_answer)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
+
 /* A membership of the APS group table, kept by the fakes of the group functions; ep 0 is free */
 struct membership {
 	uint16_t group;

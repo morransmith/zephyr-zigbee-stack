@@ -123,6 +123,7 @@ struct zcl_cmd_calls zcl_cmd_calls;
 uint8_t zcl_cmd_status;
 bool zcl_cmd_responds;
 int zcl_cmd_respond_err;
+int (*zcl_cmd_answer)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 struct frame_copy sent[8];
 struct membership memberships[CONFIG_ZZB_APS_GROUP_COUNT];
 
@@ -282,7 +283,9 @@ static uint8_t record_zcl_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *c
 	zassert_true(cmd->len <= sizeof(zcl_cmd_calls.payload[i]));
 	zcl_cmd_calls.cmd[i] = *cmd;
 	memcpy(zcl_cmd_calls.payload[i], cmd->payload, cmd->len);
-	if (zcl_cmd_responds) {
+	if (zcl_cmd_answer != NULL) {
+		zcl_cmd_respond_err = zcl_cmd_answer(node, cmd);
+	} else if (zcl_cmd_responds) {
 		zcl_cmd_respond_err = zzb_zcl_cmd_respond(node, cmd, 0x42, (uint8_t[]){0xaa}, 1);
 	}
 
@@ -902,6 +905,7 @@ void reset_fakes(void)
 	zcl_cmd_status = ZZB_ZCL_SUCCESS;
 	zcl_cmd_responds = false;
 	zcl_cmd_respond_err = 0;
+	zcl_cmd_answer = NULL;
 	recall_calls = (struct recall_calls){0};
 	alarm_reset_calls = (struct alarm_reset_calls){0};
 	memset(memberships, 0, sizeof(memberships));
