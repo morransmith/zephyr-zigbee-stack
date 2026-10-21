@@ -72,6 +72,8 @@ Reuse before adding. Extend what is already there. Introducing a new subsystem, 
 
 Read before writing. Read the files a change touches and the files around them, then match the patterns in place.
 
+No magic numbers. A value that a specification defines (identifier, enumerated value, bit of a bitmap, special value such as unknown) has a name in the public headers - an enum per set of values, a `BIT()` define per bit, a define per identifier - and code uses the name. Application code, samples and `tests/build/radio` build command payloads with the inline functions of the cluster headers. Physical quantities are numbers in the unit of the attribute, which the comment of the field states. Unit tests may write frames as bytes.
+
 Every source file starts with an `SPDX-License-Identifier: Apache-2.0` line. Code follows the Zephyr coding style.
 
 ## Tests
