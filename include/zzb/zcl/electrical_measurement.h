@@ -39,38 +39,63 @@ extern "C" {
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_POWER_MULTIPLIER     0x0604
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_POWER_DIVISOR        0x0605
 
+/** Bits of MeasurementType (ZCL Table 4-30). */
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_ACTIVE        BIT(0)
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_REACTIVE      BIT(1)
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_APPARENT      BIT(2)
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_PHASE_A       BIT(3)
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_PHASE_B       BIT(4)
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_PHASE_C       BIT(5)
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_DC            BIT(6)
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_HARMONICS     BIT(7)
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_POWER_QUALITY BIT(8)
+
+/** A measurement that cannot be made, and its minimum and maximum before the first one. */
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN   0xffff
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN    0xffff
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN    0xffff
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN   INT16_MIN
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_REACTIVE_POWER_UNKNOWN INT16_MIN
+#define ZZB_ZCL_ELECTRICAL_MEASUREMENT_APPARENT_POWER_UNKNOWN 0xffff
+
 /**
  * Values of an Electrical Measurement server (ZCL 4.9.2.2): the AC frequency and the AC
  * measurements of a single phase or phase A. The application fills them before zzb_node_init()
  * and changes them with zzb_zcl_attr_set(); they are read-only. A zeroed field is a valid
- * measurement, so the application sets a value it does not know to the non-value. A measurement
- * in its unit is the value times its multiplier divided by its divisor; a multiplier or divisor of
- * 0 is invalid, and ZCL gives them the default 1.
+ * measurement, so the application sets a value it does not know to its _UNKNOWN value. A
+ * measurement in its unit is the value times its multiplier divided by its divisor; a multiplier
+ * or divisor of 0 is invalid, and ZCL gives them the default 1.
  */
 struct zzb_zcl_electrical_measurement {
-	/** ZCL Table 4-30, such as bit 0 active and bit 3 phase A measurement. */
+	/** ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_* bits. */
 	uint32_t measurement_type;
-	/** Hz, 0xffff unknown; the minimum and maximum are 0xffff until a measurement is made. */
+	/** Hz or ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN. */
 	uint16_t ac_frequency;
 	uint16_t ac_frequency_min;
 	uint16_t ac_frequency_max;
 	uint16_t ac_frequency_multiplier;
 	uint16_t ac_frequency_divisor;
-	/** V, 0xffff unknown. */
+	/** V or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN. */
 	uint16_t rms_voltage;
 	uint16_t rms_voltage_min;
 	uint16_t rms_voltage_max;
-	/** A, 0xffff unknown. */
+	/** A or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN. */
 	uint16_t rms_current;
 	uint16_t rms_current_min;
 	uint16_t rms_current_max;
-	/** W; positive is delivered to the premises, INT16_MIN (0x8000) unknown. */
+	/**
+	 * W, positive when delivered to the premises, or
+	 * ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN.
+	 */
 	int16_t active_power;
 	int16_t active_power_min;
 	int16_t active_power_max;
-	/** VAr; positive is delivered to the premises, INT16_MIN unknown. */
+	/**
+	 * VAr, positive when delivered to the premises, or
+	 * ZZB_ZCL_ELECTRICAL_MEASUREMENT_REACTIVE_POWER_UNKNOWN.
+	 */
 	int16_t reactive_power;
-	/** VA, 0xffff unknown. */
+	/** VA or ZZB_ZCL_ELECTRICAL_MEASUREMENT_APPARENT_POWER_UNKNOWN. */
 	uint16_t apparent_power;
 	/** -100 to 100 hundredths. */
 	int8_t power_factor;
