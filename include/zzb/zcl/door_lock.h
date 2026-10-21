@@ -3,8 +3,10 @@
 #ifndef ZZB_INCLUDE_ZZB_ZCL_DOOR_LOCK_H_
 #define ZZB_INCLUDE_ZZB_ZCL_DOOR_LOCK_H_
 
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -240,7 +242,10 @@ enum zzb_zcl_door_lock_programming_event {
 #define ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_RFID_ADDED   BIT(5)
 #define ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_RFID_DELETED BIT(6)
 
-/** The longest PIN code that the stack stores, in octets. */
+/**
+ * The longest PIN code that the stack stores, and that zzb_zcl_door_lock_lock_door() and
+ * zzb_zcl_door_lock_unlock_door() send, in octets.
+ */
 #define ZZB_ZCL_DOOR_LOCK_PIN_MAX 8
 
 /** A user of a Door Lock server; an available user has all fields 0. */
@@ -357,6 +362,60 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_door_lock_client_def;
 		.server = false,                                                                   \
 		.def = &zzb_zcl_door_lock_client_def,                                              \
 	}
+
+/**
+ * @brief Send Lock Door from the Door Lock client on endpoint ep to the bound servers (ZCL
+ * 7.3.2.15.1).
+ *
+ * The code has len octets, NULL and 0 for none, which sends an empty code.
+ *
+ * @retval -EINVAL the code is longer than ZZB_ZCL_DOOR_LOCK_PIN_MAX.
+ * @return the result of zzb_zcl_send_bound() otherwise.
+ */
+static inline int zzb_zcl_door_lock_lock_door(struct zzb_node *node, uint8_t ep,
+					      const uint8_t *code, size_t len)
+{
+	uint8_t payload[1 + ZZB_ZCL_DOOR_LOCK_PIN_MAX] = {len};
+
+	if (len > ZZB_ZCL_DOOR_LOCK_PIN_MAX) {
+		return -EINVAL;
+	}
+
+	/* memcpy() needs a valid pointer also for 0 octets */
+	if (len > 0) {
+		memcpy(&payload[1], code, len);
+	}
+
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_DOOR_LOCK, ZZB_ZCL_DOOR_LOCK_LOCK_DOOR, payload,
+				  1 + len);
+}
+
+/**
+ * @brief Send Unlock Door from the Door Lock client on endpoint ep to the bound servers (ZCL
+ * 7.3.2.15.2).
+ *
+ * The code has len octets, NULL and 0 for none, which sends an empty code.
+ *
+ * @retval -EINVAL the code is longer than ZZB_ZCL_DOOR_LOCK_PIN_MAX.
+ * @return the result of zzb_zcl_send_bound() otherwise.
+ */
+static inline int zzb_zcl_door_lock_unlock_door(struct zzb_node *node, uint8_t ep,
+						const uint8_t *code, size_t len)
+{
+	uint8_t payload[1 + ZZB_ZCL_DOOR_LOCK_PIN_MAX] = {len};
+
+	if (len > ZZB_ZCL_DOOR_LOCK_PIN_MAX) {
+		return -EINVAL;
+	}
+
+	/* memcpy() needs a valid pointer also for 0 octets */
+	if (len > 0) {
+		memcpy(&payload[1], code, len);
+	}
+
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_DOOR_LOCK, ZZB_ZCL_DOOR_LOCK_UNLOCK_DOOR,
+				  payload, 1 + len);
+}
 
 #ifdef __cplusplus
 }
