@@ -26,16 +26,16 @@ LOG_MODULE_REGISTER(multisensor, LOG_LEVEL_INF);
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = "multisensor",
-	.power_source = 0x03,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.power_source = ZZB_ZCL_BASIC_POWER_SOURCE_BATTERY,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
-/* Two AA cells, 3.0 V, 100 % */
+/* Two AA cells of 1.5 V, at 3.0 V and 100 % */
 static struct zzb_zcl_power_config power_config = {
 	.battery_voltage = 30,
 	.battery_percentage_remaining = 200,
-	.battery_size = 0x03,
+	.battery_size = ZZB_ZCL_POWER_CONFIG_BATTERY_SIZE_AA,
 	.battery_quantity = 2,
 	.battery_rated_voltage = 15,
 };
@@ -44,28 +44,28 @@ static struct zzb_zcl_identify occupancy_identify;
 static struct zzb_zcl_identify light_identify;
 static struct zzb_zcl_identify temperature_identify;
 
-/* PIR */
 static struct zzb_zcl_occupancy occupancy = {
-	.occupancy_sensor_type_bitmap = 0x01,
+	.occupancy_sensor_type = ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_PIR,
+	.occupancy_sensor_type_bitmap = ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_BITMAP_PIR,
 };
 
 /* 1 lx to 10 klx */
 static struct zzb_zcl_illuminance illuminance = {
-	.measured_value = 0xffff,
+	.measured_value = ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE_UNKNOWN,
 	.min_measured_value = 1,
 	.max_measured_value = 40001,
 };
 
 /* 20.00 to 24.00 degC */
 static struct zzb_zcl_temperature temperature = {
-	.measured_value = INT16_MIN,
+	.measured_value = ZZB_ZCL_TEMPERATURE_MEASURED_VALUE_UNKNOWN,
 	.min_measured_value = 2000,
 	.max_measured_value = 2400,
 };
 
 /* 40 to 60 % */
 static struct zzb_zcl_humidity humidity = {
-	.measured_value = 0xffff,
+	.measured_value = ZZB_ZCL_HUMIDITY_MEASURED_VALUE_UNKNOWN,
 	.min_measured_value = 4000,
 	.max_measured_value = 6000,
 };
@@ -95,25 +95,25 @@ static const struct zzb_zcl_cluster temperature_clusters[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = OCCUPANCY_EP,
-		.profile = 0x0104,
-		.device_id = 0x0107,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_OCCUPANCY_SENSOR,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_OCCUPANCY_SENSOR),
 		.clusters = occupancy_clusters,
 		.cluster_count = ARRAY_SIZE(occupancy_clusters),
 	},
 	{
 		.id = LIGHT_EP,
-		.profile = 0x0104,
-		.device_id = 0x0106,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_LIGHT_SENSOR,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_LIGHT_SENSOR),
 		.clusters = light_clusters,
 		.cluster_count = ARRAY_SIZE(light_clusters),
 	},
 	{
 		.id = TEMPERATURE_EP,
-		.profile = 0x0104,
-		.device_id = 0x0302,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_TEMPERATURE_SENSOR,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_TEMPERATURE_SENSOR),
 		.clusters = temperature_clusters,
 		.cluster_count = ARRAY_SIZE(temperature_clusters),
 	},
@@ -195,15 +195,14 @@ static void zcl_changed(struct zzb_node *node, uint8_t ep, uint16_t cluster, uin
 /* Motion: occupied until 30 s after the last press */
 void sample_button(struct zzb_node *node)
 {
-	occupancy_set(1);
+	occupancy_set(ZZB_ZCL_OCCUPANCY_OCCUPIED);
 	k_work_reschedule(&vacate_work, UNOCCUPIED_DELAY);
 }
 
-/* Group 0xffff makes unicast bindings */
 void sample_finding_binding(struct zzb_node *node)
 {
 	LOG_INF("finding & binding %d",
-		zzb_bdb_finding_binding_initiator(node, OCCUPANCY_EP, 0xffff));
+		zzb_bdb_finding_binding_initiator(node, OCCUPANCY_EP, ZZB_BDB_FB_UNICAST));
 }
 
 int main(void)
