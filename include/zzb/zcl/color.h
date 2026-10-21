@@ -4,6 +4,7 @@
 #define ZZB_INCLUDE_ZZB_ZCL_COLOR_H_
 
 #include <stdint.h>
+#include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -46,13 +47,33 @@ extern "C" {
 #define ZZB_ZCL_COLOR_COUPLE_TEMP_MIN      0x400d
 #define ZZB_ZCL_COLOR_START_UP_TEMPERATURE 0x4010
 
-/** Values of ColorMode and EnhancedColorMode (ZCL Tables 5.5 and 5.7). */
-#define ZZB_ZCL_COLOR_MODE_XY          0x01
-#define ZZB_ZCL_COLOR_MODE_TEMPERATURE 0x02
+/** ColorMode, 0x00 to 0x02, and EnhancedColorMode (ZCL Tables 5.5 and 5.7). */
+enum zzb_zcl_color_mode {
+	ZZB_ZCL_COLOR_MODE_HUE_SATURATION = 0x00,
+	ZZB_ZCL_COLOR_MODE_XY = 0x01,
+	ZZB_ZCL_COLOR_MODE_TEMPERATURE = 0x02,
+	ZZB_ZCL_COLOR_MODE_ENHANCED_HUE_SATURATION = 0x03,
+};
 
-/** Bits of ColorCapabilities that the server implements (ZCL Table 5.8). */
-#define ZZB_ZCL_COLOR_CAP_XY          BIT(3)
-#define ZZB_ZCL_COLOR_CAP_TEMPERATURE BIT(4)
+/** Bit of Options (ZCL Table 5.6). */
+#define ZZB_ZCL_COLOR_OPTIONS_EXECUTE_IF_OFF BIT(0)
+
+/** Bits of ColorCapabilities (ZCL Table 5.8); the server of the stack has XY and TEMPERATURE. */
+#define ZZB_ZCL_COLOR_CAP_HUE_SATURATION BIT(0)
+#define ZZB_ZCL_COLOR_CAP_ENHANCED_HUE   BIT(1)
+#define ZZB_ZCL_COLOR_CAP_COLOR_LOOP     BIT(2)
+#define ZZB_ZCL_COLOR_CAP_XY             BIT(3)
+#define ZZB_ZCL_COLOR_CAP_TEMPERATURE    BIT(4)
+
+/** The StartUpColorTemperatureMireds that keeps the value before the power-down (ZCL Table 5.9). */
+#define ZZB_ZCL_COLOR_START_UP_TEMPERATURE_PREVIOUS 0xffff
+
+/** An unknown NumberOfPrimaries (ZCL 5.2.2.2.2.1). */
+#define ZZB_ZCL_COLOR_NUMBER_OF_PRIMARIES_UNKNOWN 0xff
+
+/** Special values of the intensity of a primary (ZCL 5.2.2.2.2.4). */
+#define ZZB_ZCL_COLOR_PRIMARY_INTENSITY_HIGHEST     0xfe
+#define ZZB_ZCL_COLOR_PRIMARY_INTENSITY_UNAVAILABLE 0xff
 
 /** Commands that the server receives and a client sends (ZCL Table 5.13). */
 #define ZZB_ZCL_COLOR_MOVE_TO_HUE                     0x00
@@ -80,7 +101,10 @@ struct zzb_zcl_color_primary {
 	/** x and y as in CurrentX and CurrentY. */
 	uint16_t x;
 	uint16_t y;
-	/** 0xfe for the primary of the highest intensity, 0xff when it is not available. */
+	/**
+	 * ZZB_ZCL_COLOR_PRIMARY_INTENSITY_HIGHEST for the primary of the highest intensity,
+	 * ZZB_ZCL_COLOR_PRIMARY_INTENSITY_UNAVAILABLE when it is not available.
+	 */
 	uint8_t intensity;
 };
 
@@ -99,7 +123,7 @@ struct zzb_zcl_color {
 	uint16_t color_temp_physical_max;
 	/** ColorTemperatureMireds that the highest level gives (ZCL 5.2.2.1.1). */
 	uint16_t couple_color_temp_min;
-	/** 0 to 6, 0xff unknown. */
+	/** 0 to 6, or ZZB_ZCL_COLOR_NUMBER_OF_PRIMARIES_UNKNOWN. */
 	uint8_t number_of_primaries;
 	struct zzb_zcl_color_primary primaries[6];
 	/** Tenths of a second. */
@@ -111,8 +135,11 @@ struct zzb_zcl_color {
 	uint16_t color_temperature;
 	/** The attributes that set the color: ZZB_ZCL_COLOR_MODE_XY or _TEMPERATURE. */
 	uint8_t color_mode;
+	/** enum zzb_zcl_color_mode, equal to color_mode. */
 	uint8_t enhanced_color_mode;
+	/** ZZB_ZCL_COLOR_OPTIONS_* bits. */
 	uint8_t options;
+	/** Mireds or ZZB_ZCL_COLOR_START_UP_TEMPERATURE_PREVIOUS. */
 	uint16_t start_up_color_temperature;
 	/**
 	 * Factory value of StartUpColorTemperatureMireds, set by the application. A node without a

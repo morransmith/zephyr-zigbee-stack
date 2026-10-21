@@ -33,9 +33,6 @@
 #define MODE_UP   0x01
 #define MODE_DOWN 0x03
 
-/* Bits of Options (ZCL Table 5.6) */
-#define EXECUTE_IF_OFF BIT(0)
-
 /* Attributes of the scene extension field set that the server does not have (ZCL Table 5.3) */
 #define CURRENT_SATURATION   0x0001
 #define ENHANCED_CURRENT_HUE 0x4000
@@ -484,7 +481,7 @@ static bool executes(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 		options = (options & ~p[0]) | (p[1] & p[0]);
 	}
 
-	return on_off == NULL || on_off->on_off || (options & EXECUTE_IF_OFF);
+	return on_off == NULL || on_off->on_off || (options & ZZB_ZCL_COLOR_OPTIONS_EXECUTE_IF_OFF);
 }
 
 /* The steps of a transition do not change SceneValid, so a command sets it FALSE at the start */
