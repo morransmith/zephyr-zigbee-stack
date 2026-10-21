@@ -27,9 +27,6 @@
 /* The wait for Identify Query Response; BDB 8.5 does not define it */
 #define QUERY_WAIT_MS 5000
 
-/* The group of unicast bindings */
-#define NO_GROUP 0xffff
-
 /* Whether endpoint ep has an instance of cluster */
 static bool has_cluster(const struct zzb_node *node, uint8_t ep, uint16_t cluster, bool server)
 {
@@ -215,7 +212,7 @@ static bool bind(struct zzb_node *node, const struct zzb_bdb_respondent *r)
 	struct zzb_bdb_fb *fb = &node->bdb.fb;
 	struct zzb_aps_binding binding = {
 		.src_ep = fb->ep,
-		.dst_mode = fb->group == NO_GROUP ? ZZB_APS_ADDR_EXT : ZZB_APS_ADDR_GROUP,
+		.dst_mode = fb->group == ZZB_BDB_FB_UNICAST ? ZZB_APS_ADDR_EXT : ZZB_APS_ADDR_GROUP,
 		.dst_addr = fb->group,
 		.dst_ext = r->ext_addr,
 		.dst_ep = r->ep,
@@ -229,7 +226,7 @@ static bool bind(struct zzb_node *node, const struct zzb_bdb_respondent *r)
 		}
 	}
 
-	fb->group_bound |= fb->group != NO_GROUP && fb->cluster_count > 0;
+	fb->group_bound |= fb->group != ZZB_BDB_FB_UNICAST && fb->cluster_count > 0;
 	return true;
 }
 
@@ -263,7 +260,7 @@ void zzb_zdo_simple_desc_conf(struct zzb_node *node, uint8_t status, uint16_t ad
 
 	match(node, desc);
 	r->ext_addr = known_ext_addr(fb, addr);
-	if (fb->cluster_count == 0 || fb->group != NO_GROUP || r->ext_addr != 0) {
+	if (fb->cluster_count == 0 || fb->group != ZZB_BDB_FB_UNICAST || r->ext_addr != 0) {
 		if (bind(node, r)) {
 			next_respondent(node);
 		}
@@ -303,7 +300,7 @@ static int initiator(struct zzb_node *node, uint8_t ep, uint16_t group)
 {
 	struct zzb_bdb_fb *fb = &node->bdb.fb;
 
-	if (group != NO_GROUP && (group == 0 || group > 0xfff7)) {
+	if (group != ZZB_BDB_FB_UNICAST && (group == 0 || group > 0xfff7)) {
 		return -EINVAL;
 	}
 
