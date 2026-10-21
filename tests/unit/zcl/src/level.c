@@ -579,4 +579,26 @@ ZTEST(zzb_zcl_level, test_scene_recall)
 	zassert_equal(notified(11, ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_SCENE_VALID), 1);
 }
 
+/* zzb_zcl_level_move_to_level() sends Move to Level without options from the client */
+ZTEST(zzb_zcl_level, test_send_move_to_level)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_level_move_to_level(test_node(), CLIENT_EP, 50, 0x0102));
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_LEVEL);
+	zassert_equal(sent[0].len, 6);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next_tsn, 0x00, 50, 0x02, 0x01}), 6);
+}
+
+/* zzb_zcl_level_move_to_level_on_off() sends Move to Level (with On/Off) without options */
+ZTEST(zzb_zcl_level, test_send_move_to_level_on_off)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_level_move_to_level_on_off(test_node(), CLIENT_EP, 200, 0x0102));
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_LEVEL);
+	zassert_equal(sent[0].len, 6);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next_tsn, 0x04, 200, 0x02, 0x01}), 6);
+}
+
 ZTEST_SUITE(zzb_zcl_level, NULL, setup, before, after, NULL);

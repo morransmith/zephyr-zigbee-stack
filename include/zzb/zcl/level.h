@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
@@ -100,6 +101,42 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_level_client_def;
 		.server = false,                                                                   \
 		.def = &zzb_zcl_level_client_def,                                                  \
 	}
+
+/**
+ * @brief Send Move to Level to the bound destinations (ZCL 3.10.2.3.1).
+ *
+ * CurrentLevel moves to level, 1 to 254 for lighting, over transition_time tenths of a second. The
+ * optional OptionsMask and OptionsOverride are left out.
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_level_move_to_level(struct zzb_node *node, uint8_t ep, uint8_t level,
+					      uint16_t transition_time)
+{
+	uint8_t payload[3] = {level};
+
+	sys_put_le16(transition_time, payload + 1);
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL, payload,
+				  sizeof(payload));
+}
+
+/**
+ * @brief Send Move to Level (with On/Off) to the bound destinations (ZCL 3.10.2.3.6).
+ *
+ * As zzb_zcl_level_move_to_level(); the destinations also turn on for a level above the minimum
+ * and off at the minimum.
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_level_move_to_level_on_off(struct zzb_node *node, uint8_t ep,
+						     uint8_t level, uint16_t transition_time)
+{
+	uint8_t payload[3] = {level};
+
+	sys_put_le16(transition_time, payload + 1);
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF,
+				  payload, sizeof(payload));
+}
 
 #ifdef __cplusplus
 }
