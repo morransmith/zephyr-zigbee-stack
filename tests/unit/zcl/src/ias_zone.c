@@ -437,6 +437,32 @@ ZTEST(zzb_zcl_ias_zone, test_client)
 	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
 }
 
+/* ZCL 8.2.2.3.2: Zone Enroll Request of a contact switch with the manufacturer code 0x1234 */
+ZTEST(zzb_zcl_ias_zone, test_enroll_req_parse)
+{
+	static const uint8_t payload[] = {0x15, 0x00, 0x34, 0x12};
+	const struct zzb_zcl_cmd cmd = {.payload = payload, .len = sizeof(payload)};
+	struct zzb_zcl_ias_zone_enroll_req req;
+
+	zzb_zcl_ias_zone_enroll_req_parse(&cmd, &req);
+	zassert_equal(req.zone_type, ZZB_ZCL_IAS_ZONE_TYPE_CONTACT_SWITCH);
+	zassert_equal(req.manufacturer_code, 0x1234);
+}
+
+/* ZCL 8.2.2.3.1: Zone Status Change Notification of Alarm1 and Battery for zone 5 after 2 s */
+ZTEST(zzb_zcl_ias_zone, test_status_change_notification_parse)
+{
+	static const uint8_t payload[] = {0x09, 0x00, 0x00, 0x05, 0x08, 0x00};
+	const struct zzb_zcl_cmd cmd = {.payload = payload, .len = sizeof(payload)};
+	struct zzb_zcl_ias_zone_status_change_notification notification;
+
+	zzb_zcl_ias_zone_status_change_notification_parse(&cmd, &notification);
+	zassert_equal(notification.zone_status,
+		      ZZB_ZCL_IAS_ZONE_STATUS_ALARM1 | ZZB_ZCL_IAS_ZONE_STATUS_BATTERY);
+	zassert_equal(notification.zone_id, 5);
+	zassert_equal(notification.delay, 8);
+}
+
 /* Shorter payloads and another command of the client */
 ZTEST(zzb_zcl_ias_zone, test_client_errors)
 {

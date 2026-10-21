@@ -4,6 +4,7 @@
 #define ZZB_INCLUDE_ZZB_ZCL_IAS_ZONE_H_
 
 #include <stdint.h>
+#include <zephyr/sys/byteorder.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -157,6 +158,46 @@ static inline int zzb_zcl_ias_zone_enroll_rsp(struct zzb_node *node, const struc
 
 	return zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_IAS_ZONE_ENROLL_RSP, payload,
 				   sizeof(payload));
+}
+
+/**
+ * Fields of Zone Status Change Notification (ZCL 8.2.2.3.1) without Extended Status, which is
+ * reserved.
+ */
+struct zzb_zcl_ias_zone_status_change_notification {
+	/** ZZB_ZCL_IAS_ZONE_STATUS_* bits. */
+	uint16_t zone_status;
+	uint8_t zone_id;
+	/** Quarter seconds from the change of ZoneStatus to the notification. */
+	uint16_t delay;
+};
+
+/**
+ * @brief Read the fields of Zone Status Change Notification that zcl_cmd_cb of the IAS Zone client
+ * receives.
+ */
+static inline void zzb_zcl_ias_zone_status_change_notification_parse(
+	const struct zzb_zcl_cmd *cmd, struct zzb_zcl_ias_zone_status_change_notification *fields)
+{
+	fields->zone_status = sys_get_le16(&cmd->payload[0]);
+	fields->zone_id = cmd->payload[3];
+	fields->delay = sys_get_le16(&cmd->payload[4]);
+}
+
+/** Fields of Zone Enroll Request (ZCL 8.2.2.3.2). */
+struct zzb_zcl_ias_zone_enroll_req {
+	enum zzb_zcl_ias_zone_type zone_type;
+	uint16_t manufacturer_code;
+};
+
+/**
+ * @brief Read the fields of Zone Enroll Request that zcl_cmd_cb of the IAS Zone client receives.
+ */
+static inline void zzb_zcl_ias_zone_enroll_req_parse(const struct zzb_zcl_cmd *cmd,
+						     struct zzb_zcl_ias_zone_enroll_req *fields)
+{
+	fields->zone_type = sys_get_le16(&cmd->payload[0]);
+	fields->manufacturer_code = sys_get_le16(&cmd->payload[2]);
 }
 
 #ifdef __cplusplus
