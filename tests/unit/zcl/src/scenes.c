@@ -483,4 +483,26 @@ ZTEST(zzb_zcl_scenes, test_reset)
 		4);
 }
 
+/* zzb_zcl_scenes_store_scene() sends Store Scene from the client on endpoint 5 */
+ZTEST(zzb_zcl_scenes, test_send_store_scene)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_scenes_store_scene(test_node(), CLIENT_EP, 0x1234, 0x05));
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_SCENES);
+	zassert_equal(sent[0].len, 6);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next_tsn, 0x04, 0x34, 0x12, 0x05}), 6);
+}
+
+/* zzb_zcl_scenes_recall_scene() sends Recall Scene without a transition time */
+ZTEST(zzb_zcl_scenes, test_send_recall_scene)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_scenes_recall_scene(test_node(), CLIENT_EP, 0x1234, 0x05));
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_SCENES);
+	zassert_equal(sent[0].len, 6);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next_tsn, 0x05, 0x34, 0x12, 0x05}), 6);
+}
+
 ZTEST_SUITE(zzb_zcl_scenes, NULL, setup, before, after, NULL);
