@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb ias sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_IAS
+	prompt "Device type"
+
+config SAMPLE_IAS_ZONE
+	bool "IAS Zone (0x0402)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_ZONE
+
+config SAMPLE_IAS_WARNING_DEVICE
+	bool "IAS Warning Device (0x0403)"
+	select SAMPLE_ZONE
+
+config SAMPLE_IAS_ACE
+	bool "IAS Ancillary Control Equipment (0x0401)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_ZONE
+
+config SAMPLE_IAS_CIE
+	bool "IAS Control and Indication Equipment (0x0400)"
+
+endchoice
+
+config SAMPLE_ZONE
+	bool
+
+# ZoneType (ZCL Table 8-5)
+config SAMPLE_ZONE_TYPE
+	hex
+	depends on SAMPLE_ZONE
+	default 0x0015 if SAMPLE_IAS_ZONE
+	default 0x0225 if SAMPLE_IAS_WARNING_DEVICE
+	default 0x021d if SAMPLE_IAS_ACE
+
+config SAMPLE_DEVICE_ID
+	hex
+	default 0x0402 if SAMPLE_IAS_ZONE
+	default 0x0403 if SAMPLE_IAS_WARNING_DEVICE
+	default 0x0401 if SAMPLE_IAS_ACE
+	default 0x0400 if SAMPLE_IAS_CIE
+
+# The highest Rev of the revision history of the device type in the DTL
+config SAMPLE_DEVICE_VERSION
+	int
+	default 1
+
+config SAMPLE_MODEL_ID
+	string
+	default "ias_zone" if SAMPLE_IAS_ZONE
+	default "ias_warning_device" if SAMPLE_IAS_WARNING_DEVICE
+	default "ias_ace" if SAMPLE_IAS_ACE
+	default "ias_cie" if SAMPLE_IAS_CIE
+
+source "Kconfig.zephyr"

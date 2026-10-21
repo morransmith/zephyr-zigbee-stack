@@ -38,6 +38,17 @@ Sensors produce synthetic values. The device types that run on a battery are sle
 
 A short press toggles OnOff, and led0 shows it. The level and the color go to the console. Finding & binding: target.
 
+### ias
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_IAS_ZONE` | IAS Zone | 0x0402 | Power Configuration, IAS Zone (contact switch) |
+| `CONFIG_SAMPLE_IAS_WARNING_DEVICE` | IAS Warning Device | 0x0403 | Groups, IAS Zone (standard warning device), IAS WD |
+| `CONFIG_SAMPLE_IAS_ACE` | IAS Ancillary Control Equipment | 0x0401 | Power Configuration, IAS Zone (keypad); clients Identify, IAS ACE |
+| `CONFIG_SAMPLE_IAS_CIE` | IAS Control and Indication Equipment | 0x0400 | IAS ACE; clients Identify, IAS Zone, IAS WD |
+
+On the IAS Zone and the IAS Warning Device a short press inverts Alarm1 of ZoneStatus, and led0 shows it; led0 of the IAS Warning Device blinks while a warning runs. The IAS ACE sends Arm with Arm All Zones and with Disarm in turn, with the code 1234, and led0 shows whether the panel is armed. The IAS CIE answers Arm, Get Panel Status and Zone Enroll Request, sends Start Warning to the bound warning devices when a zone reports an alarm while the panel is armed, and a short press arms or disarms the panel, which led0 shows. Finding & binding: target, which only identifies, since the DTL forbids it for the IAS clusters. The IAS Zone and the IAS ACE are sleepy end devices.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
