@@ -58,6 +58,18 @@ On the IAS Zone and the IAS Warning Device a short press inverts Alarm1 of ZoneS
 
 led0 of the Door Lock is the bolt, on while locked: Lock Door and Unlock Door move it, and a short press locks or unlocks by hand. A short press of the Door Lock Controller sends Lock Door and Unlock Door in turn, without a code. Finding & binding: target on the Door Lock, initiator with unicast bindings on the Door Lock Controller, which is a sleepy end device.
 
+### energy
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify, client Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_SMART_PLUG` | Smart Plug | 0x0051 | Groups, Scenes, On/Off, Metering (kWh), Electrical Measurement; client Time |
+| `CONFIG_SAMPLE_METER_INTERFACE` | Meter Interface | 0x0053 | Metering (gas, m3), Meter Identification |
+| `CONFIG_SAMPLE_CONSUMPTION_AWARENESS_DEVICE` | Consumption Awareness Device | 0x000d | Metering (kWh) |
+| `CONFIG_SAMPLE_WHITE_GOODS` | White Goods | 0x0052 | Power Profile, Appliance Control, Appliance Identification, Appliance Events and Alerts, Appliance Statistics |
+| `CONFIG_SAMPLE_HOME_GATEWAY` | Home Gateway | 0x0050 | Time; clients Power Profile, Metering, Meter Identification, Appliance Control, Appliance Identification, Appliance Events and Alerts, Appliance Statistics |
+
+A short press of the Smart Plug toggles OnOff, and led0 shows the relay; while it is on, the plug measures 230 V, 0.26 A and 60 W and adds the energy to CurrentSummationDelivered every 10 s. The Meter Interface and the Consumption Awareness Device add 10 L or 10 Wh to CurrentSummationDelivered every minute and at a short press. The White Goods is a washing machine with a program of 2 minutes, which a short press or Execution of a Command starts and stops and led0 shows; it answers Signal State, Power Profile Request and Power Profile State Request and sends Signal State Notification to the bound destinations at every change. A short press of the Home Gateway sends Execution of a Command with Start to the bound appliances, and the commands of the appliances go to the console. Finding & binding: initiator with unicast bindings on the Home Gateway, target on the others.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
