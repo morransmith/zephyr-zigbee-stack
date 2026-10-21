@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb sensor
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.sensor.simple_sensor:
+    extra_configs:
+      - CONFIG_SAMPLE_SIMPLE_SENSOR=y
+  sample.zzb.sensor.light_sensor:
+    extra_configs:
+      - CONFIG_SAMPLE_LIGHT_SENSOR=y
+  sample.zzb.sensor.occupancy_sensor:
+    extra_configs:
+      - CONFIG_SAMPLE_OCCUPANCY_SENSOR=y
+  sample.zzb.sensor.light_level_sensor:
+    extra_configs:
+      - CONFIG_SAMPLE_LIGHT_LEVEL_SENSOR=y
+  sample.zzb.sensor.temperature_sensor:
+    extra_configs:
+      - CONFIG_SAMPLE_TEMPERATURE_SENSOR=y
+  sample.zzb.sensor.pressure_sensor:
+    extra_configs:
+      - CONFIG_SAMPLE_PRESSURE_SENSOR=y
+  sample.zzb.sensor.flow_sensor:
+    extra_configs:
+      - CONFIG_SAMPLE_FLOW_SENSOR=y

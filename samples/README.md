@@ -55,6 +55,20 @@ A short press toggles OnOff, and led0 shows it. The level and the color go to th
 
 A short press sends the next command of a cycle to the bound destinations: Toggle, Move to Level with On/Off and Move to Color Temperature, as far as the device type has the clients, in two rounds, with level 50 and 250 mireds in the first and level 200 and 400 mireds in the second. The scene controllers toggle only in the first round, store scene 1 of group 0 at its end and recall it at the end of the second; the Scene Selector recalls scenes 1 and 2 of group 0 in turn, and the Configuration Tool adds group 0x0001 and removes it in turn. led0 blinks while the device identifies itself. Finding & binding: initiator with unicast bindings. The device types with Power Configuration are sleepy end devices.
 
+### sensor
+
+| Kconfig | Device type | ID | Clusters besides Basic, Power Configuration, Identify and the Identify client |
+|---|---|---|---|
+| `CONFIG_SAMPLE_SIMPLE_SENSOR` | Simple Sensor | 0x000c | Binary Input (Basic) |
+| `CONFIG_SAMPLE_LIGHT_SENSOR` | Light Sensor | 0x0106 | Illuminance Measurement |
+| `CONFIG_SAMPLE_OCCUPANCY_SENSOR` | Occupancy Sensor | 0x0107 | Occupancy Sensing |
+| `CONFIG_SAMPLE_LIGHT_LEVEL_SENSOR` | Light Level Sensor | 0x010e | Illuminance Level Sensing |
+| `CONFIG_SAMPLE_TEMPERATURE_SENSOR` | Temperature Sensor | 0x0302 | Temperature Measurement |
+| `CONFIG_SAMPLE_PRESSURE_SENSOR` | Pressure Sensor | 0x0305 | Pressure Measurement |
+| `CONFIG_SAMPLE_FLOW_SENSOR` | Flow Sensor | 0x0306 | Flow Measurement |
+
+The Simple Sensor, the Light Level Sensor, the Pressure Sensor and the Flow Sensor are not certifiable, since their sensing clusters are not (DTL Annexes C, D, G and H). A short press inverts PresentValue of the Simple Sensor while OutOfService is FALSE, and sets Occupancy of the Occupancy Sensor, which returns to 0 30 s after the last press; led0 shows the value. The other device types set the next value of a fixed sequence at the start, every 60 s and at a short press: 1 lx to 100 klx in factors of 10, 20.00 to 24.00 degC, 1000 to 1020 hPa and 1.0 to 3.0 m3/h, with MinMeasuredValue and MaxMeasuredValue at the ends of the sequence. The Light Level Sensor sets LevelStatus from the illuminance and IlluminanceTargetLevel with a dead band of 1000 on each side, and on target while IlluminanceTargetLevel is 0xffff. Finding & binding: initiator with unicast bindings. Sleepy end device.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
