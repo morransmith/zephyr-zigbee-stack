@@ -141,6 +141,24 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_ias_zone_client_def;
 		.def = &zzb_zcl_ias_zone_client_def,                                               \
 	}
 
+/**
+ * @brief Answer Zone Enroll Request within zcl_cmd_cb with Zone Enroll Response (ZCL 8.2.2.2.1).
+ *
+ * zone_id is the index of the zone in the zone table of the CIE; it counts only with
+ * ZZB_ZCL_IAS_ZONE_ENROLL_SUCCESS.
+ *
+ * @return the result of zzb_zcl_cmd_respond().
+ */
+static inline int zzb_zcl_ias_zone_enroll_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
+					      enum zzb_zcl_ias_zone_enroll_rsp_code code,
+					      uint8_t zone_id)
+{
+	const uint8_t payload[] = {code, zone_id};
+
+	return zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_IAS_ZONE_ENROLL_RSP, payload,
+				   sizeof(payload));
+}
+
 #ifdef __cplusplus
 }
 #endif

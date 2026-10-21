@@ -404,18 +404,23 @@ ZTEST(zzb_zcl_ias_zone, test_reset_test_mode)
 	zassert_false(timer_armed());
 }
 
+static int enroll_rsp(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return zzb_zcl_ias_zone_enroll_rsp(node, cmd, ZZB_ZCL_IAS_ZONE_ENROLL_SUCCESS, 5);
+}
+
 /*
  * The IAS Zone client of a CIE passes the commands of the zones to zcl_cmd_cb, which answers Zone
- * Enroll Request
+ * Enroll Request with Zone Enroll Response, here Success with zone 5
  */
 ZTEST(zzb_zcl_ias_zone, test_client)
 {
 	static const uint8_t request[] = {0x19, 0x61, 0x01, 0x15, 0x00, 0x34, 0x12};
-	static const uint8_t response[] = {0x11, 0x61, 0x42, 0xaa};
+	static const uint8_t response[] = {0x11, 0x61, 0x00, 0x00, 0x05};
 	static const uint8_t notification[] = {0x19, 0x62, 0x00, 0x01, 0x00,
 					       0x00, 0x05, 0x00, 0x00};
 
-	zcl_cmd_responds = true;
+	zcl_cmd_answer = enroll_rsp;
 	receive_ep(ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, request, sizeof(request));
 	zassert_equal(zcl_cmd_calls.count, 1);
 	zassert_false(zcl_cmd_calls.cmd[0].server);
@@ -425,7 +430,7 @@ ZTEST(zzb_zcl_ias_zone, test_client)
 	zassert_ok(zcl_cmd_respond_err);
 	check_frame(0, ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, response, sizeof(response));
 
-	zcl_cmd_responds = false;
+	zcl_cmd_answer = NULL;
 	receive_ep(ZONE_CLIENT_EP, ZZB_ZCL_IAS_ZONE, notification, sizeof(notification));
 	zassert_equal(zcl_cmd_calls.count, 2);
 	zassert_equal(zcl_cmd_calls.cmd[1].id, ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION);
