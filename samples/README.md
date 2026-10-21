@@ -102,7 +102,7 @@ A short press sends the next command of a cycle to the bound destinations: Toggl
 | `CONFIG_SAMPLE_PRESSURE_SENSOR` | Pressure Sensor | 0x0305 | Pressure Measurement |
 | `CONFIG_SAMPLE_FLOW_SENSOR` | Flow Sensor | 0x0306 | Flow Measurement |
 
-The Simple Sensor, the Light Level Sensor, the Pressure Sensor and the Flow Sensor are not certifiable, since their sensing clusters are not (DTL Annexes C, D, G and H). A short press inverts PresentValue of the Simple Sensor while OutOfService is FALSE, and sets Occupancy of the Occupancy Sensor, which returns to 0 30 s after the last press; led0 shows the value. The other device types set the next value of a fixed sequence at the start, every 60 s and at a short press: 1 lx to 100 klx in factors of 10, 20.00 to 24.00 degC, 1000 to 1020 hPa and 1.0 to 3.0 m3/h, with MinMeasuredValue and MaxMeasuredValue at the ends of the sequence. The Light Level Sensor sets LevelStatus from the illuminance and IlluminanceTargetLevel with a dead band of 1000 on each side, and on target while IlluminanceTargetLevel is 0xffff. Finding & binding: initiator with unicast bindings. Sleepy end device.
+The Simple Sensor, the Light Level Sensor, the Pressure Sensor and the Flow Sensor are not certifiable (DTL Annexes C, D, G and H). A short press inverts PresentValue of the Simple Sensor while OutOfService is FALSE, and sets Occupancy of the Occupancy Sensor, which returns to 0 30 s after the last press; led0 shows the value. The other device types set the next value of a fixed sequence at the start, every 60 s and at a short press: 1 lx to 100 klx in factors of 10, 20.00 to 24.00 °C, 1000 to 1020 hPa and 1.0 to 3.0 m³/h, with MinMeasuredValue and MaxMeasuredValue at the ends of the sequence. The Light Level Sensor sets LevelStatus from the illuminance and IlluminanceTargetLevel with a dead band of 1000 on each side, and on target while IlluminanceTargetLevel is unknown. Finding & binding: initiator with unicast bindings. Sleepy end device.
 
 ### covering
 
@@ -130,7 +130,7 @@ The Thermostat starts at 21.00 °C, and every minute LocalTemperature moves by 0
 | `CONFIG_SAMPLE_PUMP` | Pump | 0x0303 | Groups, Scenes, On/Off, Pump Configuration and Control, Pressure Measurement, Flow Measurement |
 | `CONFIG_SAMPLE_PUMP_CONTROLLER` | Pump Controller | 0x0304 | Power Configuration; clients On/Off, Pump Configuration and Control, Temperature, Pressure and Flow Measurement |
 
-A short press toggles OnOff of the Pump, and led0 shows it; the controller sends Toggle to its bindings. While the Pump is on, it measures 200.0 kPa and 2.0 m³/h and sets the Running bit of PumpStatus, and all three are 0 while it is off. Finding & binding: target for the Pump, initiator for the controller. The controller is a sleepy end device. Neither device type is certifiable, since the Pump Configuration and Control cluster is not (DTL Annexes E and F).
+A short press toggles OnOff of the Pump, and led0 shows it; the controller sends Toggle to its bindings. While the Pump is on, it measures 200.0 kPa and 2.0 m³/h and sets the Running bit of PumpStatus, and all three are 0 while it is off. Finding & binding: target for the Pump, initiator for the controller. The controller is a sleepy end device. Neither device type is certifiable (DTL Annexes E and F).
 
 ### ias
 
@@ -157,12 +157,12 @@ led0 of the Door Lock is the bolt, on while locked: Lock Door and Unlock Door mo
 | Kconfig | Device type | ID | Clusters besides Basic, Identify, client Identify |
 |---|---|---|---|
 | `CONFIG_SAMPLE_SMART_PLUG` | Smart Plug | 0x0051 | Groups, Scenes, On/Off, Metering (kWh), Electrical Measurement; client Time |
-| `CONFIG_SAMPLE_METER_INTERFACE` | Meter Interface | 0x0053 | Metering (gas, m3), Meter Identification |
+| `CONFIG_SAMPLE_METER_INTERFACE` | Meter Interface | 0x0053 | Metering (gas, m³), Meter Identification |
 | `CONFIG_SAMPLE_CONSUMPTION_AWARENESS_DEVICE` | Consumption Awareness Device | 0x000d | Metering (kWh) |
 | `CONFIG_SAMPLE_WHITE_GOODS` | White Goods | 0x0052 | Power Profile, Appliance Control, Appliance Identification, Appliance Events and Alerts, Appliance Statistics |
 | `CONFIG_SAMPLE_HOME_GATEWAY` | Home Gateway | 0x0050 | Time; clients Power Profile, Metering, Meter Identification, Appliance Control, Appliance Identification, Appliance Events and Alerts, Appliance Statistics |
 
-A short press of the Smart Plug toggles OnOff, and led0 shows the relay; while it is on, the plug measures 230 V, 0.26 A and 60 W and adds the energy to CurrentSummationDelivered every 10 s. The Meter Interface and the Consumption Awareness Device add 10 L or 10 Wh to CurrentSummationDelivered every minute and at a short press. The White Goods is a washing machine with a program of 2 minutes, which a short press or Execution of a Command starts and stops and led0 shows; it answers Signal State, Power Profile Request and Power Profile State Request and sends Signal State Notification to the bound destinations at every change. A short press of the Home Gateway sends Execution of a Command with Start to the bound appliances, and the commands of the appliances go to the console. Finding & binding: initiator with unicast bindings on the Home Gateway, target on the others.
+A short press of the Smart Plug toggles OnOff, and led0 shows the relay; while it is on, the plug measures 230 V, 0.26 A and 60 W and adds the energy to CurrentSummationDelivered every 10 s. The Meter Interface and the Consumption Awareness Device add 10 L or 10 Wh to CurrentSummationDelivered every minute and at a short press. The White Goods is a washing machine with a program of 2 minutes, which a short press or Execution of a Command starts and stops and led0 shows; it answers Signal State, Power Profile Request and Power Profile State Request and sends Signal State Notification to the bound destinations at every change. Finding & binding of the Home Gateway binds the gateway to the appliance, so the notification needs a binding on the White Goods made by hand, e.g. with ZDO Bind_req from the coordinator. A short press of the Home Gateway sends Execution of a Command with Start to the bound appliances, and the commands of the appliances go to the console. Finding & binding: initiator with unicast bindings on the Home Gateway, target on the others.
 
 ## Combinations
 
@@ -184,7 +184,7 @@ Two relays and a wall switch. Short presses toggle relay 1, relay 2 and the ligh
 | 2 | Light Sensor | 0x0106 | Identify, Illuminance Measurement; client Identify |
 | 3 | Temperature Sensor | 0x0302 | Identify, Temperature Measurement, Relative Humidity Measurement; client Identify |
 
-A battery-powered motion sensor, a sleepy end device. A short press sets Occupancy, which returns to 0 30 s after the last press; led0 shows it. Illuminance, temperature and humidity take the next value of a fixed sequence at the start and every 60 s: 1 lx to 10 klx in factors of 10, 20.00 to 24.00 degC and 40 to 60 %. Finding & binding: initiator on endpoint 1.
+A battery-powered motion sensor, a sleepy end device. A short press sets Occupancy, which returns to 0 30 s after the last press; led0 shows it. Illuminance, temperature and humidity take the next value of a fixed sequence at the start and every 60 s: 1 lx to 10 klx in factors of 10, 20.00 to 24.00 °C and 40 to 60 %. Finding & binding: initiator on endpoint 1.
 
 ### lock_contact
 
