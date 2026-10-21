@@ -18,12 +18,24 @@ LOG_MODULE_REGISTER(output, LOG_LEVEL_INF);
 
 #define OUTPUT_EP 1
 
+#if defined(CONFIG_SAMPLE_ON_OFF_OUTPUT)
+#define DEVICE_ID ZZB_DEVICE_ON_OFF_OUTPUT
+#elif defined(CONFIG_SAMPLE_LEVEL_CONTROLLABLE_OUTPUT)
+#define DEVICE_ID ZZB_DEVICE_LEVEL_CONTROLLABLE_OUTPUT
+#elif defined(CONFIG_SAMPLE_MAINS_POWER_OUTLET)
+#define DEVICE_ID ZZB_DEVICE_MAINS_POWER_OUTLET
+#elif defined(CONFIG_SAMPLE_ON_OFF_PLUG_IN_UNIT)
+#define DEVICE_ID ZZB_DEVICE_ON_OFF_PLUG_IN_UNIT
+#elif defined(CONFIG_SAMPLE_DIMMABLE_PLUG_IN_UNIT)
+#define DEVICE_ID ZZB_DEVICE_DIMMABLE_PLUG_IN_UNIT
+#endif
+
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
-	.power_source = 0x01,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.power_source = ZZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 static struct zzb_zcl_identify identify;
@@ -34,9 +46,8 @@ static struct zzb_zcl_on_off on_off = {
 };
 
 #if defined(CONFIG_SAMPLE_LEVEL)
-/* StartUpCurrentLevel 0xff keeps the level of the last power-down */
 static struct zzb_zcl_level level = {
-	.start_up_default = 0xff,
+	.start_up_default = ZZB_ZCL_LEVEL_START_UP_PREVIOUS,
 };
 #endif
 
@@ -54,9 +65,9 @@ static const struct zzb_zcl_cluster output[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = OUTPUT_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = output,
 		.cluster_count = ARRAY_SIZE(output),
 	},

@@ -23,24 +23,31 @@
 
 LOG_MODULE_REGISTER(ballast, LOG_LEVEL_INF);
 
-#define BALLAST_EP         1
-#define BURN_HOURS_UNKNOWN 0xffffff
+#define BALLAST_EP 1
+
+#if defined(CONFIG_SAMPLE_ON_OFF_BALLAST)
+#define DEVICE_ID ZZB_DEVICE_ON_OFF_BALLAST
+#elif defined(CONFIG_SAMPLE_DIMMABLE_BALLAST)
+#define DEVICE_ID ZZB_DEVICE_DIMMABLE_BALLAST
+#endif
 
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
-	.power_source = 0x01,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.power_source = ZZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
+/* 230.0 V, 50 Hz */
 static struct zzb_zcl_power_config power_config = {
 	.mains_voltage = 2300,
 	.mains_frequency = 100,
-	.battery_voltage = 0xff,
-	.battery_percentage_remaining = 0xff,
+	.battery_voltage = ZZB_ZCL_POWER_CONFIG_BATTERY_VOLTAGE_UNKNOWN,
+	.battery_percentage_remaining = ZZB_ZCL_POWER_CONFIG_BATTERY_PERCENTAGE_REMAINING_UNKNOWN,
 };
 
+/* 25 degC */
 static struct zzb_zcl_device_temp device_temp = {
 	.current_temperature = 25,
 };
@@ -52,19 +59,16 @@ static struct zzb_zcl_on_off on_off = {
 	.start_up_default = ZZB_ZCL_START_UP_PREVIOUS,
 };
 
-/*
- * StartUpCurrentLevel 0xff keeps the level of the last power-down. The On/Off Ballast has Level
- * Control for the commands with On/Off sent to a group with dimmable lights (DTL 29.3.1).
- */
+/* The On/Off Ballast has Level Control for the commands with On/Off to its group (DTL 29.3.1) */
 static struct zzb_zcl_level level = {
-	.start_up_default = 0xff,
+	.start_up_default = ZZB_ZCL_LEVEL_START_UP_PREVIOUS,
 };
 
 static struct zzb_zcl_alarms alarms;
 
 static struct zzb_zcl_ballast ballast = {
-	.physical_min_level = 1,
-	.physical_max_level = 254,
+	.physical_min_level = ZZB_ZCL_BALLAST_LEVEL_MIN,
+	.physical_max_level = ZZB_ZCL_BALLAST_LEVEL_MAX,
 	.lamp_quantity = 1,
 };
 
@@ -89,9 +93,9 @@ static const struct zzb_zcl_cluster ballast_clusters[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = BALLAST_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = ballast_clusters,
 		.cluster_count = ARRAY_SIZE(ballast_clusters),
 	},
@@ -127,7 +131,7 @@ static void burn_hour(struct k_work *work)
 	int err;
 
 	k_work_schedule(&burn_hour_work, K_HOURS(1));
-	if (!atomic_get(&lamp_on) || hours == BURN_HOURS_UNKNOWN) {
+	if (!atomic_get(&lamp_on) || hours == ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_UNKNOWN) {
 		return;
 	}
 

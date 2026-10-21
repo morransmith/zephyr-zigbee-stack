@@ -19,12 +19,24 @@ LOG_MODULE_REGISTER(light, LOG_LEVEL_INF);
 
 #define LIGHT_EP 1
 
+#if defined(CONFIG_SAMPLE_ON_OFF_LIGHT)
+#define DEVICE_ID ZZB_DEVICE_ON_OFF_LIGHT
+#elif defined(CONFIG_SAMPLE_DIMMABLE_LIGHT)
+#define DEVICE_ID ZZB_DEVICE_DIMMABLE_LIGHT
+#elif defined(CONFIG_SAMPLE_COLOR_DIMMABLE_LIGHT)
+#define DEVICE_ID ZZB_DEVICE_COLOR_DIMMABLE_LIGHT
+#elif defined(CONFIG_SAMPLE_COLOR_TEMPERATURE_LIGHT)
+#define DEVICE_ID ZZB_DEVICE_COLOR_TEMPERATURE_LIGHT
+#elif defined(CONFIG_SAMPLE_EXTENDED_COLOR_LIGHT)
+#define DEVICE_ID ZZB_DEVICE_EXTENDED_COLOR_LIGHT
+#endif
+
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
-	.power_source = 0x01,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.power_source = ZZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 static struct zzb_zcl_identify identify;
@@ -35,14 +47,13 @@ static struct zzb_zcl_on_off on_off = {
 };
 
 #if defined(CONFIG_SAMPLE_LEVEL)
-/* StartUpCurrentLevel 0xff keeps the level of the last power-down */
 static struct zzb_zcl_level level = {
-	.start_up_default = 0xff,
+	.start_up_default = ZZB_ZCL_LEVEL_START_UP_PREVIOUS,
 };
 #endif
 
 #if defined(CONFIG_SAMPLE_COLOR)
-/* Color temperature from 6500 K to 2000 K */
+/* Color temperature from 6500 K to 2000 K, in mireds */
 static struct zzb_zcl_color color = {
 	.color_capabilities =
 		(IS_ENABLED(CONFIG_SAMPLE_COLOR_XY) ? ZZB_ZCL_COLOR_CAP_XY : 0) |
@@ -50,7 +61,7 @@ static struct zzb_zcl_color color = {
 	.color_temp_physical_min = 153,
 	.color_temp_physical_max = 500,
 	.couple_color_temp_min = 153,
-	.start_up_default = 0xffff,
+	.start_up_default = ZZB_ZCL_COLOR_START_UP_TEMPERATURE_PREVIOUS,
 };
 #endif
 
@@ -71,9 +82,9 @@ static const struct zzb_zcl_cluster light[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = LIGHT_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = light,
 		.cluster_count = ARRAY_SIZE(light),
 	},

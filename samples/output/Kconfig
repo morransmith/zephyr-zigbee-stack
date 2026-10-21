@@ -32,19 +32,6 @@ endchoice
 config SAMPLE_LEVEL
 	bool
 
-config SAMPLE_DEVICE_ID
-	hex
-	default 0x0002 if SAMPLE_ON_OFF_OUTPUT
-	default 0x0003 if SAMPLE_LEVEL_CONTROLLABLE_OUTPUT
-	default 0x0009 if SAMPLE_MAINS_POWER_OUTLET
-	default 0x010a if SAMPLE_ON_OFF_PLUG_IN_UNIT
-	default 0x010b if SAMPLE_DIMMABLE_PLUG_IN_UNIT
-
-# The highest Rev of the revision history of the device type in the DTL
-config SAMPLE_DEVICE_VERSION
-	int
-	default 1
-
 config SAMPLE_MODEL_ID
 	string
 	default "on_off_output" if SAMPLE_ON_OFF_OUTPUT

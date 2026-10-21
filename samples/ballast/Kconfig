@@ -15,16 +15,6 @@ config SAMPLE_DIMMABLE_BALLAST
 
 endchoice
 
-config SAMPLE_DEVICE_ID
-	hex
-	default 0x0108 if SAMPLE_ON_OFF_BALLAST
-	default 0x0109 if SAMPLE_DIMMABLE_BALLAST
-
-# The highest Rev of the revision history of the device type in the DTL
-config SAMPLE_DEVICE_VERSION
-	int
-	default 1
-
 config SAMPLE_MODEL_ID
 	string
 	default "on_off_ballast" if SAMPLE_ON_OFF_BALLAST

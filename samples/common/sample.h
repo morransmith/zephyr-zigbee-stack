@@ -5,14 +5,17 @@
 
 #include <stdbool.h>
 #include <zephyr/sys/util.h>
+#include <zzb/zcl/basic.h>
 #include <zzb/zzb.h>
 
 /** Power source of the device definition: a battery for a sleepy end device, mains otherwise. */
 #define SAMPLE_POWER_SOURCE                                                                        \
 	(IS_ENABLED(CONFIG_SAMPLE_SLEEPY) ? ZZB_POWER_DISPOSABLE : ZZB_POWER_MAINS)
 
-/** PowerSource of the Basic server (ZCL Table 3-8): battery or single phase mains. */
-#define SAMPLE_BASIC_POWER_SOURCE (IS_ENABLED(CONFIG_SAMPLE_SLEEPY) ? 0x03 : 0x01)
+/** PowerSource of the Basic server: battery or single phase mains. */
+#define SAMPLE_BASIC_POWER_SOURCE                                                                  \
+	(IS_ENABLED(CONFIG_SAMPLE_SLEEPY) ? ZZB_ZCL_BASIC_POWER_SOURCE_BATTERY                     \
+					  : ZZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE)
 
 /**
  * @brief Set up the LED and the button and initialize the node.

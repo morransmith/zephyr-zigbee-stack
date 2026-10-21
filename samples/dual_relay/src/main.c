@@ -23,9 +23,9 @@ LOG_MODULE_REGISTER(dual_relay, LOG_LEVEL_INF);
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = "dual_relay",
-	.power_source = 0x01,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.power_source = ZZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 static struct zzb_zcl_identify relay1_identify;
@@ -64,25 +64,25 @@ static const struct zzb_zcl_cluster switch_clusters[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
-		.profile = 0x0104,
-		.device_id = 0x0100,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_ON_OFF_LIGHT,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_ON_OFF_LIGHT),
 		.clusters = relay1_clusters,
 		.cluster_count = ARRAY_SIZE(relay1_clusters),
 	},
 	{
 		.id = 2,
-		.profile = 0x0104,
-		.device_id = 0x0100,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_ON_OFF_LIGHT,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_ON_OFF_LIGHT),
 		.clusters = relay2_clusters,
 		.cluster_count = ARRAY_SIZE(relay2_clusters),
 	},
 	{
 		.id = SWITCH_EP,
-		.profile = 0x0104,
-		.device_id = 0x0103,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_ON_OFF_LIGHT_SWITCH,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_ON_OFF_LIGHT_SWITCH),
 		.clusters = switch_clusters,
 		.cluster_count = ARRAY_SIZE(switch_clusters),
 	},
@@ -156,7 +156,8 @@ void sample_button(struct zzb_node *node)
 
 void sample_finding_binding(struct zzb_node *node)
 {
-	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_initiator(node, SWITCH_EP, 0xffff));
+	LOG_INF("finding & binding %d",
+		zzb_bdb_finding_binding_initiator(node, SWITCH_EP, ZZB_BDB_FB_UNICAST));
 }
 
 int main(void)
