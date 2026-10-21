@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb covering
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.covering.window_covering:
+    extra_configs:
+      - CONFIG_SAMPLE_WINDOW_COVERING=y
+  sample.zzb.covering.window_covering_controller:
+    extra_configs:
+      - CONFIG_SAMPLE_WINDOW_COVERING_CONTROLLER=y

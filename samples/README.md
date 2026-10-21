@@ -38,6 +38,15 @@ Sensors produce synthetic values. The device types that run on a battery are sle
 
 A short press toggles OnOff, and led0 shows it. The level and the color go to the console. Finding & binding: target.
 
+### covering
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_WINDOW_COVERING` | Window Covering | 0x0202 | Groups, Scenes, Window Covering (tilt blind, lift and tilt) |
+| `CONFIG_SAMPLE_WINDOW_COVERING_CONTROLLER` | Window Covering Controller | 0x0203 | Power Configuration; clients Identify, Groups, Scenes, Window Covering |
+
+The Window Covering moves lift and tilt by 10 % a second to the targets of Up/Open, Down/Close, Go To Lift Percentage, Go To Tilt Percentage and recalled scenes, and Stop stops it; led0 is on while it moves. A short press runs Up/Open, Stop, Down/Close and Stop in turn, on the motor of the Window Covering and as commands to the bindings of the controller. Finding & binding: target for the Window Covering, initiator for the controller. The controller is a sleepy end device.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
