@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Meter Identification cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_METER_ID_H_
 #define ZZB_INCLUDE_ZZB_ZCL_METER_ID_H_
 

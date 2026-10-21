@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Thermostat and Thermostat User Interface Configuration clusters.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_THERMOSTAT_H_
 #define ZZB_INCLUDE_ZZB_ZCL_THERMOSTAT_H_
 

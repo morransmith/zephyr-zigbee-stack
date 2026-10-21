@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Illuminance Measurement and Illuminance Level Sensing clusters.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_ILLUMINANCE_H_
 #define ZZB_INCLUDE_ZZB_ZCL_ILLUMINANCE_H_
 

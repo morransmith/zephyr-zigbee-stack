@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Pump Configuration and Control cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_PUMP_H_
 #define ZZB_INCLUDE_ZZB_ZCL_PUMP_H_
 

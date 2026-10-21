@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Electrical Measurement cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_ELECTRICAL_MEASUREMENT_H_
 #define ZZB_INCLUDE_ZZB_ZCL_ELECTRICAL_MEASUREMENT_H_
 

@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Binary Input (Basic) cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_BINARY_INPUT_H_
 #define ZZB_INCLUDE_ZZB_ZCL_BINARY_INPUT_H_
 

@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Level Control for Lighting cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_LEVEL_H_
 #define ZZB_INCLUDE_ZZB_ZCL_LEVEL_H_
 

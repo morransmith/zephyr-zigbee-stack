@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Run from the repository root: doxygen doc/Doxyfile
+# Options not listed here have their default values.
+
+PROJECT_NAME          = zzb
+PROJECT_BRIEF         = "Zigbee 3.0 stack for Zephyr"
+OUTPUT_DIRECTORY      = doc/build
+INPUT                 = include/zzb
+RECURSIVE             = YES
+FILE_PATTERNS         = *.h
+STRIP_FROM_PATH       = include
+STRIP_FROM_INC_PATH   = include
+OPTIMIZE_OUTPUT_FOR_C = YES
+# The command functions of the cluster headers are static inline.
+EXTRACT_STATIC        = YES
+# The comment of a @name block applies to each of its members.
+DISTRIBUTE_GROUP_DOC  = YES
+GENERATE_LATEX        = NO
+QUIET                 = YES

@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Identify cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_IDENTIFY_H_
 #define ZZB_INCLUDE_ZZB_ZCL_IDENTIFY_H_
 

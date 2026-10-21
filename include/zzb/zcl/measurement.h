@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Temperature, Pressure and Flow Measurement clusters.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_MEASUREMENT_H_
 #define ZZB_INCLUDE_ZZB_ZCL_MEASUREMENT_H_
 

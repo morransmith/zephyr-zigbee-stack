@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief IAS Zone cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_IAS_ZONE_H_
 #define ZZB_INCLUDE_ZZB_ZCL_IAS_ZONE_H_
 

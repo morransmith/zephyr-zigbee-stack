@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Color Control cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_COLOR_H_
 #define ZZB_INCLUDE_ZZB_ZCL_COLOR_H_
 

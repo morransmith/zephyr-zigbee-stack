@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief IAS WD cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_IAS_WD_H_
 #define ZZB_INCLUDE_ZZB_ZCL_IAS_WD_H_
 

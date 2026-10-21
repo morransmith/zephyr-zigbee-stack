@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief ZCL data model, application callbacks and command functions.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_H_
 #define ZZB_INCLUDE_ZZB_ZCL_H_
 

@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief IAS ACE cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_IAS_ACE_H_
 #define ZZB_INCLUDE_ZZB_ZCL_IAS_ACE_H_
 

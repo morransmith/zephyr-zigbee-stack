@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief EN50523 Appliance Events and Alerts cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_EVENTS_H_
 #define ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_EVENTS_H_
 

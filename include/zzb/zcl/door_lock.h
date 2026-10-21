@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Door Lock cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_DOOR_LOCK_H_
 #define ZZB_INCLUDE_ZZB_ZCL_DOOR_LOCK_H_
 

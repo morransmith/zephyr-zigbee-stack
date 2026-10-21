@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Power Configuration cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_POWER_CONFIG_H_
 #define ZZB_INCLUDE_ZZB_ZCL_POWER_CONFIG_H_
 

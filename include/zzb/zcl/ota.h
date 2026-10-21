@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief OTA Upgrade cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_OTA_H_
 #define ZZB_INCLUDE_ZZB_ZCL_OTA_H_
 

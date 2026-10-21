@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Fan Control cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_FAN_H_
 #define ZZB_INCLUDE_ZZB_ZCL_FAN_H_
 
