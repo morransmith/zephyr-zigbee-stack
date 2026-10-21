@@ -342,11 +342,11 @@ static void raise_cooling(struct zzb_node *node, uint8_t ep, const struct zzb_zc
 			t);
 }
 
-/* ZCL 6.3.2.3.1; the unoccupied setpoints change while bit 0 of Occupancy is 0 */
+/* ZCL 6.3.2.3.1; the unoccupied setpoints change while the space is unoccupied */
 static int setpoint_raise_lower(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 				const struct zzb_zcl_thermostat *v)
 {
-	bool occupied = v->occupancy & BIT(0);
+	bool occupied = v->occupancy & ZZB_ZCL_THERMOSTAT_OCCUPANCY_OCCUPIED;
 	uint8_t mode;
 	int amount;
 

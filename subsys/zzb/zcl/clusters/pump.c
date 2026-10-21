@@ -68,9 +68,11 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 {
 	switch (attr->id) {
 	case ZZB_ZCL_PUMP_OPERATION_MODE:
-		return valid(value <= 3);
+		return valid(value <= ZZB_ZCL_PUMP_OPERATION_MODE_LOCAL);
 	case ZZB_ZCL_PUMP_CONTROL_MODE:
-		return valid(value <= 3 || value == 5 || value == 7);
+		return valid(value <= ZZB_ZCL_PUMP_CONTROL_MODE_CONSTANT_FLOW ||
+			     value == ZZB_ZCL_PUMP_CONTROL_MODE_CONSTANT_TEMPERATURE ||
+			     value == ZZB_ZCL_PUMP_CONTROL_MODE_AUTOMATIC);
 	default:
 		return ZZB_ZCL_SUCCESS;
 	}
@@ -81,8 +83,8 @@ static void init(void *values)
 	struct zzb_zcl_pump *v = values;
 
 	v->lifetime_running_hours = 0;
-	v->operation_mode = 0;
-	v->control_mode = 0;
+	v->operation_mode = ZZB_ZCL_PUMP_OPERATION_MODE_NORMAL;
+	v->control_mode = ZZB_ZCL_PUMP_CONTROL_MODE_CONSTANT_SPEED;
 }
 
 static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value)
@@ -93,8 +95,8 @@ static void set(struct zzb_node *node, uint8_t ep, uint16_t attr, uint32_t value
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	set(node, ep, ZZB_ZCL_PUMP_LIFETIME_RUNNING_HOURS, 0);
-	set(node, ep, ZZB_ZCL_PUMP_OPERATION_MODE, 0);
-	set(node, ep, ZZB_ZCL_PUMP_CONTROL_MODE, 0);
+	set(node, ep, ZZB_ZCL_PUMP_OPERATION_MODE, ZZB_ZCL_PUMP_OPERATION_MODE_NORMAL);
+	set(node, ep, ZZB_ZCL_PUMP_CONTROL_MODE, ZZB_ZCL_PUMP_CONTROL_MODE_CONSTANT_SPEED);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_pump_def = {
