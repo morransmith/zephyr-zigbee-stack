@@ -393,6 +393,39 @@ ZTEST(zzb_zcl_appliances, test_stats_server_commands)
 		      ZZB_ZCL_UNSUP_COMMAND);
 }
 
+static const uint32_t log_ids[ZZB_ZCL_APPLIANCE_STATS_LOG_IDS_MAX + 1] = {5, 0x01020304};
+
+static int answer_log_queue(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return zzb_zcl_appliance_stats_log_queue_rsp(node, cmd, log_ids, answer_count);
+}
+
+/*
+ * ZCL 15.5.2.2.3: Log Queue Request gets Log Queue Response with logs 5 and 0x01020304. The most
+ * log IDs that a frame holds go out, one more gives -EMSGSIZE.
+ */
+ZTEST(zzb_zcl_appliances, test_log_queue_rsp)
+{
+	static const uint8_t req[] = {0x01, 0x30, 0x01};
+	static const uint8_t rsp[] = {0x19, 0x30, 0x02, 0x02, 0x05, 0x00,
+				      0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
+
+	zcl_cmd_answer = answer_log_queue;
+	answer_count = 2;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_APPLIANCE_STATS, req, sizeof(req));
+	zassert_ok(zcl_cmd_respond_err);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_frame(0, WHITE_GOODS_EP, ZZB_ZCL_APPLIANCE_STATS, rsp, sizeof(rsp));
+
+	answer_count = ZZB_ZCL_APPLIANCE_STATS_LOG_IDS_MAX;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_APPLIANCE_STATS, req, sizeof(req));
+	zassert_ok(zcl_cmd_respond_err);
+
+	answer_count = ZZB_ZCL_APPLIANCE_STATS_LOG_IDS_MAX + 1;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_APPLIANCE_STATS, req, sizeof(req));
+	zassert_equal(zcl_cmd_respond_err, -EMSGSIZE);
+}
+
 /*
  * The commands of ZCL 15.5.2.2 reach zcl_cmd_cb of the client as received: Log Notification of log
  * 5 without a time stamp and with 3 octets of log payload, Log Response of log 5 with the time
