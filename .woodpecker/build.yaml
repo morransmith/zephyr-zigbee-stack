@@ -45,3 +45,5 @@ steps:
         -p nrf52840dk/nrf52840
         -p esp32c6_devkitc/esp32c6/hpcore
         -p esp32h2_devkitm/esp32h2
+      # Each scenario of the samples on its integration platform, nrf52840dk
+      - west twister -T samples --build-only --integration -O twister-out-samples --inline-logs
