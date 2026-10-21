@@ -17,6 +17,20 @@ extern "C" {
 #define ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_TYPE    0x0000
 #define ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_ACTIONS 0x0010
 
+/** SwitchType (ZCL Table 3-52). */
+enum zzb_zcl_on_off_switch_config_switch_type {
+	ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_TYPE_TOGGLE = 0x00,
+	ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_TYPE_MOMENTARY = 0x01,
+	ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_TYPE_MULTIFUNCTION = 0x02,
+};
+
+/** SwitchActions, the commands at the arrival at state 2 and at state 1 (ZCL Table 3-54). */
+enum zzb_zcl_on_off_switch_config_switch_actions {
+	ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_ACTIONS_ON_OFF = 0x00,
+	ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_ACTIONS_OFF_ON = 0x01,
+	ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_ACTIONS_TOGGLE = 0x02,
+};
+
 /**
  * Values of an On/Off Switch Configuration server (ZCL 3.9.2.2). The application sets switch_type
  * before zzb_node_init() and changes it with zzb_zcl_attr_set(); it is read-only. SwitchActions is
@@ -24,9 +38,9 @@ extern "C" {
  * zzb_zcl_send_bound() from the On/Off client of the endpoint, which ZCL 3.9.2.1 requires.
  */
 struct zzb_zcl_on_off_switch_config {
-	/** ZCL Table 3-52: 0x00 toggle, 0x01 momentary, 0x02 multifunction. */
+	/** enum zzb_zcl_on_off_switch_config_switch_type. */
 	uint8_t switch_type;
-	/** ZCL Table 3-54: 0x00 On and Off, 0x01 Off and On, 0x02 Toggle and Toggle. */
+	/** enum zzb_zcl_on_off_switch_config_switch_actions. */
 	uint8_t switch_actions;
 };
 
