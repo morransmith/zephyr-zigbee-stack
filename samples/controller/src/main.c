@@ -21,20 +21,54 @@ LOG_MODULE_REGISTER(controller, LOG_LEVEL_INF);
 
 #define CONTROLLER_EP 1
 
+#if defined(CONFIG_SAMPLE_SCENE_SELECTOR)
+#define DEVICE_ID ZZB_DEVICE_SCENE_SELECTOR
+#elif defined(CONFIG_SAMPLE_CONFIGURATION_TOOL)
+#define DEVICE_ID ZZB_DEVICE_CONFIGURATION_TOOL
+#elif defined(CONFIG_SAMPLE_REMOTE_CONTROL)
+#define DEVICE_ID ZZB_DEVICE_REMOTE_CONTROL
+#elif defined(CONFIG_SAMPLE_COMBINED_INTERFACE)
+#define DEVICE_ID ZZB_DEVICE_COMBINED_INTERFACE
+#elif defined(CONFIG_SAMPLE_COLOR_CONTROLLER)
+#define DEVICE_ID ZZB_DEVICE_COLOR_CONTROLLER
+#elif defined(CONFIG_SAMPLE_COLOR_SCENE_CONTROLLER)
+#define DEVICE_ID ZZB_DEVICE_COLOR_SCENE_CONTROLLER
+#elif defined(CONFIG_SAMPLE_NON_COLOR_CONTROLLER)
+#define DEVICE_ID ZZB_DEVICE_NON_COLOR_CONTROLLER
+#elif defined(CONFIG_SAMPLE_NON_COLOR_SCENE_CONTROLLER)
+#define DEVICE_ID ZZB_DEVICE_NON_COLOR_SCENE_CONTROLLER
+#elif defined(CONFIG_SAMPLE_CONTROL_BRIDGE)
+#define DEVICE_ID ZZB_DEVICE_CONTROL_BRIDGE
+#elif defined(CONFIG_SAMPLE_ON_OFF_SENSOR)
+#define DEVICE_ID ZZB_DEVICE_ON_OFF_SENSOR
+#endif
+
+/* Levels, color temperatures in mireds and the transition time of 1 s that the presses send */
+#define DIM_LEVEL       50
+#define BRIGHT_LEVEL    200
+#define COLD_MIREDS     250
+#define WARM_MIREDS     400
+#define TRANSITION_TIME 10
+
+/* The scenes of the scene controllers and the group of the Configuration Tool */
+#define SCENE   1
+#define SCENE_2 2
+#define GROUP   0x0001
+
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
 	.power_source = SAMPLE_BASIC_POWER_SOURCE,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 #if defined(CONFIG_SAMPLE_SLEEPY)
-/* Two AA cells, 3.0 V, 100 % */
+/* Two AA cells of 1.5 V, at 3.0 V and 100 % */
 static struct zzb_zcl_power_config power_config = {
 	.battery_voltage = 30,
 	.battery_percentage_remaining = 200,
-	.battery_size = 0x03,
+	.battery_size = ZZB_ZCL_POWER_CONFIG_BATTERY_SIZE_AA,
 	.battery_quantity = 2,
 	.battery_rated_voltage = 15,
 };
@@ -74,9 +108,9 @@ static const struct zzb_zcl_cluster controller[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = CONTROLLER_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = controller,
 		.cluster_count = ARRAY_SIZE(controller),
 	},
@@ -88,61 +122,93 @@ static const struct zzb_device device = {
 	.endpoint_count = ARRAY_SIZE(endpoints),
 };
 
-/* A cluster-specific command with its payload in ZCL order, little endian */
-struct command {
-	uint16_t cluster;
-	uint8_t id;
-	uint8_t payload[4];
-	uint8_t len;
+/* The commands of the presses */
+enum step {
+	TOGGLE,
+	LEVEL_LOW,
+	LEVEL_HIGH,
+	TEMPERATURE_COLD,
+	TEMPERATURE_WARM,
+	STORE_SCENE,
+	RECALL_SCENE,
+	RECALL_SCENE_2,
+	ADD_GROUP,
+	REMOVE_GROUP,
 };
 
-/*
- * The commands that the short presses send in turn. The transition time of Move to Level with
- * On/Off and Move to Color Temperature is 10 tenths of a second, and the scenes are in group 0.
- */
-static const struct command commands[] = {
+/* The commands that the short presses send in turn */
+static const enum step steps[] = {
 #if defined(CONFIG_SAMPLE_SCENE_SELECTOR)
-	{ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_RECALL_SCENE, {0x00, 0x00, 1}, 3},
-	{ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_RECALL_SCENE, {0x00, 0x00, 2}, 3},
+	RECALL_SCENE,
+	RECALL_SCENE_2,
 #elif defined(CONFIG_SAMPLE_CONFIGURATION_TOOL)
-	/* Group 0x0001 with an empty name */
-	{ZZB_ZCL_GROUPS, ZZB_ZCL_GROUPS_ADD_GROUP, {0x01, 0x00, 0}, 3},
-	{ZZB_ZCL_GROUPS, ZZB_ZCL_GROUPS_REMOVE_GROUP, {0x01, 0x00}, 2},
+	ADD_GROUP,
+	REMOVE_GROUP,
 #elif defined(CONFIG_SAMPLE_ON_OFF_SENSOR)
-	{ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_TOGGLE},
+	TOGGLE,
 #elif defined(CONFIG_SAMPLE_NON_COLOR_CONTROLLER)
-	{ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_TOGGLE},
-	{ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, {50, 10, 0}, 3},
-	{ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_TOGGLE},
-	{ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, {200, 10, 0}, 3},
+	TOGGLE,
+	LEVEL_LOW,
+	TOGGLE,
+	LEVEL_HIGH,
 #elif defined(CONFIG_SAMPLE_NON_COLOR_SCENE_CONTROLLER)
-	{ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_TOGGLE},
-	{ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, {50, 10, 0}, 3},
-	{ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_STORE_SCENE, {0x00, 0x00, 1}, 3},
-	{ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, {200, 10, 0}, 3},
-	{ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_RECALL_SCENE, {0x00, 0x00, 1}, 3},
+	TOGGLE,
+	LEVEL_LOW,
+	STORE_SCENE,
+	LEVEL_HIGH,
+	RECALL_SCENE,
 #elif defined(CONFIG_SAMPLE_COLOR_SCENE_CONTROLLER)
-	{ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_TOGGLE},
-	{ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, {50, 10, 0}, 3},
-	/* 250 mireds */
-	{ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, {0xfa, 0x00, 10, 0}, 4},
-	{ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_STORE_SCENE, {0x00, 0x00, 1}, 3},
-	{ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, {200, 10, 0}, 3},
-	/* 400 mireds */
-	{ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, {0x90, 0x01, 10, 0}, 4},
-	{ZZB_ZCL_SCENES, ZZB_ZCL_SCENES_RECALL_SCENE, {0x00, 0x00, 1}, 3},
+	TOGGLE,
+	LEVEL_LOW,
+	TEMPERATURE_COLD,
+	STORE_SCENE,
+	LEVEL_HIGH,
+	TEMPERATURE_WARM,
+	RECALL_SCENE,
 #else
 	/* Remote Control, Combined Interface, Color Controller and Control Bridge */
-	{ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_TOGGLE},
-	{ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, {50, 10, 0}, 3},
-	/* 250 mireds */
-	{ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, {0xfa, 0x00, 10, 0}, 4},
-	{ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_TOGGLE},
-	{ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, {200, 10, 0}, 3},
-	/* 400 mireds */
-	{ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, {0x90, 0x01, 10, 0}, 4},
+	TOGGLE,
+	LEVEL_LOW,
+	TEMPERATURE_COLD,
+	TOGGLE,
+	LEVEL_HIGH,
+	TEMPERATURE_WARM,
 #endif
 };
+
+static int send(struct zzb_node *node, enum step step)
+{
+	switch (step) {
+	case TOGGLE:
+		return zzb_zcl_send_bound(node, CONTROLLER_EP, ZZB_ZCL_ON_OFF, ZZB_ZCL_ON_OFF_TOGGLE,
+					  NULL, 0);
+	case LEVEL_LOW:
+		return zzb_zcl_level_move_to_level_on_off(node, CONTROLLER_EP, DIM_LEVEL,
+							  TRANSITION_TIME);
+	case LEVEL_HIGH:
+		return zzb_zcl_level_move_to_level_on_off(node, CONTROLLER_EP, BRIGHT_LEVEL,
+							  TRANSITION_TIME);
+	case TEMPERATURE_COLD:
+		return zzb_zcl_color_move_to_temperature(node, CONTROLLER_EP, COLD_MIREDS,
+							 TRANSITION_TIME);
+	case TEMPERATURE_WARM:
+		return zzb_zcl_color_move_to_temperature(node, CONTROLLER_EP, WARM_MIREDS,
+							 TRANSITION_TIME);
+	case STORE_SCENE:
+		return zzb_zcl_scenes_store_scene(node, CONTROLLER_EP, ZZB_ZCL_SCENES_GROUP_NONE,
+						  SCENE);
+	case RECALL_SCENE:
+		return zzb_zcl_scenes_recall_scene(node, CONTROLLER_EP, ZZB_ZCL_SCENES_GROUP_NONE,
+						   SCENE);
+	case RECALL_SCENE_2:
+		return zzb_zcl_scenes_recall_scene(node, CONTROLLER_EP, ZZB_ZCL_SCENES_GROUP_NONE,
+						   SCENE_2);
+	case ADD_GROUP:
+		return zzb_zcl_groups_add_group(node, CONTROLLER_EP, GROUP, NULL, 0);
+	default:
+		return zzb_zcl_groups_remove_group(node, CONTROLLER_EP, GROUP);
+	}
+}
 
 static void zcl_changed(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
 {
@@ -154,25 +220,23 @@ static void zcl_changed(struct zzb_node *node, uint8_t ep, uint16_t cluster, uin
 void sample_button(struct zzb_node *node)
 {
 	static size_t next;
-	const struct command *cmd = &commands[next];
+	enum step step = steps[next];
 	int err;
 
-	next = (next + 1) % ARRAY_SIZE(commands);
-	err = zzb_zcl_send_bound(node, CONTROLLER_EP, cmd->cluster, cmd->id, cmd->payload,
-				 cmd->len);
+	next = (next + 1) % ARRAY_SIZE(steps);
+	err = send(node, step);
 	if (err) {
-		LOG_ERR("cluster 0x%04x command 0x%02x %d", cmd->cluster, cmd->id, err);
+		LOG_ERR("step %d: %d", step, err);
 		return;
 	}
 
-	LOG_INF("cluster 0x%04x command 0x%02x sent", cmd->cluster, cmd->id);
+	LOG_INF("step %d sent", step);
 }
 
-/* Group 0xffff makes unicast bindings */
 void sample_finding_binding(struct zzb_node *node)
 {
 	LOG_INF("finding & binding %d",
-		zzb_bdb_finding_binding_initiator(node, CONTROLLER_EP, 0xffff));
+		zzb_bdb_finding_binding_initiator(node, CONTROLLER_EP, ZZB_BDB_FB_UNICAST));
 }
 
 int main(void)

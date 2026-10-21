@@ -4,7 +4,6 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
-#include <zephyr/sys/byteorder.h>
 #include <zzb/zcl/basic.h>
 #include <zzb/zcl/color.h>
 #include <zzb/zcl/identify.h>
@@ -20,6 +19,25 @@ LOG_MODULE_REGISTER(switch, LOG_LEVEL_INF);
 
 #define SWITCH_EP 1
 
+#if defined(CONFIG_SAMPLE_ON_OFF_SWITCH)
+#define DEVICE_ID ZZB_DEVICE_ON_OFF_SWITCH
+#elif defined(CONFIG_SAMPLE_LEVEL_CONTROL_SWITCH)
+#define DEVICE_ID ZZB_DEVICE_LEVEL_CONTROL_SWITCH
+#elif defined(CONFIG_SAMPLE_ON_OFF_LIGHT_SWITCH)
+#define DEVICE_ID ZZB_DEVICE_ON_OFF_LIGHT_SWITCH
+#elif defined(CONFIG_SAMPLE_DIMMER_SWITCH)
+#define DEVICE_ID ZZB_DEVICE_DIMMER_SWITCH
+#elif defined(CONFIG_SAMPLE_COLOR_DIMMER_SWITCH)
+#define DEVICE_ID ZZB_DEVICE_COLOR_DIMMER_SWITCH
+#endif
+
+/* The levels and color temperatures in mireds that the presses send in turn, over 1 s */
+#define LEVEL_LOW        50
+#define LEVEL_HIGH       200
+#define TEMPERATURE_COLD 250
+#define TEMPERATURE_WARM 400
+#define TRANSITION_TIME  10
+
 /* Short presses send in turn one command of each client of the type except Identify */
 #define CYCLE_LENGTH (1 + IS_ENABLED(CONFIG_SAMPLE_LEVEL) + IS_ENABLED(CONFIG_SAMPLE_COLOR))
 
@@ -27,24 +45,23 @@ static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
 	.power_source = SAMPLE_BASIC_POWER_SOURCE,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
-/* Two AA cells, 3.0 V, 100 % */
+/* Two AA cells of 1.5 V, at 3.0 V and 100 % */
 static struct zzb_zcl_power_config power_config = {
 	.battery_voltage = 30,
 	.battery_percentage_remaining = 200,
-	.battery_size = 0x03,
+	.battery_size = ZZB_ZCL_POWER_CONFIG_BATTERY_SIZE_AA,
 	.battery_quantity = 2,
 	.battery_rated_voltage = 15,
 };
 
 static struct zzb_zcl_identify identify;
 
-/* SwitchType momentary */
 static struct zzb_zcl_on_off_switch_config switch_config = {
-	.switch_type = 0x01,
+	.switch_type = ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_TYPE_MOMENTARY,
 };
 
 static const struct zzb_zcl_cluster switch_clusters[] = {
@@ -65,9 +82,9 @@ static const struct zzb_zcl_cluster switch_clusters[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = SWITCH_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = switch_clusters,
 		.cluster_count = ARRAY_SIZE(switch_clusters),
 	},
@@ -99,16 +116,20 @@ static void zcl_changed(struct zzb_node *node, uint8_t ep, uint16_t cluster, uin
 	}
 }
 
-/* Toggle for SwitchActions 0x02, otherwise On and Off in turn, starting with Off for 0x01 */
+/* Toggle for SwitchActions Toggle, otherwise On and Off in turn, starting with Off for Off/On */
 static uint8_t on_off(unsigned int round)
 {
 	atomic_val_t actions = atomic_get(&switch_actions);
 
-	if (actions == 0x02) {
+	if (actions == ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_ACTIONS_TOGGLE) {
 		return ZZB_ZCL_ON_OFF_TOGGLE;
 	}
 
-	return (round + actions) % 2 ? ZZB_ZCL_ON_OFF_OFF : ZZB_ZCL_ON_OFF_ON;
+	if (actions == ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_ACTIONS_OFF_ON) {
+		round++;
+	}
+
+	return round % 2 ? ZZB_ZCL_ON_OFF_OFF : ZZB_ZCL_ON_OFF_ON;
 }
 
 void sample_button(struct zzb_node *node)
@@ -116,7 +137,6 @@ void sample_button(struct zzb_node *node)
 	static unsigned int press;
 	unsigned int step = press % CYCLE_LENGTH;
 	unsigned int round = press / CYCLE_LENGTH;
-	uint8_t payload[4];
 	int err;
 
 	press++;
@@ -125,18 +145,14 @@ void sample_button(struct zzb_node *node)
 		err = zzb_zcl_send_bound(node, SWITCH_EP, ZZB_ZCL_ON_OFF, on_off(round), NULL, 0);
 		break;
 	case 1:
-		/* Level 50 or 200, transition time 1 s */
-		payload[0] = round % 2 ? 200 : 50;
-		sys_put_le16(10, payload + 1);
-		err = zzb_zcl_send_bound(node, SWITCH_EP, ZZB_ZCL_LEVEL,
-					 ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF, payload, 3);
+		err = zzb_zcl_level_move_to_level_on_off(node, SWITCH_EP,
+							 round % 2 ? LEVEL_HIGH : LEVEL_LOW,
+							 TRANSITION_TIME);
 		break;
 	default:
-		/* 250 or 400 mireds, transition time 1 s */
-		sys_put_le16(round % 2 ? 400 : 250, payload);
-		sys_put_le16(10, payload + 2);
-		err = zzb_zcl_send_bound(node, SWITCH_EP, ZZB_ZCL_COLOR,
-					 ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE, payload, 4);
+		err = zzb_zcl_color_move_to_temperature(node, SWITCH_EP,
+							round % 2 ? TEMPERATURE_WARM : TEMPERATURE_COLD,
+							TRANSITION_TIME);
 		break;
 	}
 
@@ -147,8 +163,8 @@ void sample_button(struct zzb_node *node)
 
 void sample_finding_binding(struct zzb_node *node)
 {
-	/* Group 0xffff makes unicast bindings */
-	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_initiator(node, SWITCH_EP, 0xffff));
+	LOG_INF("finding & binding %d",
+		zzb_bdb_finding_binding_initiator(node, SWITCH_EP, ZZB_BDB_FB_UNICAST));
 }
 
 int main(void)
