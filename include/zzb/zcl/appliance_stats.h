@@ -27,6 +27,9 @@ extern "C" {
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_QUEUE_RSP        0x02
 #define ZZB_ZCL_APPLIANCE_STATS_STATISTICS_AVAILABLE 0x03
 
+/** Time Stamp of a log of a server without the time (ZCL 15.5.2.2.1.2). */
+#define ZZB_ZCL_APPLIANCE_STATS_TIME_STAMP_UNKNOWN 0xffffffff
+
 /**
  * Values of an Appliance Statistics server (ZCL 15.5.2.1). The application fills them before
  * zzb_node_init() and changes them with zzb_zcl_attr_set(); they are read-only.
