@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb OTA sample"
+
+rsource "../common/Kconfig"
+
+config SAMPLE_MANUFACTURER_CODE
+	hex "Manufacturer code"
+	range 0x0 0xfffe
+	default 0x0
+	help
+	  Manufacturer code of the node descriptor and of the OTA files of the
+	  device.
+
+config SAMPLE_OTA_IMAGE_TYPE
+	hex "OTA image type"
+	range 0x0 0xffbf
+	default 0x0
+	help
+	  Image type of the OTA files of the device.
+
+source "Kconfig.zephyr"
