@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb hvac sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_HVAC
+	prompt "Device type"
+
+config SAMPLE_THERMOSTAT
+	bool "Thermostat (0x0301)"
+
+config SAMPLE_HEATING_COOLING_UNIT
+	bool "Heating/Cooling Unit (0x0300)"
+
+config SAMPLE_AIR_PURIFIER
+	bool "Air Purifier (0x0308)"
+
+endchoice
+
+config SAMPLE_MODEL_ID
+	string
+	default "thermostat" if SAMPLE_THERMOSTAT
+	default "heating_cooling_unit" if SAMPLE_HEATING_COOLING_UNIT
+	default "air_purifier" if SAMPLE_AIR_PURIFIER
+
+source "Kconfig.zephyr"

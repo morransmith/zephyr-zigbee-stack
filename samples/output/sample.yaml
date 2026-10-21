@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb output
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.output.on_off_output:
+    extra_configs:
+      - CONFIG_SAMPLE_ON_OFF_OUTPUT=y
+  sample.zzb.output.level_controllable_output:
+    extra_configs:
+      - CONFIG_SAMPLE_LEVEL_CONTROLLABLE_OUTPUT=y
+  sample.zzb.output.mains_power_outlet:
+    extra_configs:
+      - CONFIG_SAMPLE_MAINS_POWER_OUTLET=y
+  sample.zzb.output.on_off_plug_in_unit:
+    extra_configs:
+      - CONFIG_SAMPLE_ON_OFF_PLUG_IN_UNIT=y
+  sample.zzb.output.dimmable_plug_in_unit:
+    extra_configs:
+      - CONFIG_SAMPLE_DIMMABLE_PLUG_IN_UNIT=y

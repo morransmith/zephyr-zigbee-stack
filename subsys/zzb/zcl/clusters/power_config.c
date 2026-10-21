@@ -10,9 +10,6 @@
 /* ClusterRevision (ZCL 3.3.1.1) */
 #define REVISION 2
 
-/* An unknown MainsVoltage, or a mains voltage threshold without alarm (ZCL 3.3.2.2.2) */
-#define NO_VOLTAGE 0xffff
-
 /* Mains voltage alarm codes, also the bits of MainsAlarmMask (ZCL Table 3-20) */
 #define MAINS_LOW  0x00
 #define MAINS_HIGH 0x01
@@ -104,16 +101,16 @@ static uint8_t mains_conditions(const struct zzb_zcl_power_config *v)
 {
 	uint8_t conditions = 0;
 
-	if (v->mains_voltage == NO_VOLTAGE) {
+	if (v->mains_voltage == ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE_UNKNOWN) {
 		return 0;
 	}
 
-	if (v->mains_voltage_min_threshold != NO_VOLTAGE &&
+	if (v->mains_voltage_min_threshold != ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE_THRESHOLD_NONE &&
 	    v->mains_voltage < v->mains_voltage_min_threshold) {
 		conditions |= BIT(MAINS_LOW);
 	}
 
-	if (v->mains_voltage_max_threshold != NO_VOLTAGE &&
+	if (v->mains_voltage_max_threshold != ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE_THRESHOLD_NONE &&
 	    v->mains_voltage > v->mains_voltage_max_threshold) {
 		conditions |= BIT(MAINS_HIGH);
 	}

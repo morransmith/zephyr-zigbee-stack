@@ -5,6 +5,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -23,6 +25,20 @@ extern "C" {
 #define ZZB_ZCL_LEVEL_ON_TRANSITION_TIME     0x0012
 #define ZZB_ZCL_LEVEL_OFF_TRANSITION_TIME    0x0013
 #define ZZB_ZCL_LEVEL_START_UP               0x4000
+
+/** Bits of Options (ZCL Tables 3-57 and 3-144). */
+#define ZZB_ZCL_LEVEL_OPTIONS_EXECUTE_IF_OFF    BIT(0)
+#define ZZB_ZCL_LEVEL_OPTIONS_COUPLE_COLOR_TEMP BIT(1)
+
+/** OnLevel without effect: On restores the level before Off (ZCL 3.10.2.2.10). */
+#define ZZB_ZCL_LEVEL_ON_LEVEL_NONE 0xff
+
+/** OnTransitionTime or OffTransitionTime that takes OnOffTransitionTime (ZCL 3.10.2.2.11). */
+#define ZZB_ZCL_LEVEL_TRANSITION_TIME_NONE 0xffff
+
+/** Values of StartUpCurrentLevel other than a level (ZCL Table 3-58). */
+#define ZZB_ZCL_LEVEL_START_UP_MINIMUM  0x00
+#define ZZB_ZCL_LEVEL_START_UP_PREVIOUS 0xff
 
 /** Commands that the server receives and a client sends (ZCL Table 3-59). */
 #define ZZB_ZCL_LEVEL_MOVE_TO_LEVEL        0x00
@@ -43,11 +59,15 @@ struct zzb_zcl_level {
 	uint8_t current_level;
 	/** Tenths of a second, as the transition times. */
 	uint16_t remaining_time;
+	/** ZZB_ZCL_LEVEL_OPTIONS_* bits. */
 	uint8_t options;
 	uint16_t on_off_transition_time;
+	/** A level or ZZB_ZCL_LEVEL_ON_LEVEL_NONE. */
 	uint8_t on_level;
+	/** Tenths of a second or ZZB_ZCL_LEVEL_TRANSITION_TIME_NONE. */
 	uint16_t on_transition_time;
 	uint16_t off_transition_time;
+	/** A level, ZZB_ZCL_LEVEL_START_UP_MINIMUM or ZZB_ZCL_LEVEL_START_UP_PREVIOUS. */
 	uint8_t start_up_current_level;
 	/**
 	 * Factory value of StartUpCurrentLevel, set by the application. A node without a record and
@@ -81,6 +101,42 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_level_client_def;
 		.server = false,                                                                   \
 		.def = &zzb_zcl_level_client_def,                                                  \
 	}
+
+/**
+ * @brief Send Move to Level to the bound destinations (ZCL 3.10.2.3.1).
+ *
+ * CurrentLevel moves to level, 1 to 254 for lighting, over transition_time tenths of a second. The
+ * optional OptionsMask and OptionsOverride are left out.
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_level_move_to_level(struct zzb_node *node, uint8_t ep, uint8_t level,
+					      uint16_t transition_time)
+{
+	uint8_t payload[3] = {level};
+
+	sys_put_le16(transition_time, payload + 1);
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL, payload,
+				  sizeof(payload));
+}
+
+/**
+ * @brief Send Move to Level (with On/Off) to the bound destinations (ZCL 3.10.2.3.6).
+ *
+ * As zzb_zcl_level_move_to_level(); the destinations also turn on for a level above the minimum
+ * and off at the minimum.
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_level_move_to_level_on_off(struct zzb_node *node, uint8_t ep,
+						     uint8_t level, uint16_t transition_time)
+{
+	uint8_t payload[3] = {level};
+
+	sys_put_le16(transition_time, payload + 1);
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_LEVEL, ZZB_ZCL_LEVEL_MOVE_TO_LEVEL_ON_OFF,
+				  payload, sizeof(payload));
+}
 
 #ifdef __cplusplus
 }

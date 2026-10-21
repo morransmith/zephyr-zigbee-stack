@@ -9,9 +9,6 @@
 #include "nwk/nwk.h"
 #include "zcl/zcl.h"
 
-/* Time and UTCTime: not a value (ZCL 2.6.2.24) */
-#define NO_TIME 0xffffffff
-
 /* ClusterRevision (ZCL 3.12.1.1) */
 #define REVISION 2
 
@@ -57,7 +54,7 @@ static const struct zzb_zcl_attr attrs[] = {
 /* StandardTime of v at the UTC time utc (ZCL 3.12.2.2.3) */
 static uint32_t standard_time(const struct zzb_zcl_time *v, uint32_t utc)
 {
-	return utc == NO_TIME ? NO_TIME : utc + v->time_zone;
+	return utc == ZZB_ZCL_TIME_UNKNOWN ? ZZB_ZCL_TIME_UNKNOWN : utc + v->time_zone;
 }
 
 /* LocalTime of v at the UTC time utc (ZCL 3.12.2.2.4) */
@@ -65,7 +62,7 @@ static uint32_t local_time(const struct zzb_zcl_time *v, uint32_t utc)
 {
 	uint32_t standard = standard_time(v, utc);
 
-	if (utc == NO_TIME || utc < v->dst_start || utc > v->dst_end) {
+	if (utc == ZZB_ZCL_TIME_UNKNOWN || utc < v->dst_start || utc > v->dst_end) {
 		return standard;
 	}
 
@@ -95,7 +92,7 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 
 	switch (attr->id) {
 	case ZZB_ZCL_TIME_TIME:
-		if (value == NO_TIME) {
+		if (value == ZZB_ZCL_TIME_UNKNOWN) {
 			return ZZB_ZCL_INVALID_VALUE;
 		}
 
@@ -152,15 +149,15 @@ static void init(void *values)
 {
 	struct zzb_zcl_time *v = values;
 
-	v->time = NO_TIME;
+	v->time = ZZB_ZCL_TIME_UNKNOWN;
 	v->time_zone = 0;
-	v->dst_start = NO_TIME;
-	v->dst_end = NO_TIME;
+	v->dst_start = ZZB_ZCL_TIME_UNKNOWN;
+	v->dst_end = ZZB_ZCL_TIME_UNKNOWN;
 	v->dst_shift = 0;
-	v->standard_time = NO_TIME;
-	v->local_time = NO_TIME;
-	v->last_set_time = NO_TIME;
-	v->valid_until_time = NO_TIME;
+	v->standard_time = ZZB_ZCL_TIME_UNKNOWN;
+	v->local_time = ZZB_ZCL_TIME_UNKNOWN;
+	v->last_set_time = ZZB_ZCL_TIME_UNKNOWN;
+	v->valid_until_time = ZZB_ZCL_TIME_UNKNOWN;
 	v->fixed_status = v->time_status & ~WRITABLE_STATUS;
 }
 
@@ -174,11 +171,11 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
 	set(node, ep, ZZB_ZCL_TIME_STATUS, 0);
 	set(node, ep, ZZB_ZCL_TIME_ZONE, 0);
-	set(node, ep, ZZB_ZCL_TIME_DST_START, NO_TIME);
-	set(node, ep, ZZB_ZCL_TIME_DST_END, NO_TIME);
+	set(node, ep, ZZB_ZCL_TIME_DST_START, ZZB_ZCL_TIME_UNKNOWN);
+	set(node, ep, ZZB_ZCL_TIME_DST_END, ZZB_ZCL_TIME_UNKNOWN);
 	set(node, ep, ZZB_ZCL_TIME_DST_SHIFT, 0);
-	set(node, ep, ZZB_ZCL_TIME_LAST_SET_TIME, NO_TIME);
-	set(node, ep, ZZB_ZCL_TIME_VALID_UNTIL_TIME, NO_TIME);
+	set(node, ep, ZZB_ZCL_TIME_LAST_SET_TIME, ZZB_ZCL_TIME_UNKNOWN);
+	set(node, ep, ZZB_ZCL_TIME_VALID_UNTIL_TIME, ZZB_ZCL_TIME_UNKNOWN);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_time_def = {
@@ -336,7 +333,7 @@ int zzb_zcl_time_read_rsp(struct zzb_node *node, const struct zzb_zcl_req *req)
 
 	/* ZCL 3.12.2.2.2: a server without Master and Synchronized has no defined time */
 	if (cmd->tsn != node->zcl.time_tsn || !find(cmd, ZZB_ZCL_TIME_TIME, ZZB_ZCL_UTC, &utc) ||
-	    utc == NO_TIME || !find(cmd, ZZB_ZCL_TIME_STATUS, ZZB_ZCL_MAP8, &status) ||
+	    utc == ZZB_ZCL_TIME_UNKNOWN || !find(cmd, ZZB_ZCL_TIME_STATUS, ZZB_ZCL_MAP8, &status) ||
 	    !(status & (ZZB_ZCL_TIME_MASTER | ZZB_ZCL_TIME_SYNCHRONIZED))) {
 		return ZZB_ZCL_SUCCESS;
 	}
@@ -368,7 +365,7 @@ uint32_t zzb_zcl_clock_utc(const struct zzb_node *node)
 	const struct zzb_zcl_clock *c = &node->zcl.clock;
 
 	if (!c->set) {
-		return NO_TIME;
+		return ZZB_ZCL_TIME_UNKNOWN;
 	}
 
 	return c->utc + (k_uptime_get() - c->uptime) / MSEC_PER_SEC;
@@ -387,7 +384,7 @@ uint32_t zzb_zcl_clock_local(const struct zzb_node *node)
 		}
 	}
 
-	return utc == NO_TIME ? NO_TIME : utc + node->zcl.clock.offset;
+	return utc == ZZB_ZCL_TIME_UNKNOWN ? ZZB_ZCL_TIME_UNKNOWN : utc + node->zcl.clock.offset;
 }
 
 struct time_req {
@@ -412,7 +409,7 @@ int zzb_zcl_time_get(struct zzb_node *node, uint32_t *utc, uint32_t *local)
 	};
 
 	zzb_call_sync(&req.work, time_handler);
-	if (req.utc == NO_TIME) {
+	if (req.utc == ZZB_ZCL_TIME_UNKNOWN) {
 		return -ENODATA;
 	}
 

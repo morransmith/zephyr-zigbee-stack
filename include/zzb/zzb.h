@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <zephyr/sys/util_macro.h>
 #include <zzb/bdb.h>
+#include <zzb/device.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus

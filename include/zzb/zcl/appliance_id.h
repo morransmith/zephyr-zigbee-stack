@@ -27,16 +27,43 @@ extern "C" {
 #define ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_ID             0x0019
 #define ZZB_ZCL_APPLIANCE_ID_CECED_SPECIFICATION_VERSION 0x001a
 
+/** Fields of BasicIdentification (ZCL Table 15-13). */
+#define ZZB_ZCL_APPLIANCE_ID_BASIC_COMPANY_ID      GENMASK64(15, 0)
+#define ZZB_ZCL_APPLIANCE_ID_BASIC_BRAND_ID        GENMASK64(31, 16)
+#define ZZB_ZCL_APPLIANCE_ID_BASIC_PRODUCT_TYPE_ID GENMASK64(47, 32)
+#define ZZB_ZCL_APPLIANCE_ID_BASIC_SPEC_VERSION    GENMASK64(55, 48)
+
+/** ProductTypeId and the Product Type ID of BasicIdentification (ZCL Table 15-14). */
+enum zzb_zcl_appliance_id_product_type {
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_WHITE_GOODS = 0x0000,
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_DISHWASHER = 0x5601,
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_TUMBLE_DRYER = 0x5602,
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_WASHER_DRYER = 0x5603,
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_WASHING_MACHINE = 0x5604,
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_HOBS = 0x5e03,
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_INDUCTION_HOBS = 0x5e09,
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_OVEN = 0x5e01,
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_ELECTRICAL_OVEN = 0x5e06,
+	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_REFRIGERATOR_FREEZER = 0x6601,
+};
+
+/** Fields of CECEDSpecificationVersion: X of vX.0 and the certification (ZCL Table 15-16). */
+#define ZZB_ZCL_APPLIANCE_ID_CECED_VERSION       GENMASK(7, 4)
+#define ZZB_ZCL_APPLIANCE_ID_CECED_CERTIFICATION GENMASK(3, 0)
+
+/** ZZB_ZCL_APPLIANCE_ID_CECED_CERTIFICATION (ZCL Table 15-16). */
+enum zzb_zcl_appliance_id_ceced_certification {
+	ZZB_ZCL_APPLIANCE_ID_CECED_NOT_CERTIFIED = 0x0,
+	ZZB_ZCL_APPLIANCE_ID_CECED_CERTIFIED = 0xa,
+};
+
 /**
  * Values of an Appliance Identification server (ZCL 15.3.2). The application fills them before
  * zzb_node_init() and changes the integers with zzb_zcl_attr_set(); they are read-only. A NULL
  * string reads as an empty string.
  */
 struct zzb_zcl_appliance_id {
-	/**
-	 * Company ID in bits 0 to 15, Brand ID in bits 16 to 31, Product Type ID in bits 32 to 47
-	 * and the specification version in bits 48 to 55 (ZCL Table 15-13).
-	 */
+	/** ZZB_ZCL_APPLIANCE_ID_BASIC_* fields. */
 	uint64_t basic_identification;
 	/** Up to 16 characters. */
 	const char *company_name;
@@ -52,9 +79,9 @@ struct zzb_zcl_appliance_id {
 	const uint8_t *software_revision;
 	/** 2 octets, such as "WM" for a washing machine. */
 	const uint8_t *product_type_name;
-	/** ZCL Table 15-14. */
+	/** enum zzb_zcl_appliance_id_product_type. */
 	uint16_t product_type_id;
-	/** ZCL Table 15-16, such as 0x10 for v1.0 not certified. */
+	/** ZZB_ZCL_APPLIANCE_ID_CECED_VERSION and _CERTIFICATION fields. */
 	uint8_t ceced_specification_version;
 };
 

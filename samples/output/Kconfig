@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb output sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_OUTPUT
+	prompt "Device type"
+
+config SAMPLE_ON_OFF_OUTPUT
+	bool "On/Off Output (0x0002)"
+
+config SAMPLE_LEVEL_CONTROLLABLE_OUTPUT
+	bool "Level Controllable Output (0x0003)"
+	select SAMPLE_LEVEL
+
+config SAMPLE_MAINS_POWER_OUTLET
+	bool "Mains Power Outlet (0x0009)"
+
+# Level Control lets the unit process the commands with On/Off sent to a group with dimmable
+# lights (DTL 31.3.1)
+config SAMPLE_ON_OFF_PLUG_IN_UNIT
+	bool "On/Off Plug-in Unit (0x010a)"
+	select SAMPLE_LEVEL
+
+config SAMPLE_DIMMABLE_PLUG_IN_UNIT
+	bool "Dimmable Plug-In Unit (0x010b)"
+	select SAMPLE_LEVEL
+
+endchoice
+
+config SAMPLE_LEVEL
+	bool
+
+config SAMPLE_MODEL_ID
+	string
+	default "on_off_output" if SAMPLE_ON_OFF_OUTPUT
+	default "level_controllable_output" if SAMPLE_LEVEL_CONTROLLABLE_OUTPUT
+	default "mains_power_outlet" if SAMPLE_MAINS_POWER_OUTLET
+	default "on_off_plug_in_unit" if SAMPLE_ON_OFF_PLUG_IN_UNIT
+	default "dimmable_plug_in_unit" if SAMPLE_DIMMABLE_PLUG_IN_UNIT
+
+source "Kconfig.zephyr"

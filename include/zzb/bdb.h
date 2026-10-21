@@ -94,20 +94,24 @@ int zzb_bdb_reset(struct zzb_node *node);
  */
 int zzb_bdb_finding_binding_target(struct zzb_node *node, uint8_t ep);
 
+/** The group of zzb_bdb_finding_binding_initiator() that makes unicast bindings. */
+#define ZZB_BDB_FB_UNICAST 0xffff
+
 /**
  * @brief Start finding & binding for an initiator endpoint (BDB 8.5).
  *
  * ep broadcasts Identify Query and collects the responses for 5 s. For every respondent it binds
  * each client cluster of ep to the same input cluster of the respondent and each server cluster
- * to the same output cluster, Identify excepted, when the profiles are equal. group 0xffff makes
- * unicast bindings, which need the IEEE address of the respondent; a group makes group bindings,
- * and Add Group If Identifying adds the identifying devices to it. ZZB_BDB_EVENT_FINDING_BINDING_
- * INITIATOR ends the procedure with ZZB_BDB_SUCCESS, ZZB_BDB_NO_IDENTIFY_QUERY_RESPONSE,
- * ZZB_BDB_BINDING_TABLE_FULL or, on a node off a network at once, ZZB_BDB_NOT_ON_A_NETWORK. The
- * procedure runs beside the other BDB procedures; the reset of the node ends it without an event.
+ * to the same output cluster, Identify excepted, when the profiles are equal. ZZB_BDB_FB_UNICAST
+ * makes unicast bindings, which need the IEEE address of the respondent; a group makes group
+ * bindings, and Add Group If Identifying adds the identifying devices to it.
+ * ZZB_BDB_EVENT_FINDING_BINDING_INITIATOR ends the procedure with ZZB_BDB_SUCCESS,
+ * ZZB_BDB_NO_IDENTIFY_QUERY_RESPONSE, ZZB_BDB_BINDING_TABLE_FULL or, on a node off a network at
+ * once, ZZB_BDB_NOT_ON_A_NETWORK. The procedure runs beside the other BDB procedures; the reset of
+ * the node ends it without an event.
  *
  * @retval 0 on success.
- * @retval -EINVAL group is neither 0xffff nor in 0x0001 to 0xfff7.
+ * @retval -EINVAL group is neither ZZB_BDB_FB_UNICAST nor in 0x0001 to 0xfff7.
  * @retval -ENOENT ep has no ZZB_ZCL_IDENTIFY_CLIENT() instance.
  * @retval -EBUSY finding & binding for an initiator runs.
  */

@@ -7,10 +7,6 @@
 /* ClusterRevision (ZCL 6.4.1.1) */
 #define REVISION 1
 
-/* The highest FanMode, Smart, and the default, Auto (ZCL Table 6-41) */
-#define MODE_SMART 0x06
-#define MODE_AUTO  0x05
-
 /* ZCL does not mark FanMode reportable, but ZHA 2.3.1 configures its report */
 static const struct zzb_zcl_attr attrs[] = {
 	ZZB_ZCL_ATTR(ZZB_ZCL_FAN_MODE, ZZB_ZCL_ENUM8, ZZB_ZCL_WRITE | ZZB_ZCL_REPORT | ZZB_ZCL_NV,
@@ -26,19 +22,19 @@ static uint8_t check(const void *values, const struct zzb_zcl_attr *attr, uint32
 		return ZZB_ZCL_SUCCESS;
 	}
 
-	return value <= MODE_SMART ? ZZB_ZCL_SUCCESS : ZZB_ZCL_INVALID_VALUE;
+	return value <= ZZB_ZCL_FAN_MODE_SMART ? ZZB_ZCL_SUCCESS : ZZB_ZCL_INVALID_VALUE;
 }
 
 static void init(void *values)
 {
 	struct zzb_zcl_fan *v = values;
 
-	v->fan_mode = MODE_AUTO;
+	v->fan_mode = ZZB_ZCL_FAN_MODE_AUTO;
 }
 
 static void reset(struct zzb_node *node, uint8_t ep, void *values)
 {
-	zzb_zcl_set(node, ep, ZZB_ZCL_FAN, ZZB_ZCL_FAN_MODE, MODE_AUTO);
+	zzb_zcl_set(node, ep, ZZB_ZCL_FAN, ZZB_ZCL_FAN_MODE, ZZB_ZCL_FAN_MODE_AUTO);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_fan_def = {

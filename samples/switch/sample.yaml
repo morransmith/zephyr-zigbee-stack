@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb switch
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.switch.on_off_switch:
+    extra_configs:
+      - CONFIG_SAMPLE_ON_OFF_SWITCH=y
+  sample.zzb.switch.level_control_switch:
+    extra_configs:
+      - CONFIG_SAMPLE_LEVEL_CONTROL_SWITCH=y
+  sample.zzb.switch.on_off_light_switch:
+    extra_configs:
+      - CONFIG_SAMPLE_ON_OFF_LIGHT_SWITCH=y
+  sample.zzb.switch.dimmer_switch:
+    extra_configs:
+      - CONFIG_SAMPLE_DIMMER_SWITCH=y
+  sample.zzb.switch.color_dimmer_switch:
+    extra_configs:
+      - CONFIG_SAMPLE_COLOR_DIMMER_SWITCH=y

@@ -44,6 +44,7 @@ struct zzb_zcl_on_off {
 	/** Tenths of a second. */
 	uint16_t on_time;
 	uint16_t off_wait_time;
+	/** enum zzb_zcl_start_up_on_off. */
 	uint8_t start_up_on_off;
 	/**
 	 * Factory value of StartUpOnOff, set by the application. A node without a record and the

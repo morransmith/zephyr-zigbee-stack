@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb switch sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_SWITCH
+	prompt "Device type"
+
+config SAMPLE_ON_OFF_SWITCH
+	bool "On/Off Switch (0x0000)"
+	select SAMPLE_SLEEPY
+
+config SAMPLE_LEVEL_CONTROL_SWITCH
+	bool "Level Control Switch (0x0001)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_LEVEL
+
+config SAMPLE_ON_OFF_LIGHT_SWITCH
+	bool "On/Off Light Switch (0x0103)"
+	select SAMPLE_SLEEPY
+
+config SAMPLE_DIMMER_SWITCH
+	bool "Dimmer Switch (0x0104)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_LEVEL
+
+config SAMPLE_COLOR_DIMMER_SWITCH
+	bool "Color Dimmer Switch (0x0105)"
+	select SAMPLE_SLEEPY
+	select SAMPLE_LEVEL
+	select SAMPLE_COLOR
+
+endchoice
+
+config SAMPLE_LEVEL
+	bool
+
+config SAMPLE_COLOR
+	bool
+
+config SAMPLE_MODEL_ID
+	string
+	default "on_off_switch" if SAMPLE_ON_OFF_SWITCH
+	default "level_control_switch" if SAMPLE_LEVEL_CONTROL_SWITCH
+	default "on_off_light_switch" if SAMPLE_ON_OFF_LIGHT_SWITCH
+	default "dimmer_switch" if SAMPLE_DIMMER_SWITCH
+	default "color_dimmer_switch" if SAMPLE_COLOR_DIMMER_SWITCH
+
+source "Kconfig.zephyr"

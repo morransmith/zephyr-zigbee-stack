@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb pump
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.pump.pump:
+    extra_configs:
+      - CONFIG_SAMPLE_PUMP=y
+  sample.zzb.pump.pump_controller:
+    extra_configs:
+      - CONFIG_SAMPLE_PUMP_CONTROLLER=y

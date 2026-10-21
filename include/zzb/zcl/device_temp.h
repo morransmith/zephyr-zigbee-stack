@@ -4,6 +4,7 @@
 #define ZZB_INCLUDE_ZZB_ZCL_DEVICE_TEMP_H_
 
 #include <stdint.h>
+#include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -24,24 +25,41 @@ extern "C" {
 #define ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_DWELL_TRIP_POINT  0x0013
 #define ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_DWELL_TRIP_POINT 0x0014
 
+/** Unknown values (ZCL 3.4.2.2.1). */
+#define ZZB_ZCL_DEVICE_TEMP_UNKNOWN                       INT16_MIN
+#define ZZB_ZCL_DEVICE_TEMP_OVER_TEMP_TOTAL_DWELL_UNKNOWN 0xffff
+
+/** Thresholds and dwell trip points that raise no alarm (ZCL 3.4.2.2.2). */
+#define ZZB_ZCL_DEVICE_TEMP_THRESHOLD_NONE        INT16_MIN
+#define ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE 0xffffff
+
+/** Bits of DeviceTempAlarmMask (ZCL Table 3-30). */
+#define ZZB_ZCL_DEVICE_TEMP_ALARM_MASK_TOO_LOW  BIT(0)
+#define ZZB_ZCL_DEVICE_TEMP_ALARM_MASK_TOO_HIGH BIT(1)
+
 /**
  * Values of a Device Temperature Configuration server (ZCL 3.4.2.2). Temperatures are in degrees
- * Celsius, INT16_MIN (the non-value 0x8000) when unknown. The application sets
- * current_temperature and over_temp_total_dwell before zzb_node_init() and changes them with
- * zzb_zcl_attr_set(); they are read-only. The stack keeps the other fields; the alarm settings are
- * writable. The attributes other than current_temperature are saved.
+ * Celsius, ZZB_ZCL_DEVICE_TEMP_UNKNOWN when unknown. The application sets current_temperature and
+ * over_temp_total_dwell before zzb_node_init() and changes them with zzb_zcl_attr_set(); they are
+ * read-only. The stack keeps the other fields; the alarm settings are writable. The attributes
+ * other than current_temperature are saved.
  */
 struct zzb_zcl_device_temp {
 	int16_t current_temperature;
-	/** Hours above HighTempThreshold; a saved value replaces it at zzb_node_init(). */
+	/**
+	 * Hours above HighTempThreshold, or ZZB_ZCL_DEVICE_TEMP_OVER_TEMP_TOTAL_DWELL_UNKNOWN; a
+	 * saved value replaces it at zzb_node_init().
+	 */
 	uint16_t over_temp_total_dwell;
 	/** Follow current_temperature. */
 	int16_t min_temp_experienced;
 	int16_t max_temp_experienced;
+	/** ZZB_ZCL_DEVICE_TEMP_ALARM_MASK_* bits. */
 	uint8_t alarm_mask;
+	/** ZZB_ZCL_DEVICE_TEMP_THRESHOLD_NONE raises no alarm. */
 	int16_t low_temp_threshold;
 	int16_t high_temp_threshold;
-	/** Seconds, 0xffffff disables the alarm. */
+	/** Seconds, or ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE. */
 	uint32_t low_temp_dwell_trip_point;
 	uint32_t high_temp_dwell_trip_point;
 	/** Internal: bit n while the condition of alarm n lasts. */

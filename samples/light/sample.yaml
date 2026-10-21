@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb light
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.light.on_off_light:
+    extra_configs:
+      - CONFIG_SAMPLE_ON_OFF_LIGHT=y
+  sample.zzb.light.dimmable_light:
+    extra_configs:
+      - CONFIG_SAMPLE_DIMMABLE_LIGHT=y
+  sample.zzb.light.color_dimmable_light:
+    extra_configs:
+      - CONFIG_SAMPLE_COLOR_DIMMABLE_LIGHT=y
+  sample.zzb.light.color_temperature_light:
+    extra_configs:
+      - CONFIG_SAMPLE_COLOR_TEMPERATURE_LIGHT=y
+  sample.zzb.light.extended_color_light:
+    extra_configs:
+      - CONFIG_SAMPLE_EXTENDED_COLOR_LIGHT=y

@@ -35,28 +35,42 @@ extern "C" {
 /*
  * The values of the measurement servers are read-only. The application fills them before
  * zzb_node_init() and changes them with zzb_zcl_attr_set(). A zeroed field is a valid measurement,
- * so the application sets a value it does not know to the non-value.
+ * so the application sets a value it does not know to the _UNKNOWN or _NOT_DEFINED name of its
+ * attribute.
  */
+
+/** MeasuredValue of an unknown temperature and the limits of an unknown range (ZCL 4.4.2.2.1). */
+#define ZZB_ZCL_TEMPERATURE_MEASURED_VALUE_UNKNOWN     INT16_MIN
+#define ZZB_ZCL_TEMPERATURE_MIN_MEASURED_VALUE_UNKNOWN INT16_MIN
+#define ZZB_ZCL_TEMPERATURE_MAX_MEASURED_VALUE_UNKNOWN INT16_MIN
 
 /** Values of a Temperature Measurement server (ZCL 4.4.2.2). */
 struct zzb_zcl_temperature {
-	/** 100 x degrees Celsius, INT16_MIN (0x8000) unknown. */
+	/** 100 x degrees Celsius. */
 	int16_t measured_value;
-	/** INT16_MIN unknown. */
 	int16_t min_measured_value;
 	int16_t max_measured_value;
 	uint16_t tolerance;
 };
 
+/** MeasuredValue of an unknown pressure and the limits that are not defined (ZCL 4.5.2.2.1). */
+#define ZZB_ZCL_PRESSURE_MEASURED_VALUE_UNKNOWN         INT16_MIN
+#define ZZB_ZCL_PRESSURE_MIN_MEASURED_VALUE_NOT_DEFINED INT16_MIN
+#define ZZB_ZCL_PRESSURE_MAX_MEASURED_VALUE_NOT_DEFINED INT16_MIN
+
+/** ScaledValue of an invalid measurement and the limits that are not defined (ZCL 4.5.2.2.2). */
+#define ZZB_ZCL_PRESSURE_SCALED_VALUE_UNKNOWN         INT16_MIN
+#define ZZB_ZCL_PRESSURE_MIN_SCALED_VALUE_NOT_DEFINED INT16_MIN
+#define ZZB_ZCL_PRESSURE_MAX_SCALED_VALUE_NOT_DEFINED INT16_MIN
+
 /** Values of a Pressure Measurement server (ZCL 4.5.2.2). */
 struct zzb_zcl_pressure {
-	/** 10 x kPa, INT16_MIN (0x8000) unknown. */
+	/** 10 x kPa. */
 	int16_t measured_value;
-	/** INT16_MIN not defined. */
 	int16_t min_measured_value;
 	int16_t max_measured_value;
 	uint16_t tolerance;
-	/** 10^scale x Pa, INT16_MIN invalid. */
+	/** 10^scale x Pa. */
 	int16_t scaled_value;
 	int16_t min_scaled_value;
 	int16_t max_scaled_value;
@@ -64,21 +78,29 @@ struct zzb_zcl_pressure {
 	int8_t scale;
 };
 
+/** MeasuredValue of an unknown flow and the limits that are not defined (ZCL 4.6.2.2.1). */
+#define ZZB_ZCL_FLOW_MEASURED_VALUE_UNKNOWN         0xffff
+#define ZZB_ZCL_FLOW_MIN_MEASURED_VALUE_NOT_DEFINED 0xffff
+#define ZZB_ZCL_FLOW_MAX_MEASURED_VALUE_NOT_DEFINED 0xffff
+
 /** Values of a Flow Measurement server (ZCL 4.6.2.2). */
 struct zzb_zcl_flow {
-	/** 10 x m3/h, 0xffff unknown. */
+	/** 10 x m3/h. */
 	uint16_t measured_value;
-	/** 0xffff not defined. */
 	uint16_t min_measured_value;
 	uint16_t max_measured_value;
 	uint16_t tolerance;
 };
 
+/** MeasuredValue of an unknown humidity and the limits that are not defined (ZCL 4.7.2.1). */
+#define ZZB_ZCL_HUMIDITY_MEASURED_VALUE_UNKNOWN         0xffff
+#define ZZB_ZCL_HUMIDITY_MIN_MEASURED_VALUE_NOT_DEFINED 0xffff
+#define ZZB_ZCL_HUMIDITY_MAX_MEASURED_VALUE_NOT_DEFINED 0xffff
+
 /** Values of a Relative Humidity Measurement server (ZCL 4.7.2.1). */
 struct zzb_zcl_humidity {
-	/** 100 x percent, 0xffff unknown. */
+	/** 100 x percent. */
 	uint16_t measured_value;
-	/** 0xffff not defined. */
 	uint16_t min_measured_value;
 	uint16_t max_measured_value;
 	uint16_t tolerance;

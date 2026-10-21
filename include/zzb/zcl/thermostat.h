@@ -60,6 +60,13 @@ extern "C" {
 #define ZZB_ZCL_THERMOSTAT_UI_KEYPAD_LOCKOUT                  0x0001
 #define ZZB_ZCL_THERMOSTAT_UI_SCHEDULE_PROGRAMMING_VISIBILITY 0x0002
 
+/** LocalTemperature and OutdoorTemperature of an invalid measurement (ZCL 6.3.2.2.1.1). */
+#define ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_UNKNOWN   INT16_MIN
+#define ZZB_ZCL_THERMOSTAT_OUTDOOR_TEMPERATURE_UNKNOWN INT16_MIN
+
+/** Bits of Occupancy (ZCL 6.3.2.2.1.3). */
+#define ZZB_ZCL_THERMOSTAT_OCCUPANCY_OCCUPIED BIT(0)
+
 /** Values of ControlSequenceOfOperation (ZCL Table 6-15). */
 enum zzb_zcl_control_sequence {
 	ZZB_ZCL_SEQUENCE_COOLING_ONLY = 0x00,
@@ -82,6 +89,60 @@ enum zzb_zcl_system_mode {
 	ZZB_ZCL_SYSTEM_MODE_DRY = 0x08,
 	ZZB_ZCL_SYSTEM_MODE_SLEEP = 0x09,
 };
+
+/** Bits of AlarmMask; bit n enables alarm code n (ZCL Table 6-18). */
+#define ZZB_ZCL_THERMOSTAT_ALARM_MASK_INITIALIZATION_FAILURE   BIT(0)
+#define ZZB_ZCL_THERMOSTAT_ALARM_MASK_HARDWARE_FAILURE         BIT(1)
+#define ZZB_ZCL_THERMOSTAT_ALARM_MASK_SELF_CALIBRATION_FAILURE BIT(2)
+
+/** Values of ThermostatRunningMode (ZCL Table 6-19). */
+enum zzb_zcl_thermostat_running_mode {
+	ZZB_ZCL_THERMOSTAT_RUNNING_MODE_OFF = 0x00,
+	ZZB_ZCL_THERMOSTAT_RUNNING_MODE_COOL = 0x03,
+	ZZB_ZCL_THERMOSTAT_RUNNING_MODE_HEAT = 0x04,
+};
+
+/** Values of StartOfWeek (ZCL Table 6-21). */
+enum zzb_zcl_thermostat_start_of_week {
+	ZZB_ZCL_THERMOSTAT_START_OF_WEEK_SUNDAY = 0x00,
+	ZZB_ZCL_THERMOSTAT_START_OF_WEEK_MONDAY = 0x01,
+	ZZB_ZCL_THERMOSTAT_START_OF_WEEK_TUESDAY = 0x02,
+	ZZB_ZCL_THERMOSTAT_START_OF_WEEK_WEDNESDAY = 0x03,
+	ZZB_ZCL_THERMOSTAT_START_OF_WEEK_THURSDAY = 0x04,
+	ZZB_ZCL_THERMOSTAT_START_OF_WEEK_FRIDAY = 0x05,
+	ZZB_ZCL_THERMOSTAT_START_OF_WEEK_SATURDAY = 0x06,
+};
+
+/** Bits of ThermostatProgrammingOperationMode (ZCL Table 6-23). */
+#define ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE_SCHEDULE      BIT(0)
+#define ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE_AUTO_RECOVERY BIT(1)
+#define ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE_ECONOMY       BIT(2)
+
+/** Bits of ThermostatRunningState (ZCL Table 6-24). */
+#define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_HEAT         BIT(0)
+#define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_COOL         BIT(1)
+#define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_FAN          BIT(2)
+#define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_HEAT_STAGE_2 BIT(3)
+#define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_COOL_STAGE_2 BIT(4)
+#define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_FAN_STAGE_2  BIT(5)
+#define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_FAN_STAGE_3  BIT(6)
+
+/** Values of SetpointChangeSource (ZCL Table 6-26), which the server does not implement. */
+enum zzb_zcl_thermostat_setpoint_change_source {
+	ZZB_ZCL_THERMOSTAT_SETPOINT_CHANGE_SOURCE_MANUAL = 0x00,
+	ZZB_ZCL_THERMOSTAT_SETPOINT_CHANGE_SOURCE_SCHEDULE = 0x01,
+	ZZB_ZCL_THERMOSTAT_SETPOINT_CHANGE_SOURCE_EXTERNAL = 0x02,
+};
+
+/** Bits of Day of Week for Sequence of the weekly schedule (ZCL Table 6-37). */
+#define ZZB_ZCL_SCHEDULE_SUNDAY    BIT(0)
+#define ZZB_ZCL_SCHEDULE_MONDAY    BIT(1)
+#define ZZB_ZCL_SCHEDULE_TUESDAY   BIT(2)
+#define ZZB_ZCL_SCHEDULE_WEDNESDAY BIT(3)
+#define ZZB_ZCL_SCHEDULE_THURSDAY  BIT(4)
+#define ZZB_ZCL_SCHEDULE_FRIDAY    BIT(5)
+#define ZZB_ZCL_SCHEDULE_SATURDAY  BIT(6)
+#define ZZB_ZCL_SCHEDULE_AWAY      BIT(7)
 
 /** Mode bits of a sequence of the weekly schedule (ZCL Table 6-38). */
 #define ZZB_ZCL_SCHEDULE_HEAT BIT(0)
@@ -106,16 +167,23 @@ struct zzb_zcl_schedule_day {
 };
 
 /**
- * Values of a Thermostat server (ZCL 6.3.2.2). Temperatures are in 0.01 degrees Celsius, INT16_MIN
- * (the non-value 0x8000) when unknown. The application fills the fields up to system_mode_default
- * before zzb_node_init() and changes them with zzb_zcl_attr_set(); they are read-only. The stack
- * keeps the other fields, the writable attributes and the weekly schedule, and saves them.
+ * Values of a Thermostat server (ZCL 6.3.2.2). Temperatures are in 0.01 degrees Celsius. The
+ * application fills the fields up to system_mode_default before zzb_node_init() and changes them
+ * with zzb_zcl_attr_set(); they are read-only. The stack keeps the other fields, the writable
+ * attributes and the weekly schedule, and saves them.
  */
 struct zzb_zcl_thermostat {
-	/** With local_temperature_calibration applied by the application. */
+	/**
+	 * With local_temperature_calibration applied by the application, or
+	 * ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_UNKNOWN.
+	 */
 	int16_t local_temperature;
+	/** ZZB_ZCL_THERMOSTAT_OUTDOOR_TEMPERATURE_UNKNOWN when unknown. */
 	int16_t outdoor_temperature;
-	/** Bit 0: occupied. The default of ZCL is 1, which a thermostat without a sensor sets. */
+	/**
+	 * ZZB_ZCL_THERMOSTAT_OCCUPANCY_* bits. The default of ZCL is occupied, which a thermostat
+	 * without a sensor sets.
+	 */
 	uint8_t occupancy;
 	/** Limits of the manufacturer; the defaults of ZCL are 700, 3000, 1600 and 3200. */
 	int16_t abs_min_heat_setpoint_limit;
@@ -129,13 +197,13 @@ struct zzb_zcl_thermostat {
 	int8_t min_setpoint_dead_band;
 	/** enum zzb_zcl_control_sequence. */
 	uint8_t control_sequence_of_operation;
-	/** Bit n enables alarm code n of ZCL Table 6-18, which the application raises. */
+	/** ZZB_ZCL_THERMOSTAT_ALARM_MASK_* bits of the alarms that the application raises. */
 	uint8_t alarm_mask;
-	/** Off, Cool or Heat of enum zzb_zcl_system_mode. */
+	/** enum zzb_zcl_thermostat_running_mode. */
 	uint8_t thermostat_running_mode;
-	/** The first day of the weekly schedule, 0x00 (Sunday) to 0x06 (Saturday). */
+	/** The first day of the weekly schedule, enum zzb_zcl_thermostat_start_of_week. */
 	uint8_t start_of_week;
-	/** ZCL Table 6-24. */
+	/** ZZB_ZCL_THERMOSTAT_RUNNING_STATE_* bits. */
 	uint16_t thermostat_running_state;
 	/**
 	 * Factory value of SystemMode, enum zzb_zcl_system_mode; 0 is Off. A node without a record
@@ -156,14 +224,39 @@ struct zzb_zcl_thermostat {
 	int16_t max_cool_setpoint_limit;
 	/** enum zzb_zcl_system_mode, within the modes of control_sequence_of_operation. */
 	uint8_t system_mode;
-	/** ZCL Table 6-23; with bit 0 the application follows the weekly schedule. */
+	/**
+	 * ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE_* bits; with SCHEDULE the application
+	 * follows the weekly schedule.
+	 */
 	uint8_t thermostat_programming_operation_mode;
 	/**
-	 * Weekly schedule, element n for bit n of Day of Week (ZCL Table 6-37): 0 Sunday to 6
-	 * Saturday, 7 Away or Vacation. The stack has no clock: the application reads the schedule
-	 * on the stack thread and applies its setpoints with zzb_zcl_attr_set().
+	 * Weekly schedule, element n for bit n of ZZB_ZCL_SCHEDULE_SUNDAY to ZZB_ZCL_SCHEDULE_AWAY:
+	 * 0 Sunday to 6 Saturday, 7 Away or Vacation. The stack has no clock: the application reads
+	 * the schedule on the stack thread and applies its setpoints with zzb_zcl_attr_set().
 	 */
 	struct zzb_zcl_schedule_day schedule[8];
+};
+
+/** Values of TemperatureDisplayMode (ZCL Table 6-50). */
+enum zzb_zcl_thermostat_ui_temperature_display_mode {
+	ZZB_ZCL_THERMOSTAT_UI_TEMPERATURE_DISPLAY_MODE_CELSIUS = 0x00,
+	ZZB_ZCL_THERMOSTAT_UI_TEMPERATURE_DISPLAY_MODE_FAHRENHEIT = 0x01,
+};
+
+/** Values of KeypadLockout (ZCL Table 6-51). */
+enum zzb_zcl_thermostat_ui_keypad_lockout {
+	ZZB_ZCL_THERMOSTAT_UI_KEYPAD_LOCKOUT_NONE = 0x00,
+	ZZB_ZCL_THERMOSTAT_UI_KEYPAD_LOCKOUT_LEVEL_1 = 0x01,
+	ZZB_ZCL_THERMOSTAT_UI_KEYPAD_LOCKOUT_LEVEL_2 = 0x02,
+	ZZB_ZCL_THERMOSTAT_UI_KEYPAD_LOCKOUT_LEVEL_3 = 0x03,
+	ZZB_ZCL_THERMOSTAT_UI_KEYPAD_LOCKOUT_LEVEL_4 = 0x04,
+	ZZB_ZCL_THERMOSTAT_UI_KEYPAD_LOCKOUT_LEVEL_5 = 0x05,
+};
+
+/** Values of ScheduleProgrammingVisibility (ZCL Table 6-52). */
+enum zzb_zcl_thermostat_ui_schedule_programming_visibility {
+	ZZB_ZCL_THERMOSTAT_UI_SCHEDULE_PROGRAMMING_VISIBILITY_ENABLED = 0x00,
+	ZZB_ZCL_THERMOSTAT_UI_SCHEDULE_PROGRAMMING_VISIBILITY_DISABLED = 0x01,
 };
 
 /**
@@ -171,11 +264,14 @@ struct zzb_zcl_thermostat {
  * application applies them to its display and keypad.
  */
 struct zzb_zcl_thermostat_ui {
-	/** 0x00 Celsius, 0x01 Fahrenheit. */
+	/** enum zzb_zcl_thermostat_ui_temperature_display_mode. */
 	uint8_t temperature_display_mode;
-	/** 0x00 no lockout, 0x01 to 0x05 the levels of lockout of the device. */
+	/** enum zzb_zcl_thermostat_ui_keypad_lockout; the device defines the levels of lockout. */
 	uint8_t keypad_lockout;
-	/** 0x01 hides the local programming of the weekly schedule. */
+	/**
+	 * enum zzb_zcl_thermostat_ui_schedule_programming_visibility; DISABLED hides the local
+	 * programming of the weekly schedule.
+	 */
 	uint8_t schedule_programming_visibility;
 };
 

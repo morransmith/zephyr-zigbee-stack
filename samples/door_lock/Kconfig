@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb door_lock sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_DOOR_LOCK_FAMILY
+	prompt "Device type"
+
+config SAMPLE_DOOR_LOCK
+	bool "Door Lock (0x000a)"
+
+config SAMPLE_DOOR_LOCK_CONTROLLER
+	bool "Door Lock Controller (0x000b)"
+	select SAMPLE_SLEEPY
+
+endchoice
+
+config SAMPLE_MODEL_ID
+	string
+	default "door_lock" if SAMPLE_DOOR_LOCK
+	default "door_lock_controller" if SAMPLE_DOOR_LOCK_CONTROLLER
+
+source "Kconfig.zephyr"

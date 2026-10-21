@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb ias
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.ias.ias_zone:
+    extra_configs:
+      - CONFIG_SAMPLE_IAS_ZONE=y
+  sample.zzb.ias.ias_warning_device:
+    extra_configs:
+      - CONFIG_SAMPLE_IAS_WARNING_DEVICE=y
+  sample.zzb.ias.ias_ace:
+    extra_configs:
+      - CONFIG_SAMPLE_IAS_ACE=y
+  sample.zzb.ias.ias_cie:
+    extra_configs:
+      - CONFIG_SAMPLE_IAS_CIE=y

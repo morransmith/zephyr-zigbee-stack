@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config SAMPLE_SLEEPY
+	bool
+	help
+	  The device type runs on a battery, so the node is a sleepy end
+	  device.

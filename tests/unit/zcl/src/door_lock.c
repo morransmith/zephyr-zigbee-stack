@@ -963,4 +963,45 @@ ZTEST(zzb_zcl_door_lock, test_client)
 		    (uint8_t[]){0x10, 0x71, 0x0b, 0x20, 0x00}, 5);
 }
 
+/*
+ * ZCL 7.3.2.15.1: Lock Door with the code 1234 goes from the client on endpoint 102 to the bound
+ * servers. A code longer than ZZB_ZCL_DOOR_LOCK_PIN_MAX is refused.
+ */
+ZTEST(zzb_zcl_door_lock, test_send_lock_door)
+{
+	static const uint8_t code[ZZB_ZCL_DOOR_LOCK_PIN_MAX + 1] = {'1', '2', '3', '4'};
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_door_lock_lock_door(test_node(), DOOR_LOCK_CLIENT_EP, code, 4));
+	zassert_equal(
+		zzb_zcl_door_lock_lock_door(test_node(), DOOR_LOCK_CLIENT_EP, code, sizeof(code)),
+		-EINVAL);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(sent[0].req.src_ep, DOOR_LOCK_CLIENT_EP);
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_DOOR_LOCK);
+	zassert_equal(sent[0].len, 8);
+	zassert_mem_equal(sent[0].data,
+			  ((uint8_t[]){0x11, next_tsn, 0x00, 0x04, '1', '2', '3', '4'}), 8);
+}
+
+/*
+ * ZCL 7.3.2.15.2: Unlock Door without a code carries an empty code. A code longer than
+ * ZZB_ZCL_DOOR_LOCK_PIN_MAX is refused.
+ */
+ZTEST(zzb_zcl_door_lock, test_send_unlock_door)
+{
+	static const uint8_t code[ZZB_ZCL_DOOR_LOCK_PIN_MAX + 1];
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_door_lock_unlock_door(test_node(), DOOR_LOCK_CLIENT_EP, NULL, 0));
+	zassert_equal(
+		zzb_zcl_door_lock_unlock_door(test_node(), DOOR_LOCK_CLIENT_EP, code, sizeof(code)),
+		-EINVAL);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.src_ep, DOOR_LOCK_CLIENT_EP);
+	zassert_equal(sent[0].len, 4);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next_tsn, 0x01, 0x00}), 4);
+}
+
 ZTEST_SUITE(zzb_zcl_door_lock, NULL, setup, before, after, NULL);

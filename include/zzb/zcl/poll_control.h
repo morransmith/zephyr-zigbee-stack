@@ -22,6 +22,12 @@ extern "C" {
 #define ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL_MIN 0x0005
 #define ZZB_ZCL_POLL_CONTROL_FAST_POLL_TIMEOUT_MAX  0x0006
 
+/** Check-inInterval that turns the check-ins off (ZCL 3.16.4.1.1). */
+#define ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL_OFF 0
+
+/** LongPollInterval of a device that does not have or know it (ZCL 3.16.4.1.2). */
+#define ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL_UNKNOWN 0xffffffff
+
 /** Command that the server generates (ZCL Table 3-133). */
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN 0x00
 
@@ -53,7 +59,7 @@ struct zzb_zcl_poll_control_client {
  * that answer with Check-in Response until their timeouts or Fast Poll Stop.
  */
 struct zzb_zcl_poll_control {
-	/** Up to 0x6e0000, 0 turns the check-ins off; default 0x3840 (1 h). */
+	/** Up to 0x6e0000, or ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL_OFF; default 0x3840 (1 h). */
 	uint32_t check_in_interval;
 	/** 0x04 to 0x6e0000; default CONFIG_ZZB_NWK_LONG_POLL_MS / 250. */
 	uint32_t long_poll_interval;

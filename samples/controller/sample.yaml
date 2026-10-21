@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb controller
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.controller.scene_selector:
+    extra_configs:
+      - CONFIG_SAMPLE_SCENE_SELECTOR=y
+  sample.zzb.controller.configuration_tool:
+    extra_configs:
+      - CONFIG_SAMPLE_CONFIGURATION_TOOL=y
+  sample.zzb.controller.remote_control:
+    extra_configs:
+      - CONFIG_SAMPLE_REMOTE_CONTROL=y
+  sample.zzb.controller.combined_interface:
+    extra_configs:
+      - CONFIG_SAMPLE_COMBINED_INTERFACE=y
+  sample.zzb.controller.color_controller:
+    extra_configs:
+      - CONFIG_SAMPLE_COLOR_CONTROLLER=y
+  sample.zzb.controller.color_scene_controller:
+    extra_configs:
+      - CONFIG_SAMPLE_COLOR_SCENE_CONTROLLER=y
+  sample.zzb.controller.non_color_controller:
+    extra_configs:
+      - CONFIG_SAMPLE_NON_COLOR_CONTROLLER=y
+  sample.zzb.controller.non_color_scene_controller:
+    extra_configs:
+      - CONFIG_SAMPLE_NON_COLOR_SCENE_CONTROLLER=y
+  sample.zzb.controller.control_bridge:
+    extra_configs:
+      - CONFIG_SAMPLE_CONTROL_BRIDGE=y
+  sample.zzb.controller.on_off_sensor:
+    extra_configs:
+      - CONFIG_SAMPLE_ON_OFF_SENSOR=y

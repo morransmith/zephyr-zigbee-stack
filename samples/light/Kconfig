@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb light sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_LIGHT
+	prompt "Device type"
+
+config SAMPLE_ON_OFF_LIGHT
+	bool "On/Off Light (0x0100)"
+
+config SAMPLE_DIMMABLE_LIGHT
+	bool "Dimmable Light (0x0101)"
+	select SAMPLE_LEVEL
+
+config SAMPLE_COLOR_DIMMABLE_LIGHT
+	bool "Color Dimmable Light (0x0102)"
+	select SAMPLE_LEVEL
+	select SAMPLE_COLOR_XY
+
+config SAMPLE_COLOR_TEMPERATURE_LIGHT
+	bool "Color Temperature Light (0x010c)"
+	select SAMPLE_LEVEL
+	select SAMPLE_COLOR_TEMPERATURE
+
+config SAMPLE_EXTENDED_COLOR_LIGHT
+	bool "Extended Color Light (0x010d)"
+	select SAMPLE_LEVEL
+	select SAMPLE_COLOR_XY
+	select SAMPLE_COLOR_TEMPERATURE
+
+endchoice
+
+config SAMPLE_LEVEL
+	bool
+
+config SAMPLE_COLOR_XY
+	bool
+
+config SAMPLE_COLOR_TEMPERATURE
+	bool
+
+config SAMPLE_COLOR
+	bool
+	default y if SAMPLE_COLOR_XY || SAMPLE_COLOR_TEMPERATURE
+
+config SAMPLE_MODEL_ID
+	string
+	default "on_off_light" if SAMPLE_ON_OFF_LIGHT
+	default "dimmable_light" if SAMPLE_DIMMABLE_LIGHT
+	default "color_dimmable_light" if SAMPLE_COLOR_DIMMABLE_LIGHT
+	default "color_temperature_light" if SAMPLE_COLOR_TEMPERATURE_LIGHT
+	default "extended_color_light" if SAMPLE_EXTENDED_COLOR_LIGHT
+
+source "Kconfig.zephyr"

@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb ballast sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_BALLAST
+	prompt "Device type"
+
+config SAMPLE_ON_OFF_BALLAST
+	bool "On/Off Ballast (0x0108)"
+
+config SAMPLE_DIMMABLE_BALLAST
+	bool "Dimmable Ballast (0x0109)"
+
+endchoice
+
+config SAMPLE_MODEL_ID
+	string
+	default "on_off_ballast" if SAMPLE_ON_OFF_BALLAST
+	default "dimmable_ballast" if SAMPLE_DIMMABLE_BALLAST
+
+source "Kconfig.zephyr"
