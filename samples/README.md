@@ -204,6 +204,16 @@ A door lock with a contact on its door. A short press opens or closes the door: 
 
 Two metered outlets with loads of 60 W and 1500 W at 230 V. Short presses toggle outlet 1 and outlet 2 in turn; led0 shows outlet 1 and led1 outlet 2. While an outlet is on, it reports its current and power, and every 10 s its CurrentSummationDelivered grows by its energy. Finding & binding: target on endpoint 1.
 
+## OTA Upgrade
+
+### ota
+
+| Endpoint | Device type | ID | Clusters |
+|---|---|---|---|
+| 1 | On/Off Light | 0x0100 | Basic, Identify, Groups, Scenes, On/Off; client OTA Upgrade |
+
+An On/Off Light whose firmware Home Assistant updates over Zigbee. MCUboot boots it, so it is built with sysbuild. A short press toggles OnOff, and led0 shows it. Finding & binding: target. [ota/README.md](ota/README.md) describes the build, the OTA file and the configuration of Home Assistant.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
