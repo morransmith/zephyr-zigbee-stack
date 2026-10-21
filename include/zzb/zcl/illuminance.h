@@ -20,6 +20,21 @@ extern "C" {
 #define ZZB_ZCL_ILLUMINANCE_TOLERANCE          0x0003
 #define ZZB_ZCL_ILLUMINANCE_LIGHT_SENSOR_TYPE  0x0004
 
+/** MeasuredValue too low to be measured and MeasuredValue that is not valid (ZCL 4.2.2.2.1). */
+#define ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE_TOO_LOW 0x0000
+#define ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE_UNKNOWN 0xffff
+
+/** MinMeasuredValue and MaxMeasuredValue that are not defined (ZCL 4.2.2.2.2, 4.2.2.2.3). */
+#define ZZB_ZCL_ILLUMINANCE_MIN_MEASURED_VALUE_UNDEFINED 0xffff
+#define ZZB_ZCL_ILLUMINANCE_MAX_MEASURED_VALUE_UNDEFINED 0xffff
+
+/** LightSensorType of both clusters (ZCL Tables 4-6 and 4-10). */
+enum zzb_zcl_illuminance_light_sensor_type {
+	ZZB_ZCL_ILLUMINANCE_LIGHT_SENSOR_TYPE_PHOTODIODE = 0x00,
+	ZZB_ZCL_ILLUMINANCE_LIGHT_SENSOR_TYPE_CMOS = 0x01,
+	ZZB_ZCL_ILLUMINANCE_LIGHT_SENSOR_TYPE_UNKNOWN = 0xff,
+};
+
 /** Illuminance Level Sensing cluster (ZCL 4.3). */
 #define ZZB_ZCL_ILLUMINANCE_LEVEL 0x0401
 
@@ -28,18 +43,32 @@ extern "C" {
 #define ZZB_ZCL_ILLUMINANCE_LEVEL_LIGHT_SENSOR_TYPE 0x0001
 #define ZZB_ZCL_ILLUMINANCE_LEVEL_TARGET_LEVEL      0x0010
 
+/** LevelStatus (ZCL Table 4-9). */
+enum zzb_zcl_illuminance_level_status {
+	ZZB_ZCL_ILLUMINANCE_LEVEL_STATUS_ON_TARGET = 0x00,
+	ZZB_ZCL_ILLUMINANCE_LEVEL_STATUS_BELOW_TARGET = 0x01,
+	ZZB_ZCL_ILLUMINANCE_LEVEL_STATUS_ABOVE_TARGET = 0x02,
+};
+
+/** IlluminanceTargetLevel that is not valid (ZCL 4.3.2.4.1). */
+#define ZZB_ZCL_ILLUMINANCE_LEVEL_TARGET_LEVEL_UNKNOWN 0xffff
+
 /**
  * Values of an Illuminance Measurement server (ZCL 4.2.2.2), all read-only and set by the
  * application.
  */
 struct zzb_zcl_illuminance {
-	/** 10000 log10(lux) + 1; 0 too low to be measured, 0xffff invalid. */
+	/**
+	 * 10000 log10(lux) + 1, or ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE_TOO_LOW or
+	 * ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE_UNKNOWN.
+	 */
 	uint16_t measured_value;
-	/** 0xffff undefined. */
+	/** As measured_value, or ZZB_ZCL_ILLUMINANCE_MIN_MEASURED_VALUE_UNDEFINED. */
 	uint16_t min_measured_value;
+	/** As measured_value, or ZZB_ZCL_ILLUMINANCE_MAX_MEASURED_VALUE_UNDEFINED. */
 	uint16_t max_measured_value;
 	uint16_t tolerance;
-	/** ZCL Table 4-6, 0xff unknown. */
+	/** enum zzb_zcl_illuminance_light_sensor_type. */
 	uint8_t light_sensor_type;
 };
 
@@ -49,11 +78,14 @@ struct zzb_zcl_illuminance {
  * saved.
  */
 struct zzb_zcl_illuminance_level {
-	/** ZCL Table 4-9, computed by the application with its dead band around the target. */
+	/**
+	 * enum zzb_zcl_illuminance_level_status, computed by the application with its dead band
+	 * around the target.
+	 */
 	uint8_t level_status;
-	/** ZCL Table 4-10. */
+	/** enum zzb_zcl_illuminance_light_sensor_type. */
 	uint8_t light_sensor_type;
-	/** 10000 log10(lux), 0xffff not valid. */
+	/** 10000 log10(lux), or ZZB_ZCL_ILLUMINANCE_LEVEL_TARGET_LEVEL_UNKNOWN. */
 	uint16_t illuminance_target_level;
 };
 
