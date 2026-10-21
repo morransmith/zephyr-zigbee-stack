@@ -15,3 +15,4 @@ target_sources(app PRIVATE
   src/scan.c
   src/tx.c
 )
+target_sources_ifdef(CONFIG_PM app PRIVATE src/pm.c)

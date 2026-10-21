@@ -1,0 +1,12 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* No CPU lists the state, so the PM policy never enters it */
+/ {
+	power-states {
+		standby: standby {
+			compatible = "zephyr,power-state";
+			power-state-name = "standby";
+			min-residency-us = <1000>;
+		};
+	};
+};

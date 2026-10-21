@@ -5,3 +5,11 @@ tests:
     platform_allow:
       - native_sim
       - native_sim/native/64
+  zzb.unit.mac.pm:
+    platform_allow:
+      - native_sim
+      - native_sim/native/64
+    extra_configs:
+      - CONFIG_PM=y
+    extra_dtc_overlay_files:
+      - pm.overlay
