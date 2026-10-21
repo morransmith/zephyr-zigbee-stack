@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/appliance_control.h>
@@ -326,6 +327,51 @@ ZTEST(zzb_zcl_appliances, test_events_client_malformed)
 		      ZZB_ZCL_MALFORMED_COMMAND);
 	check_refused(ZZB_ZCL_APPLIANCE_EVENTS, false, &(struct test_cmd){0x03}, 1,
 		      ZZB_ZCL_UNSUP_COMMAND);
+}
+
+/* The number of alerts or log IDs that the answers of the tests send */
+static size_t answer_count;
+
+/* A present warning with ID 0x11 and a recovered failure with ID 0x02 and manufacturer bits 0x80 */
+static const uint32_t alerts[ZZB_ZCL_APPLIANCE_ALERTS_MAX + 1] = {
+	FIELD_PREP(ZZB_ZCL_APPLIANCE_ALERT_ID, 0x11) |
+		FIELD_PREP(ZZB_ZCL_APPLIANCE_ALERT_CATEGORY, ZZB_ZCL_APPLIANCE_ALERT_WARNING) |
+		FIELD_PREP(ZZB_ZCL_APPLIANCE_ALERT_PRESENCE_RECOVERY,
+			   ZZB_ZCL_APPLIANCE_ALERT_PRESENCE),
+	FIELD_PREP(ZZB_ZCL_APPLIANCE_ALERT_ID, 0x02) |
+		FIELD_PREP(ZZB_ZCL_APPLIANCE_ALERT_CATEGORY, ZZB_ZCL_APPLIANCE_ALERT_FAILURE) |
+		FIELD_PREP(ZZB_ZCL_APPLIANCE_ALERT_MANUFACTURER, 0x80),
+};
+
+static int answer_alerts(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return zzb_zcl_appliance_events_get_alerts_rsp(node, cmd, alerts, answer_count);
+}
+
+/*
+ * ZCL 15.4.2.3.1.2: Get Alerts gets Get Alerts Response with two unstructured alerts. The 15
+ * alerts that Alerts Count holds go out, 16 give -EMSGSIZE.
+ */
+ZTEST(zzb_zcl_appliances, test_get_alerts_rsp)
+{
+	static const uint8_t req[] = {0x01, 0x30, 0x00};
+	static const uint8_t rsp[] = {0x19, 0x30, 0x00, 0x02, 0x11, 0x11, 0x00, 0x02, 0x03, 0x80};
+
+	zcl_cmd_answer = answer_alerts;
+	answer_count = 2;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_APPLIANCE_EVENTS, req, sizeof(req));
+	zassert_ok(zcl_cmd_respond_err);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_frame(0, WHITE_GOODS_EP, ZZB_ZCL_APPLIANCE_EVENTS, rsp, sizeof(rsp));
+
+	answer_count = ZZB_ZCL_APPLIANCE_ALERTS_MAX;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_APPLIANCE_EVENTS, req, sizeof(req));
+	zassert_ok(zcl_cmd_respond_err);
+	zassert_equal(sent[1].data[3], 0x0f);
+
+	answer_count = ZZB_ZCL_APPLIANCE_ALERTS_MAX + 1;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_APPLIANCE_EVENTS, req, sizeof(req));
+	zassert_equal(zcl_cmd_respond_err, -EMSGSIZE);
 }
 
 /*
