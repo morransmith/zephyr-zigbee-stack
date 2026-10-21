@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <errno.h>
 #include <string.h>
 #include <zephyr/ztest.h>
 #include <zzb/zcl/power_profile.h>
@@ -158,6 +159,97 @@ ZTEST(zzb_zcl_power_profile, test_schedule_refused)
 	to_server(ZZB_ZCL_POWER_PROFILE_ENERGY_PHASES_SCHEDULE_NOTIFICATION, schedule,
 		  sizeof(schedule), ZZB_ZCL_NOT_AUTHORIZED);
 	zassert_equal(zcl_cmd_calls.count, 1);
+}
+
+/* The server reads PowerProfileID of PowerProfileRequest, here of the request for every profile */
+ZTEST(zzb_zcl_power_profile, test_request_parse)
+{
+	const struct zzb_zcl_cmd cmd = {.payload = (uint8_t[]){0x00}, .len = 1};
+	struct zzb_zcl_power_profile_request fields = {.power_profile_id = 1};
+
+	zzb_zcl_power_profile_request_parse(&cmd, &fields);
+	zassert_equal(fields.power_profile_id, ZZB_ZCL_POWER_PROFILE_ID_ALL);
+}
+
+/* The number of phases or records that the answers of the tests send */
+static size_t answer_count;
+
+/*
+ * Two energy phases: 120 minutes with 2000 W and 50.0 Wh of energy, then 30 minutes with 100 W
+ * and 5.0 Wh after a pause of at most 10 minutes
+ */
+static const struct zzb_zcl_power_profile_phase phases[ZZB_ZCL_POWER_PROFILE_PHASES_MAX + 1] = {
+	{1, 1, 120, 2000, 500, ZZB_ZCL_POWER_PROFILE_ACTIVATION_DELAY_FIRST},
+	{2, 3, 30, 100, 50, 10},
+};
+
+static int answer_profile(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return zzb_zcl_power_profile_rsp(node, cmd, 2, 1, phases, answer_count);
+}
+
+/*
+ * ZCL 3.17.5.1.3: PowerProfileRequest of profile 1 gets PowerProfileResponse of profile 1 of 2
+ * with two energy phases. The most phases that a frame holds go out, one more gives -EMSGSIZE.
+ */
+ZTEST(zzb_zcl_power_profile, test_power_profile_rsp)
+{
+	static const uint8_t req[] = {0x01, 0x30, 0x00, 0x01};
+	static const uint8_t rsp[] = {0x19, 0x30, 0x01, 0x02, 0x01, 0x02, 0x01, 0x01, 0x78,
+				      0x00, 0xd0, 0x07, 0xf4, 0x01, 0xff, 0xff, 0x02, 0x03,
+				      0x1e, 0x00, 0x64, 0x00, 0x32, 0x00, 0x0a, 0x00};
+
+	zcl_cmd_answer = answer_profile;
+	answer_count = 2;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_POWER_PROFILE, req, sizeof(req));
+	zassert_ok(zcl_cmd_respond_err);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_frame(0, WHITE_GOODS_EP, ZZB_ZCL_POWER_PROFILE, rsp, sizeof(rsp));
+
+	answer_count = ZZB_ZCL_POWER_PROFILE_PHASES_MAX;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_POWER_PROFILE, req, sizeof(req));
+	zassert_ok(zcl_cmd_respond_err);
+
+	answer_count = ZZB_ZCL_POWER_PROFILE_PHASES_MAX + 1;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_POWER_PROFILE, req, sizeof(req));
+	zassert_equal(zcl_cmd_respond_err, -EMSGSIZE);
+}
+
+/* A running profile that is remotely controllable and an idle one */
+static const struct zzb_zcl_power_profile_record records[ZZB_ZCL_POWER_PROFILE_RECORDS_MAX + 1] = {
+	{1, 1, true, ZZB_ZCL_POWER_PROFILE_ENERGY_PHASE_RUNNING},
+	{2, ZZB_ZCL_POWER_PROFILE_ENERGY_PHASE_INVALID, false, ZZB_ZCL_POWER_PROFILE_IDLE},
+};
+
+static int answer_state(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
+{
+	return zzb_zcl_power_profile_state_rsp(node, cmd, records, answer_count);
+}
+
+/*
+ * ZCL 3.17.5.2.1: PowerProfileStateRequest gets PowerProfileStateResponse with two records. The
+ * most records that a frame holds go out, one more gives -EMSGSIZE.
+ */
+ZTEST(zzb_zcl_power_profile, test_power_profile_state_rsp)
+{
+	static const uint8_t req[] = {0x01, 0x31, 0x01};
+	static const uint8_t rsp[] = {0x19, 0x31, 0x02, 0x02, 0x01, 0x01,
+				      0x01, 0x03, 0x02, 0xff, 0x00, 0x00};
+
+	zcl_cmd_answer = answer_state;
+	answer_count = 2;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_POWER_PROFILE, req, sizeof(req));
+	zassert_ok(zcl_cmd_respond_err);
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	check_frame(0, WHITE_GOODS_EP, ZZB_ZCL_POWER_PROFILE, rsp, sizeof(rsp));
+
+	answer_count = ZZB_ZCL_POWER_PROFILE_RECORDS_MAX;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_POWER_PROFILE, req, sizeof(req));
+	zassert_ok(zcl_cmd_respond_err);
+
+	answer_count = ZZB_ZCL_POWER_PROFILE_RECORDS_MAX + 1;
+	receive_ep(WHITE_GOODS_EP, ZZB_ZCL_POWER_PROFILE, req, sizeof(req));
+	zassert_equal(zcl_cmd_respond_err, -EMSGSIZE);
 }
 
 /*
