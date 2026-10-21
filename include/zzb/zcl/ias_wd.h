@@ -3,7 +3,9 @@
 #ifndef ZZB_INCLUDE_ZZB_ZCL_IAS_WD_H_
 #define ZZB_INCLUDE_ZZB_ZCL_IAS_WD_H_
 
+#include <stdbool.h>
 #include <stdint.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
@@ -119,6 +121,51 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_ias_wd_client_def;
 		.server = false,                                                                   \
 		.def = &zzb_zcl_ias_wd_client_def,                                                 \
 	}
+
+/**
+ * @brief Send Start Warning from the IAS WD client on endpoint ep to the bound servers (ZCL
+ * 8.4.2.2.1).
+ *
+ * warning_duration is in seconds, strobe_duty_cycle in percent of each second, 0 to 100 in steps
+ * of 10.
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_ias_wd_start_warning(struct zzb_node *node, uint8_t ep,
+					       enum zzb_zcl_ias_wd_warning_mode warning_mode,
+					       enum zzb_zcl_ias_wd_strobe strobe,
+					       enum zzb_zcl_ias_wd_siren_level siren_level,
+					       uint16_t warning_duration, uint8_t strobe_duty_cycle,
+					       enum zzb_zcl_ias_wd_strobe_level strobe_level)
+{
+	uint8_t payload[5];
+
+	payload[0] = FIELD_PREP(ZZB_ZCL_IAS_WD_WARNING_MODE, warning_mode) |
+		     FIELD_PREP(ZZB_ZCL_IAS_WD_STROBE, strobe) |
+		     FIELD_PREP(ZZB_ZCL_IAS_WD_SIREN_LEVEL, siren_level);
+	sys_put_le16(warning_duration, &payload[1]);
+	payload[3] = strobe_duty_cycle;
+	payload[4] = strobe_level;
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_IAS_WD, ZZB_ZCL_IAS_WD_START_WARNING, payload,
+				  sizeof(payload));
+}
+
+/**
+ * @brief Send Squawk from the IAS WD client on endpoint ep to the bound servers (ZCL 8.4.2.2.2).
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_ias_wd_squawk(struct zzb_node *node, uint8_t ep,
+					enum zzb_zcl_ias_wd_squawk_mode squawk_mode, bool strobe,
+					enum zzb_zcl_ias_wd_squawk_level squawk_level)
+{
+	const uint8_t payload[] = {FIELD_PREP(ZZB_ZCL_IAS_WD_SQUAWK_MODE, squawk_mode) |
+				   FIELD_PREP(ZZB_ZCL_IAS_WD_SQUAWK_STROBE, strobe) |
+				   FIELD_PREP(ZZB_ZCL_IAS_WD_SQUAWK_LEVEL, squawk_level)};
+
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_IAS_WD, ZZB_ZCL_IAS_WD_SQUAWK, payload,
+				  sizeof(payload));
+}
 
 #ifdef __cplusplus
 }

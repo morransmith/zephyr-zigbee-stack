@@ -336,4 +336,39 @@ ZTEST(zzb_zcl_ias_wd, test_client_revision)
 	check_frame(0, WD_CLIENT_EP, ZZB_ZCL_IAS_WD, rsp, sizeof(rsp));
 }
 
+/*
+ * ZCL 8.4.2.2.1: Start Warning goes from the client on endpoint 87 to the bound servers, here
+ * Burglar with strobe and a high siren for 60 s, a strobe duty cycle of 40 and a low strobe
+ */
+ZTEST(zzb_zcl_ias_wd, test_send_start_warning)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_ias_wd_start_warning(
+		test_node(), WD_CLIENT_EP, ZZB_ZCL_IAS_WD_WARNING_MODE_BURGLAR,
+		ZZB_ZCL_IAS_WD_STROBE_PARALLEL, ZZB_ZCL_IAS_WD_SIREN_LEVEL_HIGH, 60, 40,
+		ZZB_ZCL_IAS_WD_STROBE_LEVEL_LOW));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.dst_mode, ZZB_APS_ADDR_BINDING);
+	zassert_equal(sent[0].req.src_ep, WD_CLIENT_EP);
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_IAS_WD);
+	zassert_equal(sent[0].len, 8);
+	zassert_mem_equal(sent[0].data,
+			  ((uint8_t[]){0x11, next_tsn, 0x00, 0x16, 0x3c, 0x00, 0x28, 0x00}), 8);
+}
+
+/* ZCL 8.4.2.2.2: Squawk goes to the bound servers, here Disarmed with strobe, very high */
+ZTEST(zzb_zcl_ias_wd, test_send_squawk)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_ias_wd_squawk(test_node(), WD_CLIENT_EP,
+					 ZZB_ZCL_IAS_WD_SQUAWK_MODE_DISARMED, true,
+					 ZZB_ZCL_IAS_WD_SQUAWK_LEVEL_VERY_HIGH));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.src_ep, WD_CLIENT_EP);
+	zassert_equal(sent[0].len, 4);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next_tsn, 0x01, 0x1b}), 4);
+}
+
 ZTEST_SUITE(zzb_zcl_ias_wd, NULL, setup, before, after, NULL);
