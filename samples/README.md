@@ -38,6 +38,19 @@ Sensors produce synthetic values. The device types that run on a battery are sle
 
 A short press toggles OnOff, and led0 shows it. The level and the color go to the console. Finding & binding: target.
 
+### output
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify, Groups, Scenes, On/Off |
+|---|---|---|---|
+| `CONFIG_SAMPLE_ON_OFF_OUTPUT` | On/Off Output | 0x0002 | |
+| `CONFIG_SAMPLE_LEVEL_CONTROLLABLE_OUTPUT` | Level Controllable Output | 0x0003 | Level Control |
+| `CONFIG_SAMPLE_MAINS_POWER_OUTLET` | Mains Power Outlet | 0x0009 | |
+| `CONFIG_SAMPLE_ON_OFF_PLUG_IN_UNIT` | On/Off Plug-in Unit | 0x010a | Level Control |
+| `CONFIG_SAMPLE_DIMMABLE_PLUG_IN_UNIT` | Dimmable Plug-In Unit | 0x010b | Level Control |
+
+A short press toggles OnOff, and led0 shows the relay. The level goes to the console. Finding & binding: target.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
+- The Level Controllable Output (0x0003) has the Level Control for Lighting server of the stack in place of the general Level Control cluster that the DTL asks for (ZCL 3.10): CurrentLevel is 1 to 254, and MinLevel, MaxLevel and the other attributes of the general cluster are absent.
