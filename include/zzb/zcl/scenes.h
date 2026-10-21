@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -19,6 +20,12 @@ extern "C" {
 #define ZZB_ZCL_SCENES_CURRENT_SCENE 0x0001
 #define ZZB_ZCL_SCENES_CURRENT_GROUP 0x0002
 #define ZZB_ZCL_SCENES_SCENE_VALID   0x0003
+
+/** The group ID of a scene without a group, in CurrentGroup and the commands (ZCL Table 3-41). */
+#define ZZB_ZCL_SCENES_GROUP_NONE 0x0000
+
+/** Bit of NameSupport (ZCL 3.7.2.2.1.5). */
+#define ZZB_ZCL_SCENES_NAME_SUPPORT_NAMES BIT(7)
 
 /** Commands received (ZCL Table 3-42); each response has the identifier of its command. */
 #define ZZB_ZCL_SCENES_ADD_SCENE            0x00
@@ -40,6 +47,7 @@ struct zzb_zcl_scenes {
 	/** Scenes of the endpoint in the scene table. */
 	uint8_t scene_count;
 	uint8_t current_scene;
+	/** ZZB_ZCL_SCENES_GROUP_NONE for a scene without a group. */
 	uint16_t current_group;
 	bool scene_valid;
 };
