@@ -252,6 +252,8 @@ void mac_after(void *fixture)
 		zassert_equal(radio_stop_fake.call_count, 0);
 	}
 
+	zassert_equal(pm_locked(), IS_ENABLED(CONFIG_PM) && !node->sleepy);
+
 	ARRAY_FOR_EACH(bufs, i) {
 		bufs[i] = zzb_buf_alloc(K_NO_WAIT);
 		zassert_not_null(bufs[i], "buffer leak");

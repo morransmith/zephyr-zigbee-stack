@@ -84,8 +84,8 @@ void mac_before(void *fixture);
 /* Initializes the MAC again as the MAC of a sleepy node, on a radio with RxOnWhenIdle */
 void mac_init_sleepy(void);
 /*
- * Checks that the MAC is idle and has released every buffer, and that a node that is not sleepy
- * has not called configure() or stop()
+ * Checks that the MAC is idle and has released every buffer, that a node that is not sleepy has
+ * not called configure() or stop(), and that only such a node holds the PM lock
  */
 void mac_after(void *fixture);
 

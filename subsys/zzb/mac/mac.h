@@ -61,12 +61,14 @@ struct zzb_mac {
 	bool scan_beacon;
 	/* Coordinator of the poll or association in progress */
 	struct zzb_mac_addr coord;
+	/* The node holds a lock of all PM states, since its receiver may be on */
+	bool pm_locked;
 };
 
 /*
  * Binds the node to radio, programs the address filters and starts the radio, which a sleepy node
- * stops again. Returns -ENOTSUP for a sleepy node whose radio does not report
- * IEEE802154_RX_ON_WHEN_IDLE.
+ * stops again; a node that is not sleepy holds a lock of all PM states. Returns -ENOTSUP for a
+ * sleepy node whose radio does not report IEEE802154_RX_ON_WHEN_IDLE.
  */
 int zzb_mac_init(struct zzb_node *node, const struct device *radio);
 

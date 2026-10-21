@@ -134,6 +134,25 @@ ZTEST(zzb_mac_poll, test_sleepy_node_receives_during_the_poll)
 	}
 }
 
+/* After the ACK with frame pending only the poll keeps the PM lock, until the wait ends */
+ZTEST(zzb_mac_poll, test_sleepy_node_holds_the_pm_lock_while_it_waits)
+{
+	if (!IS_ENABLED(CONFIG_PM)) {
+		ztest_test_skip();
+	}
+
+	mac_init_sleepy();
+	parent.pending = true;
+
+	zassert_ok(zzb_mlme_poll_req(node, &coord));
+	k_sleep(K_MSEC(100));
+	zassert_true(pm_locked());
+
+	/* macMaxFrameTotalWaitTime, 157.54 ms */
+	k_sleep(K_MSEC(100));
+	zassert_equal(zzb_mlme_poll_conf_fake.arg1_val, ZZB_MAC_STATUS_NO_DATA);
+}
+
 static void before(void *fixture)
 {
 	mac_before(fixture);
