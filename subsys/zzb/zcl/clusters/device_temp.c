@@ -13,9 +13,6 @@
 /* The non-value of int16 (ZCL Table 2-11) as a value of the stack */
 #define NON_VALUE 0x8000
 
-/* The non-value of a dwell trip point, which disables its alarm */
-#define NO_DWELL 0xffffff
-
 /* Alarm codes, also the bits of DeviceTempAlarmMask (ZCL Table 3-30) */
 #define TOO_LOW  0x00
 #define TOO_HIGH 0x01
@@ -83,12 +80,14 @@ static uint8_t holding(const struct zzb_zcl_device_temp *v)
 		return 0;
 	}
 
-	if (v->low_temp_threshold != INT16_MIN && v->low_temp_dwell_trip_point != NO_DWELL &&
+	if (v->low_temp_threshold != INT16_MIN &&
+	    v->low_temp_dwell_trip_point != ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE &&
 	    t < v->low_temp_threshold) {
 		conditions |= BIT(TOO_LOW);
 	}
 
-	if (v->high_temp_threshold != INT16_MIN && v->high_temp_dwell_trip_point != NO_DWELL &&
+	if (v->high_temp_threshold != INT16_MIN &&
+	    v->high_temp_dwell_trip_point != ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE &&
 	    t > v->high_temp_threshold) {
 		conditions |= BIT(TOO_HIGH);
 	}
@@ -216,8 +215,8 @@ static void init(void *values)
 	v->alarm_mask = 0;
 	v->low_temp_threshold = INT16_MIN;
 	v->high_temp_threshold = INT16_MIN;
-	v->low_temp_dwell_trip_point = NO_DWELL;
-	v->high_temp_dwell_trip_point = NO_DWELL;
+	v->low_temp_dwell_trip_point = ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE;
+	v->high_temp_dwell_trip_point = ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE;
 	v->alarm_active = 0;
 	v->alarm_raised = 0;
 }
@@ -234,8 +233,10 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 	set(node, ep, ZZB_ZCL_DEVICE_TEMP_ALARM_MASK, 0);
 	set(node, ep, ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_THRESHOLD, NON_VALUE);
 	set(node, ep, ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_THRESHOLD, NON_VALUE);
-	set(node, ep, ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_DWELL_TRIP_POINT, NO_DWELL);
-	set(node, ep, ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_DWELL_TRIP_POINT, NO_DWELL);
+	set(node, ep, ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_DWELL_TRIP_POINT,
+	    ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE);
+	set(node, ep, ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_DWELL_TRIP_POINT,
+	    ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE);
 }
 
 const struct zzb_zcl_cluster_def zzb_zcl_device_temp_def = {
