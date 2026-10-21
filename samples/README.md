@@ -49,6 +49,15 @@ A short press toggles OnOff, and led0 shows it. The level and the color go to th
 
 On the IAS Zone and the IAS Warning Device a short press inverts Alarm1 of ZoneStatus, and led0 shows it; led0 of the IAS Warning Device blinks while a warning runs. The IAS ACE sends Arm with Arm All Zones and with Disarm in turn, with the code 1234, and led0 shows whether the panel is armed. The IAS CIE answers Arm, Get Panel Status and Zone Enroll Request, sends Start Warning to the bound warning devices when a zone reports an alarm while the panel is armed, and a short press arms or disarms the panel, which led0 shows. Finding & binding: target, which only identifies, since the DTL forbids it for the IAS clusters. The IAS Zone and the IAS ACE are sleepy end devices.
 
+### door_lock
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_DOOR_LOCK` | Door Lock | 0x000a | Alarms, Door Lock; client Time |
+| `CONFIG_SAMPLE_DOOR_LOCK_CONTROLLER` | Door Lock Controller | 0x000b | Power Configuration; clients Identify, Door Lock |
+
+led0 of the Door Lock is the bolt, on while locked: Lock Door and Unlock Door move it, and a short press locks or unlocks by hand. A short press of the Door Lock Controller sends Lock Door and Unlock Door in turn, without a code. Finding & binding: target on the Door Lock, initiator with unicast bindings on the Door Lock Controller, which is a sleepy end device.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
