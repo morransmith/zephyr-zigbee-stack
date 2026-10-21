@@ -701,4 +701,16 @@ ZTEST(zzb_zcl_color, test_reset)
 	zassert_equal(color40.current_x, 0x616a);
 }
 
+/* zzb_zcl_color_move_to_temperature() sends Move to Color Temperature without options */
+ZTEST(zzb_zcl_color, test_send_move_to_temperature)
+{
+	uint8_t next_tsn = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_color_move_to_temperature(test_node(), CLIENT_EP, 0x0190, 0x0102));
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_COLOR);
+	zassert_equal(sent[0].len, 7);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next_tsn, 0x0a, 0x90, 0x01, 0x02, 0x01}),
+			  7);
+}
+
 ZTEST_SUITE(zzb_zcl_color, NULL, setup, before, after, NULL);

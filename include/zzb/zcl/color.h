@@ -4,6 +4,7 @@
 #define ZZB_INCLUDE_ZZB_ZCL_COLOR_H_
 
 #include <stdint.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 #include <zzb/zcl.h>
 
@@ -169,6 +170,25 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_color_client_def;
 		.server = false,                                                                   \
 		.def = &zzb_zcl_color_client_def,                                                  \
 	}
+
+/**
+ * @brief Send Move to Color Temperature to the bound destinations (ZCL 5.2.2.3.14).
+ *
+ * ColorTemperatureMireds moves to mireds over transition_time tenths of a second. The optional
+ * OptionsMask and OptionsOverride are left out.
+ *
+ * @return the result of zzb_zcl_send_bound().
+ */
+static inline int zzb_zcl_color_move_to_temperature(struct zzb_node *node, uint8_t ep,
+						    uint16_t mireds, uint16_t transition_time)
+{
+	uint8_t payload[4];
+
+	sys_put_le16(mireds, payload);
+	sys_put_le16(transition_time, payload + 2);
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_COLOR, ZZB_ZCL_COLOR_MOVE_TO_TEMPERATURE,
+				  payload, sizeof(payload));
+}
 
 #ifdef __cplusplus
 }
