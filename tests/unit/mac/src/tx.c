@@ -108,6 +108,7 @@ ZTEST(zzb_mac_tx, test_sleepy_node_sends_with_the_receiver_off)
 	zassert_equal(sent_count, 1);
 	zassert_false(sent[0].radio.started);
 	zassert_false(sent[0].radio.rx_on_when_idle);
+	zassert_equal(sent[0].pm_locked, IS_ENABLED(CONFIG_PM));
 	zassert_false(radio.started);
 	zassert_equal(zzb_mcps_data_conf_fake.arg2_val, ZZB_MAC_STATUS_SUCCESS);
 }
