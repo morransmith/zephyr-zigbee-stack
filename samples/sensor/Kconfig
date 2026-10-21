@@ -48,21 +48,6 @@ config SAMPLE_MEASURED
 	  The device type sets a synthetic measured value every 60 s and at a
 	  short press.
 
-config SAMPLE_DEVICE_ID
-	hex
-	default 0x000c if SAMPLE_SIMPLE_SENSOR
-	default 0x0106 if SAMPLE_LIGHT_SENSOR
-	default 0x0107 if SAMPLE_OCCUPANCY_SENSOR
-	default 0x010e if SAMPLE_LIGHT_LEVEL_SENSOR
-	default 0x0302 if SAMPLE_TEMPERATURE_SENSOR
-	default 0x0305 if SAMPLE_PRESSURE_SENSOR
-	default 0x0306 if SAMPLE_FLOW_SENSOR
-
-# The highest Rev of the revision history of the device type in the DTL
-config SAMPLE_DEVICE_VERSION
-	int
-	default 1
-
 config SAMPLE_MODEL_ID
 	string
 	default "simple_sensor" if SAMPLE_SIMPLE_SENSOR

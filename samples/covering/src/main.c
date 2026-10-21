@@ -19,6 +19,16 @@ LOG_MODULE_REGISTER(covering, LOG_LEVEL_INF);
 
 #define COVERING_EP 1
 
+#if defined(CONFIG_SAMPLE_WINDOW_COVERING)
+#define DEVICE_ID ZZB_DEVICE_WINDOW_COVERING
+#elif defined(CONFIG_SAMPLE_WINDOW_COVERING_CONTROLLER)
+#define DEVICE_ID ZZB_DEVICE_WINDOW_COVERING_CONTROLLER
+#endif
+
+/* Lift and tilt in percent */
+#define OPEN   0
+#define CLOSED 100
+
 /* The motor moves 10 % a second */
 #define MOTOR_STEP      10
 #define MOTOR_STEP_TIME K_SECONDS(1)
@@ -27,8 +37,8 @@ static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
 	.power_source = SAMPLE_BASIC_POWER_SOURCE,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 static struct zzb_zcl_identify identify;
@@ -38,7 +48,7 @@ static struct zzb_zcl_identify identify;
 static struct zzb_zcl_power_config power_config = {
 	.battery_voltage = 30,
 	.battery_percentage_remaining = 200,
-	.battery_size = 0x03,
+	.battery_size = ZZB_ZCL_POWER_CONFIG_BATTERY_SIZE_AA,
 	.battery_quantity = 2,
 	.battery_rated_voltage = 15,
 };
@@ -47,13 +57,13 @@ static struct zzb_zcl_power_config power_config = {
 #if defined(CONFIG_SAMPLE_WINDOW_COVERING)
 static struct zzb_zcl_scenes scenes;
 
-/*
- * Tilt Blind - Lift and Tilt with closed loop on both axes. The stack does not save the positions,
- * so the covering starts open.
- */
+/* The stack does not save the positions, so the covering starts open; the limits are in cm */
 static struct zzb_zcl_window_covering covering = {
-	.window_covering_type = 0x08,
-	.config_status = 0x1b,
+	.window_covering_type = ZZB_ZCL_WINDOW_COVERING_TYPE_TILT_BLIND_LIFT_AND_TILT,
+	.config_status = ZZB_ZCL_WINDOW_COVERING_CONFIG_OPERATIONAL |
+			 ZZB_ZCL_WINDOW_COVERING_CONFIG_ONLINE |
+			 ZZB_ZCL_WINDOW_COVERING_CONFIG_LIFT_CLOSED_LOOP |
+			 ZZB_ZCL_WINDOW_COVERING_CONFIG_TILT_CLOSED_LOOP,
 	.installed_closed_limit_lift = 200,
 	.installed_closed_limit_tilt = 900,
 };
@@ -80,9 +90,9 @@ static const struct zzb_zcl_cluster clusters[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = COVERING_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = clusters,
 		.cluster_count = ARRAY_SIZE(clusters),
 	},
@@ -165,21 +175,26 @@ static void zcl_changed(struct zzb_node *node, uint8_t ep, uint16_t cluster, uin
 /* A recalled scene comes as Go To Lift Percentage and Go To Tilt Percentage */
 static uint8_t covering_cmd(struct zzb_node *node, const struct zzb_zcl_cmd *cmd)
 {
+	struct zzb_zcl_window_covering_go_to_lift_percentage go_to_lift;
+	struct zzb_zcl_window_covering_go_to_tilt_percentage go_to_tilt;
+
 	switch (cmd->id) {
 	case ZZB_ZCL_WINDOW_COVERING_UP_OPEN:
-		motor_move(0, 0);
+		motor_move(OPEN, OPEN);
 		break;
 	case ZZB_ZCL_WINDOW_COVERING_DOWN_CLOSE:
-		motor_move(100, 100);
+		motor_move(CLOSED, CLOSED);
 		break;
 	case ZZB_ZCL_WINDOW_COVERING_STOP:
 		motor_stop();
 		break;
 	case ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE:
-		motor_move(cmd->payload[0], atomic_get(&tilt_target));
+		zzb_zcl_window_covering_go_to_lift_percentage_parse(cmd, &go_to_lift);
+		motor_move(go_to_lift.percentage, atomic_get(&tilt_target));
 		break;
 	case ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE:
-		motor_move(atomic_get(&lift_target), cmd->payload[0]);
+		zzb_zcl_window_covering_go_to_tilt_percentage_parse(cmd, &go_to_tilt);
+		motor_move(atomic_get(&lift_target), go_to_tilt.percentage);
 		break;
 	default:
 		return ZZB_ZCL_UNSUP_COMMAND;
@@ -195,10 +210,10 @@ void sample_button(struct zzb_node *node)
 
 	switch (presses++ % 4) {
 	case 0:
-		motor_move(0, 0);
+		motor_move(OPEN, OPEN);
 		break;
 	case 2:
-		motor_move(100, 100);
+		motor_move(CLOSED, CLOSED);
 		break;
 	default:
 		motor_stop();
@@ -234,7 +249,7 @@ void sample_finding_binding(struct zzb_node *node)
 	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_target(node, COVERING_EP));
 #else
 	LOG_INF("finding & binding %d",
-		zzb_bdb_finding_binding_initiator(node, COVERING_EP, 0xffff));
+		zzb_bdb_finding_binding_initiator(node, COVERING_EP, ZZB_BDB_FB_UNICAST));
 #endif
 }
 

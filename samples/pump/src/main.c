@@ -20,29 +20,32 @@ LOG_MODULE_REGISTER(pump, LOG_LEVEL_INF);
 
 #define PUMP_EP 1
 
+#if defined(CONFIG_SAMPLE_PUMP)
+#define DEVICE_ID ZZB_DEVICE_PUMP
+#elif defined(CONFIG_SAMPLE_PUMP_CONTROLLER)
+#define DEVICE_ID ZZB_DEVICE_PUMP_CONTROLLER
+#endif
+
 /* 200.0 kPa and 2.0 m3/h while the pump runs */
 #define RUNNING_PRESSURE 2000
 #define RUNNING_FLOW     20
-
-/* The Running bit of PumpStatus (ZCL Table 6-5) */
-#define PUMP_STATUS_RUNNING BIT(5)
 
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
 	.power_source = SAMPLE_BASIC_POWER_SOURCE,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 static struct zzb_zcl_identify identify;
 
 #if defined(CONFIG_SAMPLE_SLEEPY)
-/* 3.0 V, 100 %, two AA cells */
+/* Two AA cells of 1.5 V, at 3.0 V and 100 % */
 static struct zzb_zcl_power_config power_config = {
 	.battery_voltage = 30,
 	.battery_percentage_remaining = 200,
-	.battery_size = 0x03,
+	.battery_size = ZZB_ZCL_POWER_CONFIG_BATTERY_SIZE_AA,
 	.battery_quantity = 2,
 	.battery_rated_voltage = 15,
 };
@@ -53,26 +56,26 @@ static struct zzb_zcl_scenes scenes;
 static struct zzb_zcl_on_off on_off;
 
 static struct zzb_zcl_pump pump = {
-	.max_pressure = INT16_MIN,
-	.max_speed = 0xffff,
-	.max_flow = 0xffff,
-	.capacity = INT16_MIN,
-	.lifetime_energy_consumed = 0xffffffff,
+	.max_pressure = ZZB_ZCL_PUMP_MAX_PRESSURE_UNKNOWN,
+	.max_speed = ZZB_ZCL_PUMP_MAX_SPEED_UNKNOWN,
+	.max_flow = ZZB_ZCL_PUMP_MAX_FLOW_UNKNOWN,
+	.capacity = ZZB_ZCL_PUMP_CAPACITY_UNKNOWN,
+	.lifetime_energy_consumed = ZZB_ZCL_PUMP_LIFETIME_ENERGY_CONSUMED_UNKNOWN,
 };
 
 static struct zzb_zcl_pressure pressure = {
-	.measured_value = INT16_MIN,
-	.min_measured_value = INT16_MIN,
-	.max_measured_value = INT16_MIN,
-	.scaled_value = INT16_MIN,
-	.min_scaled_value = INT16_MIN,
-	.max_scaled_value = INT16_MIN,
+	.measured_value = ZZB_ZCL_PRESSURE_MEASURED_VALUE_UNKNOWN,
+	.min_measured_value = ZZB_ZCL_PRESSURE_MIN_MEASURED_VALUE_NOT_DEFINED,
+	.max_measured_value = ZZB_ZCL_PRESSURE_MAX_MEASURED_VALUE_NOT_DEFINED,
+	.scaled_value = ZZB_ZCL_PRESSURE_SCALED_VALUE_UNKNOWN,
+	.min_scaled_value = ZZB_ZCL_PRESSURE_MIN_SCALED_VALUE_NOT_DEFINED,
+	.max_scaled_value = ZZB_ZCL_PRESSURE_MAX_SCALED_VALUE_NOT_DEFINED,
 };
 
 static struct zzb_zcl_flow flow = {
-	.measured_value = 0xffff,
-	.min_measured_value = 0xffff,
-	.max_measured_value = 0xffff,
+	.measured_value = ZZB_ZCL_FLOW_MEASURED_VALUE_UNKNOWN,
+	.min_measured_value = ZZB_ZCL_FLOW_MIN_MEASURED_VALUE_NOT_DEFINED,
+	.max_measured_value = ZZB_ZCL_FLOW_MAX_MEASURED_VALUE_NOT_DEFINED,
 };
 #endif
 
@@ -102,9 +105,9 @@ static const struct zzb_zcl_cluster clusters[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = PUMP_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = clusters,
 		.cluster_count = ARRAY_SIZE(clusters),
 	},
@@ -135,7 +138,7 @@ static void pump_set(struct zzb_node *node, bool on)
 {
 	int16_t measured_pressure = on ? RUNNING_PRESSURE : 0;
 	uint16_t measured_flow = on ? RUNNING_FLOW : 0;
-	uint16_t status = on ? PUMP_STATUS_RUNNING : 0;
+	uint16_t status = on ? ZZB_ZCL_PUMP_STATUS_RUNNING : 0;
 
 	atomic_set(&pump_on, on);
 	sample_led(on);
@@ -194,7 +197,8 @@ void sample_finding_binding(struct zzb_node *node)
 #if defined(CONFIG_SAMPLE_PUMP)
 	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_target(node, PUMP_EP));
 #else
-	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_initiator(node, PUMP_EP, 0xffff));
+	LOG_INF("finding & binding %d",
+		zzb_bdb_finding_binding_initiator(node, PUMP_EP, ZZB_BDB_FB_UNICAST));
 #endif
 }
 

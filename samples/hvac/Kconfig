@@ -18,17 +18,6 @@ config SAMPLE_AIR_PURIFIER
 
 endchoice
 
-config SAMPLE_DEVICE_ID
-	hex
-	default 0x0301 if SAMPLE_THERMOSTAT
-	default 0x0300 if SAMPLE_HEATING_COOLING_UNIT
-	default 0x0308 if SAMPLE_AIR_PURIFIER
-
-# The highest Rev of the revision history of the device type in the DTL
-config SAMPLE_DEVICE_VERSION
-	int
-	default 1
-
 config SAMPLE_MODEL_ID
 	string
 	default "thermostat" if SAMPLE_THERMOSTAT

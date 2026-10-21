@@ -19,34 +19,39 @@ LOG_MODULE_REGISTER(hvac, LOG_LEVEL_INF);
 
 #define HVAC_EP 1
 
+#if defined(CONFIG_SAMPLE_THERMOSTAT)
+#define DEVICE_ID ZZB_DEVICE_THERMOSTAT
+#elif defined(CONFIG_SAMPLE_HEATING_COOLING_UNIT)
+#define DEVICE_ID ZZB_DEVICE_HEATING_COOLING_UNIT
+#elif defined(CONFIG_SAMPLE_AIR_PURIFIER)
+#define DEVICE_ID ZZB_DEVICE_AIR_PURIFIER
+#endif
+
 /* LocalTemperature moves 0.10 degC a minute toward the setpoint of the mode, or to 18.00 degC */
 #define START_TEMPERATURE  2100
 #define OFF_TEMPERATURE    1800
 #define TEMPERATURE_STEP   10
 #define MEASUREMENT_PERIOD K_SECONDS(60)
 
-#define FAN_MODE_OFF 0x00
-
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
-	.power_source = 0x01,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.power_source = ZZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 static struct zzb_zcl_identify identify;
 
-/* Low/Medium/High/Auto */
 static struct zzb_zcl_fan fan = {
-	.fan_mode_sequence = 0x02,
+	.fan_mode_sequence = ZZB_ZCL_FAN_MODE_SEQUENCE_LOW_MED_HIGH_AUTO,
 };
 
 #if defined(CONFIG_SAMPLE_THERMOSTAT)
 static struct zzb_zcl_thermostat thermostat = {
 	.local_temperature = START_TEMPERATURE,
-	.outdoor_temperature = INT16_MIN,
-	.occupancy = 0x01,
+	.outdoor_temperature = ZZB_ZCL_THERMOSTAT_OUTDOOR_TEMPERATURE_UNKNOWN,
+	.occupancy = ZZB_ZCL_THERMOSTAT_OCCUPANCY_OCCUPIED,
 	.abs_min_heat_setpoint_limit = 700,
 	.abs_max_heat_setpoint_limit = 3000,
 	.abs_min_cool_setpoint_limit = 1600,
@@ -83,9 +88,9 @@ static const struct zzb_zcl_cluster clusters[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = HVAC_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = clusters,
 		.cluster_count = ARRAY_SIZE(clusters),
 	},
@@ -128,16 +133,18 @@ static void measure(struct k_work *work)
 	bool cooling;
 	uint8_t heating_demand;
 	uint8_t cooling_demand;
+	uint8_t running_mode;
 	uint16_t running_state;
 
 	if (mode == ZZB_ZCL_SYSTEM_MODE_HEAT) {
 		target = atomic_get(&heating_setpoint);
+		running_mode = ZZB_ZCL_THERMOSTAT_RUNNING_MODE_HEAT;
 	} else if (mode == ZZB_ZCL_SYSTEM_MODE_COOL) {
 		target = atomic_get(&cooling_setpoint);
+		running_mode = ZZB_ZCL_THERMOSTAT_RUNNING_MODE_COOL;
 	} else {
-		/* ThermostatRunningMode is Off, Cool or Heat */
-		mode = ZZB_ZCL_SYSTEM_MODE_OFF;
 		target = OFF_TEMPERATURE;
+		running_mode = ZZB_ZCL_THERMOSTAT_RUNNING_MODE_OFF;
 	}
 
 	temperature = temperature < target ? MIN(temperature + TEMPERATURE_STEP, target)
@@ -146,13 +153,14 @@ static void measure(struct k_work *work)
 	cooling = mode == ZZB_ZCL_SYSTEM_MODE_COOL && temperature > target;
 	heating_demand = heating ? 100 : 0;
 	cooling_demand = cooling ? 100 : 0;
-	/* Heat State On, Cool State On */
-	running_state = heating ? BIT(0) : cooling ? BIT(1) : 0;
+	running_state = heating   ? ZZB_ZCL_THERMOSTAT_RUNNING_STATE_HEAT
+			: cooling ? ZZB_ZCL_THERMOSTAT_RUNNING_STATE_COOL
+				  : 0;
 
 	thermostat_set(ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE, &temperature);
 	thermostat_set(ZZB_ZCL_THERMOSTAT_PI_HEATING_DEMAND, &heating_demand);
 	thermostat_set(ZZB_ZCL_THERMOSTAT_PI_COOLING_DEMAND, &cooling_demand);
-	thermostat_set(ZZB_ZCL_THERMOSTAT_RUNNING_MODE, &mode);
+	thermostat_set(ZZB_ZCL_THERMOSTAT_RUNNING_MODE, &running_mode);
 	thermostat_set(ZZB_ZCL_THERMOSTAT_RUNNING_STATE, &running_state);
 	LOG_INF("temperature %d.%02d degC, demand heating %u %% cooling %u %%", temperature / 100,
 		temperature % 100, heating_demand, cooling_demand);
@@ -192,7 +200,7 @@ static atomic_t fan_mode;
 static void fan_set(uint8_t mode)
 {
 	atomic_set(&fan_mode, mode);
-	sample_led(mode != FAN_MODE_OFF);
+	sample_led(mode != ZZB_ZCL_FAN_MODE_OFF);
 	LOG_INF("fan mode %u", mode);
 }
 #endif
@@ -256,8 +264,14 @@ void sample_button(struct zzb_node *node)
 	unit_set(on);
 }
 #else
-/* Off and the modes of FanModeSequence 0x02 in the order of the button: Low, Medium, High, Auto */
-static const uint8_t fan_modes[] = {FAN_MODE_OFF, 0x01, 0x02, 0x03, 0x05};
+/* Off and the modes of the FanModeSequence in the order of the button */
+static const uint8_t fan_modes[] = {
+	ZZB_ZCL_FAN_MODE_OFF,
+	ZZB_ZCL_FAN_MODE_LOW,
+	ZZB_ZCL_FAN_MODE_MEDIUM,
+	ZZB_ZCL_FAN_MODE_HIGH,
+	ZZB_ZCL_FAN_MODE_AUTO,
+};
 
 void sample_button(struct zzb_node *node)
 {

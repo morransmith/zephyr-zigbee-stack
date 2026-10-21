@@ -16,16 +16,6 @@ config SAMPLE_PUMP_CONTROLLER
 
 endchoice
 
-config SAMPLE_DEVICE_ID
-	hex
-	default 0x0303 if SAMPLE_PUMP
-	default 0x0304 if SAMPLE_PUMP_CONTROLLER
-
-# The highest Rev of the revision history of the device type in the DTL
-config SAMPLE_DEVICE_VERSION
-	int
-	default 1
-
 config SAMPLE_MODEL_ID
 	string
 	default "pump" if SAMPLE_PUMP

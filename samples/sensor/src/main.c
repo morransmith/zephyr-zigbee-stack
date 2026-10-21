@@ -20,6 +20,22 @@ LOG_MODULE_REGISTER(sensor, LOG_LEVEL_INF);
 
 #define SENSOR_EP 1
 
+#if defined(CONFIG_SAMPLE_SIMPLE_SENSOR)
+#define DEVICE_ID ZZB_DEVICE_SIMPLE_SENSOR
+#elif defined(CONFIG_SAMPLE_LIGHT_SENSOR)
+#define DEVICE_ID ZZB_DEVICE_LIGHT_SENSOR
+#elif defined(CONFIG_SAMPLE_OCCUPANCY_SENSOR)
+#define DEVICE_ID ZZB_DEVICE_OCCUPANCY_SENSOR
+#elif defined(CONFIG_SAMPLE_LIGHT_LEVEL_SENSOR)
+#define DEVICE_ID ZZB_DEVICE_LIGHT_LEVEL_SENSOR
+#elif defined(CONFIG_SAMPLE_TEMPERATURE_SENSOR)
+#define DEVICE_ID ZZB_DEVICE_TEMPERATURE_SENSOR
+#elif defined(CONFIG_SAMPLE_PRESSURE_SENSOR)
+#define DEVICE_ID ZZB_DEVICE_PRESSURE_SENSOR
+#elif defined(CONFIG_SAMPLE_FLOW_SENSOR)
+#define DEVICE_ID ZZB_DEVICE_FLOW_SENSOR
+#endif
+
 #define MEASURE_PERIOD   K_SECONDS(60)
 #define UNOCCUPIED_DELAY K_SECONDS(30)
 
@@ -27,15 +43,15 @@ static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = CONFIG_SAMPLE_MODEL_ID,
 	.power_source = SAMPLE_BASIC_POWER_SOURCE,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 /* Two AA cells, 3.0 V, 100 % */
 static struct zzb_zcl_power_config power_config = {
 	.battery_voltage = 30,
 	.battery_percentage_remaining = 200,
-	.battery_size = 0x03,
+	.battery_size = ZZB_ZCL_POWER_CONFIG_BATTERY_SIZE_AA,
 	.battery_quantity = 2,
 	.battery_rated_voltage = 15,
 };
@@ -49,38 +65,38 @@ static struct zzb_zcl_binary_input input = {
 #elif defined(CONFIG_SAMPLE_LIGHT_SENSOR)
 /* 1 lx to 100 klx */
 static struct zzb_zcl_illuminance illuminance = {
-	.measured_value = 0xffff,
+	.measured_value = ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE_UNKNOWN,
 	.min_measured_value = 1,
 	.max_measured_value = 50001,
 };
 #elif defined(CONFIG_SAMPLE_OCCUPANCY_SENSOR)
-/* PIR */
 static struct zzb_zcl_occupancy occupancy = {
-	.occupancy_sensor_type_bitmap = 0x01,
+	.occupancy_sensor_type = ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_PIR,
+	.occupancy_sensor_type_bitmap = ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_BITMAP_PIR,
 };
 #elif defined(CONFIG_SAMPLE_LIGHT_LEVEL_SENSOR)
 static struct zzb_zcl_illuminance_level illuminance_level;
 #elif defined(CONFIG_SAMPLE_TEMPERATURE_SENSOR)
 /* 20.00 to 24.00 degC */
 static struct zzb_zcl_temperature temperature = {
-	.measured_value = INT16_MIN,
+	.measured_value = ZZB_ZCL_TEMPERATURE_MEASURED_VALUE_UNKNOWN,
 	.min_measured_value = 2000,
 	.max_measured_value = 2400,
 };
 #elif defined(CONFIG_SAMPLE_PRESSURE_SENSOR)
-/* 1000 to 1020 hPa; the scaled values are 0x8000, unknown */
+/* 1000 to 1020 hPa */
 static struct zzb_zcl_pressure pressure = {
-	.measured_value = INT16_MIN,
+	.measured_value = ZZB_ZCL_PRESSURE_MEASURED_VALUE_UNKNOWN,
 	.min_measured_value = 1000,
 	.max_measured_value = 1020,
-	.scaled_value = INT16_MIN,
-	.min_scaled_value = INT16_MIN,
-	.max_scaled_value = INT16_MIN,
+	.scaled_value = ZZB_ZCL_PRESSURE_SCALED_VALUE_UNKNOWN,
+	.min_scaled_value = ZZB_ZCL_PRESSURE_MIN_SCALED_VALUE_NOT_DEFINED,
+	.max_scaled_value = ZZB_ZCL_PRESSURE_MAX_SCALED_VALUE_NOT_DEFINED,
 };
 #elif defined(CONFIG_SAMPLE_FLOW_SENSOR)
 /* 1.0 to 3.0 m3/h */
 static struct zzb_zcl_flow flow = {
-	.measured_value = 0xffff,
+	.measured_value = ZZB_ZCL_FLOW_MEASURED_VALUE_UNKNOWN,
 	.min_measured_value = 10,
 	.max_measured_value = 30,
 };
@@ -111,9 +127,9 @@ static const struct zzb_zcl_cluster sensor[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = SENSOR_EP,
-		.profile = 0x0104,
-		.device_id = CONFIG_SAMPLE_DEVICE_ID,
-		.device_version = CONFIG_SAMPLE_DEVICE_VERSION,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = DEVICE_ID,
+		.device_version = ZZB_DEVICE_VERSION(DEVICE_ID),
 		.clusters = sensor,
 		.cluster_count = ARRAY_SIZE(sensor),
 	},
@@ -170,15 +186,8 @@ static int value_set(const uint16_t *value)
 				ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE, value);
 }
 #elif defined(CONFIG_SAMPLE_LIGHT_LEVEL_SENSOR)
-/* LevelStatus (ZCL Table 4-9) */
-#define ON_TARGET    0x00
-#define BELOW_TARGET 0x01
-#define ABOVE_TARGET 0x02
-
-#define TARGET_NOT_VALID 0xffff
-
 /* Half the width of the dead band around the target, a factor of 1.26 in lux */
-#define DEAD_BAND        1000
+#define DEAD_BAND 1000
 
 /* 1 lx to 100 klx in steps of a factor of 10, as 10000 log10(lux) like the target */
 static const uint16_t values[] = {0, 10000, 20000, 30000, 40000, 50000};
@@ -190,19 +199,19 @@ static uint8_t level_status(uint16_t illuminance)
 {
 	uint16_t target = atomic_get(&target_level);
 
-	if (target == TARGET_NOT_VALID) {
-		return ON_TARGET;
+	if (target == ZZB_ZCL_ILLUMINANCE_LEVEL_TARGET_LEVEL_UNKNOWN) {
+		return ZZB_ZCL_ILLUMINANCE_LEVEL_STATUS_ON_TARGET;
 	}
 
 	if (illuminance + DEAD_BAND < target) {
-		return BELOW_TARGET;
+		return ZZB_ZCL_ILLUMINANCE_LEVEL_STATUS_BELOW_TARGET;
 	}
 
 	if (illuminance > target + DEAD_BAND) {
-		return ABOVE_TARGET;
+		return ZZB_ZCL_ILLUMINANCE_LEVEL_STATUS_ABOVE_TARGET;
 	}
 
-	return ON_TARGET;
+	return ZZB_ZCL_ILLUMINANCE_LEVEL_STATUS_ON_TARGET;
 }
 
 static int value_set(const uint16_t *value)
@@ -320,7 +329,7 @@ void sample_button(struct zzb_node *node)
 #elif defined(CONFIG_SAMPLE_OCCUPANCY_SENSOR)
 void sample_button(struct zzb_node *node)
 {
-	occupancy_set(1);
+	occupancy_set(ZZB_ZCL_OCCUPANCY_OCCUPIED);
 	k_work_reschedule(&vacate_work, UNOCCUPIED_DELAY);
 }
 #else
@@ -331,10 +340,10 @@ void sample_button(struct zzb_node *node)
 }
 #endif
 
-/* Group 0xffff makes unicast bindings */
 void sample_finding_binding(struct zzb_node *node)
 {
-	LOG_INF("finding & binding %d", zzb_bdb_finding_binding_initiator(node, SENSOR_EP, 0xffff));
+	LOG_INF("finding & binding %d",
+		zzb_bdb_finding_binding_initiator(node, SENSOR_EP, ZZB_BDB_FB_UNICAST));
 }
 
 int main(void)
