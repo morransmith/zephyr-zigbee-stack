@@ -19,9 +19,7 @@
 /* The octet of the fields, warning duration, strobe duty cycle and strobe level */
 #define START_WARNING_LEN 5
 
-#define WARNING_MODE_MAX 6
-#define STROBE_LEVEL_MAX 3
-#define DUTY_CYCLE_MAX   100
+#define DUTY_CYCLE_MAX 100
 
 /* Stop is warning mode 0 without strobe (ZCL 8.4.2.2.1.3) */
 #define WARNING_FIELDS (ZZB_ZCL_IAS_WD_WARNING_MODE | ZZB_ZCL_IAS_WD_STROBE)
@@ -123,9 +121,10 @@ static int start_warning(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 		return ZZB_ZCL_MALFORMED_COMMAND;
 	}
 
-	if (FIELD_GET(ZZB_ZCL_IAS_WD_WARNING_MODE, cmd->payload[0]) > WARNING_MODE_MAX ||
-	    FIELD_GET(ZZB_ZCL_IAS_WD_STROBE, cmd->payload[0]) > 1 ||
-	    cmd->payload[4] > STROBE_LEVEL_MAX) {
+	if (FIELD_GET(ZZB_ZCL_IAS_WD_WARNING_MODE, cmd->payload[0]) >
+		    ZZB_ZCL_IAS_WD_WARNING_MODE_EMERGENCY_PANIC ||
+	    FIELD_GET(ZZB_ZCL_IAS_WD_STROBE, cmd->payload[0]) > ZZB_ZCL_IAS_WD_STROBE_PARALLEL ||
+	    cmd->payload[4] > ZZB_ZCL_IAS_WD_STROBE_LEVEL_VERY_HIGH) {
 		return ZZB_ZCL_INVALID_FIELD;
 	}
 
@@ -159,7 +158,8 @@ static int squawk(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 		return ZZB_ZCL_MALFORMED_COMMAND;
 	}
 
-	if (FIELD_GET(ZZB_ZCL_IAS_WD_SQUAWK_MODE, cmd->payload[0]) > 1) {
+	if (FIELD_GET(ZZB_ZCL_IAS_WD_SQUAWK_MODE, cmd->payload[0]) >
+	    ZZB_ZCL_IAS_WD_SQUAWK_MODE_DISARMED) {
 		return ZZB_ZCL_INVALID_FIELD;
 	}
 

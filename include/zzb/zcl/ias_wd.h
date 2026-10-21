@@ -23,16 +23,63 @@ extern "C" {
 
 /**
  * Fields of the first octet of Start Warning (ZCL Figure 8-21) for FIELD_GET(), at the positions
- * that zigpy 2.3.0 uses: warning mode 0 to 6, strobe 0 or 1, siren level 0 to 3.
+ * that zigpy 2.3.0 uses: warning mode, strobe, siren level.
  */
 #define ZZB_ZCL_IAS_WD_WARNING_MODE GENMASK(7, 4)
 #define ZZB_ZCL_IAS_WD_STROBE       GENMASK(3, 2)
 #define ZZB_ZCL_IAS_WD_SIREN_LEVEL  GENMASK(1, 0)
 
-/** Fields of the octet of Squawk (ZCL Figure 8-22): squawk mode 0 or 1, strobe, level 0 to 3. */
+/** Warning Mode of Start Warning (ZCL Table 8-21). */
+enum zzb_zcl_ias_wd_warning_mode {
+	ZZB_ZCL_IAS_WD_WARNING_MODE_STOP = 0,
+	ZZB_ZCL_IAS_WD_WARNING_MODE_BURGLAR = 1,
+	ZZB_ZCL_IAS_WD_WARNING_MODE_FIRE = 2,
+	ZZB_ZCL_IAS_WD_WARNING_MODE_EMERGENCY = 3,
+	ZZB_ZCL_IAS_WD_WARNING_MODE_POLICE_PANIC = 4,
+	ZZB_ZCL_IAS_WD_WARNING_MODE_FIRE_PANIC = 5,
+	ZZB_ZCL_IAS_WD_WARNING_MODE_EMERGENCY_PANIC = 6,
+};
+
+/** Strobe of Start Warning (ZCL Table 8-22). */
+enum zzb_zcl_ias_wd_strobe {
+	ZZB_ZCL_IAS_WD_STROBE_NONE = 0,
+	ZZB_ZCL_IAS_WD_STROBE_PARALLEL = 1,
+};
+
+/** Siren Level of Start Warning (ZCL Table 8-23). */
+enum zzb_zcl_ias_wd_siren_level {
+	ZZB_ZCL_IAS_WD_SIREN_LEVEL_LOW = 0,
+	ZZB_ZCL_IAS_WD_SIREN_LEVEL_MEDIUM = 1,
+	ZZB_ZCL_IAS_WD_SIREN_LEVEL_HIGH = 2,
+	ZZB_ZCL_IAS_WD_SIREN_LEVEL_VERY_HIGH = 3,
+};
+
+/** Strobe Level of Start Warning (ZCL Table 8-24). */
+enum zzb_zcl_ias_wd_strobe_level {
+	ZZB_ZCL_IAS_WD_STROBE_LEVEL_LOW = 0x00,
+	ZZB_ZCL_IAS_WD_STROBE_LEVEL_MEDIUM = 0x01,
+	ZZB_ZCL_IAS_WD_STROBE_LEVEL_HIGH = 0x02,
+	ZZB_ZCL_IAS_WD_STROBE_LEVEL_VERY_HIGH = 0x03,
+};
+
+/** Fields of the octet of Squawk (ZCL Figure 8-22): squawk mode, strobe, squawk level. */
 #define ZZB_ZCL_IAS_WD_SQUAWK_MODE   GENMASK(7, 4)
 #define ZZB_ZCL_IAS_WD_SQUAWK_STROBE BIT(3)
 #define ZZB_ZCL_IAS_WD_SQUAWK_LEVEL  GENMASK(1, 0)
+
+/** Squawk Mode of Squawk (ZCL Table 8-25). */
+enum zzb_zcl_ias_wd_squawk_mode {
+	ZZB_ZCL_IAS_WD_SQUAWK_MODE_ARMED = 0,
+	ZZB_ZCL_IAS_WD_SQUAWK_MODE_DISARMED = 1,
+};
+
+/** Squawk Level of Squawk (ZCL Table 8-27). */
+enum zzb_zcl_ias_wd_squawk_level {
+	ZZB_ZCL_IAS_WD_SQUAWK_LEVEL_LOW = 0,
+	ZZB_ZCL_IAS_WD_SQUAWK_LEVEL_MEDIUM = 1,
+	ZZB_ZCL_IAS_WD_SQUAWK_LEVEL_HIGH = 2,
+	ZZB_ZCL_IAS_WD_SQUAWK_LEVEL_VERY_HIGH = 3,
+};
 
 /**
  * Values of an IAS WD server (ZCL 8.4.2.1). MaxDuration is writable and saved. Start Warning and
