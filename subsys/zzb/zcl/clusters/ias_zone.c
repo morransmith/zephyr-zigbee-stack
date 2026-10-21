@@ -16,16 +16,6 @@
 /* ClusterRevision (ZCL 8.2.1.1) */
 #define REVISION 2
 
-/* ZoneState (ZCL Table 8-4) */
-#define NOT_ENROLLED 0x00
-#define ENROLLED     0x01
-
-/* ZoneID before enrollment (ZCL Table 8-8) */
-#define NO_ZONE 0xff
-
-/* Enroll response code Success (ZCL Table 8-10) */
-#define ENROLL_SUCCESS 0x00
-
 /* The default of NumberOfZoneSensitivityLevelsSupported (ZCL Table 8-8) */
 #define SENSITIVITY_LEVELS 2
 
@@ -122,7 +112,7 @@ static int send_status(struct zzb_node *node, uint8_t ep, const struct zzb_zcl_i
 		return 0;
 	}
 
-	if (v->zone_state != ENROLLED) {
+	if (v->zone_state != ZZB_ZCL_IAS_ZONE_STATE_ENROLLED) {
 		return enroll_request(node, ep, v);
 	}
 
@@ -222,8 +212,8 @@ static void cie_changed(struct zzb_node *node, uint8_t ep, struct zzb_zcl_ias_zo
 {
 	const struct zzb_zcl_cmd *write = node->zcl.received;
 
-	set(node, ep, ZZB_ZCL_IAS_ZONE_STATE, NOT_ENROLLED);
-	set(node, ep, ZZB_ZCL_IAS_ZONE_ID, NO_ZONE);
+	set(node, ep, ZZB_ZCL_IAS_ZONE_STATE, ZZB_ZCL_IAS_ZONE_STATE_NOT_ENROLLED);
+	set(node, ep, ZZB_ZCL_IAS_ZONE_ID, ZZB_ZCL_IAS_ZONE_ID_NONE);
 	if (write == NULL) {
 		return;
 	}
@@ -263,10 +253,12 @@ static void changed(struct zzb_node *node, uint8_t ep, void *values, uint16_t at
 static int enroll_response(struct zzb_node *node, const struct zzb_zcl_cmd *cmd,
 			   struct zzb_zcl_ias_zone *v)
 {
-	bool success = cmd->payload[0] == ENROLL_SUCCESS;
+	bool success = cmd->payload[0] == ZZB_ZCL_IAS_ZONE_ENROLL_SUCCESS;
 
-	set(node, cmd->ep, ZZB_ZCL_IAS_ZONE_STATE, success ? ENROLLED : NOT_ENROLLED);
-	set(node, cmd->ep, ZZB_ZCL_IAS_ZONE_ID, success ? cmd->payload[1] : NO_ZONE);
+	set(node, cmd->ep, ZZB_ZCL_IAS_ZONE_STATE,
+	    success ? ZZB_ZCL_IAS_ZONE_STATE_ENROLLED : ZZB_ZCL_IAS_ZONE_STATE_NOT_ENROLLED);
+	set(node, cmd->ep, ZZB_ZCL_IAS_ZONE_ID,
+	    success ? cmd->payload[1] : ZZB_ZCL_IAS_ZONE_ID_NONE);
 	return ZZB_ZCL_SUCCESS;
 }
 
@@ -364,10 +356,10 @@ static void init(void *values)
 {
 	struct zzb_zcl_ias_zone *v = values;
 
-	v->zone_state = NOT_ENROLLED;
+	v->zone_state = ZZB_ZCL_IAS_ZONE_STATE_NOT_ENROLLED;
 	v->zone_status &= ~ZZB_ZCL_IAS_ZONE_STATUS_TEST;
 	v->ias_cie_address = 0;
-	v->zone_id = NO_ZONE;
+	v->zone_id = ZZB_ZCL_IAS_ZONE_ID_NONE;
 	if (v->number_of_zone_sensitivity_levels_supported == 0) {
 		v->number_of_zone_sensitivity_levels_supported = SENSITIVITY_LEVELS;
 	}
@@ -383,8 +375,8 @@ static void reset(struct zzb_node *node, uint8_t ep, void *values)
 	struct zzb_zcl_ias_zone *v = values;
 	char name[NAME_LEN];
 
-	set(node, ep, ZZB_ZCL_IAS_ZONE_STATE, NOT_ENROLLED);
-	set(node, ep, ZZB_ZCL_IAS_ZONE_ID, NO_ZONE);
+	set(node, ep, ZZB_ZCL_IAS_ZONE_STATE, ZZB_ZCL_IAS_ZONE_STATE_NOT_ENROLLED);
+	set(node, ep, ZZB_ZCL_IAS_ZONE_ID, ZZB_ZCL_IAS_ZONE_ID_NONE);
 	set(node, ep, ZZB_ZCL_IAS_ZONE_CIE_ADDRESS, 0);
 	set(node, ep, ZZB_ZCL_IAS_ZONE_CURRENT_SENSITIVITY_LEVEL, 0);
 	end_test(node, ep, v);
