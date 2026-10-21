@@ -144,6 +144,16 @@ A short press toggles OnOff of the Pump, and led0 shows it; the controller sends
 
 Two relays and a wall switch. Short presses toggle relay 1, relay 2 and the lights bound to endpoint 3 in turn. led0 shows relay 1 and led1 relay 2. Finding & binding: initiator on endpoint 3.
 
+### multisensor
+
+| Endpoint | Device type | ID | Clusters |
+|---|---|---|---|
+| 1 | Occupancy Sensor | 0x0107 | Basic, Power Configuration, Identify, Occupancy Sensing; client Identify |
+| 2 | Light Sensor | 0x0106 | Identify, Illuminance Measurement; client Identify |
+| 3 | Temperature Sensor | 0x0302 | Identify, Temperature Measurement, Relative Humidity Measurement; client Identify |
+
+A battery-powered motion sensor, a sleepy end device. A short press sets Occupancy, which returns to 0 30 s after the last press; led0 shows it. Illuminance, temperature and humidity take the next value of a fixed sequence at the start and every 60 s: 1 lx to 10 klx in factors of 10, 20.00 to 24.00 degC and 40 to 60 %. Finding & binding: initiator on endpoint 1.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
