@@ -50,6 +50,15 @@ A short press toggles OnOff, and led0 shows it. The level and the color go to th
 
 A short press toggles OnOff, and led0 shows the relay. The level goes to the console. Finding & binding: target.
 
+### ballast
+
+| Kconfig | Device type | ID | Clusters besides Basic, Power Configuration, Device Temperature Configuration, Identify, Groups, Scenes, On/Off, Level Control, Alarms, Ballast Configuration, Illuminance Level Sensing, Illuminance Measurement client, Occupancy Sensing client |
+|---|---|---|---|
+| `CONFIG_SAMPLE_ON_OFF_BALLAST` | On/Off Ballast | 0x0108 | |
+| `CONFIG_SAMPLE_DIMMABLE_BALLAST` | Dimmable Ballast | 0x0109 | |
+
+A short press toggles OnOff, and led0 shows it. The level goes to the console, and every hour LampBurnHours grows by 1 when the lamp is on. Finding & binding: target.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
