@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb energy sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_ENERGY
+	prompt "Device type"
+
+config SAMPLE_SMART_PLUG
+	bool "Smart Plug (0x0051)"
+	select SAMPLE_METERING
+
+config SAMPLE_METER_INTERFACE
+	bool "Meter Interface (0x0053)"
+	select SAMPLE_METER
+
+config SAMPLE_CONSUMPTION_AWARENESS_DEVICE
+	bool "Consumption Awareness Device (0x000d)"
+	select SAMPLE_METER
+
+config SAMPLE_WHITE_GOODS
+	bool "White Goods (0x0052)"
+
+config SAMPLE_HOME_GATEWAY
+	bool "Home Gateway (0x0050)"
+
+endchoice
+
+config SAMPLE_METERING
+	bool
+
+# A meter whose summation grows on a timer and at a press of the button
+config SAMPLE_METER
+	bool
+	select SAMPLE_METERING
+
+config SAMPLE_DEVICE_ID
+	hex
+	default 0x0051 if SAMPLE_SMART_PLUG
+	default 0x0053 if SAMPLE_METER_INTERFACE
+	default 0x000d if SAMPLE_CONSUMPTION_AWARENESS_DEVICE
+	default 0x0052 if SAMPLE_WHITE_GOODS
+	default 0x0050 if SAMPLE_HOME_GATEWAY
+
+# The highest Rev of the revision history of the device type in the DTL
+config SAMPLE_DEVICE_VERSION
+	int
+	default 1
+
+config SAMPLE_MODEL_ID
+	string
+	default "smart_plug" if SAMPLE_SMART_PLUG
+	default "meter_interface" if SAMPLE_METER_INTERFACE
+	default "consumption_awareness_device" if SAMPLE_CONSUMPTION_AWARENESS_DEVICE
+	default "white_goods" if SAMPLE_WHITE_GOODS
+	default "home_gateway" if SAMPLE_HOME_GATEWAY
+
+source "Kconfig.zephyr"

@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb door_lock
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.door_lock.door_lock:
+    extra_configs:
+      - CONFIG_SAMPLE_DOOR_LOCK=y
+  sample.zzb.door_lock.door_lock_controller:
+    extra_configs:
+      - CONFIG_SAMPLE_DOOR_LOCK_CONTROLLER=y

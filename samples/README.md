@@ -132,6 +132,38 @@ The Thermostat starts at 21.00 °C, and every minute LocalTemperature moves by 0
 
 A short press toggles OnOff of the Pump, and led0 shows it; the controller sends Toggle to its bindings. While the Pump is on, it measures 200.0 kPa and 2.0 m³/h and sets the Running bit of PumpStatus, and all three are 0 while it is off. Finding & binding: target for the Pump, initiator for the controller. The controller is a sleepy end device. Neither device type is certifiable, since the Pump Configuration and Control cluster is not (DTL Annexes E and F).
 
+### ias
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_IAS_ZONE` | IAS Zone | 0x0402 | Power Configuration, IAS Zone (contact switch) |
+| `CONFIG_SAMPLE_IAS_WARNING_DEVICE` | IAS Warning Device | 0x0403 | Groups, IAS Zone (standard warning device), IAS WD |
+| `CONFIG_SAMPLE_IAS_ACE` | IAS Ancillary Control Equipment | 0x0401 | Power Configuration, IAS Zone (keypad); clients Identify, IAS ACE |
+| `CONFIG_SAMPLE_IAS_CIE` | IAS Control and Indication Equipment | 0x0400 | IAS ACE; clients Identify, IAS Zone, IAS WD |
+
+On the IAS Zone and the IAS Warning Device a short press inverts Alarm1 of ZoneStatus, and led0 shows it; led0 of the IAS Warning Device blinks while a warning runs. The IAS ACE sends Arm with Arm All Zones and with Disarm in turn, with the code 1234, and led0 shows whether the panel is armed. The IAS CIE answers Arm, Get Panel Status and Zone Enroll Request, sends Start Warning to the bound warning devices when a zone reports an alarm while the panel is armed, and a short press arms or disarms the panel, which led0 shows. Finding & binding: target, which only identifies, since the DTL forbids it for the IAS clusters. The IAS Zone and the IAS ACE are sleepy end devices.
+
+### door_lock
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_DOOR_LOCK` | Door Lock | 0x000a | Alarms, Door Lock; client Time |
+| `CONFIG_SAMPLE_DOOR_LOCK_CONTROLLER` | Door Lock Controller | 0x000b | Power Configuration; clients Identify, Door Lock |
+
+led0 of the Door Lock is the bolt, on while locked: Lock Door and Unlock Door move it, and a short press locks or unlocks by hand. A short press of the Door Lock Controller sends Lock Door and Unlock Door in turn, without a code. Finding & binding: target on the Door Lock, initiator with unicast bindings on the Door Lock Controller, which is a sleepy end device.
+
+### energy
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify, client Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_SMART_PLUG` | Smart Plug | 0x0051 | Groups, Scenes, On/Off, Metering (kWh), Electrical Measurement; client Time |
+| `CONFIG_SAMPLE_METER_INTERFACE` | Meter Interface | 0x0053 | Metering (gas, m3), Meter Identification |
+| `CONFIG_SAMPLE_CONSUMPTION_AWARENESS_DEVICE` | Consumption Awareness Device | 0x000d | Metering (kWh) |
+| `CONFIG_SAMPLE_WHITE_GOODS` | White Goods | 0x0052 | Power Profile, Appliance Control, Appliance Identification, Appliance Events and Alerts, Appliance Statistics |
+| `CONFIG_SAMPLE_HOME_GATEWAY` | Home Gateway | 0x0050 | Time; clients Power Profile, Metering, Meter Identification, Appliance Control, Appliance Identification, Appliance Events and Alerts, Appliance Statistics |
+
+A short press of the Smart Plug toggles OnOff, and led0 shows the relay; while it is on, the plug measures 230 V, 0.26 A and 60 W and adds the energy to CurrentSummationDelivered every 10 s. The Meter Interface and the Consumption Awareness Device add 10 L or 10 Wh to CurrentSummationDelivered every minute and at a short press. The White Goods is a washing machine with a program of 2 minutes, which a short press or Execution of a Command starts and stops and led0 shows; it answers Signal State, Power Profile Request and Power Profile State Request and sends Signal State Notification to the bound destinations at every change. A short press of the Home Gateway sends Execution of a Command with Start to the bound appliances, and the commands of the appliances go to the console. Finding & binding: initiator with unicast bindings on the Home Gateway, target on the others.
+
 ## Combinations
 
 ### dual_relay
