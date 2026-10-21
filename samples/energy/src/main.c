@@ -107,6 +107,8 @@ static struct zzb_zcl_metering metering = {
 	.unit_of_measure = ZZB_ZCL_METERING_UNIT_OF_MEASURE_M3,
 	.multiplier = 1,
 	.divisor = 1000,
+	.summation_formatting = ZZB_ZCL_METERING_FORMATTING(5, 3, false),
+	.demand_formatting = ZZB_ZCL_METERING_FORMATTING(5, 3, false),
 	.metering_device_type = ZZB_ZCL_METERING_DEVICE_TYPE_GAS,
 };
 
