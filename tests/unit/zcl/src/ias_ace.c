@@ -222,6 +222,44 @@ ZTEST(zzb_zcl_ias_ace, test_arm)
 			  6);
 }
 
+/* ZCL 8.3.2.3.1: Arm All Zones with the code 1234 for zone 5 */
+ZTEST(zzb_zcl_ias_ace, test_arm_parse)
+{
+	static const uint8_t payload[] = {0x03, 0x04, '1', '2', '3', '4', 0x05};
+	const struct zzb_zcl_cmd cmd = {.payload = payload, .len = sizeof(payload)};
+	struct zzb_zcl_ias_ace_arm arm;
+
+	zzb_zcl_ias_ace_arm_parse(&cmd, &arm);
+	zassert_equal(arm.arm_mode, ZZB_ZCL_IAS_ACE_MODE_ALL_ZONES);
+	zassert_equal_ptr(arm.code, payload + 2);
+	zassert_equal(arm.code_len, 4);
+	zassert_equal(arm.zone_id, 5);
+}
+
+/* ZCL 8.3.2.4.1: Arm Response with Already Disarmed */
+ZTEST(zzb_zcl_ias_ace, test_arm_rsp_parse)
+{
+	const struct zzb_zcl_cmd cmd = {.payload = (uint8_t[]){0x06}, .len = 1};
+	struct zzb_zcl_ias_ace_arm_rsp rsp;
+
+	zzb_zcl_ias_ace_arm_rsp_parse(&cmd, &rsp);
+	zassert_equal(rsp.arm_notification, ZZB_ZCL_IAS_ACE_ALREADY_DISARMED);
+}
+
+/* ZCL 8.3.2.4.5: Panel Status Changed with an entry delay of 20 s, the default sound and Fire */
+ZTEST(zzb_zcl_ias_ace, test_panel_status_changed_parse)
+{
+	static const uint8_t payload[] = {0x05, 0x14, 0x01, 0x02};
+	const struct zzb_zcl_cmd cmd = {.payload = payload, .len = sizeof(payload)};
+	struct zzb_zcl_ias_ace_panel_status_changed status;
+
+	zzb_zcl_ias_ace_panel_status_changed_parse(&cmd, &status);
+	zassert_equal(status.panel_status, ZZB_ZCL_IAS_ACE_PANEL_ENTRY_DELAY);
+	zassert_equal(status.seconds_remaining, 20);
+	zassert_equal(status.audible_notification, ZZB_ZCL_IAS_ACE_AUDIBLE_DEFAULT);
+	zassert_equal(status.alarm_status, ZZB_ZCL_IAS_ACE_ALARM_FIRE);
+}
+
 /*
  * The commands of the server reach zcl_cmd_cb of the client as received: Arm Response with All
  * Zones Armed, Get Zone ID Map Response with zones 0 and 1, Get Zone Information Response of zone 1

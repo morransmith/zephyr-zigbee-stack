@@ -211,6 +211,63 @@ static inline int zzb_zcl_ias_ace_panel_status_changed(
 				  payload, sizeof(payload));
 }
 
+/** Fields of Arm (ZCL 8.3.2.3.1). */
+struct zzb_zcl_ias_ace_arm {
+	enum zzb_zcl_ias_ace_arm_mode arm_mode;
+	/** The Arm/Disarm Code of code_len octets in the payload of the command. */
+	const uint8_t *code;
+	uint8_t code_len;
+	uint8_t zone_id;
+};
+
+/** @brief Read the fields of Arm that zcl_cmd_cb of the IAS ACE server receives. */
+static inline void zzb_zcl_ias_ace_arm_parse(const struct zzb_zcl_cmd *cmd,
+					     struct zzb_zcl_ias_ace_arm *fields)
+{
+	fields->arm_mode = cmd->payload[0];
+	fields->code_len = cmd->payload[1];
+	fields->code = &cmd->payload[2];
+	fields->zone_id = cmd->payload[2 + fields->code_len];
+}
+
+/** Fields of Arm Response (ZCL 8.3.2.4.1). */
+struct zzb_zcl_ias_ace_arm_rsp {
+	enum zzb_zcl_ias_ace_arm_notification arm_notification;
+};
+
+/** @brief Read the fields of Arm Response that zcl_cmd_cb of the IAS ACE client receives. */
+static inline void zzb_zcl_ias_ace_arm_rsp_parse(const struct zzb_zcl_cmd *cmd,
+						 struct zzb_zcl_ias_ace_arm_rsp *fields)
+{
+	fields->arm_notification = cmd->payload[0];
+}
+
+/**
+ * Fields of Panel Status Changed (ZCL 8.3.2.4.5), which Get Panel Status Response also has (ZCL
+ * 8.3.2.4.6).
+ */
+struct zzb_zcl_ias_ace_panel_status_changed {
+	enum zzb_zcl_ias_ace_panel_status panel_status;
+	/** Seconds. */
+	uint8_t seconds_remaining;
+	enum zzb_zcl_ias_ace_audible_notification audible_notification;
+	enum zzb_zcl_ias_ace_alarm_status alarm_status;
+};
+
+/**
+ * @brief Read the fields of Panel Status Changed, or of Get Panel Status Response, that zcl_cmd_cb
+ * of the IAS ACE client receives.
+ */
+static inline void
+zzb_zcl_ias_ace_panel_status_changed_parse(const struct zzb_zcl_cmd *cmd,
+					   struct zzb_zcl_ias_ace_panel_status_changed *fields)
+{
+	fields->panel_status = cmd->payload[0];
+	fields->seconds_remaining = cmd->payload[1];
+	fields->audible_notification = cmd->payload[2];
+	fields->alarm_status = cmd->payload[3];
+}
+
 #ifdef __cplusplus
 }
 #endif
