@@ -391,8 +391,9 @@ extern bool zcl_cmd_responds;
 extern int zcl_cmd_respond_err;
 
 /*
- * With zcl_cmd_answer, NULL after reset_fakes(), zcl_cmd_cb answers every command with it in place
- * of the answer of zcl_cmd_responds; zcl_cmd_respond_err is its result.
+ * With zcl_cmd_answer, NULL after reset_fakes(), zcl_cmd_cb answers every command with this
+ * function of the test, such as a response function of a cluster header, in place of the answer of
+ * zcl_cmd_responds; zcl_cmd_respond_err is its result.
  */
 extern int (*zcl_cmd_answer)(struct zzb_node *node, const struct zzb_zcl_cmd *cmd);
 

@@ -3,6 +3,9 @@
 #ifndef ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_EVENTS_H_
 #define ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_EVENTS_H_
 
+#include <errno.h>
+#include <stdint.h>
+#include <zephyr/sys/byteorder.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -20,14 +23,29 @@ extern "C" {
 #define ZZB_ZCL_APPLIANCE_EVENTS_ALERTS_NOTIFICATION 0x01
 #define ZZB_ZCL_APPLIANCE_EVENTS_EVENT_NOTIFICATION  0x02
 
-/** Category in bits 8 to 11 of an alert structure (ZCL Table 15-20). */
+/** Fields of Alerts Count (ZCL Table 15-19). */
+#define ZZB_ZCL_APPLIANCE_ALERTS_COUNT GENMASK(3, 0)
+#define ZZB_ZCL_APPLIANCE_ALERTS_TYPE  GENMASK(7, 4)
+
+/** ZZB_ZCL_APPLIANCE_ALERTS_TYPE (ZCL Table 15-19). */
+enum zzb_zcl_appliance_alerts_type {
+	ZZB_ZCL_APPLIANCE_ALERTS_UNSTRUCTURED = 0x0,
+};
+
+/** Fields of an alert structure (ZCL Table 15-20). */
+#define ZZB_ZCL_APPLIANCE_ALERT_ID                GENMASK(7, 0)
+#define ZZB_ZCL_APPLIANCE_ALERT_CATEGORY          GENMASK(11, 8)
+#define ZZB_ZCL_APPLIANCE_ALERT_PRESENCE_RECOVERY GENMASK(13, 12)
+#define ZZB_ZCL_APPLIANCE_ALERT_MANUFACTURER      GENMASK(23, 16)
+
+/** ZZB_ZCL_APPLIANCE_ALERT_CATEGORY (ZCL Table 15-20). */
 enum zzb_zcl_appliance_alert_category {
 	ZZB_ZCL_APPLIANCE_ALERT_WARNING = 0x1,
 	ZZB_ZCL_APPLIANCE_ALERT_DANGER = 0x2,
 	ZZB_ZCL_APPLIANCE_ALERT_FAILURE = 0x3,
 };
 
-/** Presence recovery in bits 12 and 13 of an alert structure (ZCL Table 15-20). */
+/** ZZB_ZCL_APPLIANCE_ALERT_PRESENCE_RECOVERY (ZCL Table 15-20). */
 enum zzb_zcl_appliance_alert_presence {
 	ZZB_ZCL_APPLIANCE_ALERT_RECOVERY = 0x0,
 	ZZB_ZCL_APPLIANCE_ALERT_PRESENCE = 0x1,
@@ -71,6 +89,40 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_events_client_def;
 		.server = false,                                                                   \
 		.def = &zzb_zcl_appliance_events_client_def,                                       \
 	}
+
+/** The most alerts of a command, which ZZB_ZCL_APPLIANCE_ALERTS_COUNT holds. */
+#define ZZB_ZCL_APPLIANCE_ALERTS_MAX 15
+
+/**
+ * @brief Answer Get Alerts within zcl_cmd_cb with Get Alerts Response (ZCL 15.4.2.4.1).
+ *
+ * Sends count unstructured alerts, each of the ZZB_ZCL_APPLIANCE_ALERT_* fields.
+ *
+ * @return the result of zzb_zcl_cmd_respond(), or -EMSGSIZE for more than
+ * ZZB_ZCL_APPLIANCE_ALERTS_MAX alerts.
+ */
+static inline int zzb_zcl_appliance_events_get_alerts_rsp(struct zzb_node *node,
+							  const struct zzb_zcl_cmd *cmd,
+							  const uint32_t *alerts, size_t count)
+{
+	/* Alerts Count and 3 octets per alert */
+	uint8_t payload[1 + ZZB_ZCL_APPLIANCE_ALERTS_MAX * 3];
+	uint8_t *p = payload;
+
+	if (count > ZZB_ZCL_APPLIANCE_ALERTS_MAX) {
+		return -EMSGSIZE;
+	}
+
+	*p++ = FIELD_PREP(ZZB_ZCL_APPLIANCE_ALERTS_COUNT, count) |
+	       FIELD_PREP(ZZB_ZCL_APPLIANCE_ALERTS_TYPE, ZZB_ZCL_APPLIANCE_ALERTS_UNSTRUCTURED);
+	for (size_t i = 0; i < count; i++) {
+		sys_put_le24(alerts[i], p);
+		p += 3;
+	}
+
+	return zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_APPLIANCE_EVENTS_GET_ALERTS_RSP, payload,
+				   p - payload);
+}
 
 #ifdef __cplusplus
 }

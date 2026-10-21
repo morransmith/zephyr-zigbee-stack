@@ -18,9 +18,9 @@ static const struct zzb_zcl_command server_commands[] = {
 
 /* ZCL 15.4.2.4 */
 static const struct zzb_zcl_command client_commands[] = {
-	/* Alerts Count, with the number of alerts in bits 0 to 3, and the alert structures */
-	{ZZB_ZCL_APPLIANCE_EVENTS_GET_ALERTS_RSP, {{3, 0x0f}}},
-	{ZZB_ZCL_APPLIANCE_EVENTS_ALERTS_NOTIFICATION, {{3, 0x0f}}},
+	/* Alerts Count with the number of alerts, and the alert structures */
+	{ZZB_ZCL_APPLIANCE_EVENTS_GET_ALERTS_RSP, {{3, ZZB_ZCL_APPLIANCE_ALERTS_COUNT}}},
+	{ZZB_ZCL_APPLIANCE_EVENTS_ALERTS_NOTIFICATION, {{3, ZZB_ZCL_APPLIANCE_ALERTS_COUNT}}},
 	/* Event Header, Event Identification */
 	{ZZB_ZCL_APPLIANCE_EVENTS_EVENT_NOTIFICATION, {{2}}},
 };

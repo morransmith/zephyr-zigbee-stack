@@ -3,7 +3,9 @@
 #ifndef ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_STATS_H_
 #define ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_STATS_H_
 
+#include <errno.h>
 #include <stdint.h>
+#include <zephyr/sys/byteorder.h>
 #include <zzb/zcl.h>
 
 #ifdef __cplusplus
@@ -26,6 +28,9 @@ extern "C" {
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_RSP              0x01
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_QUEUE_RSP        0x02
 #define ZZB_ZCL_APPLIANCE_STATS_STATISTICS_AVAILABLE 0x03
+
+/** Time Stamp of a log of a server without the time (ZCL 15.5.2.2.1.2). */
+#define ZZB_ZCL_APPLIANCE_STATS_TIME_STAMP_UNKNOWN 0xffffffff
 
 /**
  * Values of an Appliance Statistics server (ZCL 15.5.2.1). The application fills them before
@@ -67,6 +72,39 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_stats_client_def;
 		.server = false,                                                                   \
 		.def = &zzb_zcl_appliance_stats_client_def,                                        \
 	}
+
+/** The most log IDs of a Log Queue Response in the ASDU of 82 octets. */
+#define ZZB_ZCL_APPLIANCE_STATS_LOG_IDS_MAX 19
+
+/**
+ * @brief Answer Log Queue Request within zcl_cmd_cb with Log Queue Response (ZCL 15.5.2.2.3).
+ *
+ * Sends the count log IDs of the logs that the server keeps.
+ *
+ * @return the result of zzb_zcl_cmd_respond(), or -EMSGSIZE for more than
+ * ZZB_ZCL_APPLIANCE_STATS_LOG_IDS_MAX log IDs.
+ */
+static inline int zzb_zcl_appliance_stats_log_queue_rsp(struct zzb_node *node,
+							const struct zzb_zcl_cmd *cmd,
+							const uint32_t *log_ids, size_t count)
+{
+	/* Log Queue Size and 4 octets per log ID */
+	uint8_t payload[1 + ZZB_ZCL_APPLIANCE_STATS_LOG_IDS_MAX * 4];
+	uint8_t *p = payload;
+
+	if (count > ZZB_ZCL_APPLIANCE_STATS_LOG_IDS_MAX) {
+		return -EMSGSIZE;
+	}
+
+	*p++ = count;
+	for (size_t i = 0; i < count; i++) {
+		sys_put_le32(log_ids[i], p);
+		p += 4;
+	}
+
+	return zzb_zcl_cmd_respond(node, cmd, ZZB_ZCL_APPLIANCE_STATS_LOG_QUEUE_RSP, payload,
+				   p - payload);
+}
 
 #ifdef __cplusplus
 }

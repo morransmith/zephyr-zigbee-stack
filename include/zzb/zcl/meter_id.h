@@ -27,6 +27,27 @@ extern "C" {
 #define ZZB_ZCL_METER_ID_AVAILABLE_POWER   0x000d
 #define ZZB_ZCL_METER_ID_POWER_THRESHOLD   0x000e
 
+/** MeterTypeID (ZCL Table 10-216). */
+enum zzb_zcl_meter_id_type {
+	ZZB_ZCL_METER_ID_TYPE_UTILITY_PRIMARY = 0x0000,
+	ZZB_ZCL_METER_ID_TYPE_UTILITY_PRODUCTION = 0x0001,
+	ZZB_ZCL_METER_ID_TYPE_UTILITY_SECONDARY = 0x0002,
+	ZZB_ZCL_METER_ID_TYPE_PRIVATE_PRIMARY = 0x0100,
+	ZZB_ZCL_METER_ID_TYPE_PRIVATE_PRODUCTION = 0x0101,
+	ZZB_ZCL_METER_ID_TYPE_PRIVATE_SECONDARY = 0x0102,
+	ZZB_ZCL_METER_ID_TYPE_GENERIC = 0x0110,
+};
+
+/** DataQualityID (ZCL Table 10-217). */
+enum zzb_zcl_meter_id_data_quality {
+	ZZB_ZCL_METER_ID_DATA_QUALITY_ALL_CERTIFIED = 0x0000,
+	/** All data except the instantaneous power is certified. */
+	ZZB_ZCL_METER_ID_DATA_QUALITY_POWER_NOT_CERTIFIED = 0x0001,
+	/** All data except the cumulated consumption is certified. */
+	ZZB_ZCL_METER_ID_DATA_QUALITY_CONSUMPTION_NOT_CERTIFIED = 0x0002,
+	ZZB_ZCL_METER_ID_DATA_QUALITY_NOT_CERTIFIED = 0x0003,
+};
+
 /**
  * Values of a Meter Identification server (ZCL 10.13.2.1), all read-only and set by the
  * application. CustomerName is read-only although ZCL makes it writable, since the strings of the
@@ -35,9 +56,9 @@ extern "C" {
 struct zzb_zcl_meter_id {
 	/** Up to 16 characters. */
 	const char *company_name;
-	/** ZCL Table 10-216, such as 0x0000 utility primary meter. */
+	/** enum zzb_zcl_meter_id_type. */
 	uint16_t meter_type_id;
-	/** ZCL Table 10-217, such as 0x0000 all data certified. */
+	/** enum zzb_zcl_meter_id_data_quality. */
 	uint16_t data_quality_id;
 	/** Up to 16 ASCII characters. */
 	const char *customer_name;
