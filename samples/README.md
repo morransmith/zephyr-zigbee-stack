@@ -38,6 +38,39 @@ Sensors produce synthetic values. The device types that run on a battery are sle
 
 A short press toggles OnOff, and led0 shows it. The level and the color go to the console. Finding & binding: target.
 
+### output
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify, Groups, Scenes, On/Off |
+|---|---|---|---|
+| `CONFIG_SAMPLE_ON_OFF_OUTPUT` | On/Off Output | 0x0002 | |
+| `CONFIG_SAMPLE_LEVEL_CONTROLLABLE_OUTPUT` | Level Controllable Output | 0x0003 | Level Control |
+| `CONFIG_SAMPLE_MAINS_POWER_OUTLET` | Mains Power Outlet | 0x0009 | |
+| `CONFIG_SAMPLE_ON_OFF_PLUG_IN_UNIT` | On/Off Plug-in Unit | 0x010a | Level Control |
+| `CONFIG_SAMPLE_DIMMABLE_PLUG_IN_UNIT` | Dimmable Plug-In Unit | 0x010b | Level Control |
+
+A short press toggles OnOff, and led0 shows the relay. The level goes to the console. Finding & binding: target.
+
+### ballast
+
+| Kconfig | Device type | ID | Clusters besides Basic, Power Configuration, Device Temperature Configuration, Identify, Groups, Scenes, On/Off, Level Control, Alarms, Ballast Configuration, Illuminance Level Sensing, Illuminance Measurement client, Occupancy Sensing client |
+|---|---|---|---|
+| `CONFIG_SAMPLE_ON_OFF_BALLAST` | On/Off Ballast | 0x0108 | |
+| `CONFIG_SAMPLE_DIMMABLE_BALLAST` | Dimmable Ballast | 0x0109 | |
+
+A short press toggles OnOff, and led0 shows it. The level goes to the console, and every hour LampBurnHours grows by 1 when the lamp is on. Finding & binding: target.
+
+### switch
+
+| Kconfig | Device type | ID | Clusters besides Basic, Power Configuration, Identify, On/Off Switch Configuration, Identify client, On/Off client |
+|---|---|---|---|
+| `CONFIG_SAMPLE_ON_OFF_SWITCH` | On/Off Switch | 0x0000 | |
+| `CONFIG_SAMPLE_LEVEL_CONTROL_SWITCH` | Level Control Switch | 0x0001 | Level Control client |
+| `CONFIG_SAMPLE_ON_OFF_LIGHT_SWITCH` | On/Off Light Switch | 0x0103 | |
+| `CONFIG_SAMPLE_DIMMER_SWITCH` | Dimmer Switch | 0x0104 | Level Control client |
+| `CONFIG_SAMPLE_COLOR_DIMMER_SWITCH` | Color Dimmer Switch | 0x0105 | Level Control client, Color Control client |
+
+A short press sends the next command of the cycle On/Off, Move to Level with On/Off (level 50 or 200), Move to Color Temperature (250 or 400 mireds) to the bound destinations; the cycle holds only the commands of the clients of the type. The On/Off command is Toggle when SwitchActions is 0x02, otherwise On and Off in turn, in the order that SwitchActions names. Finding & binding: initiator with unicast bindings. Sleepy end device.
+
 ## Combinations
 
 ### dual_relay
@@ -53,3 +86,4 @@ Two relays and a wall switch. Short presses toggle relay 1, relay 2 and the ligh
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
+- The Level Controllable Output (0x0003) has the Level Control for Lighting server of the stack in place of the general Level Control cluster that the DTL asks for (ZCL 3.10): CurrentLevel is 1 to 254, and MinLevel, MaxLevel and the other attributes of the general cluster are absent.
