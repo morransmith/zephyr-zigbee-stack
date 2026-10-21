@@ -30,9 +30,6 @@
 #define FAIL           0x01
 #define DUPLICATE_CODE 0x03
 
-/* Tamper Alarm - wrong code entry limit (ZCL Table 7-22) */
-#define ALARM_WRONG_CODES 0x04
-
 /* The user ID of an event without a user (ZCL 7.3.2.16.5) */
 #define NO_USER 0xffff
 
@@ -40,9 +37,6 @@
 #define EVENT_HDR_LEN  4
 /* LocalTime and Data after the other fields of an event */
 #define EVENT_TAIL_LEN 5
-
-/* The bit of AutoLock in ManualOperationEventMask (ZCL Table 7-32) */
-#define AUTO_LOCK_BIT 6
 
 #define RECORD_VERSION 1
 /* Version, user status, user type, code length and code */
@@ -333,7 +327,7 @@ static void relock_after(struct zzb_node *node, struct zzb_zcl_door_lock *v, uin
 
 /*
  * Passes Lock Door without a payload to zcl_cmd_cb, ignores its status and sends AutoLock with the
- * user ID of no user and an empty code, with bit 6 of ManualOperationEventMask (ZCL Table 7-32)
+ * user ID of no user and an empty code, with its bit of ManualOperationEventMask
  */
 static void relock(struct zzb_node *node, uint8_t ep, struct zzb_zcl_door_lock *v)
 {
@@ -348,7 +342,7 @@ static void relock(struct zzb_node *node, uint8_t ep, struct zzb_zcl_door_lock *
 
 	v->relock = 0;
 	zzb_zcl_app_cmd(node, &cmd);
-	if (v->manual_operation_event_mask & BIT(AUTO_LOCK_BIT)) {
+	if (v->manual_operation_event_mask & ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_AUTO_LOCK) {
 		send_event(node, ep, ZZB_ZCL_DOOR_LOCK_OPERATION_EVENT_NOTIFICATION, payload,
 			   payload + EVENT_HDR_LEN + 1);
 	}
@@ -395,8 +389,9 @@ static void wrong_code(struct zzb_node *node, uint8_t ep, struct zzb_zcl_door_lo
 
 	v->lockout_end = k_uptime_get() + v->user_code_temporary_disable_time * MSEC_PER_SEC;
 	schedule(node);
-	zzb_zcl_alarm_raise(node, ep, ZZB_ZCL_DOOR_LOCK, ALARM_WRONG_CODES,
-			    v->alarm_mask & BIT(ALARM_WRONG_CODES), true);
+	zzb_zcl_alarm_raise(
+		node, ep, ZZB_ZCL_DOOR_LOCK, ZZB_ZCL_DOOR_LOCK_ALARM_WRONG_CODE_ENTRY_LIMIT,
+		v->alarm_mask & ZZB_ZCL_DOOR_LOCK_ALARM_MASK_WRONG_CODE_ENTRY_LIMIT, true);
 }
 
 /* Toggle by LockState and Unlock with Timeout become Lock Door or Unlock Door */

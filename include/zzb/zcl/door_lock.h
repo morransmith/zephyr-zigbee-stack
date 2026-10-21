@@ -77,6 +77,31 @@ enum zzb_zcl_door_lock_state {
 	ZZB_ZCL_DOOR_LOCK_UNDEFINED = 0xff,
 };
 
+/** LockType (ZCL Table 7-10). */
+enum zzb_zcl_door_lock_type {
+	ZZB_ZCL_DOOR_LOCK_TYPE_DEAD_BOLT = 0x00,
+	ZZB_ZCL_DOOR_LOCK_TYPE_MAGNETIC = 0x01,
+	ZZB_ZCL_DOOR_LOCK_TYPE_OTHER = 0x02,
+	ZZB_ZCL_DOOR_LOCK_TYPE_MORTISE = 0x03,
+	ZZB_ZCL_DOOR_LOCK_TYPE_RIM = 0x04,
+	ZZB_ZCL_DOOR_LOCK_TYPE_LATCH_BOLT = 0x05,
+	ZZB_ZCL_DOOR_LOCK_TYPE_CYLINDRICAL = 0x06,
+	ZZB_ZCL_DOOR_LOCK_TYPE_TUBULAR = 0x07,
+	ZZB_ZCL_DOOR_LOCK_TYPE_INTERCONNECTED = 0x08,
+	ZZB_ZCL_DOOR_LOCK_TYPE_DEAD_LATCH = 0x09,
+	ZZB_ZCL_DOOR_LOCK_TYPE_DOOR_FURNITURE = 0x0a,
+};
+
+/** DoorState (ZCL Table 7-12). */
+enum zzb_zcl_door_lock_door_state {
+	ZZB_ZCL_DOOR_LOCK_DOOR_STATE_OPEN = 0x00,
+	ZZB_ZCL_DOOR_LOCK_DOOR_STATE_CLOSED = 0x01,
+	ZZB_ZCL_DOOR_LOCK_DOOR_STATE_ERROR_JAMMED = 0x02,
+	ZZB_ZCL_DOOR_LOCK_DOOR_STATE_ERROR_FORCED_OPEN = 0x03,
+	ZZB_ZCL_DOOR_LOCK_DOOR_STATE_ERROR_UNSPECIFIED = 0x04,
+	ZZB_ZCL_DOOR_LOCK_DOOR_STATE_UNDEFINED = 0xff,
+};
+
 /** OperatingMode (ZCL Table 7-15). */
 enum zzb_zcl_door_lock_mode {
 	ZZB_ZCL_DOOR_LOCK_MODE_NORMAL = 0x00,
@@ -85,6 +110,31 @@ enum zzb_zcl_door_lock_mode {
 	ZZB_ZCL_DOOR_LOCK_MODE_NO_RF_LOCK_UNLOCK = 0x03,
 	ZZB_ZCL_DOOR_LOCK_MODE_PASSAGE = 0x04,
 };
+
+/** Bits of SupportedOperatingModes (ZCL Table 7-16); the bit of a supported mode is cleared. */
+#define ZZB_ZCL_DOOR_LOCK_SUPPORTED_MODE_NORMAL            BIT(0)
+#define ZZB_ZCL_DOOR_LOCK_SUPPORTED_MODE_VACATION          BIT(1)
+#define ZZB_ZCL_DOOR_LOCK_SUPPORTED_MODE_PRIVACY           BIT(2)
+#define ZZB_ZCL_DOOR_LOCK_SUPPORTED_MODE_NO_RF_LOCK_UNLOCK BIT(3)
+#define ZZB_ZCL_DOOR_LOCK_SUPPORTED_MODE_PASSAGE           BIT(4)
+
+/** Alarm codes of the Door Lock cluster (ZCL Table 7-22). */
+enum zzb_zcl_door_lock_alarm_code {
+	ZZB_ZCL_DOOR_LOCK_ALARM_DEADBOLT_JAMMED = 0x00,
+	ZZB_ZCL_DOOR_LOCK_ALARM_FACTORY_RESET = 0x01,
+	ZZB_ZCL_DOOR_LOCK_ALARM_RF_POWER_CYCLED = 0x03,
+	ZZB_ZCL_DOOR_LOCK_ALARM_WRONG_CODE_ENTRY_LIMIT = 0x04,
+	ZZB_ZCL_DOOR_LOCK_ALARM_ESCUTCHEON_REMOVED = 0x05,
+	ZZB_ZCL_DOOR_LOCK_ALARM_FORCED_DOOR_OPEN = 0x06,
+};
+
+/** Bits of AlarmMask (ZCL Table 7-22): bit n enables alarm code n. */
+#define ZZB_ZCL_DOOR_LOCK_ALARM_MASK_DEADBOLT_JAMMED        BIT(0)
+#define ZZB_ZCL_DOOR_LOCK_ALARM_MASK_FACTORY_RESET          BIT(1)
+#define ZZB_ZCL_DOOR_LOCK_ALARM_MASK_RF_POWER_CYCLED        BIT(3)
+#define ZZB_ZCL_DOOR_LOCK_ALARM_MASK_WRONG_CODE_ENTRY_LIMIT BIT(4)
+#define ZZB_ZCL_DOOR_LOCK_ALARM_MASK_ESCUTCHEON_REMOVED     BIT(5)
+#define ZZB_ZCL_DOOR_LOCK_ALARM_MASK_FORCED_DOOR_OPEN       BIT(6)
 
 /** User Status (ZCL Table 7-24). */
 enum zzb_zcl_door_lock_user_status {
@@ -143,6 +193,53 @@ enum zzb_zcl_door_lock_programming_event {
 	ZZB_ZCL_DOOR_LOCK_PROGRAMMING_RFID_DELETED = 0x06,
 };
 
+/** Bits of KeypadOperationEventMask (ZCL Table 7-30). */
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_OPERATION_UNKNOWN                 BIT(0)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_OPERATION_LOCK                    BIT(1)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_OPERATION_UNLOCK                  BIT(2)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_OPERATION_LOCK_INVALID_CODE       BIT(3)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_OPERATION_LOCK_INVALID_SCHEDULE   BIT(4)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_OPERATION_UNLOCK_INVALID_CODE     BIT(5)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_OPERATION_UNLOCK_INVALID_SCHEDULE BIT(6)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_OPERATION_NON_ACCESS_USER         BIT(7)
+
+/** Bits of RFOperationEventMask (ZCL Table 7-31). */
+#define ZZB_ZCL_DOOR_LOCK_RF_OPERATION_UNKNOWN                 BIT(0)
+#define ZZB_ZCL_DOOR_LOCK_RF_OPERATION_LOCK                    BIT(1)
+#define ZZB_ZCL_DOOR_LOCK_RF_OPERATION_UNLOCK                  BIT(2)
+#define ZZB_ZCL_DOOR_LOCK_RF_OPERATION_LOCK_INVALID_CODE       BIT(3)
+#define ZZB_ZCL_DOOR_LOCK_RF_OPERATION_LOCK_INVALID_SCHEDULE   BIT(4)
+#define ZZB_ZCL_DOOR_LOCK_RF_OPERATION_UNLOCK_INVALID_CODE     BIT(5)
+#define ZZB_ZCL_DOOR_LOCK_RF_OPERATION_UNLOCK_INVALID_SCHEDULE BIT(6)
+
+/** Bits of ManualOperationEventMask (ZCL Table 7-32). */
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_UNKNOWN          BIT(0)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_THUMBTURN_LOCK   BIT(1)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_THUMBTURN_UNLOCK BIT(2)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_ONE_TOUCH_LOCK   BIT(3)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_KEY_LOCK         BIT(4)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_KEY_UNLOCK       BIT(5)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_AUTO_LOCK        BIT(6)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_SCHEDULE_LOCK    BIT(7)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_SCHEDULE_UNLOCK  BIT(8)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_MANUAL_LOCK      BIT(9)
+#define ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_MANUAL_UNLOCK    BIT(10)
+
+/** Bits of KeypadProgrammingEventMask (ZCL Table 7-36). */
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_PROGRAMMING_UNKNOWN             BIT(0)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_PROGRAMMING_MASTER_CODE_CHANGED BIT(1)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_PROGRAMMING_PIN_ADDED           BIT(2)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_PROGRAMMING_PIN_DELETED         BIT(3)
+#define ZZB_ZCL_DOOR_LOCK_KEYPAD_PROGRAMMING_PIN_CHANGED         BIT(4)
+
+/** Bits of RFProgrammingEventMask (ZCL Table 7-37). */
+#define ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_UNKNOWN      BIT(0)
+#define ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_PIN_ADDED    BIT(2)
+#define ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_PIN_DELETED  BIT(3)
+#define ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_PIN_CHANGED  BIT(4)
+#define ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_RFID_ADDED   BIT(5)
+#define ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_RFID_DELETED BIT(6)
+
 /** The longest PIN code that the stack stores, in octets. */
 #define ZZB_ZCL_DOOR_LOCK_PIN_MAX 8
 
@@ -177,8 +274,9 @@ struct zzb_zcl_door_lock_user {
  * While RequirePINforRFOperation is TRUE, the RF commands need the code of a user with status
  * Enabled and a type other than Non Access; a wrong or missing code gives FAILURE and counts. When
  * WrongCodeEntryLimit is above 0 and the count reaches it, the RF commands get FAILURE for
- * UserCodeTemporaryDisableTime seconds, and alarm 0x04 occurs through the Alarms server of the
- * endpoint. A right code and the end of this lockout clear the count.
+ * UserCodeTemporaryDisableTime seconds, and alarm ZZB_ZCL_DOOR_LOCK_ALARM_WRONG_CODE_ENTRY_LIMIT
+ * occurs through the Alarms server of the endpoint. A right code and the end of this lockout clear
+ * the count.
  *
  * Unlock with Timeout that zcl_cmd_cb accepts sets a relock deadline after its timeout; a timeout
  * of 0 acts as Unlock Door. When LockState becomes Unlocked, the stack sets the deadline after
@@ -196,15 +294,15 @@ struct zzb_zcl_door_lock_user {
 struct zzb_zcl_door_lock {
 	/** enum zzb_zcl_door_lock_state. */
 	uint8_t lock_state;
-	/** ZCL Table 7-10. */
+	/** enum zzb_zcl_door_lock_type. */
 	uint8_t lock_type;
 	bool actuator_enabled;
-	/** ZCL Table 7-12. */
+	/** enum zzb_zcl_door_lock_door_state. */
 	uint8_t door_state;
 	/** Octets, at most ZZB_ZCL_DOOR_LOCK_PIN_MAX; the defaults of ZCL are 8 and 4. */
 	uint8_t max_pin_code_length;
 	uint8_t min_pin_code_length;
-	/** ZCL Table 7-16: a supported mode has its bit cleared. */
+	/** ZZB_ZCL_DOOR_LOCK_SUPPORTED_MODE_* bits: a supported mode has its bit cleared. */
 	uint16_t supported_operating_modes;
 	/** Seconds, 0 disabled. */
 	uint32_t auto_relock_time;
@@ -215,13 +313,17 @@ struct zzb_zcl_door_lock {
 	uint8_t user_code_temporary_disable_time;
 	bool send_pin_over_the_air;
 	bool require_pin_for_rf_operation;
-	/** Bit n enables alarm code n of ZCL Table 7-22; default 0. */
+	/** ZZB_ZCL_DOOR_LOCK_ALARM_MASK_* bits; default 0. */
 	uint16_t alarm_mask;
-	/** ZCL Tables 7-30 to 7-32, 7-36 and 7-37; default 0xffff. */
+	/** ZZB_ZCL_DOOR_LOCK_KEYPAD_OPERATION_* bits; the event masks have the default 0xffff. */
 	uint16_t keypad_operation_event_mask;
+	/** ZZB_ZCL_DOOR_LOCK_RF_OPERATION_* bits. */
 	uint16_t rf_operation_event_mask;
+	/** ZZB_ZCL_DOOR_LOCK_MANUAL_OPERATION_* bits. */
 	uint16_t manual_operation_event_mask;
+	/** ZZB_ZCL_DOOR_LOCK_KEYPAD_PROGRAMMING_* bits. */
 	uint16_t keypad_programming_event_mask;
+	/** ZZB_ZCL_DOOR_LOCK_RF_PROGRAMMING_* bits. */
 	uint16_t rf_programming_event_mask;
 	/** The users, element n with user ID n. */
 	struct zzb_zcl_door_lock_user users[CONFIG_ZZB_ZCL_DOOR_LOCK_USERS];
