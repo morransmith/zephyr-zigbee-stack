@@ -20,6 +20,13 @@ steps:
       - west update --path-cache /repo-cache/zephyrproject
       - west blobs fetch hal_espressif --allow-regex 'lib/esp32(c6|h2)/'
 
+  # Doxygen 1.16.1 of the Zephyr CI image
+  - name: docs
+    image: *image
+    depends_on: []
+    commands:
+      - doxygen doc/Doxyfile
+
   - name: native_sim
     image: *image
     depends_on: [west]

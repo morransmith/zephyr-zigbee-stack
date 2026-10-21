@@ -20,3 +20,5 @@ EXTRACT_STATIC        = YES
 DISTRIBUTE_GROUP_DOC  = YES
 GENERATE_LATEX        = NO
 QUIET                 = YES
+# Every warning fails the build, an undocumented public symbol included.
+WARN_AS_ERROR         = FAIL_ON_WARNINGS
