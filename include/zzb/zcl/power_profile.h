@@ -21,14 +21,15 @@ extern "C" {
 /** Power Profile cluster (ZCL 3.17). */
 #define ZZB_ZCL_POWER_PROFILE 0x001a
 
-/** Attributes (ZCL Table 3-135). */
+/** Attributes (ZCL Table 3-135). @{ */
 #define ZZB_ZCL_POWER_PROFILE_TOTAL_PROFILE_NUM   0x0000
 #define ZZB_ZCL_POWER_PROFILE_MULTIPLE_SCHEDULING 0x0001
 #define ZZB_ZCL_POWER_PROFILE_ENERGY_FORMATTING   0x0002
 #define ZZB_ZCL_POWER_PROFILE_ENERGY_REMOTE       0x0003
 #define ZZB_ZCL_POWER_PROFILE_SCHEDULE_MODE       0x0004
+/** @} */
 
-/** Commands that the server receives and a client sends (ZCL Table 3-138). */
+/** Commands that the server receives and a client sends (ZCL Table 3-138). @{ */
 #define ZZB_ZCL_POWER_PROFILE_REQUEST                              0x00
 #define ZZB_ZCL_POWER_PROFILE_STATE_REQUEST                        0x01
 #define ZZB_ZCL_POWER_PROFILE_GET_PRICE_RSP                        0x02
@@ -38,8 +39,9 @@ extern "C" {
 #define ZZB_ZCL_POWER_PROFILE_SCHEDULE_CONSTRAINTS_REQUEST         0x06
 #define ZZB_ZCL_POWER_PROFILE_ENERGY_PHASES_SCHEDULE_STATE_REQUEST 0x07
 #define ZZB_ZCL_POWER_PROFILE_GET_PRICE_EXTENDED_RSP               0x08
+/** @} */
 
-/** Commands that the server generates and a client receives (ZCL Table 3-139). */
+/** Commands that the server generates and a client receives (ZCL Table 3-139). @{ */
 #define ZZB_ZCL_POWER_PROFILE_NOTIFICATION                              0x00
 #define ZZB_ZCL_POWER_PROFILE_RSP                                       0x01
 #define ZZB_ZCL_POWER_PROFILE_STATE_RSP                                 0x02
@@ -52,14 +54,17 @@ extern "C" {
 #define ZZB_ZCL_POWER_PROFILE_SCHEDULE_CONSTRAINTS_NOTIFICATION         0x09
 #define ZZB_ZCL_POWER_PROFILE_SCHEDULE_CONSTRAINTS_RSP                  0x0a
 #define ZZB_ZCL_POWER_PROFILE_GET_PRICE_EXTENDED                        0x0b
+/** @} */
 
-/** Bits of ScheduleMode (ZCL Table 3-137). */
+/** Bits of ScheduleMode (ZCL Table 3-137). @{ */
 #define ZZB_ZCL_POWER_PROFILE_SCHEDULE_CHEAPEST BIT(0)
 #define ZZB_ZCL_POWER_PROFILE_SCHEDULE_GREENEST BIT(1)
+/** @} */
 
-/** Bits of Options of GetPowerProfilePriceExtended (ZCL Table 3-141). */
+/** Bits of Options of GetPowerProfilePriceExtended (ZCL Table 3-141). @{ */
 #define ZZB_ZCL_POWER_PROFILE_START_TIME_PRESENT BIT(0)
 #define ZZB_ZCL_POWER_PROFILE_PRICE_AS_SCHEDULED BIT(1)
+/** @} */
 
 /** PowerProfileState of a Power Profile record (ZCL Table 3-140). */
 enum zzb_zcl_power_profile_state {
@@ -83,9 +88,13 @@ enum zzb_zcl_power_profile_state {
 /** EnergyPhaseID of a power profile in the IDLE state (ZCL 3.17.6.1.1.1). */
 #define ZZB_ZCL_POWER_PROFILE_ENERGY_PHASE_INVALID 0xff
 
-/** MaxActivationDelay of an energy phase that allows no pause before it, and of the first one. */
+/**
+ * MaxActivationDelay of an energy phase that allows no pause before it, and of the first one.
+ * @{
+ */
 #define ZZB_ZCL_POWER_PROFILE_ACTIVATION_DELAY_NONE  0x0000
 #define ZZB_ZCL_POWER_PROFILE_ACTIVATION_DELAY_FIRST 0xffff
+/** @} */
 
 /**
  * Values of a Power Profile server (ZCL 3.17.4). The application fills the first four fields

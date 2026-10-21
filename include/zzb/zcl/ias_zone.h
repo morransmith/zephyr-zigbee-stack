@@ -19,7 +19,7 @@ extern "C" {
 /** IAS Zone cluster (ZCL 8.2). */
 #define ZZB_ZCL_IAS_ZONE 0x0500
 
-/** Attributes (ZCL Tables 8-3 and 8-8). */
+/** Attributes (ZCL Tables 8-3 and 8-8). @{ */
 #define ZZB_ZCL_IAS_ZONE_STATE                                  0x0000
 #define ZZB_ZCL_IAS_ZONE_TYPE                                   0x0001
 #define ZZB_ZCL_IAS_ZONE_STATUS                                 0x0002
@@ -27,6 +27,7 @@ extern "C" {
 #define ZZB_ZCL_IAS_ZONE_ID                                     0x0011
 #define ZZB_ZCL_IAS_ZONE_NUMBER_OF_SENSITIVITY_LEVELS_SUPPORTED 0x0012
 #define ZZB_ZCL_IAS_ZONE_CURRENT_SENSITIVITY_LEVEL              0x0013
+/** @} */
 
 /** ZoneState (ZCL Table 8-4). */
 enum zzb_zcl_ias_zone_state {
@@ -54,7 +55,7 @@ enum zzb_zcl_ias_zone_type {
 	ZZB_ZCL_IAS_ZONE_TYPE_INVALID = 0xffff,
 };
 
-/** Bits of ZoneStatus (ZCL Table 8-6). */
+/** Bits of ZoneStatus (ZCL Table 8-6). @{ */
 #define ZZB_ZCL_IAS_ZONE_STATUS_ALARM1         BIT(0)
 #define ZZB_ZCL_IAS_ZONE_STATUS_ALARM2         BIT(1)
 #define ZZB_ZCL_IAS_ZONE_STATUS_TAMPER         BIT(2)
@@ -65,14 +66,16 @@ enum zzb_zcl_ias_zone_type {
 #define ZZB_ZCL_IAS_ZONE_STATUS_AC             BIT(7)
 #define ZZB_ZCL_IAS_ZONE_STATUS_TEST           BIT(8)
 #define ZZB_ZCL_IAS_ZONE_STATUS_BATTERY_DEFECT BIT(9)
+/** @} */
 
 /** ZoneID, and the Zone ID of a command, when none is programmed (ZCL 8.2.2.3.1.4). */
 #define ZZB_ZCL_IAS_ZONE_ID_NONE 0xff
 
-/** Commands that the server receives (ZCL Table 8-9). */
+/** Commands that the server receives (ZCL Table 8-9). @{ */
 #define ZZB_ZCL_IAS_ZONE_ENROLL_RSP           0x00
 #define ZZB_ZCL_IAS_ZONE_INITIATE_NORMAL_MODE 0x01
 #define ZZB_ZCL_IAS_ZONE_INITIATE_TEST_MODE   0x02
+/** @} */
 
 /** Enroll response code of Zone Enroll Response (ZCL Table 8-10). */
 enum zzb_zcl_ias_zone_enroll_rsp_code {
@@ -82,9 +85,10 @@ enum zzb_zcl_ias_zone_enroll_rsp_code {
 	ZZB_ZCL_IAS_ZONE_ENROLL_TOO_MANY_ZONES = 0x03,
 };
 
-/** Commands that the server generates (ZCL Table 8-11). */
+/** Commands that the server generates (ZCL Table 8-11). @{ */
 #define ZZB_ZCL_IAS_ZONE_STATUS_CHANGE_NOTIFICATION 0x00
 #define ZZB_ZCL_IAS_ZONE_ENROLL_REQ                 0x01
+/** @} */
 
 /**
  * Values of an IAS Zone server (ZCL 8.2.2.1). The application fills zone_type and

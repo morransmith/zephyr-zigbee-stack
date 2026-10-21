@@ -19,7 +19,7 @@ extern "C" {
 /** Device Temperature Configuration cluster (ZCL 3.4). */
 #define ZZB_ZCL_DEVICE_TEMP 0x0002
 
-/** Attributes (ZCL Tables 3-28 and 3-29). */
+/** Attributes (ZCL Tables 3-28 and 3-29). @{ */
 #define ZZB_ZCL_DEVICE_TEMP_CURRENT_TEMPERATURE        0x0000
 #define ZZB_ZCL_DEVICE_TEMP_MIN_TEMP_EXPERIENCED       0x0001
 #define ZZB_ZCL_DEVICE_TEMP_MAX_TEMP_EXPERIENCED       0x0002
@@ -29,18 +29,22 @@ extern "C" {
 #define ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_THRESHOLD        0x0012
 #define ZZB_ZCL_DEVICE_TEMP_LOW_TEMP_DWELL_TRIP_POINT  0x0013
 #define ZZB_ZCL_DEVICE_TEMP_HIGH_TEMP_DWELL_TRIP_POINT 0x0014
+/** @} */
 
-/** Unknown values (ZCL 3.4.2.2.1). */
+/** Unknown values (ZCL 3.4.2.2.1). @{ */
 #define ZZB_ZCL_DEVICE_TEMP_UNKNOWN                       INT16_MIN
 #define ZZB_ZCL_DEVICE_TEMP_OVER_TEMP_TOTAL_DWELL_UNKNOWN 0xffff
+/** @} */
 
-/** Thresholds and dwell trip points that raise no alarm (ZCL 3.4.2.2.2). */
+/** Thresholds and dwell trip points that raise no alarm (ZCL 3.4.2.2.2). @{ */
 #define ZZB_ZCL_DEVICE_TEMP_THRESHOLD_NONE        INT16_MIN
 #define ZZB_ZCL_DEVICE_TEMP_DWELL_TRIP_POINT_NONE 0xffffff
+/** @} */
 
-/** Bits of DeviceTempAlarmMask (ZCL Table 3-30). */
+/** Bits of DeviceTempAlarmMask (ZCL Table 3-30). @{ */
 #define ZZB_ZCL_DEVICE_TEMP_ALARM_MASK_TOO_LOW  BIT(0)
 #define ZZB_ZCL_DEVICE_TEMP_ALARM_MASK_TOO_HIGH BIT(1)
+/** @} */
 
 /**
  * Values of a Device Temperature Configuration server (ZCL 3.4.2.2). Temperatures are in degrees

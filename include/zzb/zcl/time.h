@@ -19,7 +19,7 @@ extern "C" {
 /** Time cluster (ZCL 3.12). */
 #define ZZB_ZCL_TIME 0x000a
 
-/** Attributes (ZCL Table 3-69). */
+/** Attributes (ZCL Table 3-69). @{ */
 #define ZZB_ZCL_TIME_TIME             0x0000
 #define ZZB_ZCL_TIME_STATUS           0x0001
 #define ZZB_ZCL_TIME_ZONE             0x0002
@@ -30,12 +30,14 @@ extern "C" {
 #define ZZB_ZCL_TIME_LOCAL_TIME       0x0007
 #define ZZB_ZCL_TIME_LAST_SET_TIME    0x0008
 #define ZZB_ZCL_TIME_VALID_UNTIL_TIME 0x0009
+/** @} */
 
-/** Bits of TimeStatus (ZCL Table 3-70). */
+/** Bits of TimeStatus (ZCL Table 3-70). @{ */
 #define ZZB_ZCL_TIME_MASTER          BIT(0)
 #define ZZB_ZCL_TIME_SYNCHRONIZED    BIT(1)
 #define ZZB_ZCL_TIME_MASTER_ZONE_DST BIT(2)
 #define ZZB_ZCL_TIME_SUPERSEDING     BIT(3)
+/** @} */
 
 /** Time and the other time attributes that are not valid (ZCL 2.6.2.24, 3.12.2.2). */
 #define ZZB_ZCL_TIME_UNKNOWN 0xffffffff

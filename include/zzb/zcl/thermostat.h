@@ -18,7 +18,7 @@ extern "C" {
 /** Thermostat cluster (ZCL 6.3). */
 #define ZZB_ZCL_THERMOSTAT 0x0201
 
-/** Attributes (ZCL Tables 6-11, 6-13 and 6-20). */
+/** Attributes (ZCL Tables 6-11, 6-13 and 6-20). @{ */
 #define ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE             0x0000
 #define ZZB_ZCL_THERMOSTAT_OUTDOOR_TEMPERATURE           0x0001
 #define ZZB_ZCL_THERMOSTAT_OCCUPANCY                     0x0002
@@ -47,12 +47,14 @@ extern "C" {
 #define ZZB_ZCL_THERMOSTAT_NUMBER_OF_DAILY_TRANSITIONS   0x0022
 #define ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE    0x0025
 #define ZZB_ZCL_THERMOSTAT_RUNNING_STATE                 0x0029
+/** @} */
 
-/** Commands received (ZCL Table 6-35). */
+/** Commands received (ZCL Table 6-35). @{ */
 #define ZZB_ZCL_THERMOSTAT_SETPOINT_RAISE_LOWER  0x00
 #define ZZB_ZCL_THERMOSTAT_SET_WEEKLY_SCHEDULE   0x01
 #define ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE   0x02
 #define ZZB_ZCL_THERMOSTAT_CLEAR_WEEKLY_SCHEDULE 0x03
+/** @} */
 
 /** Commands generated (ZCL Table 6-39). */
 #define ZZB_ZCL_THERMOSTAT_GET_WEEKLY_SCHEDULE_RSP 0x00
@@ -60,14 +62,16 @@ extern "C" {
 /** Thermostat User Interface Configuration cluster (ZCL 6.6). */
 #define ZZB_ZCL_THERMOSTAT_UI 0x0204
 
-/** Attributes (ZCL Table 6-49). */
+/** Attributes (ZCL Table 6-49). @{ */
 #define ZZB_ZCL_THERMOSTAT_UI_TEMPERATURE_DISPLAY_MODE        0x0000
 #define ZZB_ZCL_THERMOSTAT_UI_KEYPAD_LOCKOUT                  0x0001
 #define ZZB_ZCL_THERMOSTAT_UI_SCHEDULE_PROGRAMMING_VISIBILITY 0x0002
+/** @} */
 
-/** LocalTemperature and OutdoorTemperature of an invalid measurement (ZCL 6.3.2.2.1.1). */
+/** LocalTemperature and OutdoorTemperature of an invalid measurement (ZCL 6.3.2.2.1.1). @{ */
 #define ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_UNKNOWN   INT16_MIN
 #define ZZB_ZCL_THERMOSTAT_OUTDOOR_TEMPERATURE_UNKNOWN INT16_MIN
+/** @} */
 
 /** Bits of Occupancy (ZCL 6.3.2.2.1.3). */
 #define ZZB_ZCL_THERMOSTAT_OCCUPANCY_OCCUPIED BIT(0)
@@ -95,10 +99,11 @@ enum zzb_zcl_system_mode {
 	ZZB_ZCL_SYSTEM_MODE_SLEEP = 0x09,
 };
 
-/** Bits of AlarmMask; bit n enables alarm code n (ZCL Table 6-18). */
+/** Bits of AlarmMask; bit n enables alarm code n (ZCL Table 6-18). @{ */
 #define ZZB_ZCL_THERMOSTAT_ALARM_MASK_INITIALIZATION_FAILURE   BIT(0)
 #define ZZB_ZCL_THERMOSTAT_ALARM_MASK_HARDWARE_FAILURE         BIT(1)
 #define ZZB_ZCL_THERMOSTAT_ALARM_MASK_SELF_CALIBRATION_FAILURE BIT(2)
+/** @} */
 
 /** Values of ThermostatRunningMode (ZCL Table 6-19). */
 enum zzb_zcl_thermostat_running_mode {
@@ -118,12 +123,13 @@ enum zzb_zcl_thermostat_start_of_week {
 	ZZB_ZCL_THERMOSTAT_START_OF_WEEK_SATURDAY = 0x06,
 };
 
-/** Bits of ThermostatProgrammingOperationMode (ZCL Table 6-23). */
+/** Bits of ThermostatProgrammingOperationMode (ZCL Table 6-23). @{ */
 #define ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE_SCHEDULE      BIT(0)
 #define ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE_AUTO_RECOVERY BIT(1)
 #define ZZB_ZCL_THERMOSTAT_PROGRAMMING_OPERATION_MODE_ECONOMY       BIT(2)
+/** @} */
 
-/** Bits of ThermostatRunningState (ZCL Table 6-24). */
+/** Bits of ThermostatRunningState (ZCL Table 6-24). @{ */
 #define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_HEAT         BIT(0)
 #define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_COOL         BIT(1)
 #define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_FAN          BIT(2)
@@ -131,6 +137,7 @@ enum zzb_zcl_thermostat_start_of_week {
 #define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_COOL_STAGE_2 BIT(4)
 #define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_FAN_STAGE_2  BIT(5)
 #define ZZB_ZCL_THERMOSTAT_RUNNING_STATE_FAN_STAGE_3  BIT(6)
+/** @} */
 
 /** Values of SetpointChangeSource (ZCL Table 6-26), which the server does not implement. */
 enum zzb_zcl_thermostat_setpoint_change_source {
@@ -139,7 +146,7 @@ enum zzb_zcl_thermostat_setpoint_change_source {
 	ZZB_ZCL_THERMOSTAT_SETPOINT_CHANGE_SOURCE_EXTERNAL = 0x02,
 };
 
-/** Bits of Day of Week for Sequence of the weekly schedule (ZCL Table 6-37). */
+/** Bits of Day of Week for Sequence of the weekly schedule (ZCL Table 6-37). @{ */
 #define ZZB_ZCL_SCHEDULE_SUNDAY    BIT(0)
 #define ZZB_ZCL_SCHEDULE_MONDAY    BIT(1)
 #define ZZB_ZCL_SCHEDULE_TUESDAY   BIT(2)
@@ -148,10 +155,12 @@ enum zzb_zcl_thermostat_setpoint_change_source {
 #define ZZB_ZCL_SCHEDULE_FRIDAY    BIT(5)
 #define ZZB_ZCL_SCHEDULE_SATURDAY  BIT(6)
 #define ZZB_ZCL_SCHEDULE_AWAY      BIT(7)
+/** @} */
 
-/** Mode bits of a sequence of the weekly schedule (ZCL Table 6-38). */
+/** Mode bits of a sequence of the weekly schedule (ZCL Table 6-38). @{ */
 #define ZZB_ZCL_SCHEDULE_HEAT BIT(0)
 #define ZZB_ZCL_SCHEDULE_COOL BIT(1)
+/** @} */
 
 /** A transition of the weekly schedule (ZCL 6.3.2.3.2). */
 struct zzb_zcl_schedule_transition {

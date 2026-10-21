@@ -30,9 +30,10 @@ enum zzb_zcl_basic_power_source {
 	ZZB_ZCL_BASIC_POWER_SOURCE_EMERGENCY_MAINS_TRANSFER_SWITCH = 0x06,
 };
 
-/** Fields of PowerSource: the primary source and a battery backup (ZCL 3.2.2.2.8). */
+/** Fields of PowerSource: the primary source and a battery backup (ZCL 3.2.2.2.8). @{ */
 #define ZZB_ZCL_BASIC_POWER_SOURCE_PRIMARY        GENMASK(6, 0)
 #define ZZB_ZCL_BASIC_POWER_SOURCE_BATTERY_BACKUP BIT(7)
+/** @} */
 
 /** GenericDeviceClass (ZCL Table 3-9); UNSPECIFIED is the default of ZCL Table 3-7. */
 enum zzb_zcl_basic_generic_device_class {

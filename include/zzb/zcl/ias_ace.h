@@ -19,7 +19,7 @@ extern "C" {
 /** IAS ACE cluster (ZCL 8.3). */
 #define ZZB_ZCL_IAS_ACE 0x0501
 
-/** Commands that the server receives and a client sends (ZCL Table 8-13). */
+/** Commands that the server receives and a client sends (ZCL Table 8-13). @{ */
 #define ZZB_ZCL_IAS_ACE_ARM                    0x00
 #define ZZB_ZCL_IAS_ACE_BYPASS                 0x01
 #define ZZB_ZCL_IAS_ACE_EMERGENCY              0x02
@@ -30,8 +30,9 @@ extern "C" {
 #define ZZB_ZCL_IAS_ACE_GET_PANEL_STATUS       0x07
 #define ZZB_ZCL_IAS_ACE_GET_BYPASSED_ZONE_LIST 0x08
 #define ZZB_ZCL_IAS_ACE_GET_ZONE_STATUS        0x09
+/** @} */
 
-/** Commands that the server generates and a client receives (ZCL Table 8-15). */
+/** Commands that the server generates and a client receives (ZCL Table 8-15). @{ */
 #define ZZB_ZCL_IAS_ACE_ARM_RSP                  0x00
 #define ZZB_ZCL_IAS_ACE_GET_ZONE_ID_MAP_RSP      0x01
 #define ZZB_ZCL_IAS_ACE_GET_ZONE_INFORMATION_RSP 0x02
@@ -41,6 +42,7 @@ extern "C" {
 #define ZZB_ZCL_IAS_ACE_SET_BYPASSED_ZONE_LIST   0x06
 #define ZZB_ZCL_IAS_ACE_BYPASS_RSP               0x07
 #define ZZB_ZCL_IAS_ACE_GET_ZONE_STATUS_RSP      0x08
+/** @} */
 
 /** Arm Mode of Arm (ZCL Table 8-14). */
 enum zzb_zcl_ias_ace_arm_mode {

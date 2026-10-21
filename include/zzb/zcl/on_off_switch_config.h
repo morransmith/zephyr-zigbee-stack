@@ -18,9 +18,10 @@ extern "C" {
 /** On/Off Switch Configuration cluster (ZCL 3.9). */
 #define ZZB_ZCL_ON_OFF_SWITCH_CONFIG 0x0007
 
-/** Attributes (ZCL Tables 3-51 and 3-53). */
+/** Attributes (ZCL Tables 3-51 and 3-53). @{ */
 #define ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_TYPE    0x0000
 #define ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_ACTIONS 0x0010
+/** @} */
 
 /** SwitchType (ZCL Table 3-52). */
 enum zzb_zcl_on_off_switch_config_switch_type {

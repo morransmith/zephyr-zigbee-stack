@@ -18,20 +18,23 @@ extern "C" {
 /** Illuminance Measurement cluster (ZCL 4.2). */
 #define ZZB_ZCL_ILLUMINANCE 0x0400
 
-/** Attributes (ZCL Table 4-5). */
+/** Attributes (ZCL Table 4-5). @{ */
 #define ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE     0x0000
 #define ZZB_ZCL_ILLUMINANCE_MIN_MEASURED_VALUE 0x0001
 #define ZZB_ZCL_ILLUMINANCE_MAX_MEASURED_VALUE 0x0002
 #define ZZB_ZCL_ILLUMINANCE_TOLERANCE          0x0003
 #define ZZB_ZCL_ILLUMINANCE_LIGHT_SENSOR_TYPE  0x0004
+/** @} */
 
-/** MeasuredValue too low to be measured and MeasuredValue that is not valid (ZCL 4.2.2.2.1). */
+/** MeasuredValue too low to be measured and MeasuredValue that is not valid (ZCL 4.2.2.2.1). @{ */
 #define ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE_TOO_LOW 0x0000
 #define ZZB_ZCL_ILLUMINANCE_MEASURED_VALUE_UNKNOWN 0xffff
+/** @} */
 
-/** MinMeasuredValue and MaxMeasuredValue that are not defined (ZCL 4.2.2.2.2, 4.2.2.2.3). */
+/** MinMeasuredValue and MaxMeasuredValue that are not defined (ZCL 4.2.2.2.2, 4.2.2.2.3). @{ */
 #define ZZB_ZCL_ILLUMINANCE_MIN_MEASURED_VALUE_UNDEFINED 0xffff
 #define ZZB_ZCL_ILLUMINANCE_MAX_MEASURED_VALUE_UNDEFINED 0xffff
+/** @} */
 
 /** LightSensorType of both clusters (ZCL Tables 4-6 and 4-10). */
 enum zzb_zcl_illuminance_light_sensor_type {
@@ -43,10 +46,11 @@ enum zzb_zcl_illuminance_light_sensor_type {
 /** Illuminance Level Sensing cluster (ZCL 4.3). */
 #define ZZB_ZCL_ILLUMINANCE_LEVEL 0x0401
 
-/** Attributes (ZCL Tables 4-8 and 4-11). */
+/** Attributes (ZCL Tables 4-8 and 4-11). @{ */
 #define ZZB_ZCL_ILLUMINANCE_LEVEL_STATUS            0x0000
 #define ZZB_ZCL_ILLUMINANCE_LEVEL_LIGHT_SENSOR_TYPE 0x0001
 #define ZZB_ZCL_ILLUMINANCE_LEVEL_TARGET_LEVEL      0x0010
+/** @} */
 
 /** LevelStatus (ZCL Table 4-9). */
 enum zzb_zcl_illuminance_level_status {

@@ -18,9 +18,10 @@ extern "C" {
 /** Fan Control cluster (ZCL 6.4). */
 #define ZZB_ZCL_FAN 0x0202
 
-/** Attributes (ZCL Table 6-40). */
+/** Attributes (ZCL Table 6-40). @{ */
 #define ZZB_ZCL_FAN_MODE          0x0000
 #define ZZB_ZCL_FAN_MODE_SEQUENCE 0x0001
+/** @} */
 
 /** Values of FanMode (ZCL Table 6-41). */
 enum zzb_zcl_fan_mode {

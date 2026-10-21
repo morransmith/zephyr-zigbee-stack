@@ -20,7 +20,7 @@ extern "C" {
 /** Color Control cluster (ZCL 5.2). */
 #define ZZB_ZCL_COLOR 0x0300
 
-/** Attributes (ZCL Tables 5.3, 5.10 and 5.11). */
+/** Attributes (ZCL Tables 5.3, 5.10 and 5.11). @{ */
 #define ZZB_ZCL_COLOR_REMAINING_TIME       0x0002
 #define ZZB_ZCL_COLOR_CURRENT_X            0x0003
 #define ZZB_ZCL_COLOR_CURRENT_Y            0x0004
@@ -52,6 +52,7 @@ extern "C" {
 #define ZZB_ZCL_COLOR_TEMP_PHYSICAL_MAX    0x400c
 #define ZZB_ZCL_COLOR_COUPLE_TEMP_MIN      0x400d
 #define ZZB_ZCL_COLOR_START_UP_TEMPERATURE 0x4010
+/** @} */
 
 /** ColorMode, 0x00 to 0x02, and EnhancedColorMode (ZCL Tables 5.5 and 5.7). */
 enum zzb_zcl_color_mode {
@@ -64,12 +65,13 @@ enum zzb_zcl_color_mode {
 /** Bit of Options (ZCL Table 5.6). */
 #define ZZB_ZCL_COLOR_OPTIONS_EXECUTE_IF_OFF BIT(0)
 
-/** Bits of ColorCapabilities (ZCL Table 5.8); the server of the stack has XY and TEMPERATURE. */
+/** Bits of ColorCapabilities (ZCL Table 5.8); the server of the stack has XY and TEMPERATURE. @{ */
 #define ZZB_ZCL_COLOR_CAP_HUE_SATURATION BIT(0)
 #define ZZB_ZCL_COLOR_CAP_ENHANCED_HUE   BIT(1)
 #define ZZB_ZCL_COLOR_CAP_COLOR_LOOP     BIT(2)
 #define ZZB_ZCL_COLOR_CAP_XY             BIT(3)
 #define ZZB_ZCL_COLOR_CAP_TEMPERATURE    BIT(4)
+/** @} */
 
 /** The StartUpColorTemperatureMireds that keeps the value before the power-down (ZCL Table 5.9). */
 #define ZZB_ZCL_COLOR_START_UP_TEMPERATURE_PREVIOUS 0xffff
@@ -77,11 +79,12 @@ enum zzb_zcl_color_mode {
 /** An unknown NumberOfPrimaries (ZCL 5.2.2.2.2.1). */
 #define ZZB_ZCL_COLOR_NUMBER_OF_PRIMARIES_UNKNOWN 0xff
 
-/** Special values of the intensity of a primary (ZCL 5.2.2.2.2.4). */
+/** Special values of the intensity of a primary (ZCL 5.2.2.2.2.4). @{ */
 #define ZZB_ZCL_COLOR_PRIMARY_INTENSITY_HIGHEST     0xfe
 #define ZZB_ZCL_COLOR_PRIMARY_INTENSITY_UNAVAILABLE 0xff
+/** @} */
 
-/** Commands that the server receives and a client sends (ZCL Table 5.13). */
+/** Commands that the server receives and a client sends (ZCL Table 5.13). @{ */
 #define ZZB_ZCL_COLOR_MOVE_TO_HUE                     0x00
 #define ZZB_ZCL_COLOR_MOVE_HUE                        0x01
 #define ZZB_ZCL_COLOR_STEP_HUE                        0x02
@@ -101,6 +104,7 @@ enum zzb_zcl_color_mode {
 #define ZZB_ZCL_COLOR_STOP_MOVE_STEP                  0x47
 #define ZZB_ZCL_COLOR_MOVE_TEMPERATURE                0x4b
 #define ZZB_ZCL_COLOR_STEP_TEMPERATURE                0x4c
+/** @} */
 
 /** A primary of the light (ZCL 5.2.2.2.2). */
 struct zzb_zcl_color_primary {

@@ -21,10 +21,11 @@ extern "C" {
 /** IdentifyTime attribute. */
 #define ZZB_ZCL_IDENTIFY_TIME 0x0000
 
-/** Commands received (ZCL Table 3-32). */
+/** Commands received (ZCL Table 3-32). @{ */
 #define ZZB_ZCL_IDENTIFY_IDENTIFY       0x00
 #define ZZB_ZCL_IDENTIFY_QUERY          0x01
 #define ZZB_ZCL_IDENTIFY_TRIGGER_EFFECT 0x40
+/** @} */
 
 /** Commands generated (ZCL Table 3-35). */
 #define ZZB_ZCL_IDENTIFY_QUERY_RSP 0x00

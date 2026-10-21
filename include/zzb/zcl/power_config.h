@@ -19,7 +19,7 @@ extern "C" {
 /** Power Configuration cluster (ZCL 3.3). */
 #define ZZB_ZCL_POWER_CONFIG 0x0001
 
-/** Attributes of the mains and of the first battery source (ZCL 3.3.2.2). */
+/** Attributes of the mains and of the first battery source (ZCL 3.3.2.2). @{ */
 #define ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE                    0x0000
 #define ZZB_ZCL_POWER_CONFIG_MAINS_FREQUENCY                  0x0001
 #define ZZB_ZCL_POWER_CONFIG_MAINS_ALARM_MASK                 0x0010
@@ -43,23 +43,27 @@ extern "C" {
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_PERCENTAGE_THRESHOLD2    0x003c
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_PERCENTAGE_THRESHOLD3    0x003d
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE              0x003e
+/** @} */
 
-/** Special values of the measurements (ZCL 3.3.2.2.1, 3.3.2.2.3). */
+/** Special values of the measurements (ZCL 3.3.2.2.1, 3.3.2.2.3). @{ */
 #define ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE_UNKNOWN                0xffff
 #define ZZB_ZCL_POWER_CONFIG_MAINS_FREQUENCY_TOO_LOW              0x00
 #define ZZB_ZCL_POWER_CONFIG_MAINS_FREQUENCY_TOO_HIGH             0xfe
 #define ZZB_ZCL_POWER_CONFIG_MAINS_FREQUENCY_UNKNOWN              0xff
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_VOLTAGE_UNKNOWN              0xff
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_PERCENTAGE_REMAINING_UNKNOWN 0xff
+/** @} */
 
-/** Thresholds that raise no alarm (ZCL 3.3.2.2.2, 3.3.2.2.4). */
+/** Thresholds that raise no alarm (ZCL 3.3.2.2.2, 3.3.2.2.4). @{ */
 #define ZZB_ZCL_POWER_CONFIG_MAINS_VOLTAGE_THRESHOLD_NONE 0xffff
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_THRESHOLD_NONE       0xff
+/** @} */
 
-/** Bits of MainsAlarmMask (ZCL Table 3-20). */
+/** Bits of MainsAlarmMask (ZCL Table 3-20). @{ */
 #define ZZB_ZCL_POWER_CONFIG_MAINS_ALARM_MASK_VOLTAGE_LOW  BIT(0)
 #define ZZB_ZCL_POWER_CONFIG_MAINS_ALARM_MASK_VOLTAGE_HIGH BIT(1)
 #define ZZB_ZCL_POWER_CONFIG_MAINS_ALARM_MASK_SUPPLY_LOST  BIT(2)
+/** @} */
 
 /** BatterySize (ZCL Table 3-23). */
 enum zzb_zcl_power_config_battery_size {
@@ -75,13 +79,14 @@ enum zzb_zcl_power_config_battery_size {
 	ZZB_ZCL_POWER_CONFIG_BATTERY_SIZE_UNKNOWN = 0xff,
 };
 
-/** Bits of BatteryAlarmMask (ZCL Table 3-24). */
+/** Bits of BatteryAlarmMask (ZCL Table 3-24). @{ */
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_MASK_MIN_THRESHOLD BIT(0)
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_MASK_THRESHOLD1    BIT(1)
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_MASK_THRESHOLD2    BIT(2)
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_MASK_THRESHOLD3    BIT(3)
+/** @} */
 
-/** Bits of BatteryAlarmState (ZCL Table 3-26). */
+/** Bits of BatteryAlarmState (ZCL Table 3-26). @{ */
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE_SOURCE1_MIN_THRESHOLD BIT(0)
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE_SOURCE1_THRESHOLD1    BIT(1)
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE_SOURCE1_THRESHOLD2    BIT(2)
@@ -95,6 +100,7 @@ enum zzb_zcl_power_config_battery_size {
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE_SOURCE3_THRESHOLD2    BIT(22)
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE_SOURCE3_THRESHOLD3    BIT(23)
 #define ZZB_ZCL_POWER_CONFIG_BATTERY_ALARM_STATE_MAINS_SUPPLY_LOST     BIT(30)
+/** @} */
 
 /**
  * Values of a Power Configuration server (ZCL 3.3.2.2). The application fills the fields up to

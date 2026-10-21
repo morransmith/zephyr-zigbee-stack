@@ -18,7 +18,7 @@ extern "C" {
 /** Meter Identification cluster (ZCL 10.13). */
 #define ZZB_ZCL_METER_ID 0x0b01
 
-/** Attributes (ZCL Table 10-215). */
+/** Attributes (ZCL Table 10-215). @{ */
 #define ZZB_ZCL_METER_ID_COMPANY_NAME      0x0000
 #define ZZB_ZCL_METER_ID_METER_TYPE_ID     0x0001
 #define ZZB_ZCL_METER_ID_DATA_QUALITY_ID   0x0004
@@ -31,6 +31,7 @@ extern "C" {
 #define ZZB_ZCL_METER_ID_POD               0x000c
 #define ZZB_ZCL_METER_ID_AVAILABLE_POWER   0x000d
 #define ZZB_ZCL_METER_ID_POWER_THRESHOLD   0x000e
+/** @} */
 
 /** MeterTypeID (ZCL Table 10-216). */
 enum zzb_zcl_meter_id_type {

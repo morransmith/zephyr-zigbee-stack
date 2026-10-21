@@ -18,7 +18,7 @@ extern "C" {
 /** Pump Configuration and Control cluster (ZCL 6.2). */
 #define ZZB_ZCL_PUMP 0x0200
 
-/** Attributes (ZCL Tables 6-3, 6-4 and 6-6). */
+/** Attributes (ZCL Tables 6-3, 6-4 and 6-6). @{ */
 #define ZZB_ZCL_PUMP_MAX_PRESSURE             0x0000
 #define ZZB_ZCL_PUMP_MAX_SPEED                0x0001
 #define ZZB_ZCL_PUMP_MAX_FLOW                 0x0002
@@ -43,8 +43,9 @@ extern "C" {
 #define ZZB_ZCL_PUMP_OPERATION_MODE           0x0020
 #define ZZB_ZCL_PUMP_CONTROL_MODE             0x0021
 #define ZZB_ZCL_PUMP_ALARM_MASK               0x0022
+/** @} */
 
-/** Values that mark an attribute invalid or unknown (ZCL 6.2.2.2.1 and 6.2.2.2.2). */
+/** Values that mark an attribute invalid or unknown (ZCL 6.2.2.2.1 and 6.2.2.2.2). @{ */
 #define ZZB_ZCL_PUMP_MAX_PRESSURE_UNKNOWN             INT16_MIN
 #define ZZB_ZCL_PUMP_MAX_SPEED_UNKNOWN                0xffff
 #define ZZB_ZCL_PUMP_MAX_FLOW_UNKNOWN                 0xffff
@@ -63,8 +64,9 @@ extern "C" {
 #define ZZB_ZCL_PUMP_LIFETIME_RUNNING_HOURS_UNKNOWN   0xffffff
 #define ZZB_ZCL_PUMP_POWER_UNKNOWN                    0xffffff
 #define ZZB_ZCL_PUMP_LIFETIME_ENERGY_CONSUMED_UNKNOWN 0xffffffff
+/** @} */
 
-/** Bits of PumpStatus (ZCL Table 6-5). */
+/** Bits of PumpStatus (ZCL Table 6-5). @{ */
 #define ZZB_ZCL_PUMP_STATUS_DEVICE_FAULT       BIT(0)
 #define ZZB_ZCL_PUMP_STATUS_SUPPLY_FAULT       BIT(1)
 #define ZZB_ZCL_PUMP_STATUS_SPEED_LOW          BIT(2)
@@ -74,6 +76,7 @@ extern "C" {
 #define ZZB_ZCL_PUMP_STATUS_REMOTE_PRESSURE    BIT(6)
 #define ZZB_ZCL_PUMP_STATUS_REMOTE_FLOW        BIT(7)
 #define ZZB_ZCL_PUMP_STATUS_REMOTE_TEMPERATURE BIT(8)
+/** @} */
 
 /** Values of OperationMode and EffectiveOperationMode (ZCL Table 6-7). */
 enum zzb_zcl_pump_operation_mode {
@@ -93,7 +96,7 @@ enum zzb_zcl_pump_control_mode {
 	ZZB_ZCL_PUMP_CONTROL_MODE_AUTOMATIC = 0x07,
 };
 
-/** Bits of AlarmMask; bit n enables alarm code n (ZCL Table 6-9). */
+/** Bits of AlarmMask; bit n enables alarm code n (ZCL Table 6-9). @{ */
 #define ZZB_ZCL_PUMP_ALARM_MASK_SUPPLY_VOLTAGE_LOW           BIT(0)
 #define ZZB_ZCL_PUMP_ALARM_MASK_SUPPLY_VOLTAGE_HIGH          BIT(1)
 #define ZZB_ZCL_PUMP_ALARM_MASK_POWER_MISSING_PHASE          BIT(2)
@@ -108,6 +111,7 @@ enum zzb_zcl_pump_control_mode {
 #define ZZB_ZCL_PUMP_ALARM_MASK_ELECTRONIC_NON_FATAL_FAILURE BIT(11)
 #define ZZB_ZCL_PUMP_ALARM_MASK_ELECTRONIC_FATAL_FAILURE     BIT(12)
 #define ZZB_ZCL_PUMP_ALARM_MASK_GENERAL_FAULT                BIT(13)
+/** @} */
 
 /**
  * Values of a Pump Configuration and Control server (ZCL 6.2.2.2). lifetime_running_hours,

@@ -18,7 +18,7 @@ extern "C" {
 /** OTA Upgrade cluster (ZCL 11). */
 #define ZZB_ZCL_OTA 0x0019
 
-/** Attributes of the client (ZCL Table 11-10). */
+/** Attributes of the client (ZCL Table 11-10). @{ */
 #define ZZB_ZCL_OTA_UPGRADE_SERVER_ID       0x0000
 #define ZZB_ZCL_OTA_FILE_OFFSET             0x0001
 #define ZZB_ZCL_OTA_CURRENT_FILE_VERSION    0x0002
@@ -27,13 +27,15 @@ extern "C" {
 #define ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS    0x0006
 #define ZZB_ZCL_OTA_MANUFACTURER_ID         0x0007
 #define ZZB_ZCL_OTA_IMAGE_TYPE_ID           0x0008
+/** @} */
 
 /** UpgradeServerID that is not a valid IEEE address (ZCL 11.10.1). */
 #define ZZB_ZCL_OTA_UPGRADE_SERVER_ID_UNKNOWN 0xffffffffffffffff
 
-/** FileOffset and DownloadedFileVersion outside a download, their defaults (ZCL Table 11-10). */
+/** FileOffset and DownloadedFileVersion outside a download, their defaults (ZCL Table 11-10). @{ */
 #define ZZB_ZCL_OTA_FILE_OFFSET_NONE             0xffffffff
 #define ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION_NONE 0xffffffff
+/** @} */
 
 /** Image Type ID while the client neither downloads nor waits to upgrade (ZCL 11.10.9). */
 #define ZZB_ZCL_OTA_IMAGE_TYPE_ID_NONE 0xffff
@@ -57,16 +59,18 @@ enum zzb_zcl_ota_image_upgrade_status {
 	ZZB_ZCL_OTA_WAITING_EXTERNAL_EVENT = 0x06,
 };
 
-/** Commands that the client generates (ZCL Table 11-16). */
+/** Commands that the client generates (ZCL Table 11-16). @{ */
 #define ZZB_ZCL_OTA_QUERY_NEXT_IMAGE 0x01
 #define ZZB_ZCL_OTA_IMAGE_BLOCK      0x03
 #define ZZB_ZCL_OTA_UPGRADE_END      0x06
+/** @} */
 
-/** Commands that the client receives (ZCL Table 11-16). */
+/** Commands that the client receives (ZCL Table 11-16). @{ */
 #define ZZB_ZCL_OTA_IMAGE_NOTIFY         0x00
 #define ZZB_ZCL_OTA_QUERY_NEXT_IMAGE_RSP 0x02
 #define ZZB_ZCL_OTA_IMAGE_BLOCK_RSP      0x05
 #define ZZB_ZCL_OTA_UPGRADE_END_RSP      0x07
+/** @} */
 
 /**
  * Values of an OTA Upgrade client (ZCL 11.10), which downloads firmware images from the trust

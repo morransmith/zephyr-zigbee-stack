@@ -18,7 +18,7 @@ extern "C" {
 /** Metering cluster (ZCL 10.4). */
 #define ZZB_ZCL_METERING 0x0702
 
-/** Attributes (ZCL Tables 10-57, 10-61, 10-71 and 10-75). */
+/** Attributes (ZCL Tables 10-57, 10-61, 10-71 and 10-75). @{ */
 #define ZZB_ZCL_METERING_CURRENT_SUMMATION_DELIVERED 0x0000
 #define ZZB_ZCL_METERING_STATUS                      0x0200
 #define ZZB_ZCL_METERING_UNIT_OF_MEASURE             0x0300
@@ -28,29 +28,34 @@ extern "C" {
 #define ZZB_ZCL_METERING_DEMAND_FORMATTING           0x0304
 #define ZZB_ZCL_METERING_DEVICE_TYPE                 0x0306
 #define ZZB_ZCL_METERING_INSTANTANEOUS_DEMAND        0x0400
+/** @} */
 
-/** Bits of Status of every commodity (ZCL Tables 10-62 to 10-65). */
+/** Bits of Status of every commodity (ZCL Tables 10-62 to 10-65). @{ */
 #define ZZB_ZCL_METERING_STATUS_CHECK_METER        BIT(0)
 #define ZZB_ZCL_METERING_STATUS_LOW_BATTERY        BIT(1)
 #define ZZB_ZCL_METERING_STATUS_TAMPER_DETECT      BIT(2)
 #define ZZB_ZCL_METERING_STATUS_LEAK_DETECT        BIT(5)
 #define ZZB_ZCL_METERING_STATUS_SERVICE_DISCONNECT BIT(6)
+/** @} */
 
-/** Bits of Status of electricity (ZCL Table 10-62). */
+/** Bits of Status of electricity (ZCL Table 10-62). @{ */
 #define ZZB_ZCL_METERING_STATUS_POWER_FAILURE BIT(3)
 #define ZZB_ZCL_METERING_STATUS_POWER_QUALITY BIT(4)
+/** @} */
 
-/** Bits of Status of gas and water (ZCL Tables 10-63 and 10-64). */
+/** Bits of Status of gas and water (ZCL Tables 10-63 and 10-64). @{ */
 #define ZZB_ZCL_METERING_STATUS_LOW_PRESSURE BIT(4)
 #define ZZB_ZCL_METERING_STATUS_REVERSE_FLOW BIT(7)
+/** @} */
 
 /** Bit of Status of water (ZCL Table 10-64). */
 #define ZZB_ZCL_METERING_STATUS_PIPE_EMPTY BIT(3)
 
-/** Bits of Status of heat and cooling (ZCL Table 10-65). */
+/** Bits of Status of heat and cooling (ZCL Table 10-65). @{ */
 #define ZZB_ZCL_METERING_STATUS_TEMPERATURE_SENSOR BIT(3)
 #define ZZB_ZCL_METERING_STATUS_BURST_DETECT       BIT(4)
 #define ZZB_ZCL_METERING_STATUS_FLOW_SENSOR        BIT(7)
+/** @} */
 
 /**
  * UnitofMeasure (ZCL Table 10-72): the unit of a summation and of its rate, such as kWh and kW;

@@ -18,7 +18,7 @@ extern "C" {
 /** Poll Control cluster (ZCL 3.16). */
 #define ZZB_ZCL_POLL_CONTROL 0x0020
 
-/** Attributes (ZCL Table 3-132). */
+/** Attributes (ZCL Table 3-132). @{ */
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL      0x0000
 #define ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL     0x0001
 #define ZZB_ZCL_POLL_CONTROL_SHORT_POLL_INTERVAL    0x0002
@@ -26,6 +26,7 @@ extern "C" {
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL_MIN  0x0004
 #define ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL_MIN 0x0005
 #define ZZB_ZCL_POLL_CONTROL_FAST_POLL_TIMEOUT_MAX  0x0006
+/** @} */
 
 /** Check-inInterval that turns the check-ins off (ZCL 3.16.4.1.1). */
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL_OFF 0
@@ -36,11 +37,12 @@ extern "C" {
 /** Command that the server generates (ZCL Table 3-133). */
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN 0x00
 
-/** Commands that the server receives (ZCL Table 3-134). */
+/** Commands that the server receives (ZCL Table 3-134). @{ */
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN_RSP            0x00
 #define ZZB_ZCL_POLL_CONTROL_FAST_POLL_STOP          0x01
 #define ZZB_ZCL_POLL_CONTROL_SET_LONG_POLL_INTERVAL  0x02
 #define ZZB_ZCL_POLL_CONTROL_SET_SHORT_POLL_INTERVAL 0x03
+/** @} */
 
 /** The clients for which a Poll Control server fast polls at the same time. */
 #define ZZB_ZCL_POLL_CONTROL_CLIENTS 4

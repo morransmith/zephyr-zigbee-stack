@@ -12,9 +12,11 @@ FILE_PATTERNS         = *.h
 STRIP_FROM_PATH       = include
 STRIP_FROM_INC_PATH   = include
 OPTIMIZE_OUTPUT_FOR_C = YES
+# The first sentence of a comment is its brief description.
+JAVADOC_AUTOBRIEF     = YES
 # The command functions of the cluster headers are static inline.
 EXTRACT_STATIC        = YES
-# The comment of a @name block applies to each of its members.
+# The comment of a member group applies to each of its members.
 DISTRIBUTE_GROUP_DOC  = YES
 GENERATE_LATEX        = NO
 QUIET                 = YES

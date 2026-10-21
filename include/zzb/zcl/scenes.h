@@ -21,11 +21,12 @@ extern "C" {
 /** Scenes cluster (ZCL 3.7). */
 #define ZZB_ZCL_SCENES 0x0005
 
-/** Attributes (ZCL Table 3-40). */
+/** Attributes (ZCL Table 3-40). @{ */
 #define ZZB_ZCL_SCENES_SCENE_COUNT   0x0000
 #define ZZB_ZCL_SCENES_CURRENT_SCENE 0x0001
 #define ZZB_ZCL_SCENES_CURRENT_GROUP 0x0002
 #define ZZB_ZCL_SCENES_SCENE_VALID   0x0003
+/** @} */
 
 /** The group ID of a scene without a group, in CurrentGroup and the commands (ZCL Table 3-41). */
 #define ZZB_ZCL_SCENES_GROUP_NONE 0x0000
@@ -33,7 +34,7 @@ extern "C" {
 /** Bit of NameSupport (ZCL 3.7.2.2.1.5). */
 #define ZZB_ZCL_SCENES_NAME_SUPPORT_NAMES BIT(7)
 
-/** Commands received (ZCL Table 3-42); each response has the identifier of its command. */
+/** Commands received (ZCL Table 3-42); each response has the identifier of its command. @{ */
 #define ZZB_ZCL_SCENES_ADD_SCENE            0x00
 #define ZZB_ZCL_SCENES_VIEW_SCENE           0x01
 #define ZZB_ZCL_SCENES_REMOVE_SCENE         0x02
@@ -44,6 +45,7 @@ extern "C" {
 #define ZZB_ZCL_SCENES_ENHANCED_ADD_SCENE   0x40
 #define ZZB_ZCL_SCENES_ENHANCED_VIEW_SCENE  0x41
 #define ZZB_ZCL_SCENES_COPY_SCENE           0x42
+/** @} */
 
 /**
  * Values of a Scenes server (ZCL 3.7.2.2), all read-only. The scene table of the node holds the

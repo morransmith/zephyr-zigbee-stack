@@ -24,9 +24,10 @@ extern "C" {
 /** Attribute (ZCL Table 8-19). */
 #define ZZB_ZCL_IAS_WD_MAX_DURATION 0x0000
 
-/** Commands that the server receives and a client sends (ZCL Table 8-20). */
+/** Commands that the server receives and a client sends (ZCL Table 8-20). @{ */
 #define ZZB_ZCL_IAS_WD_START_WARNING 0x00
 #define ZZB_ZCL_IAS_WD_SQUAWK        0x01
+/** @} */
 
 /**
  * Fields of the first octet of Start Warning (ZCL Figure 8-21) for FIELD_GET(), at the positions
@@ -69,10 +70,11 @@ enum zzb_zcl_ias_wd_strobe_level {
 	ZZB_ZCL_IAS_WD_STROBE_LEVEL_VERY_HIGH = 0x03,
 };
 
-/** Fields of the octet of Squawk (ZCL Figure 8-22): squawk mode, strobe, squawk level. */
+/** Fields of the octet of Squawk (ZCL Figure 8-22): squawk mode, strobe, squawk level. @{ */
 #define ZZB_ZCL_IAS_WD_SQUAWK_MODE   GENMASK(7, 4)
 #define ZZB_ZCL_IAS_WD_SQUAWK_STROBE BIT(3)
 #define ZZB_ZCL_IAS_WD_SQUAWK_LEVEL  GENMASK(1, 0)
+/** @} */
 
 /** Squawk Mode of Squawk (ZCL Table 8-25). */
 enum zzb_zcl_ias_wd_squawk_mode {

@@ -18,7 +18,7 @@ extern "C" {
 /** Electrical Measurement cluster (ZCL 4.9). */
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT 0x0b04
 
-/** Attributes (ZCL Tables 4-29 and 4-33 to 4-36). */
+/** Attributes (ZCL Tables 4-29 and 4-33 to 4-36). @{ */
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_MEASUREMENT_TYPE        0x0000
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY            0x0300
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_MIN        0x0301
@@ -43,8 +43,9 @@ extern "C" {
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_CURRENT_DIVISOR      0x0603
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_POWER_MULTIPLIER     0x0604
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_POWER_DIVISOR        0x0605
+/** @} */
 
-/** Bits of MeasurementType (ZCL Table 4-30). */
+/** Bits of MeasurementType (ZCL Table 4-30). @{ */
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_ACTIVE        BIT(0)
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_REACTIVE      BIT(1)
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_APPARENT      BIT(2)
@@ -54,14 +55,16 @@ extern "C" {
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_DC            BIT(6)
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_HARMONICS     BIT(7)
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_POWER_QUALITY BIT(8)
+/** @} */
 
-/** A measurement that cannot be made, and its minimum and maximum before the first one. */
+/** A measurement that cannot be made, and its minimum and maximum before the first one. @{ */
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN   0xffff
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN    0xffff
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN    0xffff
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN   INT16_MIN
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_REACTIVE_POWER_UNKNOWN INT16_MIN
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_APPARENT_POWER_UNKNOWN 0xffff
+/** @} */
 
 /**
  * Values of an Electrical Measurement server (ZCL 4.9.2.2): the AC frequency and the AC

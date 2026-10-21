@@ -20,7 +20,7 @@ extern "C" {
 /** Ballast Configuration cluster (ZCL 5.3). */
 #define ZZB_ZCL_BALLAST 0x0301
 
-/** Attributes (ZCL Tables 5.30, 5.32, 5.33 and 5.34). */
+/** Attributes (ZCL Tables 5.30, 5.32, 5.33 and 5.34). @{ */
 #define ZZB_ZCL_BALLAST_PHYSICAL_MIN_LEVEL         0x0000
 #define ZZB_ZCL_BALLAST_PHYSICAL_MAX_LEVEL         0x0001
 #define ZZB_ZCL_BALLAST_STATUS                     0x0002
@@ -33,17 +33,20 @@ extern "C" {
 #define ZZB_ZCL_BALLAST_LAMP_BURN_HOURS            0x0033
 #define ZZB_ZCL_BALLAST_LAMP_ALARM_MODE            0x0034
 #define ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_TRIP_POINT 0x0035
+/** @} */
 
-/** Bits of BallastStatus (ZCL Table 5.31). */
+/** Bits of BallastStatus (ZCL Table 5.31). @{ */
 #define ZZB_ZCL_BALLAST_STATUS_NON_OPERATIONAL BIT(0)
 #define ZZB_ZCL_BALLAST_STATUS_LAMP_FAILURE    BIT(1)
+/** @} */
 
 /** Bit of LampAlarmMode (ZCL Table 5.35). */
 #define ZZB_ZCL_BALLAST_LAMP_ALARM_MODE_BURN_HOURS BIT(0)
 
-/** The lowest and the highest level of the dimming light curve (ZCL 5.3.4). */
+/** The lowest and the highest level of the dimming light curve (ZCL 5.3.4). @{ */
 #define ZZB_ZCL_BALLAST_LEVEL_MIN 0x01
 #define ZZB_ZCL_BALLAST_LEVEL_MAX 0xfe
+/** @} */
 
 /** IntrinsicBallastFactor that is not valid (ZCL 5.3.2.2.2.3). */
 #define ZZB_ZCL_BALLAST_INTRINSIC_FACTOR_UNKNOWN 0xff
@@ -51,9 +54,10 @@ extern "C" {
 /** BallastFactorAdjustment that turns the scaling off (ZCL 5.3.2.2.2.4). */
 #define ZZB_ZCL_BALLAST_FACTOR_ADJUSTMENT_OFF 0xff
 
-/** LampRatedHours and LampBurnHours that are not valid or unknown (ZCL 5.3.2.2.4). */
+/** LampRatedHours and LampBurnHours that are not valid or unknown (ZCL 5.3.2.2.4). @{ */
 #define ZZB_ZCL_BALLAST_LAMP_RATED_HOURS_UNKNOWN 0xffffff
 #define ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_UNKNOWN  0xffffff
+/** @} */
 
 /** LampBurnHoursTripPoint that generates no alarm (ZCL 5.3.2.2.4.6). */
 #define ZZB_ZCL_BALLAST_LAMP_BURN_HOURS_TRIP_POINT_OFF 0xffffff

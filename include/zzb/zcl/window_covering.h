@@ -18,7 +18,7 @@ extern "C" {
 /** Window Covering cluster (ZCL 7.4). */
 #define ZZB_ZCL_WINDOW_COVERING 0x0102
 
-/** Attributes (ZCL Tables 7-40 and 7-43). */
+/** Attributes (ZCL Tables 7-40 and 7-43). @{ */
 #define ZZB_ZCL_WINDOW_COVERING_TYPE                        0x0000
 #define ZZB_ZCL_WINDOW_COVERING_PHYSICAL_CLOSED_LIMIT_LIFT  0x0001
 #define ZZB_ZCL_WINDOW_COVERING_PHYSICAL_CLOSED_LIMIT_TILT  0x0002
@@ -34,6 +34,7 @@ extern "C" {
 #define ZZB_ZCL_WINDOW_COVERING_INSTALLED_OPEN_LIMIT_TILT   0x0012
 #define ZZB_ZCL_WINDOW_COVERING_INSTALLED_CLOSED_LIMIT_TILT 0x0013
 #define ZZB_ZCL_WINDOW_COVERING_MODE                        0x0017
+/** @} */
 
 /** Values of WindowCoveringType (ZCL Table 7-41). */
 enum zzb_zcl_window_covering_type {
@@ -49,7 +50,7 @@ enum zzb_zcl_window_covering_type {
 	ZZB_ZCL_WINDOW_COVERING_TYPE_PROJECTOR_SCREEN = 0x09,
 };
 
-/** Bits of Config/Status (ZCL Table 7-42). */
+/** Bits of Config/Status (ZCL Table 7-42). @{ */
 #define ZZB_ZCL_WINDOW_COVERING_CONFIG_OPERATIONAL      BIT(0)
 #define ZZB_ZCL_WINDOW_COVERING_CONFIG_ONLINE           BIT(1)
 #define ZZB_ZCL_WINDOW_COVERING_CONFIG_LIFT_REVERSED    BIT(2)
@@ -57,18 +58,21 @@ enum zzb_zcl_window_covering_type {
 #define ZZB_ZCL_WINDOW_COVERING_CONFIG_TILT_CLOSED_LOOP BIT(4)
 #define ZZB_ZCL_WINDOW_COVERING_CONFIG_LIFT_ENCODER     BIT(5)
 #define ZZB_ZCL_WINDOW_COVERING_CONFIG_TILT_ENCODER     BIT(6)
+/** @} */
 
-/** CurrentPositionLiftPercentage and CurrentPositionTiltPercentage of an unknown position. */
+/** CurrentPositionLiftPercentage and CurrentPositionTiltPercentage of an unknown position. @{ */
 #define ZZB_ZCL_WINDOW_COVERING_LIFT_PERCENTAGE_UNKNOWN 0xff
 #define ZZB_ZCL_WINDOW_COVERING_TILT_PERCENTAGE_UNKNOWN 0xff
+/** @} */
 
-/** Bits of Mode (ZCL Table 7-44). */
+/** Bits of Mode (ZCL Table 7-44). @{ */
 #define ZZB_ZCL_WINDOW_COVERING_MODE_REVERSED     BIT(0)
 #define ZZB_ZCL_WINDOW_COVERING_MODE_CALIBRATION  BIT(1)
 #define ZZB_ZCL_WINDOW_COVERING_MODE_MAINTENANCE  BIT(2)
 #define ZZB_ZCL_WINDOW_COVERING_MODE_LED_FEEDBACK BIT(3)
+/** @} */
 
-/** Commands that the server receives and a client sends (ZCL Table 7-45). */
+/** Commands that the server receives and a client sends (ZCL Table 7-45). @{ */
 #define ZZB_ZCL_WINDOW_COVERING_UP_OPEN               0x00
 #define ZZB_ZCL_WINDOW_COVERING_DOWN_CLOSE            0x01
 #define ZZB_ZCL_WINDOW_COVERING_STOP                  0x02
@@ -76,6 +80,7 @@ enum zzb_zcl_window_covering_type {
 #define ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE 0x05
 #define ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_VALUE      0x07
 #define ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE 0x08
+/** @} */
 
 /**
  * Values of a Window Covering server (ZCL 7.4.2.1). The application fills the fields before mode

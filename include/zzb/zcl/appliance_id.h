@@ -18,7 +18,7 @@ extern "C" {
 /** EN50523 Appliance Identification cluster (ZCL 15.3). */
 #define ZZB_ZCL_APPLIANCE_ID 0x0b00
 
-/** Attributes (ZCL Tables 15-12 and 15-15). */
+/** Attributes (ZCL Tables 15-12 and 15-15). @{ */
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_IDENTIFICATION        0x0000
 #define ZZB_ZCL_APPLIANCE_ID_COMPANY_NAME                0x0010
 #define ZZB_ZCL_APPLIANCE_ID_COMPANY_ID                  0x0011
@@ -31,12 +31,14 @@ extern "C" {
 #define ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_NAME           0x0018
 #define ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_ID             0x0019
 #define ZZB_ZCL_APPLIANCE_ID_CECED_SPECIFICATION_VERSION 0x001a
+/** @} */
 
-/** Fields of BasicIdentification (ZCL Table 15-13). */
+/** Fields of BasicIdentification (ZCL Table 15-13). @{ */
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_COMPANY_ID      GENMASK64(15, 0)
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_BRAND_ID        GENMASK64(31, 16)
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_PRODUCT_TYPE_ID GENMASK64(47, 32)
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_SPEC_VERSION    GENMASK64(55, 48)
+/** @} */
 
 /** ProductTypeId and the Product Type ID of BasicIdentification (ZCL Table 15-14). */
 enum zzb_zcl_appliance_id_product_type {
@@ -52,9 +54,10 @@ enum zzb_zcl_appliance_id_product_type {
 	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_REFRIGERATOR_FREEZER = 0x6601,
 };
 
-/** Fields of CECEDSpecificationVersion: X of vX.0 and the certification (ZCL Table 15-16). */
+/** Fields of CECEDSpecificationVersion: X of vX.0 and the certification (ZCL Table 15-16). @{ */
 #define ZZB_ZCL_APPLIANCE_ID_CECED_VERSION       GENMASK(7, 4)
 #define ZZB_ZCL_APPLIANCE_ID_CECED_CERTIFICATION GENMASK(3, 0)
+/** @} */
 
 /** ZZB_ZCL_APPLIANCE_ID_CECED_CERTIFICATION (ZCL Table 15-16). */
 enum zzb_zcl_appliance_id_ceced_certification {
