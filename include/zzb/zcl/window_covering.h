@@ -131,6 +131,60 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_window_covering_client_def;
 		.def = &zzb_zcl_window_covering_client_def,                                        \
 	}
 
+/**
+ * Sends Go To Lift Percentage to the bound destinations: the covering moves to percentage, 0 open
+ * to 100 closed (ZCL 7.4.2.2.5).
+ *
+ * @return the result of zzb_zcl_send_bound()
+ */
+static inline int zzb_zcl_window_covering_go_to_lift_percentage(struct zzb_node *node, uint8_t ep,
+								uint8_t percentage)
+{
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_WINDOW_COVERING,
+				  ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, &percentage,
+				  sizeof(percentage));
+}
+
+/**
+ * Sends Go To Tilt Percentage to the bound destinations: the covering tilts to percentage, 0 open
+ * to 100 closed (ZCL 7.4.2.2.7).
+ *
+ * @return the result of zzb_zcl_send_bound()
+ */
+static inline int zzb_zcl_window_covering_go_to_tilt_percentage(struct zzb_node *node, uint8_t ep,
+								uint8_t percentage)
+{
+	return zzb_zcl_send_bound(node, ep, ZZB_ZCL_WINDOW_COVERING,
+				  ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, &percentage,
+				  sizeof(percentage));
+}
+
+/** Fields of Go To Lift Percentage (ZCL 7.4.2.2.5). */
+struct zzb_zcl_window_covering_go_to_lift_percentage {
+	/** 0 open to 100 closed. */
+	uint8_t percentage;
+};
+
+/** Reads the fields of Go To Lift Percentage, which zcl_cmd_cb receives. */
+static inline void zzb_zcl_window_covering_go_to_lift_percentage_parse(
+	const struct zzb_zcl_cmd *cmd, struct zzb_zcl_window_covering_go_to_lift_percentage *fields)
+{
+	fields->percentage = cmd->payload[0];
+}
+
+/** Fields of Go To Tilt Percentage (ZCL 7.4.2.2.7). */
+struct zzb_zcl_window_covering_go_to_tilt_percentage {
+	/** 0 open to 100 closed. */
+	uint8_t percentage;
+};
+
+/** Reads the fields of Go To Tilt Percentage, which zcl_cmd_cb receives. */
+static inline void zzb_zcl_window_covering_go_to_tilt_percentage_parse(
+	const struct zzb_zcl_cmd *cmd, struct zzb_zcl_window_covering_go_to_tilt_percentage *fields)
+{
+	fields->percentage = cmd->payload[0];
+}
+
 #ifdef __cplusplus
 }
 #endif

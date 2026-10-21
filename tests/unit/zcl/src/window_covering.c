@@ -5,6 +5,7 @@
 #include <zzb/zcl/scenes.h>
 #include <zzb/zcl/window_covering.h>
 
+#include "common/node.h"
 #include "fakes.h"
 
 static void *setup(void)
@@ -79,6 +80,15 @@ static void check_cmd(int i, uint8_t id, const uint8_t *payload, size_t len)
 	zassert_equal(cmd->id, id);
 	zassert_equal(cmd->len, len);
 	zassert_mem_equal(zcl_cmd_calls.payload[i], payload, len);
+}
+
+/* Call i of zcl_cmd_cb with the copy of its payload */
+static struct zzb_zcl_cmd received(int i)
+{
+	struct zzb_zcl_cmd cmd = zcl_cmd_calls.cmd[i];
+
+	cmd.payload = zcl_cmd_calls.payload[i];
+	return cmd;
 }
 
 /*
@@ -278,6 +288,52 @@ ZTEST(zzb_zcl_window_covering, test_mode)
 	reset_node();
 	zassert_equal(covering50.mode, 0);
 	check_zcl_cb(COVERING_EP, ZZB_ZCL_WINDOW_COVERING, mode, ARRAY_SIZE(mode));
+}
+
+/* The client on endpoint 5 sends Go To Lift Percentage to the bound destinations */
+ZTEST(zzb_zcl_window_covering, test_send_go_to_lift_percentage)
+{
+	uint8_t next = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_window_covering_go_to_lift_percentage(test_node(), CLIENT_EP, 30));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_WINDOW_COVERING);
+	zassert_equal(sent[0].len, 4);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next, 0x05, 30}), 4);
+}
+
+ZTEST(zzb_zcl_window_covering, test_send_go_to_tilt_percentage)
+{
+	uint8_t next = test_node()->zcl.tsn;
+
+	zassert_ok(zzb_zcl_window_covering_go_to_tilt_percentage(test_node(), CLIENT_EP, 60));
+	zassert_equal(zzb_apsde_data_req_fake.call_count, 1);
+	zassert_equal(sent[0].req.cluster, ZZB_ZCL_WINDOW_COVERING);
+	zassert_equal(sent[0].len, 4);
+	zassert_mem_equal(sent[0].data, ((uint8_t[]){0x11, next, 0x08, 60}), 4);
+}
+
+/* zcl_cmd_cb reads the percentage of a received Go To Lift Percentage */
+ZTEST(zzb_zcl_window_covering, test_go_to_lift_percentage_parse)
+{
+	struct zzb_zcl_window_covering_go_to_lift_percentage fields;
+	struct zzb_zcl_cmd cmd;
+
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE, (uint8_t[]){30}, 1, ZZB_ZCL_SUCCESS);
+	cmd = received(0);
+	zzb_zcl_window_covering_go_to_lift_percentage_parse(&cmd, &fields);
+	zassert_equal(fields.percentage, 30);
+}
+
+ZTEST(zzb_zcl_window_covering, test_go_to_tilt_percentage_parse)
+{
+	struct zzb_zcl_window_covering_go_to_tilt_percentage fields;
+	struct zzb_zcl_cmd cmd;
+
+	command(ZZB_ZCL_WINDOW_COVERING_GO_TO_TILT_PERCENTAGE, (uint8_t[]){60}, 1, ZZB_ZCL_SUCCESS);
+	cmd = received(0);
+	zzb_zcl_window_covering_go_to_tilt_percentage_parse(&cmd, &fields);
+	zassert_equal(fields.percentage, 60);
 }
 
 ZTEST_SUITE(zzb_zcl_window_covering, NULL, setup, before, after, NULL);
