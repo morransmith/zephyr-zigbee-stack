@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Time cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_TIME_H_
 #define ZZB_INCLUDE_ZZB_ZCL_TIME_H_
 
@@ -14,7 +19,7 @@ extern "C" {
 /** Time cluster (ZCL 3.12). */
 #define ZZB_ZCL_TIME 0x000a
 
-/** Attributes (ZCL Table 3-69). */
+/** Attributes (ZCL Table 3-69). @{ */
 #define ZZB_ZCL_TIME_TIME             0x0000
 #define ZZB_ZCL_TIME_STATUS           0x0001
 #define ZZB_ZCL_TIME_ZONE             0x0002
@@ -25,12 +30,14 @@ extern "C" {
 #define ZZB_ZCL_TIME_LOCAL_TIME       0x0007
 #define ZZB_ZCL_TIME_LAST_SET_TIME    0x0008
 #define ZZB_ZCL_TIME_VALID_UNTIL_TIME 0x0009
+/** @} */
 
-/** Bits of TimeStatus (ZCL Table 3-70). */
+/** Bits of TimeStatus (ZCL Table 3-70). @{ */
 #define ZZB_ZCL_TIME_MASTER          BIT(0)
 #define ZZB_ZCL_TIME_SYNCHRONIZED    BIT(1)
 #define ZZB_ZCL_TIME_MASTER_ZONE_DST BIT(2)
 #define ZZB_ZCL_TIME_SUPERSEDING     BIT(3)
+/** @} */
 
 /** Time and the other time attributes that are not valid (ZCL 2.6.2.24, 3.12.2.2). */
 #define ZZB_ZCL_TIME_UNKNOWN 0xffffffff
@@ -53,12 +60,15 @@ struct zzb_zcl_time {
 	uint8_t time_status;
 	/** Seconds added to time for standard_time, -86400 to 86400; default 0. */
 	int32_t time_zone;
-	/** UTC times of the start and the end of DST; default ZZB_ZCL_TIME_UNKNOWN. */
+	/** UTC times of the start and the end of DST; default ZZB_ZCL_TIME_UNKNOWN. @{ */
 	uint32_t dst_start;
 	uint32_t dst_end;
+	/** @} */
 	/** Seconds added to standard_time from dst_start to dst_end, -86400 to 86400; default 0. */
 	int32_t dst_shift;
+	/** time plus time_zone. */
 	uint32_t standard_time;
+	/** standard_time, plus dst_shift from dst_start to dst_end. */
 	uint32_t local_time;
 	/** The value that time was set to last; ZZB_ZCL_TIME_UNKNOWN after the start. */
 	uint32_t last_set_time;
@@ -68,8 +78,10 @@ struct zzb_zcl_time {
 	uint8_t fixed_status;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_time_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_time_client_def;
+/** @} */
 
 /** A Time server with the values v, a pointer to struct zzb_zcl_time. */
 #define ZZB_ZCL_TIME_SERVER(v)                                                                     \

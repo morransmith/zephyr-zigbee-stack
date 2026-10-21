@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Meter Identification cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_METER_ID_H_
 #define ZZB_INCLUDE_ZZB_ZCL_METER_ID_H_
 
@@ -13,7 +18,7 @@ extern "C" {
 /** Meter Identification cluster (ZCL 10.13). */
 #define ZZB_ZCL_METER_ID 0x0b01
 
-/** Attributes (ZCL Table 10-215). */
+/** Attributes (ZCL Table 10-215). @{ */
 #define ZZB_ZCL_METER_ID_COMPANY_NAME      0x0000
 #define ZZB_ZCL_METER_ID_METER_TYPE_ID     0x0001
 #define ZZB_ZCL_METER_ID_DATA_QUALITY_ID   0x0004
@@ -26,6 +31,7 @@ extern "C" {
 #define ZZB_ZCL_METER_ID_POD               0x000c
 #define ZZB_ZCL_METER_ID_AVAILABLE_POWER   0x000d
 #define ZZB_ZCL_METER_ID_POWER_THRESHOLD   0x000e
+/** @} */
 
 /** MeterTypeID (ZCL Table 10-216). */
 enum zzb_zcl_meter_id_type {
@@ -62,23 +68,28 @@ struct zzb_zcl_meter_id {
 	uint16_t data_quality_id;
 	/** Up to 16 ASCII characters. */
 	const char *customer_name;
-	/** The length octet and up to 16 octets of UTF-8 text. */
+	/** The length octet and up to 16 octets of UTF-8 text. @{ */
 	const uint8_t *model;
 	const uint8_t *part_number;
-	/** The length octet and up to 6 octets of UTF-8 text. */
+	/** @} */
+	/** The length octet and up to 6 octets of UTF-8 text. @{ */
 	const uint8_t *product_revision;
 	const uint8_t *software_revision;
+	/** @} */
 	/** Up to 16 ASCII characters. */
 	const char *utility_name;
 	/** The point of delivery, up to 16 ASCII characters. */
 	const char *pod;
-	/** 24 bits with sign, in the unit and format of InstantaneousDemand of Metering. */
+	/** 24 bits with sign, in the unit and format of InstantaneousDemand of Metering. @{ */
 	int32_t available_power;
 	int32_t power_threshold;
+	/** @} */
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_meter_id_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_meter_id_client_def;
+/** @} */
 
 /** A Meter Identification server with the values v, a pointer to struct zzb_zcl_meter_id. */
 #define ZZB_ZCL_METER_ID_SERVER(v)                                                                 \

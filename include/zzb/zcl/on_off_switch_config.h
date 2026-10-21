@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief On/Off Switch Configuration cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_ON_OFF_SWITCH_CONFIG_H_
 #define ZZB_INCLUDE_ZZB_ZCL_ON_OFF_SWITCH_CONFIG_H_
 
@@ -13,9 +18,10 @@ extern "C" {
 /** On/Off Switch Configuration cluster (ZCL 3.9). */
 #define ZZB_ZCL_ON_OFF_SWITCH_CONFIG 0x0007
 
-/** Attributes (ZCL Tables 3-51 and 3-53). */
+/** Attributes (ZCL Tables 3-51 and 3-53). @{ */
 #define ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_TYPE    0x0000
 #define ZZB_ZCL_ON_OFF_SWITCH_CONFIG_SWITCH_ACTIONS 0x0010
+/** @} */
 
 /** SwitchType (ZCL Table 3-52). */
 enum zzb_zcl_on_off_switch_config_switch_type {
@@ -44,6 +50,7 @@ struct zzb_zcl_on_off_switch_config {
 	uint8_t switch_actions;
 };
 
+/** Internal: referenced by the instance macro of the cluster. */
 extern const struct zzb_zcl_cluster_def zzb_zcl_on_off_switch_config_def;
 
 /**

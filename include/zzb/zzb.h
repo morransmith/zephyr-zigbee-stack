@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Node configuration, device definition and node initialization.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZZB_H_
 #define ZZB_INCLUDE_ZZB_ZZB_H_
 
@@ -22,10 +27,15 @@ struct zzb_node;
 struct zzb_endpoint {
 	/** Endpoint ID, 1 to 254. */
 	uint8_t id;
+	/** Profile ID, ZZB_PROFILE_HA for Zigbee 3.0. */
 	uint16_t profile;
+	/** enum zzb_device_id. */
 	uint16_t device_id;
+	/** ZZB_DEVICE_VERSION() of device_id. */
 	uint8_t device_version;
+	/** Clusters of the endpoint. */
 	const struct zzb_zcl_cluster *clusters;
+	/** Number of clusters. */
 	uint8_t cluster_count;
 };
 
@@ -41,13 +51,17 @@ enum zzb_power_source {
  * clusters); the stack does not check it.
  */
 struct zzb_device {
+	/** Manufacturer code of the node descriptor. */
 	uint16_t manufacturer_code;
+	/** Available and current power source of the power descriptor. */
 	enum zzb_power_source power_source;
 	/** Endpoints in ascending order of ID. */
 	const struct zzb_endpoint *endpoints;
+	/** Number of endpoints. */
 	size_t endpoint_count;
 };
 
+/** Configuration of a node for zzb_node_init(). */
 struct zzb_node_config {
 	/** EUI-64 to use instead of the hardware one; 0 selects the hardware one. */
 	uint64_t eui64;
@@ -73,6 +87,7 @@ struct zzb_node_config {
 	 * with the key derived from it or with the default trust center link key.
 	 */
 	const uint8_t *install_code;
+	/** Length of install_code. */
 	size_t install_code_len;
 	/**
 	 * Sleepy end device: the receiver is off outside MAC procedures, and the node polls its

@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief EN50523 Appliance Identification cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_ID_H_
 #define ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_ID_H_
 
@@ -13,7 +18,7 @@ extern "C" {
 /** EN50523 Appliance Identification cluster (ZCL 15.3). */
 #define ZZB_ZCL_APPLIANCE_ID 0x0b00
 
-/** Attributes (ZCL Tables 15-12 and 15-15). */
+/** Attributes (ZCL Tables 15-12 and 15-15). @{ */
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_IDENTIFICATION        0x0000
 #define ZZB_ZCL_APPLIANCE_ID_COMPANY_NAME                0x0010
 #define ZZB_ZCL_APPLIANCE_ID_COMPANY_ID                  0x0011
@@ -26,12 +31,14 @@ extern "C" {
 #define ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_NAME           0x0018
 #define ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_ID             0x0019
 #define ZZB_ZCL_APPLIANCE_ID_CECED_SPECIFICATION_VERSION 0x001a
+/** @} */
 
-/** Fields of BasicIdentification (ZCL Table 15-13). */
+/** Fields of BasicIdentification (ZCL Table 15-13). @{ */
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_COMPANY_ID      GENMASK64(15, 0)
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_BRAND_ID        GENMASK64(31, 16)
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_PRODUCT_TYPE_ID GENMASK64(47, 32)
 #define ZZB_ZCL_APPLIANCE_ID_BASIC_SPEC_VERSION    GENMASK64(55, 48)
+/** @} */
 
 /** ProductTypeId and the Product Type ID of BasicIdentification (ZCL Table 15-14). */
 enum zzb_zcl_appliance_id_product_type {
@@ -47,9 +54,10 @@ enum zzb_zcl_appliance_id_product_type {
 	ZZB_ZCL_APPLIANCE_ID_PRODUCT_TYPE_REFRIGERATOR_FREEZER = 0x6601,
 };
 
-/** Fields of CECEDSpecificationVersion: X of vX.0 and the certification (ZCL Table 15-16). */
+/** Fields of CECEDSpecificationVersion: X of vX.0 and the certification (ZCL Table 15-16). @{ */
 #define ZZB_ZCL_APPLIANCE_ID_CECED_VERSION       GENMASK(7, 4)
 #define ZZB_ZCL_APPLIANCE_ID_CECED_CERTIFICATION GENMASK(3, 0)
+/** @} */
 
 /** ZZB_ZCL_APPLIANCE_ID_CECED_CERTIFICATION (ZCL Table 15-16). */
 enum zzb_zcl_appliance_id_ceced_certification {
@@ -67,16 +75,20 @@ struct zzb_zcl_appliance_id {
 	uint64_t basic_identification;
 	/** Up to 16 characters. */
 	const char *company_name;
+	/** ID of the company. */
 	uint16_t company_id;
 	/** Up to 16 characters. */
 	const char *brand_name;
+	/** ID of the brand. */
 	uint16_t brand_id;
-	/** Octet strings, pointers to their length octet: up to 16 octets. */
+	/** Octet strings, pointers to their length octet: up to 16 octets. @{ */
 	const uint8_t *model;
 	const uint8_t *part_number;
-	/** Up to 6 octets. */
+	/** @} */
+	/** Up to 6 octets. @{ */
 	const uint8_t *product_revision;
 	const uint8_t *software_revision;
+	/** @} */
 	/** 2 octets, such as "WM" for a washing machine. */
 	const uint8_t *product_type_name;
 	/** enum zzb_zcl_appliance_id_product_type. */
@@ -85,8 +97,10 @@ struct zzb_zcl_appliance_id {
 	uint8_t ceced_specification_version;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_id_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_id_client_def;
+/** @} */
 
 /**
  * An Appliance Identification server with the values v, a pointer to struct zzb_zcl_appliance_id,

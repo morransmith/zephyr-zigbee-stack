@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief IAS ACE cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_IAS_ACE_H_
 #define ZZB_INCLUDE_ZZB_ZCL_IAS_ACE_H_
 
@@ -14,7 +19,7 @@ extern "C" {
 /** IAS ACE cluster (ZCL 8.3). */
 #define ZZB_ZCL_IAS_ACE 0x0501
 
-/** Commands that the server receives and a client sends (ZCL Table 8-13). */
+/** Commands that the server receives and a client sends (ZCL Table 8-13). @{ */
 #define ZZB_ZCL_IAS_ACE_ARM                    0x00
 #define ZZB_ZCL_IAS_ACE_BYPASS                 0x01
 #define ZZB_ZCL_IAS_ACE_EMERGENCY              0x02
@@ -25,8 +30,9 @@ extern "C" {
 #define ZZB_ZCL_IAS_ACE_GET_PANEL_STATUS       0x07
 #define ZZB_ZCL_IAS_ACE_GET_BYPASSED_ZONE_LIST 0x08
 #define ZZB_ZCL_IAS_ACE_GET_ZONE_STATUS        0x09
+/** @} */
 
-/** Commands that the server generates and a client receives (ZCL Table 8-15). */
+/** Commands that the server generates and a client receives (ZCL Table 8-15). @{ */
 #define ZZB_ZCL_IAS_ACE_ARM_RSP                  0x00
 #define ZZB_ZCL_IAS_ACE_GET_ZONE_ID_MAP_RSP      0x01
 #define ZZB_ZCL_IAS_ACE_GET_ZONE_INFORMATION_RSP 0x02
@@ -36,6 +42,7 @@ extern "C" {
 #define ZZB_ZCL_IAS_ACE_SET_BYPASSED_ZONE_LIST   0x06
 #define ZZB_ZCL_IAS_ACE_BYPASS_RSP               0x07
 #define ZZB_ZCL_IAS_ACE_GET_ZONE_STATUS_RSP      0x08
+/** @} */
 
 /** Arm Mode of Arm (ZCL Table 8-14). */
 enum zzb_zcl_ias_ace_arm_mode {
@@ -101,8 +108,10 @@ enum zzb_zcl_ias_ace_bypass_result {
 	ZZB_ZCL_IAS_ACE_BYPASS_INVALID_CODE = 0x05,
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_client_def;
+/** @} */
 
 /**
  * An IAS ACE server, which the IAS CIE has (DTL). Its commands go to zcl_cmd_cb after the length
@@ -213,10 +222,13 @@ static inline int zzb_zcl_ias_ace_panel_status_changed(
 
 /** Fields of Arm (ZCL 8.3.2.3.1). */
 struct zzb_zcl_ias_ace_arm {
+	/** Arm Mode. */
 	enum zzb_zcl_ias_ace_arm_mode arm_mode;
 	/** The Arm/Disarm Code of code_len octets in the payload of the command. */
 	const uint8_t *code;
+	/** Length of code. */
 	uint8_t code_len;
+	/** Zone ID. */
 	uint8_t zone_id;
 };
 
@@ -232,6 +244,7 @@ static inline void zzb_zcl_ias_ace_arm_parse(const struct zzb_zcl_cmd *cmd,
 
 /** Fields of Arm Response (ZCL 8.3.2.4.1). */
 struct zzb_zcl_ias_ace_arm_rsp {
+	/** Arm Notification. */
 	enum zzb_zcl_ias_ace_arm_notification arm_notification;
 };
 
@@ -247,10 +260,13 @@ static inline void zzb_zcl_ias_ace_arm_rsp_parse(const struct zzb_zcl_cmd *cmd,
  * 8.3.2.4.6).
  */
 struct zzb_zcl_ias_ace_panel_status_changed {
+	/** Panel Status. */
 	enum zzb_zcl_ias_ace_panel_status panel_status;
 	/** Seconds. */
 	uint8_t seconds_remaining;
+	/** Audible Notification. */
 	enum zzb_zcl_ias_ace_audible_notification audible_notification;
+	/** Alarm Status. */
 	enum zzb_zcl_ias_ace_alarm_status alarm_status;
 };
 

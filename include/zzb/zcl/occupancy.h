@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Occupancy Sensing cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_OCCUPANCY_H_
 #define ZZB_INCLUDE_ZZB_ZCL_OCCUPANCY_H_
 
@@ -14,7 +19,7 @@ extern "C" {
 /** Occupancy Sensing cluster (ZCL 4.8). */
 #define ZZB_ZCL_OCCUPANCY 0x0406
 
-/** Attributes (ZCL Tables 4-21, 4-25, 4-26 and 4-27). */
+/** Attributes (ZCL Tables 4-21, 4-25, 4-26 and 4-27). @{ */
 #define ZZB_ZCL_OCCUPANCY_OCCUPANCY                                         0x0000
 #define ZZB_ZCL_OCCUPANCY_SENSOR_TYPE                                       0x0001
 #define ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_BITMAP                                0x0002
@@ -27,6 +32,7 @@ extern "C" {
 #define ZZB_ZCL_OCCUPANCY_PHYSICAL_CONTACT_OCCUPIED_TO_UNOCCUPIED_DELAY     0x0030
 #define ZZB_ZCL_OCCUPANCY_PHYSICAL_CONTACT_UNOCCUPIED_TO_OCCUPIED_DELAY     0x0031
 #define ZZB_ZCL_OCCUPANCY_PHYSICAL_CONTACT_UNOCCUPIED_TO_OCCUPIED_THRESHOLD 0x0032
+/** @} */
 
 /** Bit of Occupancy (ZCL 4.8.2.2.1.1). */
 #define ZZB_ZCL_OCCUPANCY_OCCUPIED BIT(0)
@@ -39,14 +45,19 @@ enum zzb_zcl_occupancy_sensor_type {
 	ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_PHYSICAL_CONTACT = 0x03,
 };
 
-/** Bits of OccupancySensorTypeBitmap (ZCL Table 4-23). */
+/** Bits of OccupancySensorTypeBitmap (ZCL Table 4-23). @{ */
 #define ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_BITMAP_PIR              BIT(0)
 #define ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_BITMAP_ULTRASONIC       BIT(1)
 #define ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_BITMAP_PHYSICAL_CONTACT BIT(2)
+/** @} */
 
-/** The physical contact delays of a sensor that does not report the transition (ZCL 4.8.2.2.4). */
+/**
+ * The physical contact delays of a sensor that does not report the transition (ZCL 4.8.2.2.4).
+ * @{
+ */
 #define ZZB_ZCL_OCCUPANCY_PHYSICAL_CONTACT_OCCUPIED_TO_UNOCCUPIED_DELAY_NOT_REPORTED 0xffff
 #define ZZB_ZCL_OCCUPANCY_PHYSICAL_CONTACT_UNOCCUPIED_TO_OCCUPIED_DELAY_NOT_REPORTED 0xffff
+/** @} */
 
 /**
  * Values of an Occupancy Sensing server (ZCL 4.8.2.2). The application fills the first three
@@ -64,22 +75,30 @@ struct zzb_zcl_occupancy {
 	 * Table 4-24.
 	 */
 	uint8_t occupancy_sensor_type_bitmap;
-	/** Seconds. */
+	/** Seconds. @{ */
 	uint16_t pir_occupied_to_unoccupied_delay;
 	uint16_t pir_unoccupied_to_occupied_delay;
+	/** @} */
 	/** Detections within the delay, 0x01 to 0xfe. */
 	uint8_t pir_unoccupied_to_occupied_threshold;
+	/** Seconds. @{ */
 	uint16_t ultrasonic_occupied_to_unoccupied_delay;
 	uint16_t ultrasonic_unoccupied_to_occupied_delay;
+	/** @} */
+	/** Detections within the delay, 0x01 to 0xfe. */
 	uint8_t ultrasonic_unoccupied_to_occupied_threshold;
-	/** Seconds, or ZZB_ZCL_OCCUPANCY_PHYSICAL_CONTACT_*_DELAY_NOT_REPORTED. */
+	/** Seconds, or ZZB_ZCL_OCCUPANCY_PHYSICAL_CONTACT_*_DELAY_NOT_REPORTED. @{ */
 	uint16_t physical_contact_occupied_to_unoccupied_delay;
 	uint16_t physical_contact_unoccupied_to_occupied_delay;
+	/** @} */
+	/** Detections within the delay, 0x01 to 0xfe. */
 	uint8_t physical_contact_unoccupied_to_occupied_threshold;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_occupancy_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_occupancy_client_def;
+/** @} */
 
 /** An Occupancy Sensing server with the values v, a pointer to struct zzb_zcl_occupancy. */
 #define ZZB_ZCL_OCCUPANCY_SERVER(v)                                                                \

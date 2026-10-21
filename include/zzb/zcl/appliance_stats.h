@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief EN50523 Appliance Statistics cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_STATS_H_
 #define ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_STATS_H_
 
@@ -15,19 +20,22 @@ extern "C" {
 /** EN50523 Appliance Statistics cluster (ZCL 15.5). */
 #define ZZB_ZCL_APPLIANCE_STATS 0x0b03
 
-/** Attributes (ZCL Table 15-22). */
+/** Attributes (ZCL Table 15-22). @{ */
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_MAX_SIZE       0x0000
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_QUEUE_MAX_SIZE 0x0001
+/** @} */
 
-/** Commands that the server receives and a client sends (ZCL Table 15-24). */
+/** Commands that the server receives and a client sends (ZCL Table 15-24). @{ */
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_REQUEST       0x00
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_QUEUE_REQUEST 0x01
+/** @} */
 
-/** Commands that the server generates and a client receives (ZCL Table 15-23). */
+/** Commands that the server generates and a client receives (ZCL Table 15-23). @{ */
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_NOTIFICATION     0x00
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_RSP              0x01
 #define ZZB_ZCL_APPLIANCE_STATS_LOG_QUEUE_RSP        0x02
 #define ZZB_ZCL_APPLIANCE_STATS_STATISTICS_AVAILABLE 0x03
+/** @} */
 
 /** Time Stamp of a log of a server without the time (ZCL 15.5.2.2.1.2). */
 #define ZZB_ZCL_APPLIANCE_STATS_TIME_STAMP_UNKNOWN 0xffffffff
@@ -43,8 +51,10 @@ struct zzb_zcl_appliance_stats {
 	uint8_t log_queue_max_size;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_stats_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_stats_client_def;
+/** @} */
 
 /**
  * An Appliance Statistics server with the values v, a pointer to struct zzb_zcl_appliance_stats,

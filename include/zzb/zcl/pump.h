@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Pump Configuration and Control cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_PUMP_H_
 #define ZZB_INCLUDE_ZZB_ZCL_PUMP_H_
 
@@ -13,7 +18,7 @@ extern "C" {
 /** Pump Configuration and Control cluster (ZCL 6.2). */
 #define ZZB_ZCL_PUMP 0x0200
 
-/** Attributes (ZCL Tables 6-3, 6-4 and 6-6). */
+/** Attributes (ZCL Tables 6-3, 6-4 and 6-6). @{ */
 #define ZZB_ZCL_PUMP_MAX_PRESSURE             0x0000
 #define ZZB_ZCL_PUMP_MAX_SPEED                0x0001
 #define ZZB_ZCL_PUMP_MAX_FLOW                 0x0002
@@ -38,8 +43,9 @@ extern "C" {
 #define ZZB_ZCL_PUMP_OPERATION_MODE           0x0020
 #define ZZB_ZCL_PUMP_CONTROL_MODE             0x0021
 #define ZZB_ZCL_PUMP_ALARM_MASK               0x0022
+/** @} */
 
-/** Values that mark an attribute invalid or unknown (ZCL 6.2.2.2.1 and 6.2.2.2.2). */
+/** Values that mark an attribute invalid or unknown (ZCL 6.2.2.2.1 and 6.2.2.2.2). @{ */
 #define ZZB_ZCL_PUMP_MAX_PRESSURE_UNKNOWN             INT16_MIN
 #define ZZB_ZCL_PUMP_MAX_SPEED_UNKNOWN                0xffff
 #define ZZB_ZCL_PUMP_MAX_FLOW_UNKNOWN                 0xffff
@@ -58,8 +64,9 @@ extern "C" {
 #define ZZB_ZCL_PUMP_LIFETIME_RUNNING_HOURS_UNKNOWN   0xffffff
 #define ZZB_ZCL_PUMP_POWER_UNKNOWN                    0xffffff
 #define ZZB_ZCL_PUMP_LIFETIME_ENERGY_CONSUMED_UNKNOWN 0xffffffff
+/** @} */
 
-/** Bits of PumpStatus (ZCL Table 6-5). */
+/** Bits of PumpStatus (ZCL Table 6-5). @{ */
 #define ZZB_ZCL_PUMP_STATUS_DEVICE_FAULT       BIT(0)
 #define ZZB_ZCL_PUMP_STATUS_SUPPLY_FAULT       BIT(1)
 #define ZZB_ZCL_PUMP_STATUS_SPEED_LOW          BIT(2)
@@ -69,6 +76,7 @@ extern "C" {
 #define ZZB_ZCL_PUMP_STATUS_REMOTE_PRESSURE    BIT(6)
 #define ZZB_ZCL_PUMP_STATUS_REMOTE_FLOW        BIT(7)
 #define ZZB_ZCL_PUMP_STATUS_REMOTE_TEMPERATURE BIT(8)
+/** @} */
 
 /** Values of OperationMode and EffectiveOperationMode (ZCL Table 6-7). */
 enum zzb_zcl_pump_operation_mode {
@@ -88,7 +96,7 @@ enum zzb_zcl_pump_control_mode {
 	ZZB_ZCL_PUMP_CONTROL_MODE_AUTOMATIC = 0x07,
 };
 
-/** Bits of AlarmMask; bit n enables alarm code n (ZCL Table 6-9). */
+/** Bits of AlarmMask; bit n enables alarm code n (ZCL Table 6-9). @{ */
 #define ZZB_ZCL_PUMP_ALARM_MASK_SUPPLY_VOLTAGE_LOW           BIT(0)
 #define ZZB_ZCL_PUMP_ALARM_MASK_SUPPLY_VOLTAGE_HIGH          BIT(1)
 #define ZZB_ZCL_PUMP_ALARM_MASK_POWER_MISSING_PHASE          BIT(2)
@@ -103,6 +111,7 @@ enum zzb_zcl_pump_control_mode {
 #define ZZB_ZCL_PUMP_ALARM_MASK_ELECTRONIC_NON_FATAL_FAILURE BIT(11)
 #define ZZB_ZCL_PUMP_ALARM_MASK_ELECTRONIC_FATAL_FAILURE     BIT(12)
 #define ZZB_ZCL_PUMP_ALARM_MASK_GENERAL_FAULT                BIT(13)
+/** @} */
 
 /**
  * Values of a Pump Configuration and Control server (ZCL 6.2.2.2). lifetime_running_hours,
@@ -112,19 +121,30 @@ enum zzb_zcl_pump_control_mode {
  * degrees Celsius; a value that is not available is the ZZB_ZCL_PUMP_*_UNKNOWN of its attribute.
  */
 struct zzb_zcl_pump {
+	/** 10 x kPa. */
 	int16_t max_pressure;
+	/** RPM. */
 	uint16_t max_speed;
+	/** 10 x m3/h. */
 	uint16_t max_flow;
+	/** 10 x kPa. @{ */
 	int16_t min_const_pressure;
 	int16_t max_const_pressure;
 	int16_t min_comp_pressure;
 	int16_t max_comp_pressure;
+	/** @} */
+	/** RPM. @{ */
 	uint16_t min_const_speed;
 	uint16_t max_const_speed;
+	/** @} */
+	/** 10 x m3/h. @{ */
 	uint16_t min_const_flow;
 	uint16_t max_const_flow;
+	/** @} */
+	/** 100 x degrees Celsius. @{ */
 	int16_t min_const_temp;
 	int16_t max_const_temp;
+	/** @} */
 	/** ZZB_ZCL_PUMP_STATUS_* bits. */
 	uint16_t pump_status;
 	/** enum zzb_zcl_pump_operation_mode. */
@@ -133,6 +153,7 @@ struct zzb_zcl_pump {
 	uint8_t effective_control_mode;
 	/** 0.005 percent of the effective maximum setpoint. */
 	int16_t capacity;
+	/** RPM. */
 	uint16_t speed;
 	/** Hours, counted by the application with zzb_zcl_attr_set(). */
 	uint32_t lifetime_running_hours;
@@ -148,8 +169,10 @@ struct zzb_zcl_pump {
 	uint16_t alarm_mask;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_pump_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_pump_client_def;
+/** @} */
 
 /**
  * A Pump Configuration and Control server with the values v, a pointer to struct zzb_zcl_pump.

@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Identify cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_IDENTIFY_H_
 #define ZZB_INCLUDE_ZZB_ZCL_IDENTIFY_H_
 
@@ -16,10 +21,11 @@ extern "C" {
 /** IdentifyTime attribute. */
 #define ZZB_ZCL_IDENTIFY_TIME 0x0000
 
-/** Commands received (ZCL Table 3-32). */
+/** Commands received (ZCL Table 3-32). @{ */
 #define ZZB_ZCL_IDENTIFY_IDENTIFY       0x00
 #define ZZB_ZCL_IDENTIFY_QUERY          0x01
 #define ZZB_ZCL_IDENTIFY_TRIGGER_EFFECT 0x40
+/** @} */
 
 /** Commands generated (ZCL Table 3-35). */
 #define ZZB_ZCL_IDENTIFY_QUERY_RSP 0x00
@@ -30,8 +36,10 @@ struct zzb_zcl_identify {
 	uint16_t identify_time;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_identify_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_identify_client_def;
+/** @} */
 
 /** An Identify server with the values v, a pointer to struct zzb_zcl_identify. */
 #define ZZB_ZCL_IDENTIFY_SERVER(v)                                                                 \

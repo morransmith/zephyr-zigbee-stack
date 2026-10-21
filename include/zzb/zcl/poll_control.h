@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Poll Control cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_POLL_CONTROL_H_
 #define ZZB_INCLUDE_ZZB_ZCL_POLL_CONTROL_H_
 
@@ -13,7 +18,7 @@ extern "C" {
 /** Poll Control cluster (ZCL 3.16). */
 #define ZZB_ZCL_POLL_CONTROL 0x0020
 
-/** Attributes (ZCL Table 3-132). */
+/** Attributes (ZCL Table 3-132). @{ */
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL      0x0000
 #define ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL     0x0001
 #define ZZB_ZCL_POLL_CONTROL_SHORT_POLL_INTERVAL    0x0002
@@ -21,6 +26,7 @@ extern "C" {
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL_MIN  0x0004
 #define ZZB_ZCL_POLL_CONTROL_LONG_POLL_INTERVAL_MIN 0x0005
 #define ZZB_ZCL_POLL_CONTROL_FAST_POLL_TIMEOUT_MAX  0x0006
+/** @} */
 
 /** Check-inInterval that turns the check-ins off (ZCL 3.16.4.1.1). */
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN_INTERVAL_OFF 0
@@ -31,18 +37,21 @@ extern "C" {
 /** Command that the server generates (ZCL Table 3-133). */
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN 0x00
 
-/** Commands that the server receives (ZCL Table 3-134). */
+/** Commands that the server receives (ZCL Table 3-134). @{ */
 #define ZZB_ZCL_POLL_CONTROL_CHECK_IN_RSP            0x00
 #define ZZB_ZCL_POLL_CONTROL_FAST_POLL_STOP          0x01
 #define ZZB_ZCL_POLL_CONTROL_SET_LONG_POLL_INTERVAL  0x02
 #define ZZB_ZCL_POLL_CONTROL_SET_SHORT_POLL_INTERVAL 0x03
+/** @} */
 
 /** The clients for which a Poll Control server fast polls at the same time. */
 #define ZZB_ZCL_POLL_CONTROL_CLIENTS 4
 
 /** Internal: a client that has asked a Poll Control server to fast poll. */
 struct zzb_zcl_poll_control_client {
+	/** NWK address of the client. */
 	uint16_t addr;
+	/** Endpoint of the client. */
 	uint8_t ep;
 	/** k_uptime_get() at the end of its fast polling, 0 for a free entry. */
 	int64_t end;
@@ -67,7 +76,9 @@ struct zzb_zcl_poll_control {
 	uint16_t short_poll_interval;
 	/** 0x0001 to 0xffff; default 0x28 (10 s). */
 	uint16_t fast_poll_timeout;
+	/** Lower limit of check_in_interval. */
 	uint32_t check_in_interval_min;
+	/** Lower limit of long_poll_interval. */
 	uint32_t long_poll_interval_min;
 	/** zigpy writes fast_poll_timeout 120, so 0 or at least 120 for ZHA. */
 	uint16_t fast_poll_timeout_max;
@@ -79,8 +90,10 @@ struct zzb_zcl_poll_control {
 	struct zzb_zcl_poll_control_client clients[ZZB_ZCL_POLL_CONTROL_CLIENTS];
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_poll_control_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_poll_control_client_def;
+/** @} */
 
 /** A Poll Control server with the values v, a pointer to struct zzb_zcl_poll_control. */
 #define ZZB_ZCL_POLL_CONTROL_SERVER(v)                                                             \

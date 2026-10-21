@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Fan Control cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_FAN_H_
 #define ZZB_INCLUDE_ZZB_ZCL_FAN_H_
 
@@ -13,9 +18,10 @@ extern "C" {
 /** Fan Control cluster (ZCL 6.4). */
 #define ZZB_ZCL_FAN 0x0202
 
-/** Attributes (ZCL Table 6-40). */
+/** Attributes (ZCL Table 6-40). @{ */
 #define ZZB_ZCL_FAN_MODE          0x0000
 #define ZZB_ZCL_FAN_MODE_SEQUENCE 0x0001
+/** @} */
 
 /** Values of FanMode (ZCL Table 6-41). */
 enum zzb_zcl_fan_mode {
@@ -49,8 +55,10 @@ struct zzb_zcl_fan {
 	uint8_t fan_mode_sequence;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_fan_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_fan_client_def;
+/** @} */
 
 /** A Fan Control server with the values v, a pointer to struct zzb_zcl_fan. */
 #define ZZB_ZCL_FAN_SERVER(v)                                                                      \

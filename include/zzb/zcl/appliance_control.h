@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief EN50523 Appliance Control cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_CONTROL_H_
 #define ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_CONTROL_H_
 
@@ -14,27 +19,31 @@ extern "C" {
 /** EN50523 Appliance Control cluster (ZCL 15.2). */
 #define ZZB_ZCL_APPLIANCE_CONTROL 0x001b
 
-/** Attributes (ZCL Table 15-3). */
+/** Attributes (ZCL Table 15-3). @{ */
 #define ZZB_ZCL_APPLIANCE_CONTROL_START_TIME     0x0000
 #define ZZB_ZCL_APPLIANCE_CONTROL_FINISH_TIME    0x0001
 #define ZZB_ZCL_APPLIANCE_CONTROL_REMAINING_TIME 0x0002
+/** @} */
 
-/** Commands that the server receives and a client sends (ZCL Table 15-5). */
+/** Commands that the server receives and a client sends (ZCL Table 15-5). @{ */
 #define ZZB_ZCL_APPLIANCE_CONTROL_EXECUTION_OF_COMMAND  0x00
 #define ZZB_ZCL_APPLIANCE_CONTROL_SIGNAL_STATE          0x01
 #define ZZB_ZCL_APPLIANCE_CONTROL_WRITE_FUNCTIONS       0x02
 #define ZZB_ZCL_APPLIANCE_CONTROL_OVERLOAD_PAUSE_RESUME 0x03
 #define ZZB_ZCL_APPLIANCE_CONTROL_OVERLOAD_PAUSE        0x04
 #define ZZB_ZCL_APPLIANCE_CONTROL_OVERLOAD_WARNING      0x05
+/** @} */
 
-/** Commands that the server generates and a client receives (ZCL Table 15-8). */
+/** Commands that the server generates and a client receives (ZCL Table 15-8). @{ */
 #define ZZB_ZCL_APPLIANCE_CONTROL_SIGNAL_STATE_RSP          0x00
 #define ZZB_ZCL_APPLIANCE_CONTROL_SIGNAL_STATE_NOTIFICATION 0x01
+/** @} */
 
-/** Fields of StartTime, FinishTime and RemainingTime (ZCL Table 15-4). */
+/** Fields of StartTime, FinishTime and RemainingTime (ZCL Table 15-4). @{ */
 #define ZZB_ZCL_APPLIANCE_CONTROL_TIME_MINUTES  GENMASK(5, 0)
 #define ZZB_ZCL_APPLIANCE_CONTROL_TIME_ENCODING GENMASK(7, 6)
 #define ZZB_ZCL_APPLIANCE_CONTROL_TIME_HOURS    GENMASK(15, 8)
+/** @} */
 
 /** ZZB_ZCL_APPLIANCE_CONTROL_TIME_ENCODING (ZCL Table 15-4). */
 enum zzb_zcl_appliance_control_time_encoding {
@@ -97,9 +106,10 @@ enum zzb_zcl_appliance_remote {
 	ZZB_ZCL_APPLIANCE_REMOTE_CONTROL = 0xf,
 };
 
-/** Fields of Remote Enable Flags and Device Status 2 of Signal State (ZCL Table 15-10). */
+/** Fields of Remote Enable Flags and Device Status 2 of Signal State (ZCL Table 15-10). @{ */
 #define ZZB_ZCL_APPLIANCE_REMOTE_FLAGS   GENMASK(3, 0)
 #define ZZB_ZCL_APPLIANCE_DEVICE_STATUS2 GENMASK(7, 4)
+/** @} */
 
 /** Device Status 2: the format of Appliance Status 2 (ZCL Table 15-10). */
 enum zzb_zcl_appliance_device_status2 {
@@ -115,14 +125,18 @@ enum zzb_zcl_appliance_device_status2 {
  * times consist of the ZZB_ZCL_APPLIANCE_CONTROL_TIME_* fields.
  */
 struct zzb_zcl_appliance_control {
+	/** Start of the cycle of the appliance. */
 	uint16_t start_time;
+	/** Expected end of the cycle of the appliance. */
 	uint16_t finish_time;
 	/** Relative; 0 outside the RUNNING state. */
 	uint16_t remaining_time;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_control_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_control_client_def;
+/** @} */
 
 /**
  * An Appliance Control server with the values v, a pointer to struct zzb_zcl_appliance_control,
@@ -152,6 +166,7 @@ extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_control_client_def;
 
 /** Fields of Execution of a Command (ZCL 15.2.4.1.1). */
 struct zzb_zcl_appliance_control_execution_of_command {
+	/** Command for the appliance. */
 	enum zzb_zcl_appliance_command command;
 };
 
@@ -160,8 +175,11 @@ struct zzb_zcl_appliance_control_execution_of_command {
  * (ZCL 15.2.5.1.1).
  */
 struct zzb_zcl_appliance_control_signal_state_rsp {
+	/** Appliance Status. */
 	enum zzb_zcl_appliance_status appliance_status;
+	/** Remote Enable Flags. */
 	enum zzb_zcl_appliance_remote remote;
+	/** Device Status 2, the format of appliance_status2. */
 	enum zzb_zcl_appliance_device_status2 device_status2;
 	/** 24 bits in the format of device_status2; 0 when the payload lacks the field. */
 	uint32_t appliance_status2;

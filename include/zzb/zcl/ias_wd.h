@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief IAS WD cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_IAS_WD_H_
 #define ZZB_INCLUDE_ZZB_ZCL_IAS_WD_H_
 
@@ -19,17 +24,20 @@ extern "C" {
 /** Attribute (ZCL Table 8-19). */
 #define ZZB_ZCL_IAS_WD_MAX_DURATION 0x0000
 
-/** Commands that the server receives and a client sends (ZCL Table 8-20). */
+/** Commands that the server receives and a client sends (ZCL Table 8-20). @{ */
 #define ZZB_ZCL_IAS_WD_START_WARNING 0x00
 #define ZZB_ZCL_IAS_WD_SQUAWK        0x01
+/** @} */
 
 /**
  * Fields of the first octet of Start Warning (ZCL Figure 8-21) for FIELD_GET(), at the positions
  * that zigpy 2.3.0 uses: warning mode, strobe, siren level.
+ * @{
  */
 #define ZZB_ZCL_IAS_WD_WARNING_MODE GENMASK(7, 4)
 #define ZZB_ZCL_IAS_WD_STROBE       GENMASK(3, 2)
 #define ZZB_ZCL_IAS_WD_SIREN_LEVEL  GENMASK(1, 0)
+/** @} */
 
 /** Warning Mode of Start Warning (ZCL Table 8-21). */
 enum zzb_zcl_ias_wd_warning_mode {
@@ -64,10 +72,11 @@ enum zzb_zcl_ias_wd_strobe_level {
 	ZZB_ZCL_IAS_WD_STROBE_LEVEL_VERY_HIGH = 0x03,
 };
 
-/** Fields of the octet of Squawk (ZCL Figure 8-22): squawk mode, strobe, squawk level. */
+/** Fields of the octet of Squawk (ZCL Figure 8-22): squawk mode, strobe, squawk level. @{ */
 #define ZZB_ZCL_IAS_WD_SQUAWK_MODE   GENMASK(7, 4)
 #define ZZB_ZCL_IAS_WD_SQUAWK_STROBE BIT(3)
 #define ZZB_ZCL_IAS_WD_SQUAWK_LEVEL  GENMASK(1, 0)
+/** @} */
 
 /** Squawk Mode of Squawk (ZCL Table 8-25). */
 enum zzb_zcl_ias_wd_squawk_mode {
@@ -102,8 +111,10 @@ struct zzb_zcl_ias_wd {
 	int64_t warning_end;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_wd_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_wd_client_def;
+/** @} */
 
 /** An IAS WD server with the values v, a pointer to struct zzb_zcl_ias_wd. */
 #define ZZB_ZCL_IAS_WD_SERVER(v)                                                                   \
@@ -169,13 +180,17 @@ static inline int zzb_zcl_ias_wd_squawk(struct zzb_node *node, uint8_t ep,
 
 /** Fields of Start Warning (ZCL 8.4.2.2.1). */
 struct zzb_zcl_ias_wd_start_warning {
+	/** Warning Mode. */
 	enum zzb_zcl_ias_wd_warning_mode warning_mode;
+	/** Strobe. */
 	enum zzb_zcl_ias_wd_strobe strobe;
+	/** Siren Level. */
 	enum zzb_zcl_ias_wd_siren_level siren_level;
 	/** Seconds. */
 	uint16_t warning_duration;
 	/** Percent of each second, 0 to 100 in steps of 10. */
 	uint8_t strobe_duty_cycle;
+	/** Strobe Level. */
 	enum zzb_zcl_ias_wd_strobe_level strobe_level;
 };
 
@@ -193,8 +208,11 @@ static inline void zzb_zcl_ias_wd_start_warning_parse(const struct zzb_zcl_cmd *
 
 /** Fields of Squawk (ZCL 8.4.2.2.2). */
 struct zzb_zcl_ias_wd_squawk {
+	/** Squawk Mode. */
 	enum zzb_zcl_ias_wd_squawk_mode squawk_mode;
+	/** The strobe flashes during the squawk. */
 	bool strobe;
+	/** Squawk Level. */
 	enum zzb_zcl_ias_wd_squawk_level squawk_level;
 };
 

@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief EN50523 Appliance Events and Alerts cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_EVENTS_H_
 #define ZZB_INCLUDE_ZZB_ZCL_APPLIANCE_EVENTS_H_
 
@@ -18,25 +23,28 @@ extern "C" {
 /** Command that the server receives and a client sends (ZCL Table 15-17). */
 #define ZZB_ZCL_APPLIANCE_EVENTS_GET_ALERTS 0x00
 
-/** Commands that the server generates and a client receives (ZCL Table 15-18). */
+/** Commands that the server generates and a client receives (ZCL Table 15-18). @{ */
 #define ZZB_ZCL_APPLIANCE_EVENTS_GET_ALERTS_RSP      0x00
 #define ZZB_ZCL_APPLIANCE_EVENTS_ALERTS_NOTIFICATION 0x01
 #define ZZB_ZCL_APPLIANCE_EVENTS_EVENT_NOTIFICATION  0x02
+/** @} */
 
-/** Fields of Alerts Count (ZCL Table 15-19). */
+/** Fields of Alerts Count (ZCL Table 15-19). @{ */
 #define ZZB_ZCL_APPLIANCE_ALERTS_COUNT GENMASK(3, 0)
 #define ZZB_ZCL_APPLIANCE_ALERTS_TYPE  GENMASK(7, 4)
+/** @} */
 
 /** ZZB_ZCL_APPLIANCE_ALERTS_TYPE (ZCL Table 15-19). */
 enum zzb_zcl_appliance_alerts_type {
 	ZZB_ZCL_APPLIANCE_ALERTS_UNSTRUCTURED = 0x0,
 };
 
-/** Fields of an alert structure (ZCL Table 15-20). */
+/** Fields of an alert structure (ZCL Table 15-20). @{ */
 #define ZZB_ZCL_APPLIANCE_ALERT_ID                GENMASK(7, 0)
 #define ZZB_ZCL_APPLIANCE_ALERT_CATEGORY          GENMASK(11, 8)
 #define ZZB_ZCL_APPLIANCE_ALERT_PRESENCE_RECOVERY GENMASK(13, 12)
 #define ZZB_ZCL_APPLIANCE_ALERT_MANUFACTURER      GENMASK(23, 16)
+/** @} */
 
 /** ZZB_ZCL_APPLIANCE_ALERT_CATEGORY (ZCL Table 15-20). */
 enum zzb_zcl_appliance_alert_category {
@@ -63,8 +71,10 @@ enum zzb_zcl_appliance_event {
 	ZZB_ZCL_APPLIANCE_WRONG_DATA = 0xf7,
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_events_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_appliance_events_client_def;
+/** @} */
 
 /**
  * An Appliance Events and Alerts server, which the White Goods device has (DTL); the cluster has no

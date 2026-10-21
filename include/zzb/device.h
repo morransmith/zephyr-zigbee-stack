@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Profile ID and device types of the Device Type Library.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_DEVICE_H_
 #define ZZB_INCLUDE_ZZB_DEVICE_H_
 

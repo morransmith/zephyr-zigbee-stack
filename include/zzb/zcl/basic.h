@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Basic cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_BASIC_H_
 #define ZZB_INCLUDE_ZZB_ZCL_BASIC_H_
 
@@ -25,9 +30,10 @@ enum zzb_zcl_basic_power_source {
 	ZZB_ZCL_BASIC_POWER_SOURCE_EMERGENCY_MAINS_TRANSFER_SWITCH = 0x06,
 };
 
-/** Fields of PowerSource: the primary source and a battery backup (ZCL 3.2.2.2.8). */
+/** Fields of PowerSource: the primary source and a battery backup (ZCL 3.2.2.2.8). @{ */
 #define ZZB_ZCL_BASIC_POWER_SOURCE_PRIMARY        GENMASK(6, 0)
 #define ZZB_ZCL_BASIC_POWER_SOURCE_BATTERY_BACKUP BIT(7)
+/** @} */
 
 /** GenericDeviceClass (ZCL Table 3-9); UNSPECIFIED is the default of ZCL Table 3-7. */
 enum zzb_zcl_basic_generic_device_class {
@@ -77,11 +83,17 @@ enum zzb_zcl_basic_product_code_id {
  * incandescent, so the application sets them.
  */
 struct zzb_zcl_basic {
+	/** Version of the application software. */
 	uint8_t app_version;
+	/** Version of the stack implementation. */
 	uint8_t stack_version;
+	/** Version of the hardware. */
 	uint8_t hw_version;
+	/** Up to 32 characters. @{ */
 	const char *manufacturer_name;
 	const char *model_id;
+	/** @} */
+	/** Up to 16 characters, starting with the date as YYYYMMDD. */
 	const char *date_code;
 	/** enum zzb_zcl_basic_power_source and ZZB_ZCL_BASIC_POWER_SOURCE_BATTERY_BACKUP. */
 	uint8_t power_source;
@@ -94,10 +106,13 @@ struct zzb_zcl_basic {
 	 * (ZCL 3.2.2.2.11).
 	 */
 	const uint8_t *product_code;
+	/** URL of the product. */
 	const char *product_url;
+	/** Up to 16 characters. */
 	const char *sw_build_id;
 };
 
+/** Internal: referenced by the instance macro of the cluster. */
 extern const struct zzb_zcl_cluster_def zzb_zcl_basic_def;
 
 /** A Basic server with the values v, a pointer to struct zzb_zcl_basic. */

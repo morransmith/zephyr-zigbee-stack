@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Electrical Measurement cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_ELECTRICAL_MEASUREMENT_H_
 #define ZZB_INCLUDE_ZZB_ZCL_ELECTRICAL_MEASUREMENT_H_
 
@@ -13,7 +18,7 @@ extern "C" {
 /** Electrical Measurement cluster (ZCL 4.9). */
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT 0x0b04
 
-/** Attributes (ZCL Tables 4-29 and 4-33 to 4-36). */
+/** Attributes (ZCL Tables 4-29 and 4-33 to 4-36). @{ */
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_MEASUREMENT_TYPE        0x0000
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY            0x0300
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_MIN        0x0301
@@ -38,8 +43,9 @@ extern "C" {
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_CURRENT_DIVISOR      0x0603
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_POWER_MULTIPLIER     0x0604
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_POWER_DIVISOR        0x0605
+/** @} */
 
-/** Bits of MeasurementType (ZCL Table 4-30). */
+/** Bits of MeasurementType (ZCL Table 4-30). @{ */
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_ACTIVE        BIT(0)
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_REACTIVE      BIT(1)
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_APPARENT      BIT(2)
@@ -49,14 +55,16 @@ extern "C" {
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_DC            BIT(6)
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_HARMONICS     BIT(7)
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_POWER_QUALITY BIT(8)
+/** @} */
 
-/** A measurement that cannot be made, and its minimum and maximum before the first one. */
+/** A measurement that cannot be made, and its minimum and maximum before the first one. @{ */
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN   0xffff
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN    0xffff
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN    0xffff
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN   INT16_MIN
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_REACTIVE_POWER_UNKNOWN INT16_MIN
 #define ZZB_ZCL_ELECTRICAL_MEASUREMENT_APPARENT_POWER_UNKNOWN 0xffff
+/** @} */
 
 /**
  * Values of an Electrical Measurement server (ZCL 4.9.2.2): the AC frequency and the AC
@@ -69,27 +77,34 @@ extern "C" {
 struct zzb_zcl_electrical_measurement {
 	/** ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_* bits. */
 	uint32_t measurement_type;
-	/** Hz or ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN. */
+	/** Hz or ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN. @{ */
 	uint16_t ac_frequency;
 	uint16_t ac_frequency_min;
 	uint16_t ac_frequency_max;
+	/** @} */
+	/** Of the AC frequency. @{ */
 	uint16_t ac_frequency_multiplier;
 	uint16_t ac_frequency_divisor;
-	/** V or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN. */
+	/** @} */
+	/** V or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN. @{ */
 	uint16_t rms_voltage;
 	uint16_t rms_voltage_min;
 	uint16_t rms_voltage_max;
-	/** A or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN. */
+	/** @} */
+	/** A or ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN. @{ */
 	uint16_t rms_current;
 	uint16_t rms_current_min;
 	uint16_t rms_current_max;
+	/** @} */
 	/**
 	 * W, positive when delivered to the premises, or
 	 * ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN.
+	 * @{
 	 */
 	int16_t active_power;
 	int16_t active_power_min;
 	int16_t active_power_max;
+	/** @} */
 	/**
 	 * VAr, positive when delivered to the premises, or
 	 * ZZB_ZCL_ELECTRICAL_MEASUREMENT_REACTIVE_POWER_UNKNOWN.
@@ -99,17 +114,24 @@ struct zzb_zcl_electrical_measurement {
 	uint16_t apparent_power;
 	/** -100 to 100 hundredths. */
 	int8_t power_factor;
+	/** Of the RMS voltage. @{ */
 	uint16_t ac_voltage_multiplier;
 	uint16_t ac_voltage_divisor;
+	/** @} */
+	/** Of the RMS current. @{ */
 	uint16_t ac_current_multiplier;
 	uint16_t ac_current_divisor;
-	/** Of the active, reactive and apparent power. */
+	/** @} */
+	/** Of the active, reactive and apparent power. @{ */
 	uint16_t ac_power_multiplier;
 	uint16_t ac_power_divisor;
+	/** @} */
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_electrical_measurement_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_electrical_measurement_client_def;
+/** @} */
 
 /**
  * An Electrical Measurement server with the values v, a pointer to struct

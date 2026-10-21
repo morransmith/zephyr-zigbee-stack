@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Base Device Behavior procedures and their events.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_BDB_H_
 #define ZZB_INCLUDE_ZZB_BDB_H_
 

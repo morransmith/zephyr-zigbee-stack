@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
+/**
+ * @file
+ * @brief Level Control for Lighting cluster.
+ */
+
 #ifndef ZZB_INCLUDE_ZZB_ZCL_LEVEL_H_
 #define ZZB_INCLUDE_ZZB_ZCL_LEVEL_H_
 
@@ -16,7 +21,7 @@ extern "C" {
 /** Level Control for Lighting cluster (ZCL 3.10, 3.19). */
 #define ZZB_ZCL_LEVEL 0x0008
 
-/** Attributes (ZCL Table 3-56). */
+/** Attributes (ZCL Table 3-56). @{ */
 #define ZZB_ZCL_LEVEL_CURRENT_LEVEL          0x0000
 #define ZZB_ZCL_LEVEL_REMAINING_TIME         0x0001
 #define ZZB_ZCL_LEVEL_OPTIONS                0x000f
@@ -25,10 +30,12 @@ extern "C" {
 #define ZZB_ZCL_LEVEL_ON_TRANSITION_TIME     0x0012
 #define ZZB_ZCL_LEVEL_OFF_TRANSITION_TIME    0x0013
 #define ZZB_ZCL_LEVEL_START_UP               0x4000
+/** @} */
 
-/** Bits of Options (ZCL Tables 3-57 and 3-144). */
+/** Bits of Options (ZCL Tables 3-57 and 3-144). @{ */
 #define ZZB_ZCL_LEVEL_OPTIONS_EXECUTE_IF_OFF    BIT(0)
 #define ZZB_ZCL_LEVEL_OPTIONS_COUPLE_COLOR_TEMP BIT(1)
+/** @} */
 
 /** OnLevel without effect: On restores the level before Off (ZCL 3.10.2.2.10). */
 #define ZZB_ZCL_LEVEL_ON_LEVEL_NONE 0xff
@@ -36,11 +43,12 @@ extern "C" {
 /** OnTransitionTime or OffTransitionTime that takes OnOffTransitionTime (ZCL 3.10.2.2.11). */
 #define ZZB_ZCL_LEVEL_TRANSITION_TIME_NONE 0xffff
 
-/** Values of StartUpCurrentLevel other than a level (ZCL Table 3-58). */
+/** Values of StartUpCurrentLevel other than a level (ZCL Table 3-58). @{ */
 #define ZZB_ZCL_LEVEL_START_UP_MINIMUM  0x00
 #define ZZB_ZCL_LEVEL_START_UP_PREVIOUS 0xff
+/** @} */
 
-/** Commands that the server receives and a client sends (ZCL Table 3-59). */
+/** Commands that the server receives and a client sends (ZCL Table 3-59). @{ */
 #define ZZB_ZCL_LEVEL_MOVE_TO_LEVEL        0x00
 #define ZZB_ZCL_LEVEL_MOVE                 0x01
 #define ZZB_ZCL_LEVEL_STEP                 0x02
@@ -49,6 +57,7 @@ extern "C" {
 #define ZZB_ZCL_LEVEL_MOVE_ON_OFF          0x05
 #define ZZB_ZCL_LEVEL_STEP_ON_OFF          0x06
 #define ZZB_ZCL_LEVEL_STOP_ON_OFF          0x07
+/** @} */
 
 /**
  * Values of a Level Control for Lighting server (ZCL 3.10.2.2, 3.19.2.2). CurrentLevel and the
@@ -61,12 +70,14 @@ struct zzb_zcl_level {
 	uint16_t remaining_time;
 	/** ZZB_ZCL_LEVEL_OPTIONS_* bits. */
 	uint8_t options;
+	/** Tenths of a second. */
 	uint16_t on_off_transition_time;
 	/** A level or ZZB_ZCL_LEVEL_ON_LEVEL_NONE. */
 	uint8_t on_level;
-	/** Tenths of a second or ZZB_ZCL_LEVEL_TRANSITION_TIME_NONE. */
+	/** Tenths of a second or ZZB_ZCL_LEVEL_TRANSITION_TIME_NONE. @{ */
 	uint16_t on_transition_time;
 	uint16_t off_transition_time;
+	/** @} */
 	/** A level, ZZB_ZCL_LEVEL_START_UP_MINIMUM or ZZB_ZCL_LEVEL_START_UP_PREVIOUS. */
 	uint8_t start_up_current_level;
 	/**
@@ -82,8 +93,10 @@ struct zzb_zcl_level {
 	uint8_t stored_level;
 };
 
+/** Internal: referenced by the instance macros of the clusters. @{ */
 extern const struct zzb_zcl_cluster_def zzb_zcl_level_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_level_client_def;
+/** @} */
 
 /** A Level Control for Lighting server with the values v, a pointer to struct zzb_zcl_level. */
 #define ZZB_ZCL_LEVEL_SERVER(v)                                                                    \
