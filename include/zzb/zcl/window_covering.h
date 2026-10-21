@@ -30,6 +30,39 @@ extern "C" {
 #define ZZB_ZCL_WINDOW_COVERING_INSTALLED_CLOSED_LIMIT_TILT 0x0013
 #define ZZB_ZCL_WINDOW_COVERING_MODE                        0x0017
 
+/** Values of WindowCoveringType (ZCL Table 7-41). */
+enum zzb_zcl_window_covering_type {
+	ZZB_ZCL_WINDOW_COVERING_TYPE_ROLLERSHADE = 0x00,
+	ZZB_ZCL_WINDOW_COVERING_TYPE_ROLLERSHADE_2_MOTOR = 0x01,
+	ZZB_ZCL_WINDOW_COVERING_TYPE_ROLLERSHADE_EXTERIOR = 0x02,
+	ZZB_ZCL_WINDOW_COVERING_TYPE_ROLLERSHADE_EXTERIOR_2_MOTOR = 0x03,
+	ZZB_ZCL_WINDOW_COVERING_TYPE_DRAPERY = 0x04,
+	ZZB_ZCL_WINDOW_COVERING_TYPE_AWNING = 0x05,
+	ZZB_ZCL_WINDOW_COVERING_TYPE_SHUTTER = 0x06,
+	ZZB_ZCL_WINDOW_COVERING_TYPE_TILT_BLIND_TILT_ONLY = 0x07,
+	ZZB_ZCL_WINDOW_COVERING_TYPE_TILT_BLIND_LIFT_AND_TILT = 0x08,
+	ZZB_ZCL_WINDOW_COVERING_TYPE_PROJECTOR_SCREEN = 0x09,
+};
+
+/** Bits of Config/Status (ZCL Table 7-42). */
+#define ZZB_ZCL_WINDOW_COVERING_CONFIG_OPERATIONAL      BIT(0)
+#define ZZB_ZCL_WINDOW_COVERING_CONFIG_ONLINE           BIT(1)
+#define ZZB_ZCL_WINDOW_COVERING_CONFIG_LIFT_REVERSED    BIT(2)
+#define ZZB_ZCL_WINDOW_COVERING_CONFIG_LIFT_CLOSED_LOOP BIT(3)
+#define ZZB_ZCL_WINDOW_COVERING_CONFIG_TILT_CLOSED_LOOP BIT(4)
+#define ZZB_ZCL_WINDOW_COVERING_CONFIG_LIFT_ENCODER     BIT(5)
+#define ZZB_ZCL_WINDOW_COVERING_CONFIG_TILT_ENCODER     BIT(6)
+
+/** CurrentPositionLiftPercentage and CurrentPositionTiltPercentage of an unknown position. */
+#define ZZB_ZCL_WINDOW_COVERING_LIFT_PERCENTAGE_UNKNOWN 0xff
+#define ZZB_ZCL_WINDOW_COVERING_TILT_PERCENTAGE_UNKNOWN 0xff
+
+/** Bits of Mode (ZCL Table 7-44). */
+#define ZZB_ZCL_WINDOW_COVERING_MODE_REVERSED     BIT(0)
+#define ZZB_ZCL_WINDOW_COVERING_MODE_CALIBRATION  BIT(1)
+#define ZZB_ZCL_WINDOW_COVERING_MODE_MAINTENANCE  BIT(2)
+#define ZZB_ZCL_WINDOW_COVERING_MODE_LED_FEEDBACK BIT(3)
+
 /** Commands that the server receives and a client sends (ZCL Table 7-45). */
 #define ZZB_ZCL_WINDOW_COVERING_UP_OPEN               0x00
 #define ZZB_ZCL_WINDOW_COVERING_DOWN_CLOSE            0x01
@@ -47,8 +80,9 @@ extern "C" {
  */
 struct zzb_zcl_window_covering {
 	/**
-	 * ZCL Table 7-41. It gives the axes of the Go To commands: tilt with 0x06, 0x07 and 0x08,
-	 * lift with every type except 0x06 and 0x07.
+	 * enum zzb_zcl_window_covering_type. It gives the axes of the Go To commands: tilt with
+	 * Shutter and the Tilt Blind types, lift with every type except Shutter and Tilt Blind -
+	 * Tilt Only.
 	 */
 	uint8_t window_covering_type;
 	/** Centimeters. */
@@ -59,9 +93,12 @@ struct zzb_zcl_window_covering {
 	uint16_t current_position_tilt;
 	uint16_t number_of_actuations_lift;
 	uint16_t number_of_actuations_tilt;
-	/** ZCL Table 7-42. */
+	/** ZZB_ZCL_WINDOW_COVERING_CONFIG_* bits. */
 	uint8_t config_status;
-	/** CurrentPositionLiftPercentage: 0 open to 100 closed, 0xff unknown. */
+	/**
+	 * CurrentPositionLiftPercentage and CurrentPositionTiltPercentage: 0 open to 100 closed, or
+	 * ZZB_ZCL_WINDOW_COVERING_*_PERCENTAGE_UNKNOWN.
+	 */
 	uint8_t current_position_lift_percentage;
 	uint8_t current_position_tilt_percentage;
 	/** Centimeters; the ZCL defaults are 0x0000 and 0xffff. */
@@ -70,7 +107,7 @@ struct zzb_zcl_window_covering {
 	/** Tenths of a degree. */
 	uint16_t installed_open_limit_tilt;
 	uint16_t installed_closed_limit_tilt;
-	/** ZCL Table 7-44, bits 0 to 3; default 0. */
+	/** ZZB_ZCL_WINDOW_COVERING_MODE_* bits; default 0. */
 	uint8_t mode;
 };
 

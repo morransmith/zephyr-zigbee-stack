@@ -8,13 +8,9 @@
 /* ClusterRevision (ZCL 7.4.1.1) */
 #define REVISION 3
 
-/* The bits of Mode that ZCL Table 7-44 defines */
-#define MODE_BITS 0x0f
-
-/* WindowCoveringType (ZCL Table 7-41) */
-#define SHUTTER                  0x06
-#define TILT_BLIND_TILT_ONLY     0x07
-#define TILT_BLIND_LIFT_AND_TILT 0x08
+#define MODE_BITS                                                                                  \
+	(ZZB_ZCL_WINDOW_COVERING_MODE_REVERSED | ZZB_ZCL_WINDOW_COVERING_MODE_CALIBRATION |        \
+	 ZZB_ZCL_WINDOW_COVERING_MODE_MAINTENANCE | ZZB_ZCL_WINDOW_COVERING_MODE_LED_FEEDBACK)
 
 #define PERCENTAGE_MAX 100
 
@@ -62,14 +58,14 @@ static const struct zzb_zcl_scene_attr scene_attrs[] = {
 /* The axes of the type, as in ZHA 2.3.1 */
 static bool lift(const struct zzb_zcl_window_covering *v)
 {
-	return v->window_covering_type != SHUTTER &&
-	       v->window_covering_type != TILT_BLIND_TILT_ONLY;
+	return v->window_covering_type != ZZB_ZCL_WINDOW_COVERING_TYPE_SHUTTER &&
+	       v->window_covering_type != ZZB_ZCL_WINDOW_COVERING_TYPE_TILT_BLIND_TILT_ONLY;
 }
 
 static bool tilt(const struct zzb_zcl_window_covering *v)
 {
-	return v->window_covering_type >= SHUTTER &&
-	       v->window_covering_type <= TILT_BLIND_LIFT_AND_TILT;
+	return v->window_covering_type >= ZZB_ZCL_WINDOW_COVERING_TYPE_SHUTTER &&
+	       v->window_covering_type <= ZZB_ZCL_WINDOW_COVERING_TYPE_TILT_BLIND_LIFT_AND_TILT;
 }
 
 /* ZCL 7.4.2.2.5, 7.4.2.2.7 */
