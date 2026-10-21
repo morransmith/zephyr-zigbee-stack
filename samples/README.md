@@ -47,6 +47,16 @@ A short press toggles OnOff, and led0 shows it. The level and the color go to th
 
 The Window Covering moves lift and tilt by 10 % a second to the targets of Up/Open, Down/Close, Go To Lift Percentage, Go To Tilt Percentage and recalled scenes, and Stop stops it; led0 is on while it moves. A short press runs Up/Open, Stop, Down/Close and Stop in turn, on the motor of the Window Covering and as commands to the bindings of the controller. Finding & binding: target for the Window Covering, initiator for the controller. The controller is a sleepy end device.
 
+### hvac
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify, Fan Control |
+|---|---|---|---|
+| `CONFIG_SAMPLE_THERMOSTAT` | Thermostat | 0x0301 | Thermostat, Thermostat User Interface Configuration; client Identify |
+| `CONFIG_SAMPLE_HEATING_COOLING_UNIT` | Heating/Cooling Unit | 0x0300 | Groups, On/Off; client Thermostat |
+| `CONFIG_SAMPLE_AIR_PURIFIER` | Air Purifier | 0x0308 | Groups |
+
+The Thermostat starts at 21.00 °C, and every minute LocalTemperature moves by 0.10 °C toward OccupiedHeatingSetpoint in Heat, toward OccupiedCoolingSetpoint in Cool and toward 18.00 °C in the other modes; until it reaches the setpoint, PIHeatingDemand or PICoolingDemand is 100 % and ThermostatRunningState shows heating or cooling. The weekly schedule is not carried out. A short press switches SystemMode between Off and Heat on the Thermostat, toggles OnOff on the Heating/Cooling Unit and selects the next FanMode of Off, Low, Medium, High and Auto on the Air Purifier; led0 is on while SystemMode, OnOff or FanMode is not off. Finding & binding: target.
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
