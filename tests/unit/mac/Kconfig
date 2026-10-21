@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb MAC unit test"
+
+config TEST_PM_HOOKS
+	bool "The test defines the PM hooks of the SoC"
+	default y
+	select HAS_PM
+
+source "Kconfig.zephyr"

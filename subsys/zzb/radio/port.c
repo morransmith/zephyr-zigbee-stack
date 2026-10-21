@@ -4,6 +4,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/net/ieee802154_radio.h>
 #include <zephyr/net/net_pkt.h>
+#include <zephyr/pm/policy.h>
 #include <zephyr/random/random.h>
 
 #include "common/buf.h"
@@ -99,7 +100,12 @@ static void tx_handler(struct k_work *work)
 {
 	struct zzb_radio_port *port = CONTAINER_OF(work, struct zzb_radio_port, tx_work);
 	struct net_buf *buf = port->tx_buf;
-	enum zzb_mac_status status = transmit(port, buf);
+	enum zzb_mac_status status;
+
+	/* The driver waits for the TX done and the ACK in tx(); a sleep state can stop the radio */
+	pm_policy_state_all_lock_get();
+	status = transmit(port, buf);
+	pm_policy_state_all_lock_put();
 
 	port->tx_buf = NULL;
 	zzb_radio_tx_done(port, buf, status, ack_pending);

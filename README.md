@@ -72,6 +72,23 @@ CONFIG_NVS=y
 
 For OTA Upgrade, build with sysbuild and MCUboot (`SB_CONFIG_BOOTLOADER_MCUBOOT=y`) and enable `CONFIG_ZZB_ZCL_OTA`. `scripts/zigbee_ota.py` turns `zephyr.signed.bin` into a Zigbee OTA file that ZHA can install.
 
+With Zephyr power management (`CONFIG_PM`) the stack holds a lock of all PM states while the radio transmits or receives, so a sleepy end device sleeps between its polls. On ESP32-H2 also enable `CONFIG_PM_DEVICE` and `CONFIG_COUNTER` and make the RTC timer a wakeup source in the board devicetree:
+
+```dts
+&rtc_timer {
+	status = "okay";
+	wakeup-source;
+};
+```
+
+and keep the radio powered in light sleep before `zzb_node_init()`; otherwise the HAL powers it down and the node finds no network:
+
+```c
+#include <esp_sleep.h>
+
+esp_sleep_pd_config(ESP_PD_DOMAIN_MODEM, ESP_PD_OPTION_ON);
+```
+
 ### Build and test
 
 ```sh
@@ -128,7 +145,7 @@ Device types: all types of the Device Type Library rev 2 except the Range Extend
 - Router, coordinator, trust center and network co-processor roles (planned).
 - Zigbee R23 features, Sub-GHz, touchlink, Green Power, Zigbee Direct.
 - APS fragmentation and distributed security.
-- Low-power mode of the ESP32 radio: the driver in Zephyr v4.4.2 lacks it, so a sleepy ESP32 device saves only the receiver current.
+- Low-power mode of the ESP32 radio: the driver in Zephyr v4.4.2 lacks it, so the radio PHY of a sleepy ESP32 device stays powered.
 - EmberZNet (EZSP) coordinators are not checked yet.
 
 ### Hardware

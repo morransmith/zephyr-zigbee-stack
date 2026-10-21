@@ -5,6 +5,7 @@
 #include <zephyr/fff.h>
 #include <zephyr/net/ieee802154_radio.h>
 #include <zephyr/net/net_pkt.h>
+#include <zephyr/pm/policy.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/ztest.h>
 #include <zzb/zzb.h>
@@ -156,6 +157,7 @@ static int tx_fake(const struct device *dev, enum ieee802154_tx_mode mode, struc
 	memcpy(s->data, frag->data, frag->len);
 	s->len = frag->len;
 	s->radio = radio;
+	s->pm_locked = pm_locked();
 
 	if (radio.channel == parent.busy_channel) {
 		return -EBUSY;
@@ -250,6 +252,8 @@ void mac_after(void *fixture)
 		zassert_equal(radio_stop_fake.call_count, 0);
 	}
 
+	zassert_equal(pm_locked(), IS_ENABLED(CONFIG_PM) && !node->sleepy);
+
 	ARRAY_FOR_EACH(bufs, i) {
 		bufs[i] = zzb_buf_alloc(K_NO_WAIT);
 		zassert_not_null(bufs[i], "buffer leak");
@@ -258,6 +262,11 @@ void mac_after(void *fixture)
 	ARRAY_FOR_EACH(bufs, i) {
 		net_buf_unref(bufs[i]);
 	}
+}
+
+bool pm_locked(void)
+{
+	return pm_policy_state_lock_is_active(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
 }
 
 void run_stack(void)

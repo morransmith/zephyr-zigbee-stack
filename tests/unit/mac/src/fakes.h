@@ -35,6 +35,7 @@ struct sent_frame {
 	size_t len;
 	/* The radio when the frame was sent */
 	struct radio_state radio;
+	bool pm_locked;
 };
 
 /* Behavior of the parent, reset before each test */
@@ -83,10 +84,13 @@ void mac_before(void *fixture);
 /* Initializes the MAC again as the MAC of a sleepy node, on a radio with RxOnWhenIdle */
 void mac_init_sleepy(void);
 /*
- * Checks that the MAC is idle and has released every buffer, and that a node that is not sleepy
- * has not called configure() or stop()
+ * Checks that the MAC is idle and has released every buffer, that a node that is not sleepy has
+ * not called configure() or stop(), and that only such a node holds the PM lock
  */
 void mac_after(void *fixture);
+
+/* Returns whether the PM policy may not enter the standby state of pm.overlay */
+bool pm_locked(void);
 
 /* Runs the stack thread until it waits, without advancing the time */
 void run_stack(void);

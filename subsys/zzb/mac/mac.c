@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <zephyr/kernel.h>
 #include <zephyr/net/ieee802154_radio.h>
+#include <zephyr/pm/policy.h>
 #include <zephyr/random/random.h>
 #include <zephyr/sys/byteorder.h>
 
@@ -62,6 +63,21 @@ uint64_t zzb_mlme_get_coord_ext_addr(const struct zzb_node *node)
 	return node->mac.coord_ext_addr;
 }
 
+/* A sleep state can stop the receiver */
+static void set_pm_lock(struct zzb_node *node, bool on)
+{
+	if (node->mac.pm_locked == on) {
+		return;
+	}
+
+	node->mac.pm_locked = on;
+	if (on) {
+		pm_policy_state_all_lock_get();
+	} else {
+		pm_policy_state_all_lock_put();
+	}
+}
+
 /* The receiver of a sleepy node is on only during MLME procedures */
 static void set_rx_on_when_idle(struct zzb_node *node, bool on)
 {
@@ -76,6 +92,8 @@ static void set_rx_on_when_idle(struct zzb_node *node, bool on)
 	if (!on) {
 		api->stop(node->port.dev);
 	}
+
+	set_pm_lock(node, on);
 }
 
 int zzb_mac_set_radio_channel(struct zzb_node *node, uint8_t channel)
@@ -123,6 +141,9 @@ int zzb_mac_init(struct zzb_node *node, const struct device *radio)
 	uint8_t ext_addr[8];
 	int err;
 
+	/* Releases the lock of a previous init */
+	set_pm_lock(node, false);
+
 	err = zzb_radio_init(&node->port, radio);
 	if (err) {
 		return err;
@@ -147,6 +168,7 @@ int zzb_mac_init(struct zzb_node *node, const struct device *radio)
 		   (struct ieee802154_filter){.ieee_addr = ext_addr});
 	zzb_mac_set_radio_short_addr(node, node->mac.short_addr);
 	zzb_mac_set_radio_pan_id(node, node->mac.pan_id);
+	set_pm_lock(node, !node->sleepy);
 
 	return zzb_mac_set_radio_channel(node, node->mac.channel);
 }
