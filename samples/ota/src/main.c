@@ -88,7 +88,7 @@ static void bdb_event(struct zzb_node *node, enum zzb_bdb_event event, enum zzb_
 		return;
 	}
 
-	LOG_INF("image confirmed %d", boot_write_img_confirmed());
+	LOG_INF("confirm image %d", boot_write_img_confirmed());
 }
 
 static void zcl_changed(struct zzb_node *node, uint8_t ep, uint16_t cluster, uint16_t attr)
@@ -104,8 +104,9 @@ static void zcl_changed(struct zzb_node *node, uint8_t ep, uint16_t cluster, uin
 		break;
 	case ZZB_ZCL_OTA:
 		if (attr == ZZB_ZCL_OTA_IMAGE_UPGRADE_STATUS) {
-			LOG_INF("ImageUpgradeStatus %u, DownloadedFileVersion 0x%08x",
-				ota.image_upgrade_status, ota.downloaded_file_version);
+			LOG_INF("ImageUpgradeStatus %u", ota.image_upgrade_status);
+		} else if (attr == ZZB_ZCL_OTA_DOWNLOADED_FILE_VERSION) {
+			LOG_INF("DownloadedFileVersion 0x%08x", ota.downloaded_file_version);
 		}
 		break;
 	default:
