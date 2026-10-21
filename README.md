@@ -4,6 +4,7 @@
 
 **Zigbee 3.0 stack for Zephyr RTOS**
 
+![Release](https://img.shields.io/github/v/tag/morransmith/zephyr-zigbee-stack?sort=semver&label=release&style=flat-square&labelColor=2b2f36&color=3b82c4)
 ![Zigbee PRO R22](https://img.shields.io/badge/Zigbee_PRO-R22-0e7c86?style=flat-square&labelColor=2b2f36)
 ![BDB 3.0.1](https://img.shields.io/badge/BDB-3.0.1-0e7c86?style=flat-square&labelColor=2b2f36)
 ![ZCL rev 8](https://img.shields.io/badge/ZCL-rev_8-0e7c86?style=flat-square&labelColor=2b2f36)
@@ -33,7 +34,7 @@ Zephyr has no Zigbee stack of its own. The existing stacks come with vendor SDKs
 ### Standalone workspace
 
 ```sh
-west init -m https://github.com/morransmith/zephyr-zigbee-stack --mr develop zzb-ws
+west init -m https://github.com/morransmith/zephyr-zigbee-stack --mr master zzb-ws
 cd zzb-ws
 west update
 west blobs fetch hal_espressif    # ESP32 targets only
@@ -51,9 +52,11 @@ manifest:
   projects:
     - name: zephyr-zigbee-stack
       remote: zzb
-      revision: develop
+      revision: master
       import: true    # Zephyr v4.4.2 and the modules zzb needs
 ```
+
+`master` is the latest release. To fix the version, set `revision` (or `--mr`) to the tag of the needed release.
 
 `prj.conf`:
 
