@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: zzb hvac
+common:
+  build_only: true
+  platform_allow:
+    - nrf52840dk/nrf52840
+    - esp32c6_devkitc/esp32c6/hpcore
+    - esp32h2_devkitm/esp32h2
+  integration_platforms:
+    - nrf52840dk/nrf52840
+tests:
+  sample.zzb.hvac.thermostat:
+    extra_configs:
+      - CONFIG_SAMPLE_THERMOSTAT=y
+  sample.zzb.hvac.heating_cooling_unit:
+    extra_configs:
+      - CONFIG_SAMPLE_HEATING_COOLING_UNIT=y
+  sample.zzb.hvac.air_purifier:
+    extra_configs:
+      - CONFIG_SAMPLE_AIR_PURIFIER=y

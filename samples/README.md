@@ -104,6 +104,34 @@ A short press sends the next command of a cycle to the bound destinations: Toggl
 
 The Simple Sensor, the Light Level Sensor, the Pressure Sensor and the Flow Sensor are not certifiable, since their sensing clusters are not (DTL Annexes C, D, G and H). A short press inverts PresentValue of the Simple Sensor while OutOfService is FALSE, and sets Occupancy of the Occupancy Sensor, which returns to 0 30 s after the last press; led0 shows the value. The other device types set the next value of a fixed sequence at the start, every 60 s and at a short press: 1 lx to 100 klx in factors of 10, 20.00 to 24.00 degC, 1000 to 1020 hPa and 1.0 to 3.0 m3/h, with MinMeasuredValue and MaxMeasuredValue at the ends of the sequence. The Light Level Sensor sets LevelStatus from the illuminance and IlluminanceTargetLevel with a dead band of 1000 on each side, and on target while IlluminanceTargetLevel is 0xffff. Finding & binding: initiator with unicast bindings. Sleepy end device.
 
+### covering
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_WINDOW_COVERING` | Window Covering | 0x0202 | Groups, Scenes, Window Covering (tilt blind, lift and tilt) |
+| `CONFIG_SAMPLE_WINDOW_COVERING_CONTROLLER` | Window Covering Controller | 0x0203 | Power Configuration; clients Identify, Groups, Scenes, Window Covering |
+
+The Window Covering moves lift and tilt by 10 % a second to the targets of Up/Open, Down/Close, Go To Lift Percentage, Go To Tilt Percentage and recalled scenes, and Stop stops it; led0 is on while it moves. A short press runs Up/Open, Stop, Down/Close and Stop in turn, on the motor of the Window Covering and as commands to the bindings of the controller. Finding & binding: target for the Window Covering, initiator for the controller. The controller is a sleepy end device.
+
+### hvac
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify, Fan Control |
+|---|---|---|---|
+| `CONFIG_SAMPLE_THERMOSTAT` | Thermostat | 0x0301 | Thermostat, Thermostat User Interface Configuration; client Identify |
+| `CONFIG_SAMPLE_HEATING_COOLING_UNIT` | Heating/Cooling Unit | 0x0300 | Groups, On/Off; client Thermostat |
+| `CONFIG_SAMPLE_AIR_PURIFIER` | Air Purifier | 0x0308 | Groups |
+
+The Thermostat starts at 21.00 °C, and every minute LocalTemperature moves by 0.10 °C toward OccupiedHeatingSetpoint in Heat, toward OccupiedCoolingSetpoint in Cool and toward 18.00 °C in the other modes; until it reaches the setpoint, PIHeatingDemand or PICoolingDemand is 100 % and ThermostatRunningState shows heating or cooling. The weekly schedule is not carried out. A short press switches SystemMode between Off and Heat on the Thermostat, toggles OnOff on the Heating/Cooling Unit and selects the next FanMode of Off, Low, Medium, High and Auto on the Air Purifier; led0 is on while SystemMode, OnOff or FanMode is not off. Finding & binding: target.
+
+### pump
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify, client Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_PUMP` | Pump | 0x0303 | Groups, Scenes, On/Off, Pump Configuration and Control, Pressure Measurement, Flow Measurement |
+| `CONFIG_SAMPLE_PUMP_CONTROLLER` | Pump Controller | 0x0304 | Power Configuration; clients On/Off, Pump Configuration and Control, Temperature, Pressure and Flow Measurement |
+
+A short press toggles OnOff of the Pump, and led0 shows it; the controller sends Toggle to its bindings. While the Pump is on, it measures 200.0 kPa and 2.0 m³/h and sets the Running bit of PumpStatus, and all three are 0 while it is off. Finding & binding: target for the Pump, initiator for the controller. The controller is a sleepy end device. Neither device type is certifiable, since the Pump Configuration and Control cluster is not (DTL Annexes E and F).
+
 ## Combinations
 
 ### dual_relay

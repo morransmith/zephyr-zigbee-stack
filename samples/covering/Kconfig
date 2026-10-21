@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "zzb covering sample"
+
+rsource "../common/Kconfig"
+
+choice SAMPLE_COVERING
+	prompt "Device type"
+
+config SAMPLE_WINDOW_COVERING
+	bool "Window Covering (0x0202)"
+
+config SAMPLE_WINDOW_COVERING_CONTROLLER
+	bool "Window Covering Controller (0x0203)"
+	select SAMPLE_SLEEPY
+
+endchoice
+
+config SAMPLE_DEVICE_ID
+	hex
+	default 0x0202 if SAMPLE_WINDOW_COVERING
+	default 0x0203 if SAMPLE_WINDOW_COVERING_CONTROLLER
+
+# The highest Rev of the revision history of the device type in the DTL
+config SAMPLE_DEVICE_VERSION
+	int
+	default 1
+
+config SAMPLE_MODEL_ID
+	string
+	default "window_covering" if SAMPLE_WINDOW_COVERING
+	default "window_covering_controller" if SAMPLE_WINDOW_COVERING_CONTROLLER
+
+source "Kconfig.zephyr"
