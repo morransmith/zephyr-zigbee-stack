@@ -57,6 +57,15 @@ The Window Covering moves lift and tilt by 10 % a second to the targets of Up/Op
 
 The Thermostat starts at 21.00 °C, and every minute LocalTemperature moves by 0.10 °C toward OccupiedHeatingSetpoint in Heat, toward OccupiedCoolingSetpoint in Cool and toward 18.00 °C in the other modes; until it reaches the setpoint, PIHeatingDemand or PICoolingDemand is 100 % and ThermostatRunningState shows heating or cooling. The weekly schedule is not carried out. A short press switches SystemMode between Off and Heat on the Thermostat, toggles OnOff on the Heating/Cooling Unit and selects the next FanMode of Off, Low, Medium, High and Auto on the Air Purifier; led0 is on while SystemMode, OnOff or FanMode is not off. Finding & binding: target.
 
+### pump
+
+| Kconfig | Device type | ID | Clusters besides Basic, Identify, client Identify |
+|---|---|---|---|
+| `CONFIG_SAMPLE_PUMP` | Pump | 0x0303 | Groups, Scenes, On/Off, Pump Configuration and Control, Pressure Measurement, Flow Measurement |
+| `CONFIG_SAMPLE_PUMP_CONTROLLER` | Pump Controller | 0x0304 | Power Configuration; clients On/Off, Pump Configuration and Control, Temperature, Pressure and Flow Measurement |
+
+A short press toggles OnOff of the Pump, and led0 shows it; the controller sends Toggle to its bindings. While the Pump is on, it measures 200.0 kPa and 2.0 m³/h and sets the Running bit of PumpStatus, and all three are 0 while it is off. Finding & binding: target for the Pump, initiator for the controller. The controller is a sleepy end device. Neither device type is certifiable, since the Pump Configuration and Control cluster is not (DTL Annexes E and F).
+
 ## Deviations from the DTL
 
 - The Range Extender (0x0008) has no sample, since it is a router.
