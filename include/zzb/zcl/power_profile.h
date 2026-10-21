@@ -65,6 +65,21 @@ enum zzb_zcl_power_profile_state {
 	ZZB_ZCL_POWER_PROFILE_ENDED = 0x07,
 };
 
+/** EnergyFormatting with digits left and right of the decimal point (ZCL 3.17.4.3). */
+#define ZZB_ZCL_POWER_PROFILE_FORMATTING(left, right, suppress_zeros)                              \
+	(FIELD_PREP(GENMASK(6, 3), (left)) | FIELD_PREP(GENMASK(2, 0), (right)) |                  \
+	 ((suppress_zeros) ? BIT(7) : 0))
+
+/** PowerProfileID of a request for every power profile (ZCL 3.17.5.1.1.1). */
+#define ZZB_ZCL_POWER_PROFILE_ID_ALL 0x00
+
+/** EnergyPhaseID of a power profile in the IDLE state (ZCL 3.17.6.1.1.1). */
+#define ZZB_ZCL_POWER_PROFILE_ENERGY_PHASE_INVALID 0xff
+
+/** MaxActivationDelay of an energy phase that allows no pause before it, and of the first one. */
+#define ZZB_ZCL_POWER_PROFILE_ACTIVATION_DELAY_NONE  0x0000
+#define ZZB_ZCL_POWER_PROFILE_ACTIVATION_DELAY_FIRST 0xffff
+
 /**
  * Values of a Power Profile server (ZCL 3.17.4). The application fills the first four fields
  * before zzb_node_init() and changes them with zzb_zcl_attr_set(); they are read-only.
@@ -74,10 +89,7 @@ struct zzb_zcl_power_profile {
 	/** The number of power profiles, 1 to 0xfe. */
 	uint8_t total_profile_num;
 	bool multiple_scheduling;
-	/**
-	 * The format of the Energy fields: bits 0 to 2 digits right of the decimal point, bits 3 to
-	 * 6 digits left of it, bit 7 suppresses leading zeros (ZCL 3.17.4.3).
-	 */
+	/** The format of the Energy fields, ZZB_ZCL_POWER_PROFILE_FORMATTING(). */
 	uint8_t energy_formatting;
 	/** Remote energy management is enabled. */
 	bool energy_remote;
