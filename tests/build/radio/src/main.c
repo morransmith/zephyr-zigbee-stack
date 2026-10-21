@@ -52,9 +52,9 @@
 static struct zzb_zcl_basic basic = {
 	.manufacturer_name = "zzb",
 	.model_id = "build",
-	.power_source = 0x01,
-	.generic_device_class = 0xff,
-	.generic_device_type = 0xff,
+	.power_source = ZZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE,
+	.generic_device_class = ZZB_ZCL_BASIC_GENERIC_DEVICE_CLASS_UNSPECIFIED,
+	.generic_device_type = ZZB_ZCL_BASIC_GENERIC_DEVICE_TYPE_UNSPECIFIED,
 };
 
 static struct zzb_zcl_identify identify;
@@ -74,11 +74,11 @@ static struct zzb_zcl_on_off ballast_on_off = {
 };
 
 static struct zzb_zcl_level level = {
-	.start_up_default = 0xff,
+	.start_up_default = ZZB_ZCL_LEVEL_START_UP_PREVIOUS,
 };
 
 static struct zzb_zcl_level ballast_level = {
-	.start_up_default = 0xff,
+	.start_up_default = ZZB_ZCL_LEVEL_START_UP_PREVIOUS,
 };
 
 static struct zzb_zcl_color color = {
@@ -86,30 +86,32 @@ static struct zzb_zcl_color color = {
 	.color_temp_physical_min = 153,
 	.color_temp_physical_max = 500,
 	.couple_color_temp_min = 153,
-	.start_up_default = 0xffff,
+	.start_up_default = ZZB_ZCL_COLOR_START_UP_TEMPERATURE_PREVIOUS,
 };
 
 #if defined(CONFIG_ZZB_ZCL_OTA)
 static struct zzb_zcl_ota ota = {
 	.current_file_version = 1,
-	.image_type = 0x0000,
+	.image_type = 0,
 };
 #endif
 
+/* 230.0 V, 50 Hz */
 static struct zzb_zcl_power_config power_config = {
 	.mains_voltage = 2300,
 	.mains_frequency = 100,
-	.battery_voltage = 0xff,
-	.battery_percentage_remaining = 0xff,
+	.battery_voltage = ZZB_ZCL_POWER_CONFIG_BATTERY_VOLTAGE_UNKNOWN,
+	.battery_percentage_remaining = ZZB_ZCL_POWER_CONFIG_BATTERY_PERCENTAGE_REMAINING_UNKNOWN,
 };
 
+/* 25 degC */
 static struct zzb_zcl_device_temp device_temp = {
 	.current_temperature = 25,
 };
 
 static struct zzb_zcl_ballast ballast = {
-	.physical_min_level = 1,
-	.physical_max_level = 254,
+	.physical_min_level = ZZB_ZCL_BALLAST_LEVEL_MIN,
+	.physical_max_level = ZZB_ZCL_BALLAST_LEVEL_MAX,
 	.lamp_quantity = 1,
 };
 
@@ -118,7 +120,8 @@ static struct zzb_zcl_illuminance_level illuminance_level;
 static struct zzb_zcl_illuminance illuminance;
 
 static struct zzb_zcl_occupancy occupancy = {
-	.occupancy_sensor_type_bitmap = 0x01,
+	.occupancy_sensor_type = ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_PIR,
+	.occupancy_sensor_type_bitmap = ZZB_ZCL_OCCUPANCY_SENSOR_TYPE_BITMAP_PIR,
 };
 
 static struct zzb_zcl_identify covering_identify;
@@ -143,20 +146,22 @@ static struct zzb_zcl_scenes covering_scenes;
 static struct zzb_zcl_scenes pump_scenes;
 static struct zzb_zcl_scenes plug_scenes;
 
-/* Tilt Blind - Lift and Tilt with closed loop on both axes */
 static struct zzb_zcl_window_covering covering = {
-	.window_covering_type = 0x08,
-	.config_status = 0x1b,
-	.current_position_lift_percentage = 0xff,
-	.current_position_tilt_percentage = 0xff,
+	.window_covering_type = ZZB_ZCL_WINDOW_COVERING_TYPE_TILT_BLIND_LIFT_AND_TILT,
+	.config_status = ZZB_ZCL_WINDOW_COVERING_CONFIG_OPERATIONAL |
+			 ZZB_ZCL_WINDOW_COVERING_CONFIG_ONLINE |
+			 ZZB_ZCL_WINDOW_COVERING_CONFIG_LIFT_CLOSED_LOOP |
+			 ZZB_ZCL_WINDOW_COVERING_CONFIG_TILT_CLOSED_LOOP,
+	.current_position_lift_percentage = ZZB_ZCL_WINDOW_COVERING_LIFT_PERCENTAGE_UNKNOWN,
+	.current_position_tilt_percentage = ZZB_ZCL_WINDOW_COVERING_TILT_PERCENTAGE_UNKNOWN,
 	.installed_closed_limit_lift = 200,
 	.installed_closed_limit_tilt = 900,
 };
 
 static struct zzb_zcl_thermostat thermostat = {
-	.local_temperature = INT16_MIN,
-	.outdoor_temperature = INT16_MIN,
-	.occupancy = 0x01,
+	.local_temperature = ZZB_ZCL_THERMOSTAT_LOCAL_TEMPERATURE_UNKNOWN,
+	.outdoor_temperature = ZZB_ZCL_THERMOSTAT_OUTDOOR_TEMPERATURE_UNKNOWN,
+	.occupancy = ZZB_ZCL_THERMOSTAT_OCCUPANCY_OCCUPIED,
 	.abs_min_heat_setpoint_limit = 700,
 	.abs_max_heat_setpoint_limit = 3000,
 	.abs_min_cool_setpoint_limit = 1600,
@@ -169,61 +174,61 @@ static struct zzb_zcl_thermostat thermostat = {
 static struct zzb_zcl_thermostat_ui thermostat_ui;
 
 static struct zzb_zcl_fan fan = {
-	.fan_mode_sequence = 0x02,
+	.fan_mode_sequence = ZZB_ZCL_FAN_MODE_SEQUENCE_LOW_MED_HIGH_AUTO,
 };
 
 static struct zzb_zcl_fan unit_fan = {
-	.fan_mode_sequence = 0x00,
+	.fan_mode_sequence = ZZB_ZCL_FAN_MODE_SEQUENCE_LOW_MED_HIGH,
 };
 
 static struct zzb_zcl_on_off unit_on_off;
 
 static struct zzb_zcl_temperature temperature = {
-	.measured_value = INT16_MIN,
-	.min_measured_value = INT16_MIN,
-	.max_measured_value = INT16_MIN,
+	.measured_value = ZZB_ZCL_TEMPERATURE_MEASURED_VALUE_UNKNOWN,
+	.min_measured_value = ZZB_ZCL_TEMPERATURE_MIN_MEASURED_VALUE_UNKNOWN,
+	.max_measured_value = ZZB_ZCL_TEMPERATURE_MAX_MEASURED_VALUE_UNKNOWN,
 };
 
 static struct zzb_zcl_humidity humidity = {
-	.measured_value = 0xffff,
-	.min_measured_value = 0xffff,
-	.max_measured_value = 0xffff,
+	.measured_value = ZZB_ZCL_HUMIDITY_MEASURED_VALUE_UNKNOWN,
+	.min_measured_value = ZZB_ZCL_HUMIDITY_MIN_MEASURED_VALUE_NOT_DEFINED,
+	.max_measured_value = ZZB_ZCL_HUMIDITY_MAX_MEASURED_VALUE_NOT_DEFINED,
 };
 
 static struct zzb_zcl_on_off pump_on_off;
 static struct zzb_zcl_alarms pump_alarms;
 
 static struct zzb_zcl_pump pump = {
-	.max_pressure = INT16_MIN,
-	.max_speed = 0xffff,
-	.max_flow = 0xffff,
-	.capacity = INT16_MIN,
-	.lifetime_energy_consumed = 0xffffffff,
+	.max_pressure = ZZB_ZCL_PUMP_MAX_PRESSURE_UNKNOWN,
+	.max_speed = ZZB_ZCL_PUMP_MAX_SPEED_UNKNOWN,
+	.max_flow = ZZB_ZCL_PUMP_MAX_FLOW_UNKNOWN,
+	.capacity = ZZB_ZCL_PUMP_CAPACITY_UNKNOWN,
+	.lifetime_energy_consumed = ZZB_ZCL_PUMP_LIFETIME_ENERGY_CONSUMED_UNKNOWN,
 };
 
 static struct zzb_zcl_pressure pressure = {
-	.measured_value = INT16_MIN,
-	.min_measured_value = INT16_MIN,
-	.max_measured_value = INT16_MIN,
-	.scaled_value = INT16_MIN,
-	.min_scaled_value = INT16_MIN,
-	.max_scaled_value = INT16_MIN,
+	.measured_value = ZZB_ZCL_PRESSURE_MEASURED_VALUE_UNKNOWN,
+	.min_measured_value = ZZB_ZCL_PRESSURE_MIN_MEASURED_VALUE_NOT_DEFINED,
+	.max_measured_value = ZZB_ZCL_PRESSURE_MAX_MEASURED_VALUE_NOT_DEFINED,
+	.scaled_value = ZZB_ZCL_PRESSURE_SCALED_VALUE_UNKNOWN,
+	.min_scaled_value = ZZB_ZCL_PRESSURE_MIN_SCALED_VALUE_NOT_DEFINED,
+	.max_scaled_value = ZZB_ZCL_PRESSURE_MAX_SCALED_VALUE_NOT_DEFINED,
 };
 
 static struct zzb_zcl_ias_zone contact = {
-	.zone_type = 0x0015,
+	.zone_type = ZZB_ZCL_IAS_ZONE_TYPE_CONTACT_SWITCH,
 };
 
 static struct zzb_zcl_poll_control contact_poll_control;
 
 static struct zzb_zcl_ias_zone siren_zone = {
-	.zone_type = 0x0225,
+	.zone_type = ZZB_ZCL_IAS_ZONE_TYPE_STANDARD_WARNING_DEVICE,
 };
 
 static struct zzb_zcl_ias_wd siren;
 
 static struct zzb_zcl_ias_zone keypad_zone = {
-	.zone_type = 0x021d,
+	.zone_type = ZZB_ZCL_IAS_ZONE_TYPE_KEYPAD,
 };
 
 static struct zzb_zcl_door_lock lock = {
@@ -245,28 +250,29 @@ static struct zzb_zcl_on_off plug_on_off;
 static struct zzb_zcl_metering plug_metering = {
 	.multiplier = 1,
 	.divisor = 1000,
-	.summation_formatting = 0x2b,
-	.demand_formatting = 0x2b,
+	.summation_formatting = ZZB_ZCL_METERING_FORMATTING(5, 3, false),
+	.demand_formatting = ZZB_ZCL_METERING_FORMATTING(5, 3, false),
 };
 
 static struct zzb_zcl_electrical_measurement plug_power = {
-	.measurement_type = 0x09,
-	.ac_frequency = 0xffff,
-	.ac_frequency_min = 0xffff,
-	.ac_frequency_max = 0xffff,
+	.measurement_type = ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_ACTIVE |
+			    ZZB_ZCL_ELECTRICAL_MEASUREMENT_TYPE_PHASE_A,
+	.ac_frequency = ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN,
+	.ac_frequency_min = ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN,
+	.ac_frequency_max = ZZB_ZCL_ELECTRICAL_MEASUREMENT_AC_FREQUENCY_UNKNOWN,
 	.ac_frequency_multiplier = 1,
 	.ac_frequency_divisor = 1,
-	.rms_voltage = 0xffff,
-	.rms_voltage_min = 0xffff,
-	.rms_voltage_max = 0xffff,
-	.rms_current = 0xffff,
-	.rms_current_min = 0xffff,
-	.rms_current_max = 0xffff,
-	.active_power = INT16_MIN,
-	.active_power_min = INT16_MIN,
-	.active_power_max = INT16_MIN,
-	.reactive_power = INT16_MIN,
-	.apparent_power = 0xffff,
+	.rms_voltage = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN,
+	.rms_voltage_min = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN,
+	.rms_voltage_max = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_VOLTAGE_UNKNOWN,
+	.rms_current = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN,
+	.rms_current_min = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN,
+	.rms_current_max = ZZB_ZCL_ELECTRICAL_MEASUREMENT_RMS_CURRENT_UNKNOWN,
+	.active_power = ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN,
+	.active_power_min = ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN,
+	.active_power_max = ZZB_ZCL_ELECTRICAL_MEASUREMENT_ACTIVE_POWER_UNKNOWN,
+	.reactive_power = ZZB_ZCL_ELECTRICAL_MEASUREMENT_REACTIVE_POWER_UNKNOWN,
+	.apparent_power = ZZB_ZCL_ELECTRICAL_MEASUREMENT_APPARENT_POWER_UNKNOWN,
 	.ac_voltage_multiplier = 1,
 	.ac_voltage_divisor = 1,
 	.ac_current_multiplier = 1,
@@ -277,10 +283,10 @@ static struct zzb_zcl_electrical_measurement plug_power = {
 
 /* A gas meter in m3 */
 static struct zzb_zcl_metering gas_metering = {
-	.unit_of_measure = 0x01,
+	.unit_of_measure = ZZB_ZCL_METERING_UNIT_OF_MEASURE_M3,
 	.multiplier = 1,
 	.divisor = 1000,
-	.metering_device_type = 0x01,
+	.metering_device_type = ZZB_ZCL_METERING_DEVICE_TYPE_GAS,
 };
 
 static struct zzb_zcl_meter_id meter_id = {
@@ -290,14 +296,14 @@ static struct zzb_zcl_meter_id meter_id = {
 
 static struct zzb_zcl_power_profile power_profile = {
 	.total_profile_num = 1,
-	.energy_formatting = 0x01,
+	.energy_formatting = ZZB_ZCL_POWER_PROFILE_FORMATTING(0, 1, false),
 };
 
 static struct zzb_zcl_appliance_control appliance_control;
 static struct zzb_zcl_appliance_id appliance_id;
 
 static struct zzb_zcl_appliance_stats appliance_stats = {
-	.log_max_size = 0x3c,
+	.log_max_size = 60,
 	.log_queue_max_size = 1,
 };
 
@@ -305,9 +311,9 @@ static struct zzb_zcl_time gateway_time;
 static struct zzb_zcl_on_off_switch_config switch_config;
 
 static struct zzb_zcl_flow flow = {
-	.measured_value = 0xffff,
-	.min_measured_value = 0xffff,
-	.max_measured_value = 0xffff,
+	.measured_value = ZZB_ZCL_FLOW_MEASURED_VALUE_UNKNOWN,
+	.min_measured_value = ZZB_ZCL_FLOW_MIN_MEASURED_VALUE_NOT_DEFINED,
+	.max_measured_value = ZZB_ZCL_FLOW_MAX_MEASURED_VALUE_NOT_DEFINED,
 };
 
 static const struct zzb_zcl_cluster light[] = {
@@ -702,177 +708,177 @@ static const struct zzb_zcl_cluster on_off_switch_clusters[] = {
 static const struct zzb_endpoint endpoints[] = {
 	{
 		.id = 1,
-		.profile = 0x0104,
-		.device_id = 0x010d,
-		.device_version = 2,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_EXTENDED_COLOR_LIGHT,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_EXTENDED_COLOR_LIGHT),
 		.clusters = light,
 		.cluster_count = ARRAY_SIZE(light),
 	},
 	{
 		.id = 2,
-		.profile = 0x0104,
-		.device_id = 0x0105,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_COLOR_DIMMER_SWITCH,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_COLOR_DIMMER_SWITCH),
 		.clusters = switch_clusters,
 		.cluster_count = ARRAY_SIZE(switch_clusters),
 	},
 	{
 		.id = 3,
-		.profile = 0x0104,
-		.device_id = 0x0109,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_DIMMABLE_BALLAST,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_DIMMABLE_BALLAST),
 		.clusters = ballast_clusters,
 		.cluster_count = ARRAY_SIZE(ballast_clusters),
 	},
 	{
 		.id = 4,
-		.profile = 0x0104,
-		.device_id = 0x0107,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_OCCUPANCY_SENSOR,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_OCCUPANCY_SENSOR),
 		.clusters = sensor,
 		.cluster_count = ARRAY_SIZE(sensor),
 	},
 	{
 		.id = 5,
-		.profile = 0x0104,
-		.device_id = 0x0202,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_WINDOW_COVERING,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_WINDOW_COVERING),
 		.clusters = covering_clusters,
 		.cluster_count = ARRAY_SIZE(covering_clusters),
 	},
 	{
 		.id = 6,
-		.profile = 0x0104,
-		.device_id = 0x0203,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_WINDOW_COVERING_CONTROLLER,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_WINDOW_COVERING_CONTROLLER),
 		.clusters = controller_clusters,
 		.cluster_count = ARRAY_SIZE(controller_clusters),
 	},
 	{
 		.id = 7,
-		.profile = 0x0104,
-		.device_id = 0x0301,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_THERMOSTAT,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_THERMOSTAT),
 		.clusters = thermostat_clusters,
 		.cluster_count = ARRAY_SIZE(thermostat_clusters),
 	},
 	{
 		.id = 8,
-		.profile = 0x0104,
-		.device_id = 0x0300,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_HEATING_COOLING_UNIT,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_HEATING_COOLING_UNIT),
 		.clusters = unit_clusters,
 		.cluster_count = ARRAY_SIZE(unit_clusters),
 	},
 	{
 		.id = 9,
-		.profile = 0x0104,
-		.device_id = 0x0303,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_PUMP,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_PUMP),
 		.clusters = pump_clusters,
 		.cluster_count = ARRAY_SIZE(pump_clusters),
 	},
 	{
 		.id = 10,
-		.profile = 0x0104,
-		.device_id = 0x0304,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_PUMP_CONTROLLER,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_PUMP_CONTROLLER),
 		.clusters = pump_controller_clusters,
 		.cluster_count = ARRAY_SIZE(pump_controller_clusters),
 	},
 	{
 		.id = 11,
-		.profile = 0x0104,
-		.device_id = 0x0402,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_IAS_ZONE,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_IAS_ZONE),
 		.clusters = zone_clusters,
 		.cluster_count = ARRAY_SIZE(zone_clusters),
 	},
 	{
 		.id = 12,
-		.profile = 0x0104,
-		.device_id = 0x0403,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_IAS_WD,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_IAS_WD),
 		.clusters = wd_clusters,
 		.cluster_count = ARRAY_SIZE(wd_clusters),
 	},
 	{
 		.id = 13,
-		.profile = 0x0104,
-		.device_id = 0x0401,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_IAS_ACE,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_IAS_ACE),
 		.clusters = keypad_clusters,
 		.cluster_count = ARRAY_SIZE(keypad_clusters),
 	},
 	{
 		.id = 14,
-		.profile = 0x0104,
-		.device_id = 0x0400,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_IAS_CIE,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_IAS_CIE),
 		.clusters = cie_clusters,
 		.cluster_count = ARRAY_SIZE(cie_clusters),
 	},
 	{
 		.id = 15,
-		.profile = 0x0104,
-		.device_id = 0x000a,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_DOOR_LOCK,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_DOOR_LOCK),
 		.clusters = lock_clusters,
 		.cluster_count = ARRAY_SIZE(lock_clusters),
 	},
 	{
 		.id = 16,
-		.profile = 0x0104,
-		.device_id = 0x000b,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_DOOR_LOCK_CONTROLLER,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_DOOR_LOCK_CONTROLLER),
 		.clusters = lock_controller_clusters,
 		.cluster_count = ARRAY_SIZE(lock_controller_clusters),
 	},
 	{
 		.id = 17,
-		.profile = 0x0104,
-		.device_id = 0x000c,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_SIMPLE_SENSOR,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_SIMPLE_SENSOR),
 		.clusters = input_clusters,
 		.cluster_count = ARRAY_SIZE(input_clusters),
 	},
 	{
 		.id = 18,
-		.profile = 0x0104,
-		.device_id = 0x0051,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_SMART_PLUG,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_SMART_PLUG),
 		.clusters = plug_clusters,
 		.cluster_count = ARRAY_SIZE(plug_clusters),
 	},
 	{
 		.id = 19,
-		.profile = 0x0104,
-		.device_id = 0x0053,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_METER_INTERFACE,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_METER_INTERFACE),
 		.clusters = meter_clusters,
 		.cluster_count = ARRAY_SIZE(meter_clusters),
 	},
 	{
 		.id = 20,
-		.profile = 0x0104,
-		.device_id = 0x0052,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_WHITE_GOODS,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_WHITE_GOODS),
 		.clusters = goods_clusters,
 		.cluster_count = ARRAY_SIZE(goods_clusters),
 	},
 	{
 		.id = 21,
-		.profile = 0x0104,
-		.device_id = 0x0050,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_HOME_GATEWAY,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_HOME_GATEWAY),
 		.clusters = gateway_clusters,
 		.cluster_count = ARRAY_SIZE(gateway_clusters),
 	},
 	{
 		.id = 22,
-		.profile = 0x0104,
-		.device_id = 0x0000,
-		.device_version = 1,
+		.profile = ZZB_PROFILE_HA,
+		.device_id = ZZB_DEVICE_ON_OFF_SWITCH,
+		.device_version = ZZB_DEVICE_VERSION(ZZB_DEVICE_ON_OFF_SWITCH),
 		.clusters = on_off_switch_clusters,
 		.cluster_count = ARRAY_SIZE(on_off_switch_clusters),
 	},
