@@ -86,6 +86,16 @@ enum zzb_zcl_ias_ace_alarm_status {
 	ZZB_ZCL_IAS_ACE_ALARM_EMERGENCY_PANIC = 0x06,
 };
 
+/** Bypass Result of Bypass Response (ZCL Table 8-18). */
+enum zzb_zcl_ias_ace_bypass_result {
+	ZZB_ZCL_IAS_ACE_BYPASS_ZONE_BYPASSED = 0x00,
+	ZZB_ZCL_IAS_ACE_BYPASS_ZONE_NOT_BYPASSED = 0x01,
+	ZZB_ZCL_IAS_ACE_BYPASS_NOT_ALLOWED = 0x02,
+	ZZB_ZCL_IAS_ACE_BYPASS_INVALID_ZONE_ID = 0x03,
+	ZZB_ZCL_IAS_ACE_BYPASS_UNKNOWN_ZONE_ID = 0x04,
+	ZZB_ZCL_IAS_ACE_BYPASS_INVALID_CODE = 0x05,
+};
+
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_def;
 extern const struct zzb_zcl_cluster_def zzb_zcl_ias_ace_client_def;
 
