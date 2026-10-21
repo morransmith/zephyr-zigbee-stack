@@ -48,4 +48,5 @@ include(${ZEPHYR_ZZB_MODULE_DIR}/tests/common/ota_file.cmake)
 set(gen_dir ${ZEPHYR_BINARY_DIR}/include/generated)
 set(image ${ZEPHYR_ZZB_MODULE_DIR}/tests/common/mcuboot_image.bin)
 generate_inc_file_for_target(app ${image} ${gen_dir}/mcuboot_image.bin.inc)
-zzb_ota_file(${image} 0x1234 0x0042 0x01020400 ${gen_dir}/mcuboot_image.zigbee.inc)
+zzb_ota_file(${image} 0x1234 0x0042 0x01020400 ${gen_dir}/mcuboot_image.zigbee.inc
+  ${ZEPHYR_ZZB_MODULE_DIR}/tests/common/ota_index.json ${gen_dir}/ota_index.json.inc)

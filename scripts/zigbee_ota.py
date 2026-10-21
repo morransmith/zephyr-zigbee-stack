@@ -4,6 +4,9 @@
 """Builds a Zigbee OTA Upgrade file (ZCL 11.4) from a signed MCUboot image."""
 
 import argparse
+import hashlib
+import json
+import os
 import pathlib
 import struct
 import sys
@@ -33,12 +36,35 @@ def header_string(text):
     return text.encode()
 
 
+def add_to_index(args, ota_file):
+    """Writes the entry of the OTA file into the index file of the zigpy_local provider."""
+    index = json.loads(args.index.read_text()) if args.index.exists() else {"firmwares": []}
+    image = (args.manufacturer, args.image_type, args.file_version)
+    index["firmwares"] = [
+        fw
+        for fw in index["firmwares"]
+        if (fw["manufacturer_id"], fw["image_type"], fw["file_version"]) != image
+    ]
+    index["firmwares"].append(
+        {
+            "path": os.path.relpath(args.output, args.index.parent),
+            "file_version": args.file_version,
+            "file_size": len(ota_file),
+            "image_type": args.image_type,
+            "manufacturer_id": args.manufacturer,
+            "checksum": "sha3-256:" + hashlib.sha3_256(ota_file).hexdigest(),
+        }
+    )
+    args.index.write_text(json.dumps(index, indent=2) + "\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manufacturer", type=uint(0xFFFE), required=True)
     parser.add_argument("--image-type", type=uint(0xFFBF), required=True)
     parser.add_argument("--file-version", type=uint(0xFFFFFFFF), required=True)
     parser.add_argument("--header-string", type=header_string, default=b"zzb")
+    parser.add_argument("--index", type=pathlib.Path, help="index file of zigpy_local to update")
     parser.add_argument("image", type=argparse.FileType("rb"), help="zephyr.signed.bin")
     parser.add_argument("output", type=pathlib.Path)
     args = parser.parse_args()
@@ -62,7 +88,10 @@ def main():
         HEADER_LEN + SUB_ELEMENT_HEADER_LEN + len(image),
     )
     sub_element = struct.pack("<HI", UPGRADE_IMAGE_TAG, len(image))
-    args.output.write_bytes(header + sub_element + image)
+    ota_file = header + sub_element + image
+    args.output.write_bytes(ota_file)
+    if args.index:
+        add_to_index(args, ota_file)
 
 
 if __name__ == "__main__":
