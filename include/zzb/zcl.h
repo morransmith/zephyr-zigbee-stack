@@ -43,6 +43,7 @@ enum zzb_zcl_type {
 	ZZB_ZCL_EUI64 = 0xf0,
 };
 
+/** Nonzero for a string type, and for a type whose field has 1, 2, 4 or 8 octets. @{ */
 #define ZZB_ZCL_IS_STRING(type) ((type) == ZZB_ZCL_OCTSTR || (type) == ZZB_ZCL_STRING)
 #define ZZB_ZCL_IS_BYTE(type)                                                                      \
 	((type) == ZZB_ZCL_BOOL || (type) == ZZB_ZCL_MAP8 || (type) == ZZB_ZCL_UINT8 ||            \
@@ -58,6 +59,7 @@ enum zzb_zcl_type {
 
 #define ZZB_ZCL_IS_QWORD(type)                                                                     \
 	((type) == ZZB_ZCL_UINT48 || (type) == ZZB_ZCL_UINT56 || (type) == ZZB_ZCL_EUI64)
+/** @} */
 
 /**
  * Size of the value struct field of a type; 0 for a type that the stack does not store. A uint24
@@ -70,8 +72,9 @@ enum zzb_zcl_type {
 	 : ZZB_ZCL_IS_STRING(type) ? sizeof(void *)                                                \
 				   : ZZB_ZCL_IS_BYTE(type))
 
-/** zzb_zcl_attr.flags; every attribute is readable. */
+/** zzb_zcl_attr.flags: Write Attributes can write the attribute; every attribute is readable. */
 #define ZZB_ZCL_WRITE  BIT(0)
+/** Configure Reporting can configure a report of the attribute. */
 #define ZZB_ZCL_REPORT BIT(1)
 /** The descriptor holds the value of the attribute. */
 #define ZZB_ZCL_CONST  BIT(2)
@@ -86,8 +89,11 @@ enum zzb_zcl_type {
  * EUI64 is not reportable.
  */
 struct zzb_zcl_attr {
+	/** Attribute ID. */
 	uint16_t id;
+	/** enum zzb_zcl_type. */
 	uint8_t type;
+	/** ZZB_ZCL_WRITE, ZZB_ZCL_REPORT, ZZB_ZCL_CONST, ZZB_ZCL_NV. */
 	uint8_t flags;
 	union {
 		/** Offset of the field in the value struct. */
@@ -148,13 +154,19 @@ enum zzb_zcl_status {
 struct zzb_zcl_cmd {
 	/** The endpoint that processes the command. */
 	uint8_t ep;
+	/** Cluster ID. */
 	uint16_t cluster;
+	/** NWK address of the sender. */
 	uint16_t src_addr;
+	/** Endpoint of the sender. */
 	uint8_t src_ep;
+	/** Transaction sequence number of the ZCL header. */
 	uint8_t tsn;
 	/** Command identifier. */
 	uint8_t id;
+	/** The payload after the ZCL header. */
 	const uint8_t *payload;
+	/** Length of the payload. */
 	size_t len;
 	/** The command came as a NWK unicast to the endpoint, which ZCL responses may answer. */
 	bool unicast;
@@ -164,7 +176,9 @@ struct zzb_zcl_cmd {
 
 /** An attribute of the scene extension field set of a cluster (ZCL 3.7.2.4.2). */
 struct zzb_zcl_scene_attr {
+	/** Attribute ID. */
 	uint16_t id;
+	/** enum zzb_zcl_type. */
 	uint8_t type;
 };
 
@@ -175,12 +189,14 @@ struct zzb_zcl_scene_attr {
 struct zzb_zcl_cluster_def {
 	/** Attributes in ascending order of ID. */
 	const struct zzb_zcl_attr *attrs;
+	/** Number of attrs. */
 	uint8_t attr_count;
 	/**
 	 * The attributes of the scene extension field set in its order, at most
 	 * ZZB_ZCL_SCENE_ATTRS_MAX, or NULL. An attribute that attrs does not have is stored as 0.
 	 */
 	const struct zzb_zcl_scene_attr *scene_attrs;
+	/** Number of scene_attrs. */
 	uint8_t scene_attr_count;
 	/** Sets the defaults before the settings records are loaded, or NULL. */
 	void (*init)(void *values);
@@ -224,6 +240,7 @@ struct zzb_zcl_cluster_def {
 
 /** A cluster on an endpoint. */
 struct zzb_zcl_cluster {
+	/** Cluster ID. */
 	uint16_t id;
 	/** A server is an input cluster of the simple descriptor, a client an output cluster. */
 	bool server;
@@ -244,8 +261,11 @@ struct zzb_zcl_transition {
 	uint32_t duration;
 	/** The number of attributes, 0 while no transition runs. */
 	uint8_t count;
+	/** Attribute IDs. */
 	uint16_t attr[2];
+	/** The values at the start. */
 	uint16_t from[2];
+	/** The values at the end. */
 	uint16_t to[2];
 	/** The values written last. */
 	uint16_t last[2];
