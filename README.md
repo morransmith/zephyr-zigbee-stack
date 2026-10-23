@@ -58,6 +58,33 @@ manifest:
 
 `master` is the latest release. To fix the version, set `revision` (or `--mr`) to the tag of the needed release.
 
+To build with another Zephyr version, the firmware declares `zephyr` in its own manifest. A project defined in the manifest of the firmware takes precedence over an imported project with the same name, so west ignores the `zephyr` entry of zzb together with its `name-allowlist`, and the firmware lists the modules itself:
+
+```yaml
+manifest:
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+    - name: zzb
+      url-base: https://github.com/morransmith
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.5.0-rc2
+      import:
+        name-allowlist:
+          - cmsis_6
+          - hal_nordic
+          - hal_espressif
+          - mbedtls
+          - mcuboot
+          - tf-psa-crypto
+    - name: zephyr-zigbee-stack
+      remote: zzb
+      revision: master
+      import: true
+```
+
 `prj.conf`:
 
 ```ini
